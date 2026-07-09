@@ -28,15 +28,27 @@ const {
   JOURNEY_DAY_MAX,
 } = require('../utils/journeyDay');
 const { journeyWeekFromDay } = require('../utils/oldBatchDgWeekAccess');
+const { isLearningEnabled } = require('../utils/batchType');
 
 const TARGET_WEEKLY_SECONDS = 6 * 3600; // 6 hours
 const TOTAL_WEEKS = Math.ceil(JOURNEY_DAY_MAX / 7); // 200 days -> ~29 weeks
 
-/** red / yellow / green from an engagement percentage (0 activity -> red). */
+/**
+ * Engagement bands (based on 6 h/week target):
+ *   red    0–3 h  (<  50% of target)
+ *   yellow 3–6 h  (50–99% of target)
+ *   green  6 h+   (>= 100% of target)
+ */
 function bandForPct(pct) {
-  if (pct >= 75) return 'green';
-  if (pct >= 40) return 'yellow';
+  if (pct >= 100) return 'green';
+  if (pct >= 50) return 'yellow';
   return 'red';
+}
+
+/** Students with 5–6 h engagement (just below the 6 h/week target). */
+function isFiveToSixHours(seconds) {
+  const hours = seconds / 3600;
+  return hours >= 5 && hours < 6;
 }
 
 /**
@@ -51,7 +63,11 @@ function weekWindow(batchStartDate, week) {
   return { from, to };
 }
 
-/** Map an aggregator's byStudent array to { [studentId]: seconds }. */
+/** Default overview week: last completed journey week (never future/current partial week). */
+function defaultEngagementWeek(currentWeek) {
+  const cw = Math.max(1, Math.floor(Number(currentWeek) || 1));
+  return Math.max(1, cw - 1);
+}
 function secondsMap(byStudent) {
   const map = {};
   for (const row of byStudent || []) {
@@ -62,18 +78,36 @@ function secondsMap(byStudent) {
 
 /**
  * Engagement for one batch at one week.
- * Batches without a journey start date fall back to a rolling last-7-days
- * window (weeks can't be mapped to calendar dates without Day 1).
+ * week = 0  → "Overall": entire journey from batchStartDate to now.
+ * week = N  → specific journey week N.
+ * week = undefined/null → default to the batch's last completed journey week.
+ * Batches without a journey start date fall back to a rolling last-7-days window.
  * @returns {Promise<object>} batch row with per-student blocks + band counts.
  */
-async function getBatchEngagement(cfg, week) {
+async function getBatchEngagement(cfg, week, opts = {}) {
+  const { lite = false } = opts;
   const batchName = cfg.batchName;
+  const batchType = cfg.batchType || 'old';
+  if (!isLearningEnabled(batchType)) {
+    return null;
+  }
   const hasJourney = Boolean(cfg.batchStartDate);
   const currentDay = hasJourney ? computeJourneyDayFromBatchConfig(cfg, new Date()) : null;
   const currentWeek = hasJourney ? Math.min(TOTAL_WEEKS, journeyWeekFromDay(currentDay || 1)) : null;
-  const selectedWeek = hasJourney
-    ? Math.min(TOTAL_WEEKS, Math.max(1, Math.floor(Number(week) || currentWeek)))
-    : null;
+
+  const requestedWeek = week === undefined || week === null || week === ''
+    ? NaN
+    : Number(week);
+  let selectedWeek;
+  if (!hasJourney) {
+    selectedWeek = null;
+  } else if (requestedWeek === 0) {
+    selectedWeek = 0; // Overall
+  } else if (Number.isFinite(requestedWeek) && requestedWeek > 0) {
+    selectedWeek = Math.min(TOTAL_WEEKS, Math.max(1, Math.floor(requestedWeek)));
+  } else {
+    selectedWeek = defaultEngagementWeek(currentWeek);
+  }
 
   const students = await User.find({
     role: 'STUDENT',
@@ -86,6 +120,7 @@ async function getBatchEngagement(cfg, week) {
 
   const base = {
     batchName,
+    batchType,
     hasJourney,
     currentWeek,
     selectedWeek,
@@ -93,7 +128,7 @@ async function getBatchEngagement(cfg, week) {
     targetHours: TARGET_WEEKLY_SECONDS / 3600,
     studentCount: students.length,
     students: [],
-    bands: { red: 0, yellow: 0, green: 0 },
+    bands: { red: 0, yellow: 0, green: 0, fiveToSix: 0 },
   };
 
   if (!students.length) {
@@ -104,7 +139,13 @@ async function getBatchEngagement(cfg, week) {
   let from;
   let to;
   if (hasJourney) {
-    ({ from, to } = weekWindow(cfg.batchStartDate, selectedWeek));
+    if (selectedWeek === 0) {
+      // Overall: full journey from start date to now
+      from = new Date(cfg.batchStartDate);
+      to = new Date();
+    } else {
+      ({ from, to } = weekWindow(cfg.batchStartDate, selectedWeek));
+    }
   } else {
     to = new Date();
     from = new Date(to.getTime() - 7 * MS_PER_DAY);
@@ -120,12 +161,24 @@ async function getBatchEngagement(cfg, week) {
   const dgMap = secondsMap(dg.byStudent);
   const arMap = secondsMap(arena.byStudent);
 
+  if (lite) {
+    for (const s of students) {
+      const sid = String(s._id);
+      const seconds = (exMap[sid] || 0) + (dgMap[sid] || 0) + (arMap[sid] || 0);
+      const pct = Math.min(100, Math.round((seconds / TARGET_WEEKLY_SECONDS) * 100));
+      base.bands[bandForPct(pct)] += 1;
+      if (isFiveToSixHours(seconds)) base.bands.fiveToSix += 1;
+    }
+    return base;
+  }
+
   const blocks = students.map((s) => {
     const sid = String(s._id);
     const seconds = (exMap[sid] || 0) + (dgMap[sid] || 0) + (arMap[sid] || 0);
     const pct = Math.min(100, Math.round((seconds / TARGET_WEEKLY_SECONDS) * 100));
     const band = bandForPct(pct);
     base.bands[band] += 1;
+    if (isFiveToSixHours(seconds)) base.bands.fiveToSix += 1;
     return {
       studentId: sid,
       name: s.name || 'Student',
@@ -165,27 +218,35 @@ async function mapWithConcurrency(items, limit, fn) {
 }
 
 /**
- * Every batch that has active/ongoing students, sorted by batch number.
- * Uses the BatchConfig (journey start date) when one exists; batches without
- * a config/start date are still included so no batch silently disappears.
+ * Every new/new2 journey batch that has active/ongoing students, sorted by batch number.
+ * Only journey batches (batchStartDate set) with learning-enabled batch types appear.
  */
 async function getActiveBatchConfigs() {
-  const [cfgs, studentBatches] = await Promise.all([
-    BatchConfig.find({ batchStartDate: { $ne: null } })
-      .select('batchName batchStartDate journeyActive trialAccessStartDate trialDayEnabled')
-      .lean(),
-    User.distinct('batch', {
-      role: 'STUDENT',
-      isActive: true,
-      studentStatus: 'ONGOING',
-      batch: { $nin: [null, ''] },
-    }),
-  ]);
+  const cfgs = await BatchConfig.find({
+    batchType: { $in: ['new', 'new2'] },
+    batchStartDate: { $ne: null },
+    journeyActive: true,
+  })
+    .select('batchName batchStartDate batchType journeyActive trialAccessStartDate trialDayEnabled')
+    .lean();
+
+  if (!cfgs.length) return [];
+
+  const batchNames = cfgs.map((c) => c.batchName);
+  const studentBatches = await User.distinct('batch', {
+    role: 'STUDENT',
+    isActive: true,
+    studentStatus: 'ONGOING',
+    batch: { $in: batchNames },
+  });
 
   const byName = new Map(cfgs.map((c) => [String(c.batchName), c]));
-  const list = studentBatches.map(
-    (name) => byName.get(String(name)) || { batchName: String(name), batchStartDate: null }
-  );
+  const list = studentBatches
+    .filter((name) => {
+      const cfg = byName.get(String(name));
+      return cfg && isLearningEnabled(cfg.batchType);
+    })
+    .map((name) => byName.get(String(name)));
 
   const batchNo = (name) => {
     const m = String(name || '').match(/\d+/);
@@ -201,7 +262,9 @@ async function getActiveBatchConfigs() {
  */
 async function getEngagementOverview(week) {
   const cfgs = await getActiveBatchConfigs();
-  const batches = await mapWithConcurrency(cfgs, 5, (cfg) => getBatchEngagement(cfg, week));
+  const batches = await mapWithConcurrency(cfgs, 10, (cfg) =>
+    getBatchEngagement(cfg, week, { lite: true })
+  );
   return {
     targetHours: TARGET_WEEKLY_SECONDS / 3600,
     totalWeeks: TOTAL_WEEKS,
@@ -213,9 +276,12 @@ async function getEngagementOverview(week) {
 /** One batch at a specific week (for the per-batch week dropdown). */
 async function getSingleBatchEngagement(batchName, week) {
   const cfg = await BatchConfig.findOne({ batchName })
-    .select('batchName batchStartDate journeyActive trialAccessStartDate trialDayEnabled')
+    .select('batchName batchStartDate batchType journeyActive trialAccessStartDate trialDayEnabled')
     .lean();
-  return getBatchEngagement(cfg || { batchName, batchStartDate: null }, week);
+  if (!cfg || !isLearningEnabled(cfg.batchType) || !cfg.batchStartDate || !cfg.journeyActive) {
+    return null;
+  }
+  return getBatchEngagement(cfg, week, { lite: false });
 }
 
 module.exports = {
@@ -226,4 +292,5 @@ module.exports = {
   TOTAL_WEEKS,
   bandForPct,
   weekWindow,
+  defaultEngagementWeek,
 };

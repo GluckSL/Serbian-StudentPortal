@@ -27,6 +27,14 @@ const {
   getEngagementOverview,
   getSingleBatchEngagement,
 } = require('../services/engagementOverviewService');
+const {
+  getClassAttendanceOverview,
+  getSingleBatchClassAttendance,
+} = require('../services/classAttendanceOverviewService');
+const {
+  getPaymentOverview,
+  getSingleBatchPaymentHealth,
+} = require('../services/paymentOverviewService');
 
 const LANGUAGE_TRACKING_TAB = 'language-tracking';
 const requireLanguageTrackingView = requireAdminOrSubAdminTab(LANGUAGE_TRACKING_TAB, 'view');
@@ -252,6 +260,64 @@ router.get('/engagement-overview/batch', verifyToken, requireLanguageTrackingVie
   } catch (err) {
     console.error('language-tracking GET /engagement-overview/batch', err);
     res.status(500).json({ message: 'Failed to load batch engagement' });
+  }
+});
+
+// ── GET /api/language-tracking/class-attendance-overview ─────────────────────
+// All active new/new2 batches at their current CEFR level (class attendance heatmap).
+router.get('/class-attendance-overview', verifyToken, requireLanguageTrackingView, async (req, res) => {
+  try {
+    const data = await getClassAttendanceOverview();
+    res.json(data);
+  } catch (err) {
+    console.error('language-tracking GET /class-attendance-overview', err);
+    res.status(500).json({ message: 'Failed to load class attendance overview' });
+  }
+});
+
+// ── GET /api/language-tracking/class-attendance-overview/batch ────────────────
+// One batch's class attendance for a specific CEFR level.
+// Query: batch (required), level (optional — defaults to batch's current level)
+router.get('/class-attendance-overview/batch', verifyToken, requireLanguageTrackingView, async (req, res) => {
+  try {
+    const batch = String(req.query.batch || '').trim();
+    if (!batch) return res.status(400).json({ message: 'batch is required' });
+    const level = String(req.query.level || '').trim().toUpperCase() || undefined;
+    const data = await getSingleBatchClassAttendance(batch, level);
+    if (!data) return res.status(404).json({ message: 'Batch not found' });
+    res.json(data);
+  } catch (err) {
+    console.error('language-tracking GET /class-attendance-overview/batch', err);
+    res.status(500).json({ message: 'Failed to load batch class attendance' });
+  }
+});
+
+// ── GET /api/language-tracking/payment-overview ───────────────────────────────
+// All active new/new2 batches at their current CEFR level (payment health heatmap).
+router.get('/payment-overview', verifyToken, requireLanguageTrackingView, async (req, res) => {
+  try {
+    const data = await getPaymentOverview();
+    res.json(data);
+  } catch (err) {
+    console.error('language-tracking GET /payment-overview', err);
+    res.status(500).json({ message: 'Failed to load payment overview' });
+  }
+});
+
+// ── GET /api/language-tracking/payment-overview/batch ─────────────────────────
+// One batch payment health for a specific CEFR level.
+// Query: batch (required), level (optional — defaults to batch current level)
+router.get('/payment-overview/batch', verifyToken, requireLanguageTrackingView, async (req, res) => {
+  try {
+    const batch = String(req.query.batch || '').trim();
+    if (!batch) return res.status(400).json({ message: 'batch is required' });
+    const level = String(req.query.level || '').trim().toUpperCase() || undefined;
+    const data = await getSingleBatchPaymentHealth(batch, level);
+    if (!data) return res.status(404).json({ message: 'Batch not found' });
+    res.json(data);
+  } catch (err) {
+    console.error('language-tracking GET /payment-overview/batch', err);
+    res.status(500).json({ message: 'Failed to load batch payment health' });
   }
 });
 

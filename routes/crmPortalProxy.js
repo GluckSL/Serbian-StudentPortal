@@ -128,6 +128,7 @@ router.post('/enrollment-board/sales-dashboard', async (req, res) => {
       counsellorNames: Array.isArray(req.body?.counsellorNames)
         ? req.body.counsellorNames
         : undefined,
+      reportPeriod: req.body?.reportPeriod === 'morning' ? 'morning' : 'evening',
     });
     res.json({ success: true, ...result });
   } catch (err) {
@@ -176,6 +177,7 @@ router.post('/enrollment-board/sales-dashboard/send-to-chat', async (req, res) =
   try {
     const result = await sendSalesDashboardToChat({
       imagePngBase64: req.body?.imagePngBase64 || null,
+      reportPeriod: req.body?.reportPeriod === 'morning' ? 'morning' : 'evening',
     });
     res.json(result);
   } catch (err) {

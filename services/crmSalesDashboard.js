@@ -19,6 +19,7 @@ const GREEN_MAX_DAYS = 2; // today through 2 days ago
 const YELLOW_MAX_DAYS = 5; // 3–5 days ago
 
 const SETTINGS_KEY = 'default';
+const REPORT_TZ = 'Asia/Colombo';
 
 /** First-time default team — user requested these 10 names. */
 const DEFAULT_WATCH_NAMES = [
@@ -71,11 +72,70 @@ function partsToIso({ y, m, d }) {
 }
 
 function todayParts(now = new Date()) {
+  return colomboDateParts(now);
+}
+
+function colomboDateParts(now = new Date()) {
+  const fmt = new Intl.DateTimeFormat('en-CA', {
+    timeZone: REPORT_TZ,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  const [y, m, d] = fmt.format(now).split('-').map(Number);
+  return { y, m, d };
+}
+
+function partsAddDays(parts, delta) {
+  const d = new Date(Date.UTC(parts.y, parts.m - 1, parts.d + delta));
   return {
-    y: now.getFullYear(),
-    m: now.getMonth() + 1,
-    d: now.getDate(),
+    y: d.getUTCFullYear(),
+    m: d.getUTCMonth() + 1,
+    d: d.getUTCDate(),
   };
+}
+
+function isPartsInRange(parts, start, end) {
+  const iso = partsToIso(parts);
+  return iso >= partsToIso(start) && iso <= partsToIso(end);
+}
+
+function formatReportDateParts(parts) {
+  const d = new Date(Date.UTC(parts.y, parts.m - 1, parts.d));
+  return d.toLocaleDateString('en-GB', {
+    timeZone: 'UTC',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+}
+
+/**
+ * Weekly report window (7 days, Asia/Colombo).
+ * Morning (10 AM): excludes today — e.g. 9 Jul → 2 Jul to 8 Jul.
+ * Evening (7 PM): includes today — e.g. 9 Jul → 3 Jul to 9 Jul.
+ */
+function getWeeklyReportWindow(period = 'evening', now = new Date()) {
+  const today = colomboDateParts(now);
+  if (period === 'morning') {
+    return {
+      period: 'morning',
+      start: partsAddDays(today, -7),
+      end: partsAddDays(today, -1),
+      reference: partsAddDays(today, -1),
+    };
+  }
+  return {
+    period: 'evening',
+    start: partsAddDays(today, -6),
+    end: today,
+    reference: today,
+  };
+}
+
+function buildEnrollmentReportText(period = 'evening', now = new Date()) {
+  const w = getWeeklyReportWindow(period, now);
+  return `Enrollment report from ${formatReportDateParts(w.start)} to ${formatReportDateParts(w.end)}`;
 }
 
 function toUtcMidnight({ y, m, d }) {
@@ -86,8 +146,15 @@ function daysSinceEnrollment(enrolledRaw, now = new Date()) {
   const parts = parseEnrollmentParts(enrolledRaw);
   if (!parts) return null;
   const enrolledMs = toUtcMidnight(parts);
-  const todayMs = toUtcMidnight(todayParts(now));
+  const todayMs = toUtcMidnight(colomboDateParts(now));
   return Math.floor((todayMs - enrolledMs) / 86400000);
+}
+
+function daysSinceFromParts(enrolledParts, referenceParts) {
+  if (!enrolledParts || !referenceParts) return null;
+  return Math.floor(
+    (toUtcMidnight(referenceParts) - toUtcMidnight(enrolledParts)) / 86400000
+  );
 }
 
 function formatEnrollmentDate(raw) {
@@ -203,13 +270,15 @@ function bucketCard(card) {
 }
 
 /**
- * @param {{ simple?: object, advanced?: object | null, counsellorNames?: string[] | null, crmRows?: object[] }} [query]
+ * @param {{ simple?: object, advanced?: object | null, counsellorNames?: string[] | null, crmRows?: object[], reportPeriod?: 'morning' | 'evening' }} [query]
  *   If counsellorNames is provided, use that list (preview). Otherwise load saved DB watchlist.
- *   Pass crmRows to reuse a CRM pull from the same run (e.g. 7 PM cron).
+ *   Pass crmRows to reuse a CRM pull from the same run (e.g. cron).
+ *   reportPeriod: morning = week ending yesterday; evening = week including today.
  */
 async function buildSalesDashboard(query = {}) {
   const simple = query.simple || {};
   const advanced = query.advanced || null;
+  const reportPeriod = query.reportPeriod === 'morning' ? 'morning' : 'evening';
 
   const rowsPromise = Array.isArray(query.crmRows)
     ? Promise.resolve(query.crmRows)
@@ -222,7 +291,8 @@ async function buildSalesDashboard(query = {}) {
       ? cleanNameList(query.counsellorNames)
       : settings.counsellorNames;
 
-  const now = new Date();
+  const reportWindow = getWeeklyReportWindow(reportPeriod);
+  let enrollmentsInWindow = 0;
 
   /** @type {Map<string, { name: string, lastEnrollment: string | null, daysSince: number | null, totalEnrollments: number, weeklyEnrollments: number, prevWeekDaysSince: number | null }>} */
   const byCounsellor = new Map();
@@ -233,8 +303,7 @@ async function buildSalesDashboard(query = {}) {
 
     const key = normalizeName(name);
     const enrolledRaw = enrollmentDateOf(row);
-    const enrolledDate = formatEnrollmentDate(enrolledRaw);
-    const days = daysSinceEnrollment(enrolledRaw, now);
+    const enrolledParts = parseEnrollmentParts(enrolledRaw);
 
     let entry = byCounsellor.get(key);
     if (!entry) {
@@ -249,20 +318,21 @@ async function buildSalesDashboard(query = {}) {
       byCounsellor.set(key, entry);
     }
 
+    if (
+      !enrolledParts ||
+      !isPartsInRange(enrolledParts, reportWindow.start, reportWindow.end)
+    ) {
+      continue;
+    }
+
+    enrollmentsInWindow += 1;
+    const enrolledDate = formatEnrollmentDate(enrolledRaw);
+    const days = daysSinceFromParts(enrolledParts, reportWindow.reference);
+
     entry.totalEnrollments += 1;
+    entry.weeklyEnrollments += 1;
 
     if (days == null || days < 0) continue;
-
-    // Enrollments in the last 7 calendar days (0–6) for "Average Activity"
-    if (days <= 6) entry.weeklyEnrollments += 1;
-
-    // "Last week" snapshot: days-since as of 7 days ago
-    const prevDays = days - 7;
-    if (prevDays >= 0) {
-      if (entry.prevWeekDaysSince == null || prevDays < entry.prevWeekDaysSince) {
-        entry.prevWeekDaysSince = prevDays;
-      }
-    }
 
     if (
       entry.daysSince == null ||
@@ -282,9 +352,6 @@ async function buildSalesDashboard(query = {}) {
   const yellow = [];
   const red = [];
   const usedCrmKeys = new Set();
-  let prevGreen = 0;
-  let prevYellow = 0;
-  let prevRed = 0;
 
   // Build one card per watched name (prefer CRM match; else empty/red)
   for (const watch of watchNames) {
@@ -328,14 +395,6 @@ async function buildSalesDashboard(query = {}) {
     if (bucket === 'green') green.push(card);
     else if (bucket === 'yellow') yellow.push(card);
     else red.push(card);
-
-    // Week-over-week bucket for trend (+/- from last week)
-    const prevBucket = bucketCard({
-      daysSince: matched ? matched.prevWeekDaysSince : null,
-    });
-    if (prevBucket === 'green') prevGreen += 1;
-    else if (prevBucket === 'yellow') prevYellow += 1;
-    else prevRed += 1;
   }
 
   const byRecencyThenName = (a, b) => {
@@ -368,13 +427,21 @@ async function buildSalesDashboard(query = {}) {
       green: green.length,
       yellow: yellow.length,
       red: red.length,
-      enrollmentsScanned: rows.length,
+      enrollmentsScanned: enrollmentsInWindow,
       availableCounsellors: availableCounsellors.length,
     },
+    reportWindow: {
+      period: reportWindow.period,
+      start: partsToIso(reportWindow.start),
+      end: partsToIso(reportWindow.end),
+      startLabel: formatReportDateParts(reportWindow.start),
+      endLabel: formatReportDateParts(reportWindow.end),
+      reportText: buildEnrollmentReportText(reportPeriod),
+    },
     trends: {
-      green: green.length - prevGreen,
-      yellow: yellow.length - prevYellow,
-      red: red.length - prevRed,
+      green: 0,
+      yellow: 0,
+      red: 0,
     },
     windows: {
       greenMaxDays: GREEN_MAX_DAYS,
@@ -393,10 +460,15 @@ module.exports = {
   getWatchlistSettings,
   saveWatchlistSettings,
   daysSinceEnrollment,
+  daysSinceFromParts,
   formatEnrollmentDate,
   parseEnrollmentParts,
   namesMatch,
+  getWeeklyReportWindow,
+  buildEnrollmentReportText,
+  formatReportDateParts,
   DEFAULT_WATCH_NAMES,
   GREEN_MAX_DAYS,
   YELLOW_MAX_DAYS,
+  REPORT_TZ,
 };

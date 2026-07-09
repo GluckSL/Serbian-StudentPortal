@@ -1305,7 +1305,105 @@
 
 .crm-sales-capture {
   background: #fff;
-  padding-bottom: 4px;
+  padding-bottom: 8px;
+
+  .crm-perf-row {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 20px;
+    padding: 20px 16px 16px;
+  }
+
+  .crm-sales-summary__left {
+    strong {
+      font-size: 30px;
+    }
+
+    .crm-sales-report-label {
+      margin-top: 6px;
+      font-size: 22px;
+      font-weight: 800;
+      color: #0f172a;
+    }
+
+    span {
+      margin-top: 6px;
+      font-size: 24px;
+    }
+  }
+
+  .crm-perf {
+    border-radius: 12px;
+  }
+
+  .crm-perf__banner {
+    gap: 16px;
+    padding: 20px 24px 24px;
+  }
+
+  .crm-perf__banner-main h3 {
+    font-size: 24px;
+  }
+
+  .crm-perf__num {
+    font-size: 3.3rem;
+  }
+
+  .crm-perf__meter em {
+    margin-top: 6px;
+    font-size: 20px;
+  }
+
+  .crm-perf__bar {
+    height: 12px;
+  }
+
+  .crm-perf__body {
+    max-height: 440px;
+  }
+
+  .crm-perf__empty {
+    padding: 28px 20px;
+    font-size: 22px;
+  }
+
+  .crm-perf-table {
+    font-size: 22px;
+
+    th {
+      padding: 14px 16px;
+      font-size: 18px;
+    }
+
+    td {
+      padding: 14px 16px;
+    }
+
+    &__name {
+      max-width: 220px;
+    }
+
+    &__date {
+      font-size: 20px;
+    }
+  }
+
+  .crm-perf-status {
+    gap: 6px;
+    font-size: 20px;
+
+    .material-icons {
+      font-size: 28px;
+    }
+  }
+
+  .crm-perf-risk {
+    gap: 6px;
+    font-size: 20px;
+
+    .material-icons {
+      font-size: 26px;
+    }
+  }
 }
 
 .crm-sales-image-msg {
@@ -1324,6 +1422,14 @@
     font-size: 15px;
     font-weight: 700;
     color: #0f172a;
+  }
+
+  .crm-sales-report-label {
+    margin-top: 4px;
+    font-size: 14px;
+    font-weight: 800;
+    color: #0f172a;
+    letter-spacing: 0.01em;
   }
 
   span {
@@ -1725,8 +1831,51 @@
 }
 
 @media (max-width: 1100px) {
-  .crm-perf-row {
+  .crm-sales-panel .crm-perf-row {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .crm-sales-capture {
+    .crm-perf-row {
+      grid-template-columns: 1fr;
+    }
+
+    .crm-sales-summary__left {
+      strong {
+        font-size: 22px;
+      }
+
+      .crm-sales-report-label {
+        font-size: 17px;
+      }
+
+      span {
+        font-size: 16px;
+      }
+    }
+
+    .crm-perf__banner-main h3 {
+      font-size: 18px;
+    }
+
+    .crm-perf__num {
+      font-size: 2.4rem;
+    }
+
+    .crm-perf-table {
+      font-size: 16px;
+
+      th {
+        font-size: 13px;
+        padding: 10px 12px;
+      }
+
+      td {
+        padding: 10px 12px;
+      }
+    }
   }
 }
 

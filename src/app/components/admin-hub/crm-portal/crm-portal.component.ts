@@ -109,6 +109,14 @@ export interface SalesDashboardResult {
     red: number;
   };
   generatedAt: string;
+  reportWindow?: {
+    period: 'morning' | 'evening';
+    start: string;
+    end: string;
+    startLabel: string;
+    endLabel: string;
+    reportText: string;
+  };
 }
 
 export interface WaAutomationItem {
@@ -1214,7 +1222,10 @@ export class CrmPortalComponent implements OnInit, OnDestroy {
     };
     this.salesWatchSaveMsg = '';
 
-    this.http.post<any>('/api/crm-portal/enrollment-board/sales-dashboard', { simple: {} })
+    this.http.post<any>('/api/crm-portal/enrollment-board/sales-dashboard', {
+      simple: {},
+      reportPeriod: this.salesReportPeriod(),
+    })
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (res) => this.applySalesDashboardResponse(res),
@@ -1256,6 +1267,7 @@ export class CrmPortalComponent implements OnInit, OnDestroy {
         red: res.trends?.red || 0,
       },
       generatedAt: res.generatedAt || new Date().toISOString(),
+      reportWindow: res.reportWindow || undefined,
     };
     this.salesWatchDraft = [...(res.watchedNames || [])];
     if (res.setupRequired) {
@@ -1353,10 +1365,21 @@ export class CrmPortalComponent implements OnInit, OnDestroy {
     return `${days} Days Ago`;
   }
 
-  salesTrendLabel(delta: number): string {
-    if (delta > 0) return `+${delta} from last week`;
-    if (delta < 0) return `${delta} from last week`;
-    return 'Same as last week';
+  salesReportPeriod(): 'morning' | 'evening' {
+    const hour = Number(
+      new Date().toLocaleString('en-GB', {
+        timeZone: 'Asia/Colombo',
+        hour: 'numeric',
+        hour12: false,
+      })
+    );
+    return hour >= 19 ? 'evening' : 'morning';
+  }
+
+  salesReportWindowLabel(): string {
+    const w = this.salesDashboard.reportWindow;
+    if (!w?.startLabel || !w?.endLabel) return '';
+    return `${w.startLabel} to ${w.endLabel}`;
   }
 
   salesProgressPct(count: number): number {
@@ -1392,7 +1415,7 @@ export class CrmPortalComponent implements OnInit, OnDestroy {
     try {
       await new Promise(r => setTimeout(r, 80));
       const canvas = await html2canvas(el, {
-        scale: 2,
+        scale: 3,
         useCORS: true,
         allowTaint: true,
         backgroundColor: '#ffffff',
@@ -1452,6 +1475,7 @@ export class CrmPortalComponent implements OnInit, OnDestroy {
         this.http
           .post<any>('/api/crm-portal/enrollment-board/sales-dashboard/send-to-chat', {
             imagePngBase64,
+            reportPeriod: this.salesReportPeriod(),
           })
           .pipe(takeUntil(this.destroy$))
           .subscribe({

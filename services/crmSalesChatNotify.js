@@ -6,7 +6,7 @@
  */
 
 const axios = require('axios');
-const { buildSalesDashboard } = require('./crmSalesDashboard');
+const { buildSalesDashboard, buildEnrollmentReportText } = require('./crmSalesDashboard');
 const {
   renderDashboardPng,
   pngBufferFromBase64,
@@ -15,39 +15,22 @@ const {
 
 const CHAT_WEBHOOK = (process.env.SalesChat || '').trim();
 
-const REPORT_TZ = 'Asia/Colombo';
-
-/** e.g. "2 July 2026" */
-function formatChatDate(d) {
-  return d.toLocaleDateString('en-GB', {
-    timeZone: REPORT_TZ,
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  });
-}
-
-/** Enrollment report window: today − 7 days → today (Asia/Colombo). */
-function buildEnrollmentReportText() {
-  const now = new Date();
-  const start = new Date(now);
-  start.setDate(start.getDate() - 7);
-  return `Enrollment report from ${formatChatDate(start)} to ${formatChatDate(now)}`;
-}
-
-function buildChatPayload(_data, imageUrl) {
-  const text = buildEnrollmentReportText();
+function buildChatPayload(data, imageUrl) {
+  const reportText = data?.reportWindow?.reportText || buildEnrollmentReportText('evening');
 
   if (!imageUrl) {
-    return { text };
+    return { text: reportText };
   }
 
   return {
-    text,
     cardsV2: [
       {
         cardId: 'sales-dashboard-snapshot',
         card: {
+          header: {
+            title: reportText,
+            subtitle: 'Counsellor Performance Dashboard',
+          },
           sections: [
             {
               widgets: [
@@ -89,7 +72,7 @@ function buildChatPayload(_data, imageUrl) {
 
 /**
  * Fetch fresh dashboard data, build/upload PNG, post to Google Chat.
- * @param {{ simple?: object, advanced?: object, imagePngBase64?: string }} [query]
+ * @param {{ simple?: object, advanced?: object, imagePngBase64?: string, crmRows?: object[], reportPeriod?: 'morning' | 'evening' }} [query]
  */
 async function sendSalesDashboardToChat(query = {}) {
   if (!CHAT_WEBHOOK) {
