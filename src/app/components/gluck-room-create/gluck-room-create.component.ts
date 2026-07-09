@@ -82,6 +82,7 @@ export class GluckRoomCreateComponent implements OnInit {
   error = '';
   loadingBatches = true;
 
+  todayDate = new Date();
   durationOptions = [15, 30, 45, 60, 90, 120, 180, 240, 300];
   levelOptions = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
   planOptions = ['SILVER', 'PLATINUM', 'VISA_DOC_ONLY'];
@@ -306,6 +307,16 @@ export class GluckRoomCreateComponent implements OnInit {
     if (!this.targetJourneyDay) { this.error = 'Target journey day is required.'; return; }
     if (!this.plan) { this.error = 'Plan is required.'; return; }
 
+    const startTime = new Date(this.scheduledStartTime);
+    if (Number.isNaN(startTime.getTime())) {
+      this.error = 'Invalid date or time.';
+      return;
+    }
+    if (startTime.getTime() <= Date.now()) {
+      this.error = 'Scheduled time must be in the future.';
+      return;
+    }
+
     this.submitting = true;
     this.error = '';
 
@@ -416,6 +427,13 @@ export class GluckRoomCreateComponent implements OnInit {
     this.error = '';
     const ok = await this.runPreview();
     if (!ok) return;
+
+    const now = Date.now();
+    const pastSchedules = this.schedules.filter(s => new Date(s.startTime).getTime() <= now);
+    if (pastSchedules.length > 0) {
+      this.error = `Some schedules are in the past (e.g. ${pastSchedules[0].startTime}). Adjust the start time or starting journey day.`;
+      return;
+    }
 
     const v = this.basicForm.getRawValue();
     const common: Record<string, unknown> = {
@@ -563,6 +581,13 @@ export class GluckRoomCreateComponent implements OnInit {
   }
 
   // ── Navigation ──
+
+  preventInvalidNumberChars(event: KeyboardEvent): void {
+    const allowed = ['0','1','2','3','4','5','6','7','8','9','Backspace','Delete','Tab','ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End'];
+    if (!allowed.includes(event.key)) {
+      event.preventDefault();
+    }
+  }
 
   cancel(): void {
     this.router.navigate(['/gluck-room']);

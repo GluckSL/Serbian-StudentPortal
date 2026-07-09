@@ -56,6 +56,11 @@ router.post('/sessions', verifyToken, checkRole(['TEACHER', 'SUB_ADMIN', 'ADMIN'
       return res.status(403).json({ success: false, message: 'You can only create sessions for your assigned batches' });
     }
 
+    const parsedStart = parseScheduledTime(scheduledStartTime, timezone);
+    if (!parsedStart || parsedStart.getTime() <= Date.now()) {
+      return res.status(400).json({ success: false, message: 'Scheduled time must be in the future' });
+    }
+
     const activeSession = await GluckRoomSession.findOne({ hostId: userId, status: 'active' });
     if (activeSession) {
       return res.status(409).json({ success: false, message: 'You already have an active session. End it before creating a new one.' });
@@ -64,7 +69,7 @@ router.post('/sessions', verifyToken, checkRole(['TEACHER', 'SUB_ADMIN', 'ADMIN'
     const session = new GluckRoomSession({
       sessionName,
       hostId: userId,
-      scheduledStartTime: parseScheduledTime(scheduledStartTime, timezone),
+      scheduledStartTime: parsedStart,
       maxDurationMinutes: maxDurationMinutes || 180,
       batch,
       courseDay: courseDay || null,
@@ -262,7 +267,11 @@ router.put('/sessions/:id', verifyToken, async (req, res) => {
       if (req.body[field] !== undefined) session[field] = req.body[field];
     });
     if (req.body.scheduledStartTime !== undefined) {
-      session.scheduledStartTime = parseScheduledTime(req.body.scheduledStartTime, req.body.timezone || session.timezone);
+      const parsed = parseScheduledTime(req.body.scheduledStartTime, req.body.timezone || session.timezone);
+      if (!parsed || parsed.getTime() <= Date.now()) {
+        return res.status(400).json({ success: false, message: 'Scheduled time must be in the future' });
+      }
+      session.scheduledStartTime = parsed;
     }
 
     await session.save();
@@ -378,6 +387,10 @@ router.post('/sessions/bulk', verifyToken, checkRole(['TEACHER', 'SUB_ADMIN', 'A
         const scheduledStart = new Date(`${startTime}:00+05:30`);
         if (Number.isNaN(scheduledStart.getTime())) {
           failures.push({ startTime, message: 'Invalid startTime format' });
+          continue;
+        }
+        if (scheduledStart.getTime() <= Date.now()) {
+          failures.push({ startTime, message: 'Start time is in the past' });
           continue;
         }
 

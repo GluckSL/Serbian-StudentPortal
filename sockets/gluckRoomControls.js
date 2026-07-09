@@ -2,6 +2,20 @@ const { Server } = require('socket.io');
 const gluckRoomService = require('../services/gluckRoomService');
 const GluckRoomParticipant = require('../models/GluckRoomParticipant');
 
+const staffCountByRoom = new Map();
+
+function getStaffCount(room) {
+  return staffCountByRoom.get(room) || 0;
+}
+
+function updateStaffCount(room, delta) {
+  const current = getStaffCount(room);
+  const next = Math.max(0, current + delta);
+  if (next === 0) staffCountByRoom.delete(room);
+  else staffCountByRoom.set(room, next);
+  return next;
+}
+
 function initGluckRoomControls(httpServer, app) {
   console.log('[gluckRoom] initGluckRoomControls called');
   console.log('[gluckRoom] httpServer request listeners before:', httpServer.listeners('request').length);
@@ -56,6 +70,13 @@ function initGluckRoomControls(httpServer, app) {
 
     const isStudent = role === 'student';
     const canModerate = !isStudent;
+
+    // Track staff presence per room
+    if (canModerate) {
+      socket.wasStaff = true;
+      const count = updateStaffCount(roomName, 1);
+      roomNamespace.to(roomName).emit('staff-online-count', { count });
+    }
 
     socket.on('mute-participant', async ({ targetUserId }) => {
       if (!canModerate) return;
@@ -115,6 +136,10 @@ function initGluckRoomControls(httpServer, app) {
 
     socket.on('disconnect', () => {
       socket.leave(roomName);
+      if (socket.wasStaff) {
+        const count = updateStaffCount(roomName, -1);
+        roomNamespace.to(roomName).emit('staff-online-count', { count });
+      }
     });
 
     // ── Breakout room events ──
@@ -180,6 +205,10 @@ function initGluckRoomControls(httpServer, app) {
 
     socket.on('disconnect', () => {
       socket.leave(roomName);
+      if (socket.wasStaff) {
+        const count = updateStaffCount(roomName, -1);
+        roomNamespace.to(roomName).emit('staff-online-count', { count });
+      }
     });
   } catch (err) {
     console.error('[gluckRoom] connection handler error:', err.message);

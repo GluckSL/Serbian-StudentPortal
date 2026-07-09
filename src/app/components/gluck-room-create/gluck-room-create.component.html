@@ -34,7 +34,7 @@
         <div class="form-row">
           <mat-form-field appearance="outline" class="half-width">
             <mat-label>Scheduled Date</mat-label>
-            <input matInput [matDatepicker]="picker" [(ngModel)]="scheduleDate" required>
+            <input matInput [matDatepicker]="picker" [(ngModel)]="scheduleDate" [min]="todayDate" required>
             <mat-datepicker-toggle matSuffix [for]="picker"></mat-datepicker-toggle>
             <mat-datepicker #picker></mat-datepicker>
           </mat-form-field>
@@ -50,14 +50,14 @@
 
           <mat-form-field appearance="outline" class="half-width">
             <mat-label>Course Day</mat-label>
-            <input matInput type="number" [(ngModel)]="courseDay" min="1" max="200" placeholder="1-200" required>
+            <input matInput type="number" [(ngModel)]="courseDay" (keydown)="preventInvalidNumberChars($event)" min="1" max="200" placeholder="1-200" required>
           </mat-form-field>
         </div>
 
         <div class="form-row">
           <mat-form-field appearance="outline" class="half-width">
             <mat-label>Target Journey Day</mat-label>
-            <input matInput type="number" [(ngModel)]="targetJourneyDay" min="1" max="200" placeholder="1-200" required>
+            <input matInput type="number" [(ngModel)]="targetJourneyDay" (keydown)="preventInvalidNumberChars($event)" min="1" max="200" placeholder="1-200" required>
           </mat-form-field>
 
           <mat-form-field appearance="outline" class="half-width">

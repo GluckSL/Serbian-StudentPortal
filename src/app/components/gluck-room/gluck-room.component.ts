@@ -299,7 +299,7 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
           });
           this.updateParticipantList();
           this.selectMainParticipant();
-          this.waitingForTeacher = !this.isHostUser && !this.findTeacherParticipant();
+          this.waitingForTeacher = this.isStudent;
         this.room?.startAudio().catch((e) => console.warn('startAudio failed:', e));
         setTimeout(() => {
           if (this.selfViewStream) {
@@ -403,7 +403,6 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
     p.on(ParticipantEvent.TrackSubscribed, this.onRemoteTrackSubscribed);
     p.on(ParticipantEvent.TrackSubscriptionStatusChanged, this.onRemoteTrackMute);
     this.ngZone.run(() => {
-      if (p.identity === this.hostId) this.waitingForTeacher = false;
       this.updateParticipantList();
     });
     this.selectMainParticipant();
@@ -415,7 +414,6 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
     p.off(ParticipantEvent.TrackSubscribed, this.onRemoteTrackSubscribed);
     p.off(ParticipantEvent.TrackSubscriptionStatusChanged, this.onRemoteTrackMute);
     this.ngZone.run(() => {
-      if (p.identity === this.hostId && !this.isHostUser) this.waitingForTeacher = true;
       this.updateParticipantList();
     });
     this.selectMainParticipant();
@@ -485,6 +483,12 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
     socket.on('all-cameras-disabled', () => {
       this.room?.localParticipant.setCameraEnabled(false);
     });
+    socket.on('staff-online-count', ({ count }: { count: number }) => {
+      this.ngZone.run(() => {
+        this.waitingForTeacher = count === 0;
+      });
+    });
+
     socket.on('session-ended', () => {
       if (this.isLocallyEnding) return;
       this.ngZone.run(() => {
@@ -572,26 +576,28 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
       return;
     }
 
+    // Any remote participant's screen share -> show in center
+    const screenSharePub = this.findAnyScreenShareParticipant();
+    if (screenSharePub?.videoTrack) {
+      const ssTrack = screenSharePub.videoTrack.mediaStreamTrack;
+      this.ngZone.run(() => {
+        this.mainParticipant = {
+          ...this.participantToInfo(screenSharePub.participant),
+          hasVideo: true,
+        };
+        this.isMainScreenShare = true;
+        this.attachToMainVideo(ssTrack);
+      });
+      return;
+    }
+
+    // Fallback to host teacher's camera
     const teacher = this.findTeacherParticipant();
     if (!teacher) {
       this.ngZone.run(() => {
         this.mainParticipant = null;
         this.isMainScreenShare = false;
         this.attachToMainVideo(null);
-      });
-      return;
-    }
-
-    const teacherScreenShare = this.getScreenSharePub(teacher);
-    if (teacherScreenShare?.videoTrack) {
-      const ssTrack = teacherScreenShare.videoTrack.mediaStreamTrack;
-      this.ngZone.run(() => {
-        this.mainParticipant = {
-          ...this.participantToInfo(teacher),
-          hasVideo: true,
-        };
-        this.isMainScreenShare = true;
-        this.attachToMainVideo(ssTrack);
       });
       return;
     }
@@ -640,6 +646,17 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
     if (!this.room) return null;
     for (const [, p] of this.room.remoteParticipants) {
       if (p.identity === this.hostId) return p;
+    }
+    return null;
+  }
+
+  private findAnyScreenShareParticipant(): { participant: RemoteParticipant; videoTrack: VideoTrack } | null {
+    if (!this.room) return null;
+    for (const [, p] of this.room.remoteParticipants) {
+      const pub = this.getScreenSharePub(p);
+      if (pub?.videoTrack) {
+        return { participant: p, videoTrack: pub.videoTrack };
+      }
     }
     return null;
   }
