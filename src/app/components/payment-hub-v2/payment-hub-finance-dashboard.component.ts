@@ -139,6 +139,16 @@ export class PaymentHubFinanceDashboardComponent implements OnInit, OnDestroy {
   setPaymentScope(scope: FinancePaymentScope): void {
     this.paymentScope = scope;
   }
+
+  studentStatusLabel(status: string): string {
+    return this.studentStatusOptions.find((o) => o.value === status)?.label || status;
+  }
+
+  setStudentStatus(status: string): void {
+    this.cohortStatus = status;
+    this.loading = true;
+    this.fetchBatchSummary();
+  }
   /** Shared across all admins — only these batches appear on the finance dashboard. */
   visibleBatches: string[] = [];
   visibleBatchLevelStatuses: Record<string, string> = {};
@@ -157,6 +167,15 @@ export class PaymentHubFinanceDashboardComponent implements OnInit, OnDestroy {
   /** Combined level + student status (e.g. `A1:ONGOING`). Empty = all levels. */
   levelStatusFilter = '';
   private urlCohortStatus = '';
+
+  readonly studentStatusOptions: ReadonlyArray<{ value: string; label: string }> = [
+    { value: '', label: 'All statuses' },
+    { value: 'ONGOING', label: 'Ongoing' },
+    { value: 'COMPLETED', label: 'Completed' },
+    { value: 'UNCERTAIN', label: 'Uncertain' },
+    { value: 'WITHDREW', label: 'Withdrew' },
+    { value: 'DROPPED', label: 'Dropped' },
+  ];
 
   readonly levelStatusFilterOptions: ReadonlyArray<{ value: string; label: string }> = [
     { value: '', label: 'All levels' },
@@ -234,7 +253,7 @@ export class PaymentHubFinanceDashboardComponent implements OnInit, OnDestroy {
       this.cohort = parsed.cohort;
       this.urlCohortStatus = parsed.status;
       if (!this.levelStatusFilter) {
-        this.cohortStatus = parsed.status || (this.isLanguageMode ? 'ONGOING' : '');
+        this.cohortStatus = parsed.status || 'ONGOING';
       }
       this.syncLevelStatusFilterFromState();
       this.load();
@@ -277,7 +296,7 @@ export class PaymentHubFinanceDashboardComponent implements OnInit, OnDestroy {
     return this.isLanguageMode ? this.languageBatches : this.visibleBatches;
   }
 
-  private fetchBatchSummary(): void {
+  fetchBatchSummary(): void {
     const params: Record<string, string> = {};
     if (this.filterLevel) params['level'] = this.filterLevel;
     if (this.cohort !== 'all') params['cohort'] = this.cohort;

@@ -314,7 +314,10 @@ export class PaymentHubBatchStudentsComponent implements OnInit {
   rowPending(r: BatchStudentPaymentRow): BatchStudentCurrencyTotals {
     const pending = this.scopeTotalsFromRow(r).pending;
     if (this.paymentScope !== 'current_level') return pending;
-    return subtractExcludedPending(this.batch, pending, this.pendingExclusion.getExcludedPendingByBatch());
+    if (this.isStudentPendingExcluded(r.studentId)) {
+      return { lkr: 0, inr: 0, usd: 0 };
+    }
+    return pending;
   }
 
   rowOverdue(r: BatchStudentPaymentRow): BatchStudentCurrencyTotals {
