@@ -872,10 +872,9 @@ export class AdminHubOverviewComponent implements OnInit, OnDestroy {
   }
 
   private initLevelFilterFromBatches(): void {
-    const active = new Set(
-      this.batches.map(b => b.batchLevel).filter(lv => lv && this.levelOptions.includes(lv))
-    );
-    this.selectedLevels = active.size ? active : new Set(this.levelOptions);
+    // Default to all journey levels so batches are not hidden when async progress
+    // updates a batch into a new level (e.g. Batch 35 → B1 while others are A2).
+    this.selectedLevels = new Set(this.levelOptions);
     this.levelsInitialized = true;
   }
 
@@ -925,9 +924,14 @@ export class AdminHubOverviewComponent implements OnInit, OnDestroy {
     const healthLabel = health >= 70 ? 'Healthy' : health >= 40 ? 'Needs Attention' : 'Critical';
     const healthColor = health >= 70 ? '#22c55e' : health >= 40 ? '#f59e0b' : '#ef4444';
 
+    const batchLevel = ov.batchLevel ?? this.batches[idx].batchLevel;
+    if (batchLevel && this.levelOptions.includes(batchLevel)) {
+      this.selectedLevels = new Set([...this.selectedLevels, batchLevel]);
+    }
+
     this.batches[idx] = {
       ...this.batches[idx],
-      batchLevel: ov.batchLevel ?? this.batches[idx].batchLevel,
+      batchLevel,
       totalClassesAttended: ov.totalClassesAttended ?? 0,
       totalExercisesCompleted: ov.totalExercisesCompleted ?? 0,
       totalDgBotCompleted: ov.totalDgBotCompleted ?? 0,

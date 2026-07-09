@@ -95,7 +95,13 @@ function escapeRegExp(str) {
   return String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-const { clampJourneyDayForBatch, clampStandardJourneyDay, computeJourneyDayFromBatchConfig } = require('../utils/journeyDay');
+const {
+  clampJourneyDayForBatch,
+  clampStandardJourneyDay,
+  computeJourneyDayFromBatchConfig,
+  batchHasAutoSchedule,
+  JOURNEY_DAY_MAX
+} = require('../utils/journeyDay');
 
 function normalizeCourseDay(d, trialDayEnabled = false) {
   const n = parseInt(String(d), 10);
@@ -147,7 +153,7 @@ async function checkAndInstantlyAdvancePlatinumStudent(studentId, meetingBatch, 
 
   if (!allowAdvance) return { advanced: false };
 
-  const calendarDay = cfgDoc?.batchStartDate ? computeJourneyDayFromBatchConfig(cfgDoc) : null;
+  const calendarDay = batchHasAutoSchedule(cfgDoc) ? computeJourneyDayFromBatchConfig(cfgDoc) : null;
   if (calendarDay != null && currentDay >= calendarDay) return { advanced: false };
 
   const maxDay = cfgDoc?.journeyLength != null ? Math.min(200, Math.max(1, cfgDoc.journeyLength)) : 200;
@@ -208,7 +214,7 @@ async function checkAndInstantlyAdvancePlatinumStrictStudent(studentId, completi
   const currentDay = normalizeCourseDay(student.currentCourseDay);
   if (currentDay >= 200) return { advanced: false };
 
-  const calendarDay = cfgDoc.batchStartDate ? computeJourneyDayFromBatchConfig(cfgDoc) : null;
+  const calendarDay = batchHasAutoSchedule(cfgDoc) ? computeJourneyDayFromBatchConfig(cfgDoc) : null;
   if (calendarDay != null && currentDay >= calendarDay) return { advanced: false };
 
   const completion = await computeJourneyDayCompletion(studentId, keys, currentDay, {
@@ -460,7 +466,7 @@ async function applyJourneyDayRollovers() {
       const maxDay = cfg.journeyLength != null ? Math.min(200, Math.max(1, cfg.journeyLength)) : 200;
       // Use rolloverNow (today in rollover TZ as UTC midnight) so the batch calendar day
       // is calculated against the IST date, not UTC (which is still "yesterday" at midnight IST).
-      const calendarDay = cfg.batchStartDate ? computeJourneyDayFromBatchConfig(cfg, rolloverNow) : null;
+      const calendarDay = batchHasAutoSchedule(cfg) ? computeJourneyDayFromBatchConfig(cfg, rolloverNow) : null;
 
       if (cur >= maxDay) {
         if (s.pendingJourneyDayAdvance) {

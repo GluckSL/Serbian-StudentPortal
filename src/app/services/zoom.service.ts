@@ -512,6 +512,8 @@ export class ZoomService {
     search?: string;
     batch?: string;
     level?: string;
+    mapping?: 'all' | 'needs_mapping';
+    status?: 'unresolved' | 'viewed' | 'fixed';
   } = {}): Observable<any> {
     const query: Record<string, string> = {};
     if (params.days != null) query['days'] = String(params.days);
@@ -520,8 +522,21 @@ export class ZoomService {
     if (params.search) query['search'] = params.search;
     if (params.batch && params.batch !== 'all') query['batch'] = params.batch;
     if (params.level && params.level !== 'all') query['level'] = params.level;
+    if (params.mapping && params.mapping !== 'all') query['mapping'] = params.mapping;
+    if (params.status && params.status !== 'unresolved') query['status'] = params.status;
     return this.http.get(`${this.apiUrl}/portal-join-absent`, {
       params: query,
+      withCredentials: true,
+    });
+  }
+
+  /** Mark portal join alert case as viewed or fixed. */
+  reviewPortalJoinAbsentCase(body: {
+    meetingId: string;
+    studentId: string;
+    action: 'viewed' | 'fixed';
+  }): Observable<any> {
+    return this.http.post(`${this.apiUrl}/portal-join-absent/review`, body, {
       withCredentials: true,
     });
   }

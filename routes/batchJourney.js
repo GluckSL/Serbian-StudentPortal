@@ -58,7 +58,8 @@ const {
   isValidJourneyDay,
   utcMidnightMs,
   MS_PER_DAY,
-  TRIAL_JOURNEY_DAY
+  TRIAL_JOURNEY_DAY,
+  batchHasAutoSchedule
 } = require('../utils/journeyDay');
 
 function clampDay(d, max = 200, trialDayEnabled = false) {
@@ -468,7 +469,7 @@ router.get('/', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), a
         batchCurrentDay: activeBatchDay,
         batchStartDate: cfg.batchStartDate || null,
         levelCalendarDates: levelCalendarDatesForApi(cfg),
-        autoDay: !!cfg.batchStartDate,
+        autoDay: batchHasAutoSchedule(cfg),
         notes: cfg.notes || '',
         batchType: normalizeBatchType(cfg.batchType),
         oldBatchDgBotAccess: !!(cfg && cfg.oldBatchDgBotAccess),
@@ -691,7 +692,7 @@ router.get('/:batchName/students', verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
         journeyLength: cfg.journeyLength,
         batchCurrentDay: activeBatchDay,
         batchStartDate: cfg.batchStartDate || null,
-        autoDay: !!cfg.batchStartDate,
+        autoDay: batchHasAutoSchedule(cfg),
         notes: cfg.notes,
         batchType: normalizeBatchType(cfg.batchType),
         oldBatchDgBotAccess: !!cfg.oldBatchDgBotAccess,
@@ -817,7 +818,7 @@ router.get('/:batchName/timeline', verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
       journeyLength: length,
       batchCurrentDay: activeBatchDay,
       batchStartDate: cfg.batchStartDate || null,
-      autoDay: !!cfg.batchStartDate,
+      autoDay: batchHasAutoSchedule(cfg),
       days
     });
   } catch (err) {
@@ -1036,7 +1037,7 @@ router.put('/:batchName', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), as
         oldBatchDgBotAccess: !!cfg.oldBatchDgBotAccess,
         oldBatchManualLevel: cfg.oldBatchManualLevel || 'A1',
         batchCurrentDay: activeBatchDay,
-        autoDay: !!cfg.batchStartDate,
+        autoDay: batchHasAutoSchedule(cfg),
         levelCalendarDates: levelCalendarDatesForApi(cfg),
         journeyActive: !!cfg.journeyActive,
         ...journeyPauseFieldsForApi(cfg)

@@ -246,6 +246,21 @@
           </div>
           <div class="ph-scope-filter-bar">
             <button
+              type="button"
+              class="ph-scope-btn ph-scope-btn--dropdown"
+              [class.ph-scope-btn--active]="!!cohortStatus"
+              [matMenuTriggerFor]="statusFilterMenu"
+            >
+              {{ cohortStatus ? studentStatusLabel(cohortStatus) : 'All statuses' }}
+              <mat-icon>arrow_drop_down</mat-icon>
+            </button>
+            <mat-menu #statusFilterMenu="matMenu">
+              <button mat-menu-item type="button" *ngFor="let opt of studentStatusOptions" (click)="setStudentStatus(opt.value)">
+                <mat-icon>{{ cohortStatus === opt.value ? 'check' : '' }}</mat-icon>
+                <span>{{ opt.label }}</span>
+              </button>
+            </mat-menu>
+            <button
               *ngFor="let btn of scopeButtons"
               type="button"
               class="ph-scope-btn"
