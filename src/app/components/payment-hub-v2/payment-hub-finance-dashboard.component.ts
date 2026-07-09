@@ -1640,11 +1640,10 @@ export class PaymentHubFinanceDashboardComponent implements OnInit, OnDestroy {
 
   openBatchStudents(batch: string): void {
     const url = this.router.serializeUrl(
-      this.router.createUrlTree([
-        '/admin/payment-hub/insights/batches',
-        encodeURIComponent(batch),
-        'students',
-      ]),
+      this.router.createUrlTree(
+        ['/admin/payment-hub/insights/batches', encodeURIComponent(batch), 'students'],
+        { queryParams: { status: this.cohortStatus || 'ONGOING' } },
+      ),
     );
     window.open(url, '_blank');
   }

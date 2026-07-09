@@ -35,6 +35,7 @@ import {
   subtractExcludedPending,
 } from './payment-hub-pending-exclusion.util';
 import { PaymentHubPendingExclusionService } from './payment-hub-pending-exclusion.service';
+import { formatStudentStatusLabel } from './payment-hub-finance-cohort.util';
 
 type StudentInsightFilter = '' | 'paid_full' | 'have_balance' | 'overdue' | 'paid_docs' | 'paid_visa';
 type BatchStudentPaymentScope = 'current_level' | 'all_language' | 'all_payment' | LanguageLevelSlot | 'DOCS';
@@ -80,8 +81,19 @@ export class PaymentHubBatchStudentsComponent implements OnInit {
   };
   searchQuery = '';
   studentInsight: StudentInsightFilter = '';
+  /** Defaults to ongoing students only. */
+  studentStatus = 'ONGOING';
   paymentScope: BatchStudentPaymentScope = 'current_level';
   readonly skeletonRows = [1, 2, 3, 4, 5, 6, 7, 8];
+
+  readonly studentStatusOptions: ReadonlyArray<{ value: string; label: string }> = [
+    { value: '', label: 'All statuses' },
+    { value: 'ONGOING', label: 'Ongoing' },
+    { value: 'COMPLETED', label: 'Completed' },
+    { value: 'UNCERTAIN', label: 'Uncertain' },
+    { value: 'WITHDREW', label: 'Withdrew' },
+    { value: 'DROPPED', label: 'Dropped' },
+  ];
 
   readonly scopeButtons: ReadonlyArray<{ value: BatchStudentPaymentScope; label: string }> = [
     { value: 'current_level', label: 'Current Level' },
@@ -109,6 +121,16 @@ export class PaymentHubBatchStudentsComponent implements OnInit {
     this.paymentScope = scope;
   }
 
+  studentStatusLabel(status: string): string {
+    if (!status) return 'All statuses';
+    return formatStudentStatusLabel(status);
+  }
+
+  setStudentStatus(status: string): void {
+    this.studentStatus = status;
+    this.load();
+  }
+
   readonly studentInsightOptions = [
     { value: '' as StudentInsightFilter, key: 'all', label: 'Total students', icon: 'groups', hint: 'Show all students', color: 'slate', amountKind: 'expected' as const },
     { value: 'paid_full' as StudentInsightFilter, key: 'paid_full', label: 'Paid full', icon: 'check_circle', hint: 'Language fee fully paid', color: 'green', amountKind: 'received' as const },
@@ -126,6 +148,8 @@ export class PaymentHubBatchStudentsComponent implements OnInit {
 
   ngOnInit(): void {
     this.batch = decodeURIComponent(this.route.snapshot.paramMap.get('batch') || '');
+    const statusFromUrl = (this.route.snapshot.queryParamMap.get('status') || '').trim().toUpperCase();
+    this.studentStatus = statusFromUrl || 'ONGOING';
     this.pendingExclusion.ensureLoaded().subscribe({
       next: () => this.load(),
       error: () => this.load(),
@@ -134,7 +158,9 @@ export class PaymentHubBatchStudentsComponent implements OnInit {
 
   load(): void {
     this.loading = true;
-    this.api.getBatchStudentsPaymentDetail(this.batch).subscribe({
+    const params: Record<string, string> = {};
+    if (this.studentStatus) params['studentStatus'] = this.studentStatus;
+    this.api.getBatchStudentsPaymentDetail(this.batch, params).subscribe({
       next: (res) => {
         this.rows = res.data?.students || [];
         this.batchSummary = res.data?.batchSummary ?? null;
