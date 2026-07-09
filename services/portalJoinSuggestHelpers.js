@@ -82,6 +82,52 @@ function getMappedParticipantKeys(attendance) {
   return keys;
 }
 
+function normAttendStr(s) {
+  return (s == null ? '' : String(s)).trim().toLowerCase();
+}
+
+function isParticipantMapped(participant, attendance) {
+  return (attendance || []).some(
+    (a) =>
+      (a.zoomEmail && participant.email && normAttendStr(a.zoomEmail) === normAttendStr(participant.email)) ||
+      (a.zoomName && participant.name && normAttendStr(a.zoomName) === normAttendStr(participant.name))
+  );
+}
+
+function getUnmappedParticipants(attendance, zoomParticipants) {
+  return (zoomParticipants || []).filter((p) => p && p.name && !isParticipantMapped(p, attendance));
+}
+
+/**
+ * Whether an unmapped Zoom participant likely belongs to this portal-join-but-absent student.
+ */
+function findUnmappedZoomMatch(studentName, studentEmail, portalZoomName, attendance, zoomParticipants) {
+  const unmapped = getUnmappedParticipants(attendance, zoomParticipants);
+  if (!unmapped.length) {
+    return { match: false, participantName: '', score: 0 };
+  }
+
+  const portalName = (portalZoomName || '').trim();
+  if (portalName) {
+    const portalNorm = normalizeName(portalName);
+    const exact = unmapped.find((p) => normalizeName(p.name) === portalNorm);
+    if (exact) return { match: true, participantName: exact.name, score: 100 };
+
+    const contains = unmapped.find((p) => {
+      const pn = normalizeName(p.name);
+      return pn.includes(portalNorm) || portalNorm.includes(pn);
+    });
+    if (contains) return { match: true, participantName: contains.name, score: 88 };
+  }
+
+  const suggestions = suggestParticipants(studentName, studentEmail, attendance, unmapped, 1);
+  if (suggestions.length && suggestions[0].score >= 60) {
+    return { match: true, participantName: suggestions[0].name, score: suggestions[0].score };
+  }
+
+  return { match: false, participantName: '', score: 0 };
+}
+
 function suggestParticipants(studentName, studentEmail, attendance, zoomParticipants, limit = 3) {
   const mapped = getMappedParticipantKeys(attendance);
   const scored = [];
@@ -132,6 +178,8 @@ function extractBatchLevelFromTopic(topic) {
 
 module.exports = {
   suggestParticipants,
+  findUnmappedZoomMatch,
+  getUnmappedParticipants,
   mapWithConcurrency,
   extractBatchLevelFromTopic,
 };

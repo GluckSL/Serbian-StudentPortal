@@ -6,6 +6,7 @@ const router = express.Router();
 const zoomService = require('../services/zoomService');
 const MeetingLink = require('../models/MeetingLink');
 const JoinLog = require('../models/JoinLog');
+const PortalJoinAlertReview = require('../models/PortalJoinAlertReview');
 const User = require('../models/User');
 const { verifyToken } = require('../middleware/auth');
 const checkRole = require('../middleware/checkRole');
@@ -1018,6 +1019,35 @@ function classAttendancePct(attRow, durationMin) {
   const attendedMin = rawDurMin || dur;
   if (dur > 0) return Math.min(Math.round((attendedMin / dur) * 100), 100);
   return 100;
+}
+
+/** Actual minutes present — includes partial attendance for absent rows. */
+function rowAttendanceMinutes(attRow) {
+  if (!attRow) return 0;
+  if (attRow.durationMinutes != null) {
+    return Math.max(0, Math.round(Number(attRow.durationMinutes)));
+  }
+  if (attRow.duration) {
+    return Math.max(0, Math.round(Number(attRow.duration) / 60));
+  }
+  return 0;
+}
+
+/** Actual % of class time present — includes partial attendance for absent rows. */
+function rowAttendancePct(attRow, durationMin) {
+  if (!attRow) return 0;
+  if (attRow.attendancePercent != null) {
+    return Math.min(Math.round(Number(attRow.attendancePercent)), 100);
+  }
+  const dur = Number(durationMin) || 0;
+  if (dur <= 0) return 0;
+  const rawDurMin =
+    attRow.durationMinutes != null
+      ? Number(attRow.durationMinutes)
+      : attRow.duration
+        ? Math.round(Number(attRow.duration) / 60)
+        : 0;
+  return Math.min(Math.round((rawDurMin / dur) * 100), 100);
 }
 
 async function buildReportsMeetingAndClauses(req, user, userId) {
@@ -4048,6 +4078,8 @@ router.post(
  *   search - Filter by student name, email, class topic, or portal zoom name
  *   batch  - Filter by batch number
  *   level  - Filter by level (A1, A2, etc.)
+ *   mapping - 'needs_mapping' to show only clicked join but 0 min attendance
+ *   status - 'unresolved' (default), 'viewed', or 'fixed'
  */
 router.get(
   '/portal-join-absent',
@@ -4061,6 +4093,8 @@ router.get(
       const search = String(req.query.search || '').trim().toLowerCase();
       const batchFilter = String(req.query.batch || 'all').trim();
       const levelFilter = String(req.query.level || 'all').trim();
+      const mappingFilter = String(req.query.mapping || 'all').trim();
+      const statusFilter = String(req.query.status || 'unresolved').trim();
 
       const since = new Date();
       since.setDate(since.getDate() - daysBack);
@@ -4096,19 +4130,44 @@ router.get(
           totalPages: 1,
           batchOptions: [],
           levelOptions: [],
+          batchOptions: [],
+          levelOptions: [],
+          needsMappingCount: 0,
+          notInZoomCount: 0,
+          viewedCount: 0,
+          fixedCount: 0,
         });
       }
 
       const meetingIds = meetings.map((m) => m._id);
-      const joinLogs = await JoinLog.find({ meetingId: { $in: meetingIds } })
-        .select('meetingId studentId joinCount lastZoomDisplayName')
-        .lean();
+      const [joinLogs, reviews] = await Promise.all([
+        JoinLog.find({ meetingId: { $in: meetingIds } })
+          .select('meetingId studentId joinCount lastZoomDisplayName')
+          .lean(),
+        PortalJoinAlertReview.find({ meetingId: { $in: meetingIds } })
+          .select('meetingId studentId status reviewedAt reviewedBy')
+          .populate('reviewedBy', 'name')
+          .lean(),
+      ]);
 
       const joinLogByMeetingStudent = new Map();
       for (const log of joinLogs) {
         const mid = log.meetingId && log.meetingId.toString();
         const sid = log.studentId && log.studentId.toString();
         if (mid && sid) joinLogByMeetingStudent.set(`${mid}:${sid}`, log);
+      }
+
+      const reviewByMeetingStudent = new Map();
+      for (const review of reviews) {
+        const mid = review.meetingId && review.meetingId.toString();
+        const sid = review.studentId && review.studentId.toString();
+        if (mid && sid) {
+          reviewByMeetingStudent.set(`${mid}:${sid}`, {
+            status: review.status,
+            reviewedAt: review.reviewedAt,
+            reviewedByName: review.reviewedBy?.name || '',
+          });
+        }
       }
 
       const results = [];
@@ -4123,6 +4182,26 @@ router.get(
 
           const log = joinLogByMeetingStudent.get(`${mid}:${sid}`);
           const classTopic = meeting.topic || '';
+          const durationMinutes = rowAttendanceMinutes(attRow);
+          const portalClickCount = log?.joinCount || 1;
+          const review = reviewByMeetingStudent.get(`${mid}:${sid}`);
+          const portalZoomName = log?.lastZoomDisplayName || attRow.zoomName || '';
+
+          // Derive Zoom match status from stored data — no extra API call needed.
+          // appearedInZoom=true means the student had a Zoom row but was below the threshold
+          // or was ambiguous. durationMinutes>0 also confirms they were in Zoom.
+          // mismatchReason tells us why the auto-match failed.
+          const appearedInZoom = !!attRow.appearedInZoom || durationMinutes > 0;
+          const isAmbiguous = attRow.mismatchReason === 'multiple_candidates' ||
+            attRow.mismatchReason === 'low_confidence' ||
+            attRow.mismatchReason === 'multiple_join_log_candidates';
+
+          // "Need manual mapping": they have some presence in Zoom (appeared or ambiguous name)
+          // that needs a human to confirm/map.
+          const hasUnmappedZoomMatch = appearedInZoom || isAmbiguous;
+          // "Clicked but not in Zoom": portal click recorded but no Zoom row at all.
+          const clickedButNotInZoom = !appearedInZoom && !isAmbiguous;
+
           results.push({
             studentId: attRow.studentId,
             studentName: attRow.name || 'Unknown',
@@ -4132,9 +4211,20 @@ router.get(
             classDate: meeting.startTime,
             classDuration: meeting.duration || 0,
             meetingId: meeting._id,
-            portalClickCount: log?.joinCount || 1,
-            lastZoomDisplayName: log?.lastZoomDisplayName || '',
+            portalClickCount,
+            lastZoomDisplayName: portalZoomName,
             batchLevel: extractBatchLevelFromTopic(classTopic),
+            durationMinutes,
+            attendancePercent: rowAttendancePct(attRow, meeting.duration || 0),
+            needsManualMapping:
+              portalClickCount >= 1 && durationMinutes === 0 && hasUnmappedZoomMatch,
+            hasUnmappedZoomMatch,
+            clickedButNotInZoom,
+            // Use the stored Zoom name from the attendance row or JoinLog as the hint.
+            suggestedZoomName: attRow.zoomName || portalZoomName || '',
+            reviewStatus: review?.status || null,
+            reviewedAt: review?.reviewedAt || null,
+            reviewedByName: review?.reviewedByName || '',
           });
         }
       }
@@ -4146,7 +4236,7 @@ router.get(
         .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
       const levelOptions = [...new Set(results.map((r) => r.batchLevel).filter(Boolean))].sort();
 
-      const filtered = results.filter((row) => {
+      const baseFiltered = results.filter((row) => {
         if (batchFilter !== 'all' && String(row.batch) !== batchFilter) return false;
         if (levelFilter !== 'all' && row.batchLevel !== levelFilter.toUpperCase()) return false;
         if (!search) return true;
@@ -4158,6 +4248,23 @@ router.get(
         );
       });
 
+      const unresolvedRows = baseFiltered.filter((row) => !row.reviewStatus);
+      const viewedRows = baseFiltered.filter((row) => row.reviewStatus === 'viewed');
+      const fixedRows = baseFiltered.filter((row) => row.reviewStatus === 'fixed');
+
+      const totalUnresolved = unresolvedRows.length;
+      const needsMappingCount = unresolvedRows.filter((row) => row.needsManualMapping).length;
+      const notInZoomCount = unresolvedRows.filter((row) => row.clickedButNotInZoom).length;
+      const viewedCount = viewedRows.length;
+      const fixedCount = fixedRows.length;
+
+      let filtered = unresolvedRows;
+      if (statusFilter === 'viewed') filtered = viewedRows;
+      else if (statusFilter === 'fixed') filtered = fixedRows;
+      else if (mappingFilter === 'needs_mapping') {
+        filtered = unresolvedRows.filter((row) => row.needsManualMapping);
+      }
+
       const total = filtered.length;
       const totalPages = Math.max(1, Math.ceil(total / limit));
       const safePage = Math.min(page, totalPages);
@@ -4167,14 +4274,71 @@ router.get(
         success: true,
         data: pageRows,
         total,
+        totalUnresolved,
         page: safePage,
         limit,
         totalPages,
         batchOptions,
         levelOptions,
+        needsMappingCount,
+        notInZoomCount,
+        viewedCount,
+        fixedCount,
       });
     } catch (err) {
       console.error('[Portal Join Absent]', err);
+      res.status(500).json({ success: false, message: err.message });
+    }
+  }
+);
+
+/**
+ * POST /api/zoom/portal-join-absent/review
+ * Mark a portal-join-but-absent case as viewed (truly absent) or fixed (mapping done).
+ */
+router.post(
+  '/portal-join-absent/review',
+  verifyToken,
+  checkRole(['ADMIN', 'TEACHER_ADMIN']),
+  async (req, res) => {
+    try {
+      const { meetingId, studentId, action } = req.body || {};
+      const status = action === 'fixed' ? 'fixed' : action === 'viewed' ? 'viewed' : null;
+
+      if (!meetingId || !studentId || !status) {
+        return res.status(400).json({
+          success: false,
+          message: 'meetingId, studentId, and action (viewed|fixed) are required',
+        });
+      }
+
+      if (!mongoose.Types.ObjectId.isValid(meetingId) || !mongoose.Types.ObjectId.isValid(studentId)) {
+        return res.status(400).json({ success: false, message: 'Invalid meetingId or studentId' });
+      }
+
+      const review = await PortalJoinAlertReview.findOneAndUpdate(
+        { meetingId, studentId },
+        {
+          $set: {
+            status,
+            reviewedBy: req.user.id || req.user.userId || req.user._id,
+            reviewedAt: new Date(),
+          },
+        },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+      ).lean();
+
+      res.json({
+        success: true,
+        review: {
+          meetingId: review.meetingId,
+          studentId: review.studentId,
+          status: review.status,
+          reviewedAt: review.reviewedAt,
+        },
+      });
+    } catch (err) {
+      console.error('[Portal Join Absent Review]', err);
       res.status(500).json({ success: false, message: err.message });
     }
   }
