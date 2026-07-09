@@ -1123,9 +1123,36 @@
     width: calc(100% - 0.75rem);
   }
 
+  .help-tabs-wrap {
+    margin-bottom: 0.7rem;
+  }
+
+  .help-tabs {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.45rem;
+    padding: 0;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    backdrop-filter: none;
+    overflow: visible;
+  }
+
   .help-tab {
+    width: 100%;
     padding: 0.82rem 1rem;
-    font-size: 0.9rem;
+    font-size: 0.88rem;
+    justify-content: center;
+    border-radius: 1rem;
+    background: rgba(255, 255, 255, 0.78);
+    border: 1px solid rgba(255, 255, 255, 0.82);
+    box-shadow: 0 14px 24px -22px rgba(15, 23, 42, 0.22);
+  }
+
+  .help-tab.active {
+    box-shadow: 0 14px 24px -18px rgba(37, 82, 202, 0.45);
   }
 
   .form-header,
@@ -1152,5 +1179,190 @@
   .file-drop-inner {
     min-height: 9.75rem;
     padding: 1.6rem 1rem;
+  }
+}
+
+@media (max-width: 420px) {
+  .help-page {
+    overflow-x: clip;
+  }
+
+  .help-hero {
+    padding: 1rem 0.5rem 0.85rem;
+  }
+
+  .hero-inner {
+    padding: 1.75rem 1rem 1.5rem;
+    border-radius: 1.25rem;
+  }
+
+  .hero-icon {
+    width: 3.4rem;
+    height: 3.4rem;
+    margin-bottom: 1rem;
+    border-radius: 1rem;
+    font-size: 1.45rem;
+  }
+
+  .help-hero h1 {
+    font-size: clamp(2rem, 11vw, 2.65rem);
+    line-height: 1;
+    margin-bottom: 0.8rem;
+  }
+
+  .help-hero p {
+    font-size: 0.95rem;
+    line-height: 1.6;
+    margin-bottom: 1.15rem;
+  }
+
+  .hero-contact {
+    width: 100%;
+  }
+
+  .hero-contact a {
+    width: 100%;
+    padding: 0.9rem 1rem;
+    border-radius: 1rem;
+    font-size: 0.84rem;
+    gap: 0.55rem;
+  }
+
+  .help-shell {
+    width: calc(100% - 0.5rem);
+    margin-top: -0.7rem;
+  }
+
+  .help-content {
+    padding-bottom: 2.4rem;
+  }
+
+  .form-card,
+  .success-card,
+  .state-msg,
+  .empty-state,
+  .ticket-card {
+    border-radius: 1.25rem;
+  }
+
+  .form-header,
+  .form-section,
+  .form-footer,
+  .success-card,
+  .ticket-card,
+  .state-msg,
+  .empty-state {
+    padding-left: 0.95rem;
+    padding-right: 0.95rem;
+  }
+
+  .form-header {
+    padding-top: 1.4rem;
+    padding-bottom: 1.2rem;
+    gap: 0.9rem;
+  }
+
+  .form-header-icon {
+    width: 2.9rem;
+    height: 2.9rem;
+    border-radius: 0.9rem;
+    font-size: 1.05rem;
+  }
+
+  .form-header-text h2,
+  .section-header h2 {
+    font-size: 1.45rem;
+  }
+
+  .form-header-text p,
+  .section-header p,
+  .ticket-desc,
+  .reply-body {
+    font-size: 0.9rem;
+    line-height: 1.6;
+  }
+
+  .form-section {
+    padding-top: 1.2rem;
+    padding-bottom: 1.2rem;
+  }
+
+  .form-section-title {
+    gap: 0.6rem;
+    margin-bottom: 1rem;
+    font-size: 0.98rem;
+  }
+
+  .form-section-icon {
+    width: 1.8rem;
+    height: 1.8rem;
+    border-radius: 0.65rem;
+  }
+
+  .input-wrap {
+    border-radius: 0.9rem;
+  }
+
+  .input-affix {
+    width: 2.8rem;
+  }
+
+  .input-wrap input,
+  .input-wrap select,
+  textarea {
+    font-size: 0.95rem;
+  }
+
+  textarea {
+    min-height: 9rem;
+  }
+
+  .privacy-note {
+    align-items: flex-start;
+    text-align: left;
+  }
+
+  .ticket-card {
+    padding-top: 1.15rem;
+    padding-bottom: 1.15rem;
+  }
+
+  .ticket-subject {
+    font-size: 1rem;
+  }
+
+  .ticket-meta,
+  .ticket-badges {
+    gap: 0.45rem;
+  }
+
+  .ticket-category,
+  .status-badge,
+  .priority-badge {
+    min-height: 1.7rem;
+    font-size: 0.68rem;
+    padding: 0.18rem 0.58rem;
+  }
+
+  .reply-item {
+    padding: 0.9rem;
+    border-radius: 0.9rem;
+  }
+
+  .reply-date,
+  .ticket-date {
+    font-size: 0.76rem;
+  }
+
+  .empty-state,
+  .state-msg {
+    min-height: 15rem;
+  }
+
+  .help-footer-strip {
+    width: calc(100% - 1rem);
+    margin-bottom: 1.25rem;
+    padding: 0.85rem 1rem;
+    font-size: 0.82rem;
   }
 }
