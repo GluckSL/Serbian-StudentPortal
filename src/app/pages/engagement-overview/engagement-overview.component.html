@@ -1,0 +1,288 @@
+<div class="eo-page">
+  <!-- Header -->
+  <header class="eo-head">
+    <div class="eo-head-main">
+      <div class="eo-title-row">
+        <h1 class="eo-title">Engagement Overview</h1>
+        <span class="eo-head-chip">{{ targetHours() }} h/week target</span>
+        <span class="eo-head-chip eo-head-chip--soft">Week-based where configured</span>
+      </div>
+      <p class="eo-sub">
+        Track batch engagement from Exercises, Gluck Buddy, and GluckArena. Batches without a journey start date stay on a rolling 7-day view.
+      </p>
+    </div>
+    <button class="eo-refresh" type="button" (click)="load()" [disabled]="loading()">
+      <span class="material-icons">refresh</span> Refresh
+    </button>
+  </header>
+
+  <!-- KPI cards -->
+  <div class="eo-kpis" *ngIf="!loading() && !error()">
+    <div class="eo-kpi" style="--d: 0">
+      <span class="eo-kpi-ico material-icons">groups</span>
+      <div class="eo-kpi-body">
+        <p class="eo-kpi-val">{{ totals().students }}</p>
+        <p class="eo-kpi-label">Students tracked</p>
+      </div>
+    </div>
+    <div class="eo-kpi" style="--d: 1">
+      <span class="eo-kpi-ico eo-kpi-ico--blue material-icons">grid_view</span>
+      <div class="eo-kpi-body">
+        <p class="eo-kpi-val">{{ totals().batches }}</p>
+        <p class="eo-kpi-label">Active batches</p>
+      </div>
+    </div>
+    <div class="eo-kpi" style="--d: 2">
+      <span class="eo-kpi-ico material-icons"
+            [class.eo-kpi-ico--green]="totals().health >= 65"
+            [class.eo-kpi-ico--yellow]="totals().health >= 40 && totals().health < 65"
+            [class.eo-kpi-ico--red]="totals().health < 40">monitor_heart</span>
+      <div class="eo-kpi-body">
+        <p class="eo-kpi-val">{{ totals().health }}%</p>
+        <p class="eo-kpi-label">Avg engagement health</p>
+      </div>
+    </div>
+    <div class="eo-kpi" style="--d: 3">
+      <span class="eo-kpi-ico eo-kpi-ico--green material-icons">task_alt</span>
+      <div class="eo-kpi-body">
+        <p class="eo-kpi-val">{{ totals().green }}</p>
+        <p class="eo-kpi-label">Students on target</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Overall distribution -->
+  <div class="eo-dist" *ngIf="!loading() && !error()">
+    <div class="eo-dist-head">
+      <span class="eo-dist-title">Engagement distribution</span>
+      <div class="eo-legend-items">
+        <span class="eo-leg"><i class="eo-dot eo-dot--red"></i> {{ totals().red }} below 40% <small>(&lt; 2.4 h)</small></span>
+        <span class="eo-leg"><i class="eo-dot eo-dot--yellow"></i> {{ totals().yellow }} at 40–75% <small>(2.4–4.5 h)</small></span>
+        <span class="eo-leg"><i class="eo-dot eo-dot--green"></i> {{ totals().green }} at 75%+ <small>(4.5 h+)</small></span>
+      </div>
+    </div>
+    <div class="eo-dist-bar" role="img"
+         [attr.aria-label]="totals().redPct + '% red, ' + totals().yellowPct + '% yellow, ' + totals().greenPct + '% green'">
+      <svg width="100%" height="100%" aria-hidden="true" focusable="false">
+        <rect x="0" y="0" height="100%" fill="#ef4444"
+              [attr.width]="totals().distRed + '%'"></rect>
+        <rect y="0" height="100%" fill="#f5b300"
+              [attr.x]="totals().distRed + '%'"
+              [attr.width]="totals().distYellow + '%'"></rect>
+        <rect y="0" height="100%" fill="#22c55e"
+              [attr.x]="(totals().distRed + totals().distYellow) + '%'"
+              [attr.width]="totals().distGreen + '%'"></rect>
+      </svg>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div class="eo-filters" *ngIf="!loading() && !error()">
+    <div class="eo-search">
+      <span class="material-icons">search</span>
+      <input type="text" placeholder="Search batch…" [ngModel]="search()"
+             (ngModelChange)="search.set($event)" />
+    </div>
+
+    <div class="eo-seg" role="tablist" aria-label="Filter by engagement band">
+      <button type="button" [class.active]="bandFilter() === 'all'" (click)="bandFilter.set('all')">All</button>
+      <button type="button" class="seg-red" [class.active]="bandFilter() === 'red'" (click)="bandFilter.set('red')">Red</button>
+      <button type="button" class="seg-yellow" [class.active]="bandFilter() === 'yellow'" (click)="bandFilter.set('yellow')">Yellow</button>
+      <button type="button" class="seg-green" [class.active]="bandFilter() === 'green'" (click)="bandFilter.set('green')">Green</button>
+    </div>
+
+    <select class="eo-select" [ngModel]="level()" (ngModelChange)="level.set($event)" aria-label="Filter by level">
+      <option value="">All levels</option>
+      <option *ngFor="let l of levels()" [value]="l">{{ l }}</option>
+    </select>
+
+    <select class="eo-select" [ngModel]="sort()" (ngModelChange)="sort.set($event)" aria-label="Sort batches">
+      <option value="batch">Sort: Batch no.</option>
+      <option value="worst">Sort: Worst engaged</option>
+      <option value="best">Sort: Best engaged</option>
+    </select>
+
+    <select class="eo-select" [ngModel]="globalWeek()" (ngModelChange)="onGlobalWeekChange($event)" aria-label="Filter all batches by week">
+      <option [ngValue]="null">Current week</option>
+      <option *ngFor="let w of weekOptions()" [ngValue]="w">Week {{ w }}</option>
+    </select>
+  </div>
+
+  <!-- Loading -->
+  <div class="eo-state" *ngIf="loading()">
+    <div class="eo-spinner"></div>
+    <p>Loading engagement data…</p>
+  </div>
+
+  <!-- Error -->
+  <div class="eo-state eo-state--error" *ngIf="error() && !loading()">
+    <span class="material-icons">error_outline</span>
+    <p>{{ error() }}</p>
+    <button type="button" (click)="load()">Retry</button>
+  </div>
+
+  <!-- Batches -->
+  <div class="eo-list" *ngIf="!loading() && !error()">
+    <article class="eo-batch" *ngFor="let b of visibleBatches(); trackBy: trackBatch" [class.is-loading]="b.loading">
+      <div class="eo-batch-head">
+        <div class="eo-batch-id">
+          <span class="eo-batch-name">Batch {{ b.batchName }}</span>
+          <span class="eo-batch-count">{{ b.studentCount }} students</span>
+        </div>
+
+        <div class="eo-batch-meta">
+          <span class="eo-health" [class.h-good]="healthPct(b) >= 65"
+                [class.h-mid]="healthPct(b) >= 40 && healthPct(b) < 65"
+                [class.h-low]="healthPct(b) < 40">
+            {{ healthPct(b) }}% health
+          </span>
+
+          <label class="eo-week" *ngIf="b.hasJourney">
+            <span>Week</span>
+            <select [ngModel]="b.selectedWeek" (ngModelChange)="onWeekChange(b, $event)" [disabled]="!!b.loading">
+              <option *ngFor="let w of weekOptions()" [ngValue]="w">
+                {{ w }}<ng-container *ngIf="w === b.currentWeek"> (current)</ng-container>
+              </option>
+            </select>
+          </label>
+          <span class="eo-week-fallback" *ngIf="!b.hasJourney"
+                [attr.title]="trackingHint(b)">
+            Rolling 7 days
+          </span>
+        </div>
+      </div>
+
+      <div class="eo-batch-stats">
+        <div class="eo-batch-stat">
+          <span class="eo-batch-stat-label">Tracking window</span>
+          <strong>{{ trackingLabel(b) }}</strong>
+          <small>{{ trackingHint(b) }}</small>
+        </div>
+        <div class="eo-batch-stat">
+          <span class="eo-batch-stat-label">On target</span>
+          <strong>{{ onTargetCount(b) }} / {{ b.studentCount }}</strong>
+          <small>{{ bandCount(b,'red') }} red · {{ bandCount(b,'yellow') }} yellow · {{ bandCount(b,'green') }} green</small>
+        </div>
+      </div>
+
+      <!-- Clickable segmented engagement bar -->
+      <button type="button" class="eo-segbar" (click)="openBatch(b)" [disabled]="!b.studentCount"
+              [attr.aria-label]="'View ' + b.studentCount + ' students in batch ' + b.batchName">
+        <span class="eo-segbar-track" *ngIf="b.studentCount">
+          <svg width="100%" height="100%" aria-hidden="true" focusable="false">
+            <rect x="0" y="0" height="100%" fill="#ef4444" [attr.width]="batchDist(b).r + '%'"></rect>
+            <rect y="0" height="100%" fill="#f5b300" [attr.x]="batchDist(b).r + '%'" [attr.width]="batchDist(b).y + '%'"></rect>
+            <rect y="0" height="100%" fill="#22c55e" [attr.x]="(batchDist(b).r + batchDist(b).y) + '%'" [attr.width]="batchDist(b).g + '%'"></rect>
+          </svg>
+        </span>
+        <span class="eo-segbar-empty" *ngIf="!b.studentCount">No students in this batch</span>
+
+        <span class="eo-segbar-counts" *ngIf="b.studentCount">
+          <span class="eo-segbar-badges">
+            <span class="eo-mini eo-mini--red" *ngIf="bandCount(b,'red')"><i></i>{{ bandCount(b,'red') }}</span>
+            <span class="eo-mini eo-mini--yellow" *ngIf="bandCount(b,'yellow')"><i></i>{{ bandCount(b,'yellow') }}</span>
+            <span class="eo-mini eo-mini--green" *ngIf="bandCount(b,'green')"><i></i>{{ bandCount(b,'green') }}</span>
+          </span>
+          <span class="eo-segbar-cta">View students <span aria-hidden="true">→</span></span>
+        </span>
+      </button>
+    </article>
+
+    <div class="eo-state" *ngIf="visibleBatches().length === 0">
+      <p>No batches match your search.</p>
+    </div>
+  </div>
+</div>
+
+<!-- Batch student-list popup -->
+<div class="eo-overlay" *ngIf="batchDetail() as bd" (click)="closeBatch()">
+  <div class="eo-sheet" (click)="$event.stopPropagation()">
+    <div class="eo-sheet-head">
+      <div>
+        <h3 class="eo-sheet-title">Batch {{ bd.batchName }}</h3>
+        <p class="eo-sheet-meta">
+          {{ bd.studentCount }} students ·
+          <ng-container *ngIf="bd.hasJourney; else s7">Week {{ bd.selectedWeek }}</ng-container>
+          <ng-template #s7>Last 7 days</ng-template>
+          · {{ targetHours() }} h/week target
+        </p>
+      </div>
+      <button class="eo-card-close" type="button" (click)="closeBatch()" aria-label="Close">
+        <span class="material-icons">close</span>
+      </button>
+    </div>
+
+    <div class="eo-sheet-summary">
+      <span class="eo-mini eo-mini--red" *ngIf="bandCount(bd,'red')"><i></i>{{ bandCount(bd,'red') }} red</span>
+      <span class="eo-mini eo-mini--yellow" *ngIf="bandCount(bd,'yellow')"><i></i>{{ bandCount(bd,'yellow') }} yellow</span>
+      <span class="eo-mini eo-mini--green" *ngIf="bandCount(bd,'green')"><i></i>{{ bandCount(bd,'green') }} green</span>
+    </div>
+
+    <div class="eo-sheet-list">
+      <button class="eo-row" *ngFor="let s of studentsFor(bd); trackBy: trackStudent" type="button"
+              (click)="openStudent(s, bd)">
+        <span class="eo-row-dot" [class.b-red]="s.band==='red'" [class.b-yellow]="s.band==='yellow'" [class.b-green]="s.band==='green'"></span>
+        <span class="eo-row-name">
+          {{ s.name }}
+          <small>{{ s.regNo || '—' }}<ng-container *ngIf="s.level"> · {{ s.level }}</ng-container></small>
+        </span>
+        <span class="eo-row-hours">{{ s.hours }} h</span>
+        <span class="eo-row-pct" [class.b-red]="s.band==='red'" [class.b-yellow]="s.band==='yellow'" [class.b-green]="s.band==='green'">{{ s.pct }}%</span>
+        <span class="material-icons eo-row-chev">chevron_right</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Student detail popup -->
+<div class="eo-overlay eo-overlay--top" *ngIf="selected() as sel" (click)="closeStudent()">
+  <div class="eo-card" (click)="$event.stopPropagation()">
+    <button class="eo-card-close" type="button" (click)="closeStudent()" aria-label="Close">
+      <span class="material-icons">close</span>
+    </button>
+
+    <div class="eo-card-head">
+      <div class="eo-card-avatar" [class.b-red]="sel.student.band === 'red'"
+           [class.b-yellow]="sel.student.band === 'yellow'"
+           [class.b-green]="sel.student.band === 'green'">
+        {{ sel.student.name.charAt(0) }}
+      </div>
+      <div>
+        <h3 class="eo-card-name">{{ sel.student.name }}</h3>
+        <p class="eo-card-meta">
+          {{ sel.student.regNo || '—' }}
+          <span *ngIf="sel.student.level"> · Level {{ sel.student.level }}</span>
+          · Batch {{ sel.batch }} ·
+          <ng-container *ngIf="sel.week !== null; else last7">Week {{ sel.week }}</ng-container>
+          <ng-template #last7>Last 7 days</ng-template>
+        </p>
+      </div>
+    </div>
+
+    <div class="eo-card-hero" [class.b-red]="sel.student.band === 'red'"
+         [class.b-yellow]="sel.student.band === 'yellow'"
+         [class.b-green]="sel.student.band === 'green'">
+      <div class="eo-card-hours">{{ sel.student.hours }}<span>h</span></div>
+      <div class="eo-card-pct">{{ sel.student.pct }}% of {{ targetHours() }} h target</div>
+      <div class="eo-card-band">{{ bandLabels[sel.student.band] }}</div>
+    </div>
+
+    <div class="eo-card-breakdown">
+      <div class="eo-brk">
+        <span class="eo-brk-ico material-icons">edit_note</span>
+        <span class="eo-brk-label">Exercises</span>
+        <span class="eo-brk-val">{{ sel.student.breakdown.exerciseMin }} min</span>
+      </div>
+      <div class="eo-brk">
+        <span class="eo-brk-ico material-icons">forum</span>
+        <span class="eo-brk-label">Gluck Buddy</span>
+        <span class="eo-brk-val">{{ sel.student.breakdown.dgMin }} min</span>
+      </div>
+      <div class="eo-brk">
+        <span class="eo-brk-ico material-icons">sports_esports</span>
+        <span class="eo-brk-label">GlückArena</span>
+        <span class="eo-brk-val">{{ sel.student.breakdown.arenaMin }} min</span>
+      </div>
+    </div>
+  </div>
+</div>

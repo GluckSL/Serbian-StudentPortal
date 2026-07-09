@@ -76,6 +76,7 @@ export class NavService {
     'batch-leaderboard': ['/admin/leaderboard'],
     'portal-analytics': ['/portal-analytics', '/portal-analytics/daily-logs'],
     'language-tracking': ['/admin/language-tracking'],
+    'engagement-overview': ['/admin/engagement-overview'],
     'go-students': [
       '/admin/go-students'
     ],
@@ -186,6 +187,7 @@ export class NavService {
         { id: 'student-progress',  label: 'Student Progress',  icon: 'trending_up', route: '/admin/student-progress', subGroup: null },
         { id: 'admin-performance', label: 'Performance',       icon: 'speed',       route: '/admin/performance',      subGroup: null },
         { id: 'language-tracking', label: 'Language Tracking', icon: 'translate',   route: '/admin/language-tracking', subGroup: null },
+        { id: 'engagement-overview', label: 'Engagement Overview', icon: 'insights', route: '/admin/engagement-overview', subGroup: null },
         { id: 'batch-leaderboard', label: 'Batch Leaderboard', icon: 'leaderboard', route: '/admin/leaderboard',      subGroup: null },
         { id: 'journey',           label: 'Journey',           icon: 'map',         route: '/admin/journey',          subGroup: null },
         { id: 'go-students',       label: 'GO Students',       icon: 'rocket_launch', route: '/admin/go-students',    subGroup: null }

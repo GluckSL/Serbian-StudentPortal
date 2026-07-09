@@ -10,6 +10,9 @@ let redirectInProgress = false;
 /** Routes where 401 on profile/bootstrap must not send users to login (invite signup, etc.). */
 function isPublicEntryRoute(path: string): boolean {
   return (
+    path === '/' ||
+    path === '/home' ||
+    path === '/help' ||
     path === '/login' ||
     path === '/register' ||
     path === '/forgot-password' ||
