@@ -92,6 +92,12 @@
               <mat-option value="open">Open Access</mat-option>
             </mat-select>
           </mat-form-field>
+
+          <div class="half-width toggle-wrapper">
+            <mat-slide-toggle [(ngModel)]="recordingEnabled" color="primary">
+              Enable Recording
+            </mat-slide-toggle>
+          </div>
         </div>
 
         <div class="form-row" *ngIf="accessType === 'batch'">
@@ -173,6 +179,13 @@
                   <mat-label>Start time (IST)</mat-label>
                   <input type="time" matInput formControlName="startClock">
                 </mat-form-field>
+              </div>
+              <div class="form-row">
+                <div class="half-width toggle-wrapper">
+                  <mat-slide-toggle [(ngModel)]="recordingEnabled" color="primary" [ngModelOptions]="{standalone: true}">
+                    Enable Recording
+                  </mat-slide-toggle>
+                </div>
               </div>
             </mat-card-content>
           </mat-card>

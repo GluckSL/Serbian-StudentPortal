@@ -19,6 +19,10 @@
 .full-width { width: 100%; }
 .half-width { flex: 1; min-width: 200px; }
 
+.toggle-wrapper {
+  display: flex; align-items: center; min-height: 56px;
+}
+
 
 
 .error-msg {

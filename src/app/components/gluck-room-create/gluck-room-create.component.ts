@@ -72,6 +72,7 @@ export class GluckRoomCreateComponent implements OnInit {
   level: string | null = null;
   plan = 'PLATINUM';
   agenda = '';
+  recordingEnabled = false;
   accessType: 'batch' | 'manual' | 'open' = 'batch';
   allowedBatches: string[] = [];
   allowedStudents: string[] = [];
@@ -253,6 +254,7 @@ export class GluckRoomCreateComponent implements OnInit {
           this.level = s.level || null;
           this.plan = s.plan || null;
           this.agenda = s.agenda || '';
+          this.recordingEnabled = s.recordingEnabled || false;
           this.accessType = s.accessType || 'batch';
           this.allowedBatches = Array.isArray(s.allowedBatches) ? s.allowedBatches : [];
           this.allowedStudents = Array.isArray(s.allowedStudents)
@@ -328,7 +330,8 @@ export class GluckRoomCreateComponent implements OnInit {
       accessType: this.accessType,
       courseDay: this.courseDay,
       targetJourneyDay: this.targetJourneyDay,
-      plan: this.plan
+      plan: this.plan,
+      recordingEnabled: this.recordingEnabled
     };
 
     if (this.level) payload.level = this.level;
@@ -446,6 +449,7 @@ export class GluckRoomCreateComponent implements OnInit {
       agenda: `Gluck Room - Batch ${v.batch}`,
       studentIds: this.selectedStudents.map((s) => s._id),
       bulkScheduleId: this.bulkScheduleId,
+      recordingEnabled: this.recordingEnabled,
       startingJourneyDay: Number(v.startingJourneyDay),
       targetJourneyDay: Number(v.targetJourneyDay),
       weekdaysSun0: this.selectedWeekdaysSun0,
