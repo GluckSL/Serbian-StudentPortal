@@ -14,13 +14,13 @@ const BatchConfigSchema = new mongoose.Schema({
     type: Number,
     default: 200,
     min: 1,
-    max: 200
+    max: 220
   },
   batchCurrentDay: {
     type: Number,
     default: 1,
     min: 0,
-    max: 200
+    max: 220
   },
   /**
    * When set, the batch's current day is automatically computed from batchStartDate
@@ -156,7 +156,7 @@ const BatchConfigSchema = new mongoose.Schema({
     type: Number,
     default: null,
     min: 0,
-    max: 200
+    max: 220
   },
   /**
    * Completed pause intervals (new batch type). Each entry: journey day frozen,
@@ -165,7 +165,7 @@ const BatchConfigSchema = new mongoose.Schema({
   journeyPauseHistory: {
     type: [
       {
-        day: { type: Number, min: 0, max: 200 },
+        day: { type: Number, min: 0, max: 220 },
         pausedAt: { type: Date },
         resumedAt: { type: Date },
         pauseDays: { type: Number, min: 0 }

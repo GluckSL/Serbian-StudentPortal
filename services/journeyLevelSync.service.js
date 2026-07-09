@@ -7,10 +7,10 @@ const User = require('../models/User');
 const { isOldBatchType } = require('../utils/batchType');
 
 const JOURNEY_LEVEL_RANGES = [
-  { min: 1, max: 42, level: 'A1' },
-  { min: 43, max: 84, level: 'A2' },
-  { min: 85, max: 145, level: 'B1' },
-  { min: 146, max: 200, level: 'B2' }
+  { min: 1,   max: 42,  level: 'A1' },
+  { min: 43,  max: 84,  level: 'A2' },
+  { min: 85,  max: 149, level: 'B1' },
+  { min: 150, max: 220, level: 'B2' }
 ];
 
 const { clampStandardJourneyDay } = require('../utils/journeyDay');

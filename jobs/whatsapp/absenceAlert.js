@@ -110,10 +110,15 @@ async function processEarlyJoinReminder(batchSettings = {}) {
 // ── Pass B: after-class alerts ────────────────────────────────────────────────
 
 async function processAfterClassAbsence(batchSettings = {}) {
+  // Only process meetings from the last 48 hours to avoid sending stale absence
+  // alerts for historical meetings that were never flagged (e.g. after a redeploy).
+  const cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000);
+
   const meetings = await MeetingLink.find({
     attendanceRecorded: true,
     absenceWhatsappSent: { $ne: true },
     'attendance.0': { $exists: true },
+    startTime: { $gte: cutoff },
   }).limit(80);
 
   for (const doc of meetings) {
@@ -169,7 +174,32 @@ async function processAbsenceAlerts() {
   );
 }
 
+/**
+ * Silently marks all historical meetings (older than 48 h) that never had a
+ * WhatsApp sent as "already sent" so they are never retro-triggered.
+ * Runs once at startup, harmless to run again.
+ */
+async function suppressStaleAbsenceBacklog() {
+  const cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000);
+  const result = await MeetingLink.updateMany(
+    {
+      attendanceRecorded: true,
+      absenceWhatsappSent: { $ne: true },
+      startTime: { $lt: cutoff },
+    },
+    { $set: { absenceWhatsappSent: true, absenceWhatsappSentAt: new Date() } }
+  );
+  if (result.modifiedCount > 0) {
+    console.log(`[AbsenceAlert] 🧹 Suppressed ${result.modifiedCount} stale historical meeting(s) — will not send old absence alerts`);
+  }
+}
+
 function scheduleAbsenceAlerts() {
+  // Suppress old backlog on first startup before cron begins
+  suppressStaleAbsenceBacklog().catch((err) =>
+    console.error('[AbsenceAlert] ❌ Startup backlog suppression error:', err.message)
+  );
+
   cron.schedule('*/5 * * * *', () => {
     processAbsenceAlerts().catch((err) =>
       console.error('[AbsenceAlert] ❌ Job error:', err.message)
@@ -178,4 +208,4 @@ function scheduleAbsenceAlerts() {
   console.log('📅 [WhatsApp] Absence alerts scheduled (every 5 min — early join + after class)');
 }
 
-module.exports = { scheduleAbsenceAlerts, processAbsenceAlerts, processEarlyJoinReminder, processAfterClassAbsence };
+module.exports = { scheduleAbsenceAlerts, processAbsenceAlerts, processEarlyJoinReminder, processAfterClassAbsence, suppressStaleAbsenceBacklog };

@@ -12,7 +12,7 @@ const {
   MS_PER_DAY
 } = require('./journeyDay');
 
-function clampDay(d, max = 200, trialDayEnabled = false) {
+function clampDay(d, max = 220, trialDayEnabled = false) {
   return clampJourneyDayForBatch(d, max, trialDayEnabled);
 }
 
