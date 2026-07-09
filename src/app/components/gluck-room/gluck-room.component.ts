@@ -2,7 +2,7 @@ import { Component, OnInit, OnDestroy, AfterViewInit, ViewChild, ViewChildren, Q
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
-import { Room, RoomEvent, RemoteParticipant, Participant, Track, VideoPresets, ParticipantEvent, TrackPublication, VideoTrack, RemoteTrack, RemoteTrackPublication, createLocalVideoTrack } from 'livekit-client';
+import { Room, RoomEvent, RemoteParticipant, Participant, Track, VideoPresets, ParticipantEvent, TrackPublication, VideoTrack, RemoteTrack, RemoteTrackPublication, createLocalVideoTrack, ConnectionQuality } from 'livekit-client';
 import { MaterialModule } from '../../shared/material.module';
 import { GluckRoomService } from '../../services/gluck-room.service';
 import { GluckRoomSocketService } from '../../services/gluck-room-socket.service';
@@ -36,6 +36,7 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
   @ViewChild('mainVideo') mainVideoEl!: ElementRef<HTMLVideoElement>;
   @ViewChild('selfVideo') selfVideoEl!: ElementRef<HTMLVideoElement>;
   @ViewChildren('tileVideo') tileVideos!: QueryList<ElementRef<HTMLVideoElement>>;
+  @ViewChildren('galleryVideo') galleryVideos!: QueryList<ElementRef<HTMLVideoElement>>;
 
   session: any = null;
   loading = true;
@@ -87,6 +88,27 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
   isReconnectingToMain = false;
   showBreakoutInvite = false;
 
+  // Gallery View
+  viewMode: 'speaker' | 'gallery' = 'speaker';
+
+  // Hand Raise
+  raisedHands: Set<string> = new Set();
+
+  // Connection Quality
+  participantQualities: Map<string, ConnectionQuality | null> = new Map();
+
+  // Chat
+  chatMessages: any[] = [];
+  chatMessageText = '';
+  chatUnreadCount = 0;
+
+  // Low Bandwidth Mode
+  lowBandwidthMode = false;
+
+  get hasRaisedHand(): boolean {
+    return this.raisedHands.has(this.userId);
+  }
+
   private tileObserver: IntersectionObserver | null = null;
 
   constructor(
@@ -124,7 +146,7 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
   }
 
   get sidebarTitle(): string {
-    const titles = ['Camera Feeds', 'Participants', 'Breakout Rooms'];
+    const titles = ['Camera Feeds', 'Participants', 'Breakout Rooms', 'Chat'];
     return titles[this.sidebarTabIndex] || 'Camera Feeds';
   }
 
@@ -141,6 +163,11 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
       if (!this.destroyed) {
         this.attachTileVideos();
         this.setupTileObserver();
+      }
+    });
+    this.galleryVideos.changes.subscribe(() => {
+      if (!this.destroyed) {
+        this.attachGalleryVideos();
       }
     });
   }
@@ -168,6 +195,8 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
     }
     this.selfViewStream = null;
     this.livekitConnected = false;
+    this.chatMessages = [];
+    this.chatUnreadCount = 0;
   }
 
   private loadSession(): void {
@@ -282,12 +311,22 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
     this.room.on('trackPublished', (pub, p) => this.onTrackPublished(pub, p));
     this.room.on('trackUnpublished', (pub, p) => this.onTrackUnpublished(pub, p));
     this.room.on(RoomEvent.ActiveSpeakersChanged, (speakers) => this.onActiveSpeakerChanged(speakers));
+    this.room.on(RoomEvent.ConnectionQualityChanged, (quality: ConnectionQuality, p: Participant) => {
+      this.ngZone.run(() => {
+        this.participantQualities.set(p.identity, quality);
+        this.gluckRoomSocket.emit('connection-quality-changed', {
+          userId: p.identity,
+          quality,
+        });
+      });
+    });
     this.room.on('connected', () => {
       this.ngZone.run(() => {
         this.livekitConnected = true;
         this.loading = false;
         this.startTimer();
         this.setupSocket();
+        this.loadChatHistory();
         this.setupLocalTracks();
         // Register event handlers for already-connected participants
           // (participantConnected only fires for participants who join *after* us)
@@ -300,7 +339,6 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
           });
           this.updateParticipantList();
           this.selectMainParticipant();
-          this.waitingForTeacher = this.isStudent;
         this.room?.startAudio().catch((e) => console.warn('startAudio failed:', e));
         setTimeout(() => {
           if (this.selfViewStream) {
@@ -404,6 +442,10 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
     p.on(ParticipantEvent.TrackSubscribed, this.onRemoteTrackSubscribed);
     p.on(ParticipantEvent.TrackSubscriptionStatusChanged, this.onRemoteTrackMute);
     this.ngZone.run(() => {
+      if (this.lowBandwidthMode) {
+        const camPub = p.getTrackPublication(Track.Source.Camera);
+        if (camPub) camPub.setSubscribed(false);
+      }
       this.updateParticipantList();
     });
     this.selectMainParticipant();
@@ -415,6 +457,8 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
     p.off(ParticipantEvent.TrackSubscribed, this.onRemoteTrackSubscribed);
     p.off(ParticipantEvent.TrackSubscriptionStatusChanged, this.onRemoteTrackMute);
     this.ngZone.run(() => {
+      this.raisedHands.delete(p.identity);
+      this.participantQualities.delete(p.identity);
       this.updateParticipantList();
     });
     this.selectMainParticipant();
@@ -465,8 +509,55 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
     videoEl.play().catch(() => {});
   }
 
+  private attachGalleryVideos(): void {
+    if (!this.room || this.destroyed) return;
+    this.galleryVideos.forEach(el => {
+      const identity = el.nativeElement.dataset['participant'];
+      if (!identity) return;
+      let stream: MediaStream | null = null;
+      if (identity === this.userId) {
+        // Prefer screen share track, fall back to camera
+        const local = this.room?.localParticipant;
+        const ssPub = local?.getTrackPublication(Track.Source.ScreenShare);
+        const ssTrack = ssPub?.videoTrack?.mediaStreamTrack;
+        if (ssTrack) {
+          stream = new MediaStream([ssTrack]);
+        } else if (this.selfViewTrack) {
+          stream = new MediaStream([this.selfViewTrack]);
+        }
+      } else {
+        const p = this.room?.remoteParticipants.get(identity);
+        if (!p) return;
+        // Prefer screen share track, fall back to camera
+        const ssPub = p.getTrackPublication(Track.Source.ScreenShare);
+        if (ssPub?.videoTrack && !ssPub.isMuted) {
+          stream = new MediaStream([ssPub.videoTrack.mediaStreamTrack]);
+        } else {
+          const camPub = p.getTrackPublication(Track.Source.Camera);
+          if (camPub?.videoTrack && !camPub.isMuted) {
+            stream = new MediaStream([camPub.videoTrack.mediaStreamTrack]);
+          }
+        }
+      }
+      if (stream) {
+        const existing = el.nativeElement.srcObject as MediaStream | null;
+        const existingId = existing?.getVideoTracks()[0]?.id;
+        const newId = stream.getVideoTracks()[0]?.id;
+        if (existingId !== newId) {
+          el.nativeElement.srcObject = stream;
+          el.nativeElement.play().catch((e) => console.warn('[Gallery] video play error for', identity, e.message));
+        }
+      } else if (el.nativeElement.srcObject) {
+        el.nativeElement.pause();
+        el.nativeElement.srcObject = null;
+      }
+    });
+  }
+
   private setupSocket(): void {
     if (!this.room) return;
+    const localName = this.room.localParticipant.name || 'You';
+    this.gluckRoomSocket.setUserName(localName);
     const socket = this.gluckRoomSocket.connect(this.roomName, this.token, this.getSocketRole(), this.userId);
     socket.on('participant-muted', ({ targetUserId }: { targetUserId: string }) => {
       if (targetUserId === this.userId) {
@@ -549,6 +640,40 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
 
     socket.on('breakouts-updated', () => {
       this.ngZone.run(() => this.loadBreakouts());
+    });
+
+    // ── Chat events ──
+    socket.on('chat-message', (msg: any) => {
+      this.ngZone.run(() => {
+        this.chatMessages.push(msg);
+        if (this.sidebarTabIndex !== 3) {
+          this.chatUnreadCount++;
+        }
+      });
+    });
+
+    socket.on('chat-error', (data: { message: string }) => {
+      console.warn('[Chat] error:', data.message);
+    });
+
+    // ── Connection quality events ──
+    socket.on('participant-quality-changed', (data: { userId: string; quality: number }) => {
+      this.ngZone.run(() => {
+        this.participantQualities.set(data.userId, data.quality as unknown as ConnectionQuality);
+      });
+    });
+
+    // ── Hand raise events ──
+    socket.on('hand-raised', (data: { userId: string }) => {
+      this.ngZone.run(() => {
+        this.raisedHands.add(data.userId);
+      });
+    });
+
+    socket.on('hand-lowered', (data: { userId: string }) => {
+      this.ngZone.run(() => {
+        this.raisedHands.delete(data.userId);
+      });
     });
   }
 
@@ -686,7 +811,7 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
       role: this.getSocketRole(),
       isMicOn: this.isMicOn,
       isCamOn: this.isCamOn,
-      hasVideo: this.isCamOn,
+      hasVideo: this.isCamOn || this.isScreenSharing,
     });
     this.allParticipants = list;
     this.updateTopFive();
@@ -713,6 +838,7 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
 
   private attachTileVideos(): void {
     if (!this.room || this.destroyed) return;
+    this.attachGalleryVideos();
     const identityToEl = new Map<string, HTMLVideoElement>();
     this.tileVideos.forEach(el => {
       const identity = el.nativeElement.dataset['participant'];
@@ -730,7 +856,7 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
         }
         const stream = new MediaStream([track]);
         vidEl.srcObject = stream;
-        vidEl.play().catch(() => {});
+        vidEl.play().catch((e) => console.warn('[Tile] video play error for', p.identity, e.message));
       } else if (vidEl.srcObject) {
         vidEl.pause();
         vidEl.srcObject = null;
@@ -756,6 +882,11 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
         await this.room.startAudio().catch((e) => console.warn('startAudio in toggleMic:', e));
       }
       await this.room.localParticipant.setMicrophoneEnabled(target);
+      // Auto-lower hand raise when unmuting
+      if (target && this.raisedHands.has(this.userId)) {
+        this.raisedHands.delete(this.userId);
+        this.gluckRoomSocket.emit('hand-lower', { userId: this.userId });
+      }
     } catch {
       this.isMicOn = !target;
     }
@@ -990,6 +1121,8 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
     this.isMainScreenShare = false;
     this.allParticipants = [];
     this.topFiveParticipants = [];
+    this.raisedHands.clear();
+    this.participantQualities.clear();
   }
 
   private async reconnectToMainRoom(): Promise<void> {
@@ -1046,6 +1179,9 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
     this.sidebarTabIndex = index;
     if (index === 2) {
       this.loadBreakouts();
+    }
+    if (index === 3) {
+      this.chatUnreadCount = 0;
     }
   }
 
@@ -1163,11 +1299,21 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
     this.room.on('trackPublished', (pub, p) => this.onTrackPublished(pub, p));
     this.room.on('trackUnpublished', (pub, p) => this.onTrackUnpublished(pub, p));
     this.room.on(RoomEvent.ActiveSpeakersChanged, (speakers) => this.onActiveSpeakerChanged(speakers));
+    this.room.on(RoomEvent.ConnectionQualityChanged, (quality: ConnectionQuality, p: Participant) => {
+      this.ngZone.run(() => {
+        this.participantQualities.set(p.identity, quality);
+        this.gluckRoomSocket.emit('connection-quality-changed', {
+          userId: p.identity,
+          quality,
+        });
+      });
+    });
     this.room.on('connected', () => {
       this.ngZone.run(() => {
         this.livekitConnected = true;
         this.loading = false;
         this.startTimer();
+        this.loadChatHistory();
         // Register event handlers for already-connected participants
         this.room?.remoteParticipants.forEach(p => {
           this.onParticipantConnected(p);
@@ -1317,6 +1463,109 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
 
   isSelf(p: ParticipantInfo): boolean {
     return p.identity === this.userId;
+  }
+
+  // ── Gallery View ──
+
+  toggleViewMode(): void {
+    this.viewMode = this.viewMode === 'speaker' ? 'gallery' : 'speaker';
+    setTimeout(() => {
+      if (this.viewMode === 'speaker') {
+        this.selectMainParticipant();
+        this.attachTileVideos();
+      } else {
+        this.attachGalleryVideos();
+      }
+    });
+  }
+
+  get galleryColumns(): number {
+    const count = this.allParticipants.length;
+    if (count <= 1) return 1;
+    if (count <= 4) return 2;
+    if (count <= 9) return 3;
+    return 4;
+  }
+
+  // ── Hand Raise ──
+
+  toggleHandRaise(): void {
+    if (this.raisedHands.has(this.userId)) {
+      this.raisedHands.delete(this.userId);
+      this.gluckRoomSocket.emit('hand-lower', { userId: this.userId });
+    } else {
+      this.raisedHands.add(this.userId);
+      this.gluckRoomSocket.emit('hand-raise', { userId: this.userId });
+    }
+  }
+
+  hasHandRaised(participantId: string): boolean {
+    return this.raisedHands.has(participantId);
+  }
+
+  // ── Connection Quality ──
+
+  getQualityIcon(participantId: string): string {
+    const q = this.participantQualities.get(participantId);
+    switch (q) {
+      case ConnectionQuality.Excellent: return 'signal_cellular_4_bar';
+      case ConnectionQuality.Good: return 'signal_cellular_3_bar';
+      case ConnectionQuality.Poor: return 'signal_cellular_1_bar';
+      case ConnectionQuality.Lost: return 'signal_cellular_off';
+      default: return 'signal_cellular_alt';
+    }
+  }
+
+  getQualityClass(participantId: string): string {
+    const q = this.participantQualities.get(participantId);
+    switch (q) {
+      case ConnectionQuality.Excellent: return 'q-excellent';
+      case ConnectionQuality.Good: return 'q-good';
+      case ConnectionQuality.Poor: return 'q-poor';
+      case ConnectionQuality.Lost: return 'q-lost';
+      default: return 'q-unknown';
+    }
+  }
+
+  // ── Chat ──
+
+  loadChatHistory(): void {
+    const id = this.route.snapshot.paramMap.get('id');
+    if (!id) return;
+    this.gluckRoomService.getChatMessages(id).subscribe({
+      next: (res) => {
+        if (res.success) this.chatMessages = res.data;
+      },
+      error: () => {},
+    });
+  }
+
+  sendMessage(): void {
+    if (!this.chatMessageText.trim()) return;
+    this.gluckRoomSocket.emit('send-message', {
+      message: this.chatMessageText.trim(),
+      sessionId: this.session?._id,
+    });
+    this.chatMessageText = '';
+  }
+
+  // ── Low Bandwidth Mode ──
+
+  async toggleLowBandwidth(): Promise<void> {
+    if (!this.room) return;
+    this.lowBandwidthMode = !this.lowBandwidthMode;
+    for (const [, p] of this.room.remoteParticipants) {
+      const camPub = p.getTrackPublication(Track.Source.Camera);
+      if (camPub) camPub.setSubscribed(!this.lowBandwidthMode);
+    }
+  }
+
+  formatChatTime(d: string | Date): string {
+    if (!d) return '';
+    const date = new Date(d);
+    return date.toLocaleTimeString('en-US', {
+      hour: '2-digit', minute: '2-digit', hour12: false,
+    });
   }
 
   formatTime(seconds: number): string {

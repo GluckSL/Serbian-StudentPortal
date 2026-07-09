@@ -98,6 +98,16 @@ export class GluckRoomService {
     return this.http.post(`${this.apiUrl}/sessions/bulk`, data, { withCredentials: true });
   }
 
+  // ── Chat ──
+
+  getChatMessages(sessionId: string, limit = 100): Observable<any> {
+    return this.http.get(`${this.apiUrl}/chat/${sessionId}?limit=${limit}`, { withCredentials: true });
+  }
+
+  sendChatMessage(sessionId: string, message: string): Observable<any> {
+    return this.http.post(`${this.apiUrl}/chat/${sessionId}`, { message }, { withCredentials: true });
+  }
+
   // ── Breakout Rooms ──
 
   createBreakouts(sessionId: string, data: { count: number; namePrefix?: string }): Observable<any> {

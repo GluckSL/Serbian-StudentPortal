@@ -68,6 +68,10 @@ function initGluckRoomControls(httpServer, app) {
       socket.join(roomName);
       if (socket.userId) socket.join(socket.userId);
 
+      // Send current staff count to this socket immediately so students
+      // aren't stuck on "Waiting for Teacher" when staff is already present.
+      socket.emit('staff-online-count', { count: getStaffCount(roomName) });
+
     const isStudent = role === 'student';
     const canModerate = !isStudent;
 
@@ -96,6 +100,42 @@ function initGluckRoomControls(httpServer, app) {
     socket.on('disable-all-cams', async () => {
       if (!canModerate) return;
       roomNamespace.to(roomName).emit('all-cameras-disabled');
+    });
+
+    // ── Chat events ──
+    socket.on('send-message', async ({ message, sessionId }) => {
+      if (!message || !sessionId) return;
+      try {
+        const GluckRoomChatMessage = require('../models/GluckRoomChatMessage');
+        const msg = await GluckRoomChatMessage.create({
+          sessionId,
+          userId: socket.userId,
+          userName: socket.handshake.auth?.userName || 'Unknown',
+          userRole: role || 'student',
+          message: message.trim(),
+        });
+        // Broadcast to everyone in the room, including sender
+        roomNamespace.to(roomName).emit('chat-message', msg.toObject());
+      } catch (err) {
+        console.warn('send-message error:', err.message);
+        socket.emit('chat-error', { message: 'Failed to send message' });
+      }
+    });
+
+    // ── Hand raise events ──
+    socket.on('hand-raise', async ({ userId: targetUserId }) => {
+      const uid = targetUserId || socket.userId;
+      roomNamespace.to(roomName).emit('hand-raised', { userId: uid });
+    });
+
+    socket.on('hand-lower', async ({ userId: targetUserId }) => {
+      const uid = targetUserId || socket.userId;
+      roomNamespace.to(roomName).emit('hand-lowered', { userId: uid });
+    });
+
+    // ── Connection quality broadcast ──
+    socket.on('connection-quality-changed', async ({ userId, quality }) => {
+      roomNamespace.to(roomName).emit('participant-quality-changed', { userId, quality });
     });
 
     socket.on('mic-toggled', async ({ userId, on, sessionId }) => {
