@@ -3,8 +3,17 @@
  * Dimensions are 2× the base layout for readability in chat.
  */
 
-const sharp = require('sharp');
 const { putPaymentProof, isPaymentR2Configured } = require('../modules/payments-v2/backend/services/paymentProofR2Service');
+
+let sharpModule = null;
+
+function getSharp() {
+  if (!sharpModule) {
+    // Lazy-load so a sharp/Node mismatch does not crash the whole portal on startup.
+    sharpModule = require('sharp');
+  }
+  return sharpModule;
+}
 
 const SCALE = 2;
 const CARD_W = 360 * SCALE;
@@ -109,7 +118,7 @@ function buildDashboardSvg(data) {
 
 async function renderDashboardPng(data) {
   const svg = buildDashboardSvg(data);
-  return sharp(Buffer.from(svg)).png().toBuffer();
+  return getSharp()(Buffer.from(svg)).png().toBuffer();
 }
 
 function pngBufferFromBase64(dataUrl) {
