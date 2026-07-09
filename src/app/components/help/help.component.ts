@@ -109,6 +109,9 @@ export class HelpComponent implements OnInit {
 
   setTab(tab: 'submit' | 'tickets'): void {
     this.activeTab = tab;
+    if (tab === 'submit') {
+      this.scrollToSubmitSection();
+    }
     if (tab === 'tickets' && this.isLoggedIn && this.tickets.length === 0) {
       this.loadMyTickets();
     }
@@ -237,5 +240,14 @@ export class HelpComponent implements OnInit {
 
   get screenshotLabel(): string {
     return this.screenshotFile?.name || '';
+  }
+
+  private scrollToSubmitSection(): void {
+    setTimeout(() => {
+      document.getElementById('help-submit-section')?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start'
+      });
+    });
   }
 }

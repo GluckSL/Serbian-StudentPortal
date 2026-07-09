@@ -12,21 +12,24 @@
     </div>
   </div>
 
-  <!-- Tabs -->
-  <div class="help-tabs">
-    <button class="help-tab" [class.active]="activeTab === 'submit'" (click)="setTab('submit')">
-      <i class="fas fa-ticket-alt"></i> Raise a Ticket
-    </button>
-    <button *ngIf="isLoggedIn" class="help-tab" [class.active]="activeTab === 'tickets'" (click)="setTab('tickets')">
-      <i class="fas fa-list-alt"></i> My Tickets
-      <span *ngIf="tickets.length > 0" class="tab-badge">{{ tickets.length }}</span>
-    </button>
-  </div>
+  <div class="help-shell">
+    <!-- Tabs -->
+    <div class="help-tabs-wrap">
+      <div class="help-tabs">
+        <button class="help-tab" [class.active]="activeTab === 'submit'" (click)="setTab('submit')">
+          <i class="fas fa-ticket-alt"></i> Raise a Ticket
+        </button>
+        <button *ngIf="isLoggedIn" class="help-tab" [class.active]="activeTab === 'tickets'" (click)="setTab('tickets')">
+          <i class="fas fa-list-alt"></i> My Tickets
+          <span *ngIf="tickets.length > 0" class="tab-badge">{{ tickets.length }}</span>
+        </button>
+      </div>
+    </div>
 
-  <div class="help-content">
+    <div class="help-content">
 
     <!-- ══ SUBMIT TICKET TAB ══ -->
-    <div *ngIf="activeTab === 'submit'" class="submit-panel">
+    <div *ngIf="activeTab === 'submit'" class="submit-panel" id="help-submit-section">
 
       <!-- Success State -->
       <div *ngIf="submitSuccess && submittedTicket" class="success-card">
@@ -257,6 +260,7 @@
       </div>
     </div>
 
+    </div>
   </div>
 
   <!-- Bottom contact strip -->
