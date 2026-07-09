@@ -51,10 +51,37 @@
   <main class="ia-main">
     <!-- Hero -->
     <section class="ia-hero">
-      <div class="ia-hero-bg" aria-hidden="true">
-        <span class="ia-blob ia-blob--a"></span>
-        <span class="ia-blob ia-blob--b"></span>
-        <span class="ia-blob ia-blob--c"></span>
+      <!-- Shader/Glass Effects Definitions -->
+      <svg class="ia-hero-svg-filters" aria-hidden="true" style="position: absolute; width: 0; height: 0;">
+        <defs>
+          <filter id="glass-effect" x="-50%" y="-50%" width="200%" height="200%">
+            <feTurbulence baseFrequency="0.005" numOctaves="1" result="noise" />
+            <feDisplacementMap in="SourceGraphic" in2="noise" scale="0.3" />
+            <feColorMatrix type="matrix" values="1 0 0 0 0.02  0 1 0 0 0.02  0 0 1 0 0.05  0 0 0 0.9 0" result="tint" />
+          </filter>
+          <filter id="gooey-filter" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur in="SourceGraphic" stdDeviation="4" result="blur" />
+            <feColorMatrix in="blur" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 19 -9" result="gooey" />
+            <feComposite in="SourceGraphic" in2="gooey" operator="atop" />
+          </filter>
+          <filter id="text-glow" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="2" result="coloredBlur" />
+            <feMerge>
+              <feMergeNode in="coloredBlur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+          <linearGradient id="hero-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#ffffff" />
+            <stop offset="30%" stopColor="#2552ca" /> <!-- brand secondary -->
+            <stop offset="70%" stopColor="#ffb800" /> <!-- brand yellow -->
+            <stop offset="100%" stopColor="#ffffff" />
+          </linearGradient>
+        </defs>
+      </svg>
+
+      <div class="ia-hero-bg ia-mesh-bg" aria-hidden="true">
+        <!-- We will handle the mesh background animation purely in CSS -->
       </div>
 
       <div class="ia-hero-grid">
@@ -62,13 +89,13 @@
           <span class="ia-kicker">Guaranteed Career Placement</span>
           <h1 class="ia-display">
             Your 200-Days <br />
-            <span class="ia-display-accent">Path to Germany!</span>
+            <span class="ia-display-accent" style="color: #ffffff;">Path to Germany!</span>
           </h1>
           <p class="ia-lede">
             Master the language, secure your visa, and land your dream job in Germany within 200 days. A high-end
             editorial learning experience with a 100% job guarantee.
           </p>
-          <div class="ia-hero-btns">
+          <div class="ia-hero-btns" style="filter: url(#gooey-filter);">
             <a routerLink="/login" class="ia-btn ia-btn-primary">
               <span>Start Your Germany Journey</span>
               <svg class="ia-ficon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
@@ -179,14 +206,8 @@
                 <li>HD class recordings</li>
                 <li>Smart attendance</li>
               </ul>
-              <a routerLink="/login" class="ia-feat-link">Sign in to join a class <svg class="ia-ficon"
-                  viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                  stroke-linejoin="round" aria-hidden="true">
-                  <line x1="5" y1="12" x2="19" y2="12" />
-                  <polyline points="12 5 19 12 12 19" />
-                </svg></a>
             </div>
-            <div class="ia-feat-media">
+            <div class="ia-feat-media ia-feat-media--screen">
               <img loading="lazy" alt="Live German class and recordings in the portal"
                 src="assets/features/liveclass-rec.webp" />
             </div>
@@ -211,12 +232,6 @@
                 <li>Instant AI feedback</li>
                 <li>Beginner friendly</li>
               </ul>
-              <a routerLink="/login" class="ia-feat-link">Sign in to meet your buddy <svg class="ia-ficon"
-                  viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                  stroke-linejoin="round" aria-hidden="true">
-                  <line x1="5" y1="12" x2="19" y2="12" />
-                  <polyline points="12 5 19 12 12 19" />
-                </svg></a>
             </div>
             <div class="ia-feat-media ia-feat-media--buddy">
               <img loading="lazy" class="ia-feat-fox" alt="Gluck Buddy, the AI fox speaking partner"
@@ -243,14 +258,8 @@
                 <li>Auto-graded with AI</li>
                 <li>Track every attempt</li>
               </ul>
-              <a routerLink="/login" class="ia-feat-link">Sign in to practice <svg class="ia-ficon" viewBox="0 0 24 24"
-                  fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                  aria-hidden="true">
-                  <line x1="5" y1="12" x2="19" y2="12" />
-                  <polyline points="12 5 19 12 12 19" />
-                </svg></a>
             </div>
-            <div class="ia-feat-media">
+            <div class="ia-feat-media ia-feat-media--screen">
               <img loading="lazy" alt="Digital German exercises in the portal" src="assets/features/digital-ex.webp" />
             </div>
           </article>
@@ -273,14 +282,8 @@
                 <li>Leaderboards &amp; XP</li>
                 <li>Vocabulary games</li>
               </ul>
-              <a routerLink="/login" class="ia-feat-link">Sign in to enter the arena <svg class="ia-ficon"
-                  viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                  stroke-linejoin="round" aria-hidden="true">
-                  <line x1="5" y1="12" x2="19" y2="12" />
-                  <polyline points="12 5 19 12 12 19" />
-                </svg></a>
             </div>
-            <div class="ia-feat-media">
+            <div class="ia-feat-media ia-feat-media--screen">
               <img loading="lazy" alt="GlückArena gamified learning" src="assets/features/GluckArena.webp" />
             </div>
           </article>
@@ -304,14 +307,8 @@
                 <li>Visa status tracker</li>
                 <li>Secure document vault</li>
               </ul>
-              <a routerLink="/login" class="ia-feat-link">Sign in to track your visa <svg class="ia-ficon"
-                  viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                  stroke-linejoin="round" aria-hidden="true">
-                  <line x1="5" y1="12" x2="19" y2="12" />
-                  <polyline points="12 5 19 12 12 19" />
-                </svg></a>
             </div>
-            <div class="ia-feat-media">
+            <div class="ia-feat-media ia-feat-media--photo">
               <img loading="lazy" alt="Brandenburg Gate, Berlin, Germany"
                 src="https://images.unsplash.com/photo-1560969184-10fe8719e047?auto=format&fit=crop&w=1200&q=70" />
             </div>
@@ -336,14 +333,8 @@
                 <li>Performance history</li>
                 <li>Milestone alerts</li>
               </ul>
-              <a routerLink="/login" class="ia-feat-link">Sign in to see your progress <svg class="ia-ficon"
-                  viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                  stroke-linejoin="round" aria-hidden="true">
-                  <line x1="5" y1="12" x2="19" y2="12" />
-                  <polyline points="12 5 19 12 12 19" />
-                </svg></a>
             </div>
-            <div class="ia-feat-media">
+            <div class="ia-feat-media ia-feat-media--screen">
               <img loading="lazy" alt="Progress and performance analytics dashboard"
                 src="assets/features/performance-analysis.webp" />
             </div>
@@ -543,106 +534,109 @@
       </div>
     </section>
 
-    <!-- #faq -->
-    <section class="ia-band ia-faq" id="faq">
-      <div class="ia-faq-inner">
-        <div class="ia-center-head ia-reveal">
-          <span class="ia-kicker">Questions</span>
-          <h2 class="ia-h2">Frequently Asked</h2>
-          <p class="ia-sub">Everything you might want to know before you start your 200 days.</p>
+    <!-- FAQ & CTA Side by Side -->
+    <div class="ia-bottom-split">
+      <!-- #faq -->
+      <section class="ia-band ia-faq" id="faq">
+        <div class="ia-faq-inner">
+          <div class="ia-center-head ia-reveal">
+            <span class="ia-kicker">Questions</span>
+            <h2 class="ia-h2">Frequently Asked</h2>
+            <p class="ia-sub">Everything you might want to know before you start your 200 days.</p>
+          </div>
+
+          <div class="ia-faq-list ia-reveal">
+            <details class="ia-faq-item ia-reveal" open>
+              <summary class="ia-faq-q">
+                <span>Do I need any German before I join?</span>
+                <span class="ia-faq-plus" aria-hidden="true"></span>
+              </summary>
+              <div class="ia-faq-a">
+                <p>No prior German is needed. The journey starts at A1 on day one — complete beginners are exactly who the
+                  200-day roadmap is built for, and Gluck Buddy helps you practise speaking from the very first lesson.
+                </p>
+              </div>
+            </details>
+
+            <details class="ia-faq-item ia-reveal">
+              <summary class="ia-faq-q">
+                <span>How does the 100% job guarantee work?</span>
+                <span class="ia-faq-plus" aria-hidden="true"></span>
+              </summary>
+              <div class="ia-faq-a">
+                <p>As you reach the required language level, curated openings from our German employer partners appear in
+                  your portal, and our team supports you through interviews and placement. The guarantee is backed by a
+                  written agreement when you enrol.</p>
+              </div>
+            </details>
+
+            <details class="ia-faq-item ia-reveal">
+              <summary class="ia-faq-q">
+                <span>Are classes live or recorded?</span>
+                <span class="ia-faq-plus" aria-hidden="true"></span>
+              </summary>
+              <div class="ia-faq-a">
+                <p>Both. You join daily live classes with expert teachers, and every session is recorded in HD so you can
+                  rewatch anytime. Your attendance and watch progress are tracked automatically in the portal.</p>
+              </div>
+            </details>
+
+            <details class="ia-faq-item ia-reveal">
+              <summary class="ia-faq-q">
+                <span>Do you handle the visa process too?</span>
+                <span class="ia-faq-plus" aria-hidden="true"></span>
+              </summary>
+              <div class="ia-faq-a">
+                <p>Yes. You upload your documents once into a secure vault, and we guide your application through every
+                  stage — verification, filing, interview prep and approval — with live status updates so you always know
+                  where things stand.</p>
+              </div>
+            </details>
+
+            <details class="ia-faq-item ia-reveal">
+              <summary class="ia-faq-q">
+                <span>Can I learn from outside Sri Lanka?</span>
+                <span class="ia-faq-plus" aria-hidden="true"></span>
+              </summary>
+              <div class="ia-faq-a">
+                <p>Absolutely. The entire experience — live classes, exercises, Gluck Buddy, GlückArena and your progress
+                  dashboard — runs in the portal from any device, anywhere with an internet connection.</p>
+              </div>
+            </details>
+          </div>
+
+          <p class="ia-faq-more ia-reveal">
+            Still have questions?
+            <a routerLink="/help">Visit Help &amp; Support</a>
+          </p>
         </div>
+      </section>
 
-        <div class="ia-faq-list ia-reveal">
-          <details class="ia-faq-item ia-reveal" open>
-            <summary class="ia-faq-q">
-              <span>Do I need any German before I join?</span>
-              <span class="ia-faq-plus" aria-hidden="true"></span>
-            </summary>
-            <div class="ia-faq-a">
-              <p>No prior German is needed. The journey starts at A1 on day one — complete beginners are exactly who the
-                200-day roadmap is built for, and Gluck Buddy helps you practise speaking from the very first lesson.
-              </p>
-            </div>
-          </details>
-
-          <details class="ia-faq-item ia-reveal">
-            <summary class="ia-faq-q">
-              <span>How does the 100% job guarantee work?</span>
-              <span class="ia-faq-plus" aria-hidden="true"></span>
-            </summary>
-            <div class="ia-faq-a">
-              <p>As you reach the required language level, curated openings from our German employer partners appear in
-                your portal, and our team supports you through interviews and placement. The guarantee is backed by a
-                written agreement when you enrol.</p>
-            </div>
-          </details>
-
-          <details class="ia-faq-item ia-reveal">
-            <summary class="ia-faq-q">
-              <span>Are classes live or recorded?</span>
-              <span class="ia-faq-plus" aria-hidden="true"></span>
-            </summary>
-            <div class="ia-faq-a">
-              <p>Both. You join daily live classes with expert teachers, and every session is recorded in HD so you can
-                rewatch anytime. Your attendance and watch progress are tracked automatically in the portal.</p>
-            </div>
-          </details>
-
-          <details class="ia-faq-item ia-reveal">
-            <summary class="ia-faq-q">
-              <span>Do you handle the visa process too?</span>
-              <span class="ia-faq-plus" aria-hidden="true"></span>
-            </summary>
-            <div class="ia-faq-a">
-              <p>Yes. You upload your documents once into a secure vault, and we guide your application through every
-                stage — verification, filing, interview prep and approval — with live status updates so you always know
-                where things stand.</p>
-            </div>
-          </details>
-
-          <details class="ia-faq-item ia-reveal">
-            <summary class="ia-faq-q">
-              <span>Can I learn from outside Sri Lanka?</span>
-              <span class="ia-faq-plus" aria-hidden="true"></span>
-            </summary>
-            <div class="ia-faq-a">
-              <p>Absolutely. The entire experience — live classes, exercises, Gluck Buddy, GlückArena and your progress
-                dashboard — runs in the portal from any device, anywhere with an internet connection.</p>
-            </div>
-          </details>
+      <!-- Final CTA -->
+      <section class="ia-cta-wrap">
+        <div class="ia-cta-card ia-reveal">
+          <div class="ia-cta-glow"></div>
+          <h2 class="ia-cta-h">Ready to start your 200 days?</h2>
+          <p class="ia-cta-p">
+            Join 700+ students mastering German, securing visas and landing jobs in Germany —
+            all from one portal.
+          </p>
+          <a routerLink="/login" class="ia-btn ia-btn-cta" style="filter: url(#gooey-filter);">
+            <span>Begin Your Application</span>
+            <svg class="ia-ficon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <line x1="5" y1="12" x2="19" y2="12" />
+              <polyline points="12 5 19 12 12 19" />
+            </svg>
+          </a>
+          <ul class="ia-feat-chips ia-feat-chips--light ia-cta-chips">
+            <li>100% job guarantee</li>
+            <li>Visa support included</li>
+            <li>Learn from anywhere</li>
+          </ul>
         </div>
-
-        <p class="ia-faq-more ia-reveal">
-          Still have questions?
-          <a routerLink="/help">Visit Help &amp; Support</a>
-        </p>
-      </div>
-    </section>
-
-    <!-- Final CTA -->
-    <section class="ia-cta-wrap">
-      <div class="ia-cta-card ia-reveal">
-        <div class="ia-cta-glow"></div>
-        <h2 class="ia-cta-h">Ready to start your 200 days?</h2>
-        <p class="ia-cta-p">
-          Join 700+ students mastering German, securing visas and landing jobs in Germany —
-          all from one portal.
-        </p>
-        <a routerLink="/login" class="ia-btn ia-btn-cta">
-          <span>Begin Your Application</span>
-          <svg class="ia-ficon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <line x1="5" y1="12" x2="19" y2="12" />
-            <polyline points="12 5 19 12 12 19" />
-          </svg>
-        </a>
-        <ul class="ia-feat-chips ia-feat-chips--light ia-cta-chips">
-          <li>100% job guarantee</li>
-          <li>Visa support included</li>
-          <li>Learn from anywhere</li>
-        </ul>
-      </div>
-    </section>
+      </section>
+    </div>
   </main>
 
   <footer class="ia-footer">
@@ -678,6 +672,41 @@
         <a routerLink="/login">Start Application</a>
         <a routerLink="/help">Help &amp; Support</a>
       </nav>
+    </div>
+
+    <div class="ia-footer-socials-wrap">
+      <div class="ia-footer-socials" aria-label="Gluck Global social links">
+        <a href="https://wa.me/94705815654" target="_blank" rel="noopener noreferrer" aria-label="WhatsApp">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              d="M12 2a10 10 0 0 0-8.65 15.02L2 22l5.12-1.3A10 10 0 1 0 12 2Zm0 18.2a8.17 8.17 0 0 1-4.16-1.14l-.3-.18-3.03.77.8-2.95-.2-.31A8.2 8.2 0 1 1 12 20.2Zm4.5-5.92c-.25-.13-1.46-.72-1.69-.8-.22-.08-.38-.13-.54.12-.16.24-.61.8-.75.96-.14.16-.28.18-.53.06-.25-.13-1.03-.38-1.95-1.2-.72-.64-1.2-1.44-1.34-1.68-.14-.24-.02-.37.11-.5.12-.12.25-.3.37-.45.12-.14.16-.24.24-.4.08-.16.04-.3-.02-.43-.06-.13-.54-1.3-.74-1.78-.2-.47-.4-.4-.54-.41h-.46c-.16 0-.42.06-.64.3-.22.24-.84.82-.84 2 0 1.17.86 2.31.98 2.47.12.16 1.68 2.56 4.08 3.6.57.25 1.02.4 1.37.51.58.18 1.1.16 1.51.1.46-.07 1.46-.6 1.67-1.17.2-.57.2-1.06.14-1.17-.06-.1-.22-.16-.47-.28Z" />
+          </svg>
+        </a>
+        <a href="https://www.instagram.com/gluck__global/?hl=en" target="_blank" rel="noopener noreferrer" aria-label="Instagram">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              d="M7 2h10a5 5 0 0 1 5 5v10a5 5 0 0 1-5 5H7a5 5 0 0 1-5-5V7a5 5 0 0 1 5-5Zm0 1.8A3.2 3.2 0 0 0 3.8 7v10A3.2 3.2 0 0 0 7 20.2h10a3.2 3.2 0 0 0 3.2-3.2V7A3.2 3.2 0 0 0 17 3.8H7Zm10.75 1.55a1.1 1.1 0 1 1 0 2.2 1.1 1.1 0 0 1 0-2.2ZM12 6.5A5.5 5.5 0 1 1 6.5 12 5.5 5.5 0 0 1 12 6.5Zm0 1.8A3.7 3.7 0 1 0 15.7 12 3.7 3.7 0 0 0 12 8.3Z" />
+          </svg>
+        </a>
+        <a href="https://web.facebook.com/p/Gl%C3%BCck-Global-61572463706422/" target="_blank" rel="noopener noreferrer" aria-label="Facebook">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              d="M13.5 21v-7.1h2.4l.36-2.78H13.5V9.33c0-.8.22-1.34 1.37-1.34h1.46V5.5a19.1 19.1 0 0 0-2.13-.11c-2.1 0-3.54 1.28-3.54 3.63v2.08H8.3v2.78h2.42V21h2.78Z" />
+          </svg>
+        </a>
+        <a href="https://www.linkedin.com/company/gl%C3%BCck-global-pvt-ltd/" target="_blank" rel="noopener noreferrer" aria-label="LinkedIn">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              d="M6.2 8.2A1.7 1.7 0 1 1 6.2 4.8a1.7 1.7 0 0 1 0 3.4ZM4.9 9.7h2.6V19H4.9V9.7Zm4.1 0h2.5v1.27h.04c.35-.66 1.2-1.36 2.46-1.36 2.63 0 3.12 1.73 3.12 3.98V19h-2.6v-4.84c0-1.15-.02-2.63-1.6-2.63-1.6 0-1.84 1.25-1.84 2.54V19H9V9.7Z" />
+          </svg>
+        </a>
+        <a href="https://www.tiktok.com/@gluck_global" target="_blank" rel="noopener noreferrer" aria-label="TikTok">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              d="M14.9 3c.24 1.98 1.36 3.55 3.1 4.18v2.5a6.45 6.45 0 0 1-3.1-1.01v5.34A5.02 5.02 0 1 1 9.88 9v2.59a2.44 2.44 0 1 0 2.44 2.44V3h2.58Z" />
+          </svg>
+        </a>
+      </div>
     </div>
 
     <div class="ia-footer-bottom">
