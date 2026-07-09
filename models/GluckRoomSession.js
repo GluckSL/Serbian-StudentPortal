@@ -129,6 +129,10 @@ const GluckRoomSessionSchema = new mongoose.Schema({
     type: Number,
     default: null
   },
+  recordingEnabled: {
+    type: Boolean,
+    default: false
+  },
   isRecordingPublished: {
     type: Boolean,
     default: true

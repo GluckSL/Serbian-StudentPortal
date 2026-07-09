@@ -30,7 +30,17 @@ async function autoStartSessions() {
     try {
       console.log(`Auto-starting GluckRoom session: "${claimed.sessionName}" (${claimed._id})`);
 
-      await gluckRoomService.createRoom(claimed.livekitRoomName);
+      if (claimed.recordingEnabled) {
+        const { roomName, egressId } = await gluckRoomService.createRoomAndStartRecording(
+          claimed.livekitRoomName,
+          claimed.hostId.toString(),
+          'camera'
+        );
+        claimed.livekitRoomName = roomName;
+        claimed.egressId = egressId;
+      } else {
+        await gluckRoomService.createRoom(claimed.livekitRoomName);
+      }
 
       claimed.status = 'active';
       claimed.actualStartTime = new Date();

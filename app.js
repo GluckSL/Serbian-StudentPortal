@@ -118,6 +118,7 @@ const engagementOverviewCrmExportRoutes = require('./routes/engagementOverviewCr
 const { engagementExportAuth } = require('./middleware/engagementExportAuth');
 const testAccountRoutes = require('./routes/testAccounts');
 const gluckRoomRoutes = require('./routes/gluckRoom');
+const gluckRoomChatRoutes = require('./routes/gluckRoomChat');
 const correctionRoutes = require('./routes/correction');
 const classFeedbackRoutes = require('./routes/classFeedback');
 
@@ -410,6 +411,7 @@ app.use('/api/crm', crmPortalRoutes);
 app.use('/api/crm-portal', auth.verifyToken, crmPortalProxyRoutes);
 app.use('/api/test-accounts', testAccountRoutes);
 app.use('/api/gluckroom', gluckRoomRoutes);
+app.use('/api/gluckroom/chat', gluckRoomChatRoutes);
 app.use('/api/correction', correctionRoutes);
 app.use('/api/class-feedback', classFeedbackRoutes);
 

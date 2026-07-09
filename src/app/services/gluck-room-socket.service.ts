@@ -5,13 +5,19 @@ import { io, Socket } from 'socket.io-client';
 export class GluckRoomSocketService implements OnDestroy {
   private socket: Socket | null = null;
 
+  private _userName = '';
+
+  setUserName(name: string): void {
+    this._userName = name;
+  }
+
   connect(roomName: string, token: string, role: string, userId?: string): Socket {
     this.disconnect();
     const loc = typeof window !== 'undefined' ? `${window.location.host}${window.location.pathname}` : 'server';
     console.log('[GluckRoomSocket] connecting from:', loc, 'with path:', '/ws/gluckroom');
     this.socket = io('/gluckroom', {
       path: '/ws/gluckroom',
-      auth: { token, roomName, role, userId },
+      auth: { token, roomName, role, userId, userName: this._userName },
       transports: ['polling'],
       autoConnect: false,
     });

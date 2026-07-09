@@ -72,6 +72,7 @@ export class GluckRoomCreateComponent implements OnInit {
   level: string | null = null;
   plan = 'PLATINUM';
   agenda = '';
+  recordingEnabled = false;
   accessType: 'batch' | 'manual' | 'open' = 'batch';
   allowedBatches: string[] = [];
   allowedStudents: string[] = [];
@@ -82,6 +83,7 @@ export class GluckRoomCreateComponent implements OnInit {
   error = '';
   loadingBatches = true;
 
+  todayDate = new Date();
   durationOptions = [15, 30, 45, 60, 90, 120, 180, 240, 300];
   levelOptions = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
   planOptions = ['SILVER', 'PLATINUM', 'VISA_DOC_ONLY'];
@@ -252,6 +254,7 @@ export class GluckRoomCreateComponent implements OnInit {
           this.level = s.level || null;
           this.plan = s.plan || null;
           this.agenda = s.agenda || '';
+          this.recordingEnabled = s.recordingEnabled || false;
           this.accessType = s.accessType || 'batch';
           this.allowedBatches = Array.isArray(s.allowedBatches) ? s.allowedBatches : [];
           this.allowedStudents = Array.isArray(s.allowedStudents)
@@ -306,6 +309,16 @@ export class GluckRoomCreateComponent implements OnInit {
     if (!this.targetJourneyDay) { this.error = 'Target journey day is required.'; return; }
     if (!this.plan) { this.error = 'Plan is required.'; return; }
 
+    const startTime = new Date(this.scheduledStartTime);
+    if (Number.isNaN(startTime.getTime())) {
+      this.error = 'Invalid date or time.';
+      return;
+    }
+    if (startTime.getTime() <= Date.now()) {
+      this.error = 'Scheduled time must be in the future.';
+      return;
+    }
+
     this.submitting = true;
     this.error = '';
 
@@ -317,7 +330,8 @@ export class GluckRoomCreateComponent implements OnInit {
       accessType: this.accessType,
       courseDay: this.courseDay,
       targetJourneyDay: this.targetJourneyDay,
-      plan: this.plan
+      plan: this.plan,
+      recordingEnabled: this.recordingEnabled
     };
 
     if (this.level) payload.level = this.level;
@@ -417,6 +431,13 @@ export class GluckRoomCreateComponent implements OnInit {
     const ok = await this.runPreview();
     if (!ok) return;
 
+    const now = Date.now();
+    const pastSchedules = this.schedules.filter(s => new Date(s.startTime).getTime() <= now);
+    if (pastSchedules.length > 0) {
+      this.error = `Some schedules are in the past (e.g. ${pastSchedules[0].startTime}). Adjust the start time or starting journey day.`;
+      return;
+    }
+
     const v = this.basicForm.getRawValue();
     const common: Record<string, unknown> = {
       sessionName: v.topic,
@@ -428,6 +449,7 @@ export class GluckRoomCreateComponent implements OnInit {
       agenda: `Gluck Room - Batch ${v.batch}`,
       studentIds: this.selectedStudents.map((s) => s._id),
       bulkScheduleId: this.bulkScheduleId,
+      recordingEnabled: this.recordingEnabled,
       startingJourneyDay: Number(v.startingJourneyDay),
       targetJourneyDay: Number(v.targetJourneyDay),
       weekdaysSun0: this.selectedWeekdaysSun0,
@@ -563,6 +585,13 @@ export class GluckRoomCreateComponent implements OnInit {
   }
 
   // ── Navigation ──
+
+  preventInvalidNumberChars(event: KeyboardEvent): void {
+    const allowed = ['0','1','2','3','4','5','6','7','8','9','Backspace','Delete','Tab','ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End'];
+    if (!allowed.includes(event.key)) {
+      event.preventDefault();
+    }
+  }
 
   cancel(): void {
     this.router.navigate(['/gluck-room']);

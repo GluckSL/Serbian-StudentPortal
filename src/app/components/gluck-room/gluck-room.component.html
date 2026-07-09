@@ -22,8 +22,22 @@
           <p class="waiting-hint">Class will begin shortly. Please wait...</p>
         </div>
       </div>
+
+      <div class="breakout-invite-overlay" *ngIf="showBreakoutInvite && assignedBreakout">
+        <div class="breakout-invite-card">
+          <mat-icon class="breakout-invite-icon">meeting_room</mat-icon>
+          <h2>Breakout Room Assigned</h2>
+          <p>You have been assigned to <strong>{{ assignedBreakout.name }}</strong></p>
+          <div class="breakout-invite-actions">
+            <button mat-raised-button color="primary" (click)="acceptBreakoutInvite()">
+              <mat-icon>login</mat-icon> Join Now
+            </button>
+            <button mat-stroked-button (click)="dismissBreakoutInvite()">Later</button>
+          </div>
+        </div>
+      </div>
       <div class="main-area">
-        <div class="main-video-container">
+        <div class="main-video-container" *ngIf="viewMode === 'speaker'">
           <video #mainVideo autoplay playsinline class="main-video" [class.hidden]="!mainParticipant?.hasVideo"></video>
           <div class="main-placeholder" *ngIf="!mainParticipant?.hasVideo && mainParticipant">
             <div class="main-avatar">{{ mainParticipantInitials }}</div>
@@ -38,27 +52,69 @@
           </div>
         </div>
 
+        <div class="gallery-grid" *ngIf="viewMode === 'gallery'"
+          [style.grid-template-columns]="'repeat(' + galleryColumns + ', 1fr)'">
+          <div class="gallery-tile" *ngFor="let p of allParticipants">
+            <video #galleryVideo autoplay playsinline muted class="gallery-video"
+              [class.hidden]="!p.hasVideo || (!isSelf(p) && lowBandwidthMode)"
+              [attr.data-participant]="p.identity"></video>
+            <div class="gallery-placeholder" *ngIf="!p.hasVideo || (!isSelf(p) && lowBandwidthMode)">
+              <div class="gallery-avatar">{{ getParticipantInitials(p) }}</div>
+            </div>
+            <div class="gallery-overlay">
+              <span class="gallery-name">{{ p.name }} <span class="gallery-you" *ngIf="isSelf(p)">(You)</span></span>
+              <mat-icon class="gallery-q" [class]="getQualityClass(p.identity)" [style.font-size.px]="14">{{ getQualityIcon(p.identity) }}</mat-icon>
+              <mat-icon class="gallery-mic" [class.muted]="!p.isMicOn" [style.font-size.px]="14">{{ p.isMicOn ? 'mic' : 'mic_off' }}</mat-icon>
+              <mat-icon class="gallery-cam" [class.off]="!p.isCamOn" [style.font-size.px]="14">{{ p.isCamOn ? 'videocam' : 'videocam_off' }}</mat-icon>
+              <mat-icon class="gallery-hand" [style.font-size.px]="14" *ngIf="hasHandRaised(p.identity)">pan_tool</mat-icon>
+            </div>
+          </div>
+        </div>
+
         <div class="self-view" [class.hidden]="!isCamOn || !selfViewStream">
           <video #selfVideo autoplay playsinline muted class="self-video"></video>
           <div class="self-label">You</div>
+          <mat-icon class="self-quality" [class]="getQualityClass(userId)" [style.font-size.px]="14">{{ getQualityIcon(userId) }}</mat-icon>
         </div>
 
         <div class="controls-bar">
-          <button mat-mini-fab [class.active]="isMicOn" (click)="toggleMic()" class="ctrl-btn">
+          <button mat-mini-fab [class.active]="isMicOn" (click)="toggleMic()" class="ctrl-btn" matTooltip="Microphone">
             <mat-icon>{{ isMicOn ? 'mic' : 'mic_off' }}</mat-icon>
           </button>
-          <button mat-mini-fab [class.active]="isCamOn" (click)="toggleCam()" class="ctrl-btn">
+          <button mat-mini-fab [class.active]="isCamOn" (click)="toggleCam()" class="ctrl-btn" matTooltip="Camera">
             <mat-icon>{{ isCamOn ? 'videocam' : 'videocam_off' }}</mat-icon>
           </button>
-          <button mat-mini-fab *ngIf="!isStudent" [class.active]="isScreenSharing" (click)="toggleScreenShare()" class="ctrl-btn">
+          <button mat-mini-fab *ngIf="!isStudent" [class.active]="isScreenSharing" (click)="toggleScreenShare()" class="ctrl-btn" matTooltip="Share Screen">
             <mat-icon>present_to_all</mat-icon>
           </button>
+
+          <div class="ctrl-separator"></div>
+
+          <button mat-mini-fab [class.active]="viewMode === 'gallery'" (click)="toggleViewMode()" class="ctrl-btn" matTooltip="Toggle View">
+            <mat-icon>{{ viewMode === 'speaker' ? 'grid_view' : 'person_pin' }}</mat-icon>
+          </button>
+
+          <button mat-mini-fab [class.active]="isStudent && hasRaisedHand" (click)="toggleHandRaise()" class="ctrl-btn" matTooltip="Raise Hand" *ngIf="isStudent">
+            <mat-icon [class.hand-raised-icon]="hasRaisedHand">pan_tool</mat-icon>
+          </button>
+
+          <button mat-mini-fab [class.active]="sidebarOpen && sidebarTabIndex === 3" (click)="toggleSidebarView(3)" class="ctrl-btn" matTooltip="Chat">
+            <mat-icon>chat</mat-icon>
+            <span class="breakout-badge" *ngIf="chatUnreadCount > 0"></span>
+          </button>
+
           <button mat-mini-fab [class.active]="sidebarOpen && sidebarTabIndex === 1" (click)="toggleSidebarView(1)" class="ctrl-btn" matTooltip="Participants">
             <mat-icon>people</mat-icon>
           </button>
           <button mat-mini-fab [class.active]="sidebarOpen && sidebarTabIndex === 2" (click)="toggleSidebarView(2)" class="ctrl-btn" matTooltip="Breakout Rooms">
             <mat-icon>meeting_room</mat-icon>
+            <span class="breakout-badge" *ngIf="hasPendingBreakout"></span>
           </button>
+
+          <button mat-mini-fab [class.active]="lowBandwidthMode" (click)="toggleLowBandwidth()" class="ctrl-btn" matTooltip="Low Bandwidth Mode">
+            <mat-icon>{{ lowBandwidthMode ? 'volume_up' : 'volume_down' }}</mat-icon>
+          </button>
+
           <button mat-mini-fab (click)="sidebarOpen = !sidebarOpen" class="ctrl-btn mobile-sidebar-toggle">
             <mat-icon>menu</mat-icon>
           </button>
@@ -66,13 +122,16 @@
           <span class="breakout-indicator" *ngIf="activeBreakoutId">
             <mat-icon [style.font-size.px]="14">group_work</mat-icon> Breakout
           </span>
-          <button mat-mini-fab *ngIf="isHostUser && !isEnding" color="warn" (click)="endSession()" class="ctrl-btn leave-btn">
+
+          <div class="ctrl-separator"></div>
+
+          <button mat-mini-fab *ngIf="canEndSession && !isEnding" color="warn" (click)="endSession()" class="ctrl-btn leave-btn">
             <mat-icon>call_end</mat-icon>
           </button>
-          <button mat-mini-fab *ngIf="isHostUser && isEnding" color="warn" disabled class="ctrl-btn leave-btn">
+          <button mat-mini-fab *ngIf="canEndSession && isEnding" color="warn" disabled class="ctrl-btn leave-btn">
             <mat-spinner diameter="18"></mat-spinner>
           </button>
-          <button mat-mini-fab (click)="leave()" class="ctrl-btn leave-btn">
+          <button mat-mini-fab (click)="leave()" class="ctrl-btn leave-btn" matTooltip="Leave">
             <mat-icon>logout</mat-icon>
           </button>
         </div>
@@ -92,6 +151,8 @@
                 </div>
                 <div class="tile-overlay">
                   <span class="tile-name">{{ p.name }}</span>
+                  <mat-icon class="tile-q" [class]="getQualityClass(p.identity)" [style.font-size.px]="12">{{ getQualityIcon(p.identity) }}</mat-icon>
+                  <mat-icon class="tile-hand" [style.font-size.px]="12" *ngIf="hasHandRaised(p.identity)">pan_tool</mat-icon>
                   <mat-icon class="tile-mic" [class.muted]="!p.isMicOn" [style.font-size.px]="14">{{ p.isMicOn ? 'mic' : 'mic_off' }}</mat-icon>
                   <mat-icon class="tile-cam" [class.off]="!p.isCamOn" [style.font-size.px]="14">{{ p.isCamOn ? 'videocam' : 'videocam_off' }}</mat-icon>
                 </div>
@@ -113,10 +174,14 @@
               <div class="participant-row" *ngFor="let p of allParticipants">
                 <div class="row-avatar">{{ getParticipantInitials(p) }}</div>
                 <div class="row-info">
-                  <span class="row-name">{{ p.name }} <span class="row-role" *ngIf="isSelf(p)">(You)</span></span>
+                  <span class="row-name">
+                    {{ p.name }} <span class="row-role" *ngIf="isSelf(p)">(You)</span>
+                    <mat-icon class="row-hand" [style.font-size.px]="12" *ngIf="hasHandRaised(p.identity)">pan_tool</mat-icon>
+                  </span>
                   <span class="row-devices">
                     <mat-icon class="dev-mic" [class.muted]="!p.isMicOn" [style.font-size.px]="12">{{ p.isMicOn ? 'mic' : 'mic_off' }}</mat-icon>
                     <mat-icon class="dev-cam" [class.off]="!p.isCamOn" [style.font-size.px]="12">{{ p.isCamOn ? 'videocam' : 'videocam_off' }}</mat-icon>
+                    <mat-icon class="dev-q" [class]="getQualityClass(p.identity)" [style.font-size.px]="12">{{ getQualityIcon(p.identity) }}</mat-icon>
                   </span>
                 </div>
                 <div class="row-actions" *ngIf="canModerate && !isSelf(p)">
@@ -214,6 +279,31 @@
               </div>
             </div>
           </ng-container>
+          <ng-container *ngSwitchCase="3">
+            <div class="chat-content">
+              <div class="chat-messages" #chatScroll>
+                <div *ngFor="let msg of chatMessages" class="chat-msg" [class.own-msg]="msg.userId === userId">
+                  <div class="chat-msg-header">
+                    <span class="chat-msg-user">{{ msg.userName }}</span>
+                    <span class="chat-msg-time">{{ formatChatTime(msg.createdAt) }}</span>
+                  </div>
+                  <div class="chat-msg-text">{{ msg.message }}</div>
+                </div>
+                <div *ngIf="chatMessages.length === 0" class="chat-empty">
+                  <mat-icon [style.font-size.px]="24">chat</mat-icon>
+                  <p>No messages yet</p>
+                </div>
+              </div>
+              <div class="chat-input-area">
+                <mat-form-field appearance="outline" dense class="chat-input-field">
+                  <input matInput [(ngModel)]="chatMessageText" placeholder="Type a message..." (keydown.enter)="sendMessage()" maxlength="2000">
+                </mat-form-field>
+                <button mat-mini-fab color="primary" (click)="sendMessage()" [disabled]="!chatMessageText.trim()" class="chat-send-btn">
+                  <mat-icon>send</mat-icon>
+                </button>
+              </div>
+            </div>
+          </ng-container>
         </div>
       </div>
       <div class="sidebar-backdrop" *ngIf="sidebarOpen" (click)="sidebarOpen = false"></div>
@@ -237,7 +327,7 @@
               <button *ngIf="session.status === 'active'" mat-raised-button color="primary" class="join-now-btn" (click)="onJoinClick()">
                 <mat-icon>videocam</mat-icon> Join Now
               </button>
-              <button *ngIf="session.status === 'active' && isHostUser" mat-raised-button color="warn" (click)="endFromCard()" [disabled]="cardActionLoading">
+              <button *ngIf="session.status === 'active' && canEndSession" mat-raised-button color="warn" (click)="endFromCard()" [disabled]="cardActionLoading">
                 <mat-icon *ngIf="!cardActionLoading">stop</mat-icon>
                 <mat-spinner *ngIf="cardActionLoading" diameter="16" style="display:inline-block;margin-right:4px"></mat-spinner>
                 {{ cardActionLoading ? 'Ending...' : 'End' }}
