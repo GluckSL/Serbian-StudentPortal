@@ -85,6 +85,7 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
   showAssignPanel: string | null = null;
   tempAssignParticipants: string[] = [];
   isReconnectingToMain = false;
+  showBreakoutInvite = false;
 
   private tileObserver: IntersectionObserver | null = null;
 
@@ -516,6 +517,9 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
           assignedParticipants: [],
           status: 'active',
         } as BreakoutInfo;
+        if (!this.canModerate) {
+          this.showBreakoutInvite = true;
+        }
       });
     });
 
@@ -1024,6 +1028,9 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
               break;
             }
           }
+          if (this.assignedBreakout && !this.canModerate && !this.activeBreakoutId) {
+            this.showBreakoutInvite = true;
+          }
         }
       },
       error: () => {}
@@ -1102,6 +1109,21 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
     }
     this.showAssignPanel = null;
     this.tempAssignParticipants = [];
+  }
+
+  get hasPendingBreakout(): boolean {
+    return !!this.assignedBreakout && !this.activeBreakoutId;
+  }
+
+  acceptBreakoutInvite(): void {
+    this.showBreakoutInvite = false;
+    if (this.assignedBreakout) {
+      this.joinBreakoutRoom(this.assignedBreakout._id);
+    }
+  }
+
+  dismissBreakoutInvite(): void {
+    this.showBreakoutInvite = false;
   }
 
   async joinBreakoutRoom(breakoutId: string): Promise<void> {

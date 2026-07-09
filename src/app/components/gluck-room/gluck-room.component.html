@@ -22,6 +22,20 @@
           <p class="waiting-hint">Class will begin shortly. Please wait...</p>
         </div>
       </div>
+
+      <div class="breakout-invite-overlay" *ngIf="showBreakoutInvite && assignedBreakout">
+        <div class="breakout-invite-card">
+          <mat-icon class="breakout-invite-icon">meeting_room</mat-icon>
+          <h2>Breakout Room Assigned</h2>
+          <p>You have been assigned to <strong>{{ assignedBreakout.name }}</strong></p>
+          <div class="breakout-invite-actions">
+            <button mat-raised-button color="primary" (click)="acceptBreakoutInvite()">
+              <mat-icon>login</mat-icon> Join Now
+            </button>
+            <button mat-stroked-button (click)="dismissBreakoutInvite()">Later</button>
+          </div>
+        </div>
+      </div>
       <div class="main-area">
         <div class="main-video-container">
           <video #mainVideo autoplay playsinline class="main-video" [class.hidden]="!mainParticipant?.hasVideo"></video>
@@ -58,6 +72,7 @@
           </button>
           <button mat-mini-fab [class.active]="sidebarOpen && sidebarTabIndex === 2" (click)="toggleSidebarView(2)" class="ctrl-btn" matTooltip="Breakout Rooms">
             <mat-icon>meeting_room</mat-icon>
+            <span class="breakout-badge" *ngIf="hasPendingBreakout"></span>
           </button>
           <button mat-mini-fab (click)="sidebarOpen = !sidebarOpen" class="ctrl-btn mobile-sidebar-toggle">
             <mat-icon>menu</mat-icon>

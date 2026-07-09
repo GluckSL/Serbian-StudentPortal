@@ -66,6 +66,47 @@
   opacity: 0.7;
   margin: 0;
 }
+
+.breakout-invite-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 60;
+}
+.breakout-invite-card {
+  background: #fff;
+  border-radius: 16px;
+  padding: 40px 48px;
+  text-align: center;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  max-width: 380px;
+  animation: fadeInUp 0.4s ease;
+}
+.breakout-invite-icon {
+  font-size: 56px;
+  width: 56px;
+  height: 56px;
+  color: #7c3aed;
+}
+.breakout-invite-card h2 {
+  font-size: 22px;
+  font-weight: 700;
+  margin: 12px 0 8px;
+  color: #1e293b;
+}
+.breakout-invite-card p {
+  font-size: 15px;
+  color: #475569;
+  margin: 0 0 24px;
+}
+.breakout-invite-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
 @keyframes fadeInUp {
   from { opacity: 0; transform: translateY(20px); }
   to { opacity: 1; transform: translateY(0); }
@@ -606,6 +647,20 @@
   font-weight: 500;
   margin: 0 8px;
   vertical-align: middle;
+}
+
+.breakout-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #ef4444;
+  border: 2px solid #fff;
+}
+.ctrl-btn {
+  position: relative;
 }
 
 .breakout-content {
