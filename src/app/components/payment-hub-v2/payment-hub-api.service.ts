@@ -875,10 +875,14 @@ export class PaymentHubApiService {
     );
   }
 
-  getBatchStudentsPaymentDetail(batch: string): Observable<{ success: boolean; data: BatchStudentsPaymentDetail }> {
+  getBatchStudentsPaymentDetail(
+    batch: string,
+    params?: Record<string, string | number | boolean | undefined | null>,
+  ): Observable<{ success: boolean; data: BatchStudentsPaymentDetail }> {
     const encoded = encodeURIComponent(batch);
     return this.http.get<{ success: boolean; data: BatchStudentsPaymentDetail }>(
       `${this.base}/batches/${encoded}/students`,
+      { params: params ? this.toParams(params) : undefined },
     );
   }
 

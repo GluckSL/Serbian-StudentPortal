@@ -1,287 +1,770 @@
 <div class="eo-page">
-  <!-- Header -->
-  <header class="eo-head">
-    <div class="eo-head-main">
-      <div class="eo-title-row">
-        <h1 class="eo-title">Engagement Overview</h1>
-        <span class="eo-head-chip">{{ targetHours() }} h/week target</span>
-        <span class="eo-head-chip eo-head-chip--soft">Week-based where configured</span>
-      </div>
-      <p class="eo-sub">
-        Track batch engagement from Exercises, Gluck Buddy, and GluckArena. Batches without a journey start date stay on a rolling 7-day view.
-      </p>
-    </div>
-    <button class="eo-refresh" type="button" (click)="load()" [disabled]="loading()">
-      <span class="material-icons">refresh</span> Refresh
-    </button>
-  </header>
 
-  <!-- KPI cards -->
-  <div class="eo-kpis" *ngIf="!loading() && !error()">
-    <div class="eo-kpi" style="--d: 0">
-      <span class="eo-kpi-ico material-icons">groups</span>
-      <div class="eo-kpi-body">
-        <p class="eo-kpi-val">{{ totals().students }}</p>
-        <p class="eo-kpi-label">Students tracked</p>
-      </div>
-    </div>
-    <div class="eo-kpi" style="--d: 1">
-      <span class="eo-kpi-ico eo-kpi-ico--blue material-icons">grid_view</span>
-      <div class="eo-kpi-body">
-        <p class="eo-kpi-val">{{ totals().batches }}</p>
-        <p class="eo-kpi-label">Active batches</p>
-      </div>
-    </div>
-    <div class="eo-kpi" style="--d: 2">
-      <span class="eo-kpi-ico material-icons"
-            [class.eo-kpi-ico--green]="totals().health >= 65"
-            [class.eo-kpi-ico--yellow]="totals().health >= 40 && totals().health < 65"
-            [class.eo-kpi-ico--red]="totals().health < 40">monitor_heart</span>
-      <div class="eo-kpi-body">
-        <p class="eo-kpi-val">{{ totals().health }}%</p>
-        <p class="eo-kpi-label">Avg engagement health</p>
-      </div>
-    </div>
-    <div class="eo-kpi" style="--d: 3">
-      <span class="eo-kpi-ico eo-kpi-ico--green material-icons">task_alt</span>
-      <div class="eo-kpi-body">
-        <p class="eo-kpi-val">{{ totals().green }}</p>
-        <p class="eo-kpi-label">Students on target</p>
-      </div>
-    </div>
-  </div>
-
-  <!-- Overall distribution -->
-  <div class="eo-dist" *ngIf="!loading() && !error()">
-    <div class="eo-dist-head">
-      <span class="eo-dist-title">Engagement distribution</span>
-      <div class="eo-legend-items">
-        <span class="eo-leg"><i class="eo-dot eo-dot--red"></i> {{ totals().red }} below 40% <small>(&lt; 2.4 h)</small></span>
-        <span class="eo-leg"><i class="eo-dot eo-dot--yellow"></i> {{ totals().yellow }} at 40–75% <small>(2.4–4.5 h)</small></span>
-        <span class="eo-leg"><i class="eo-dot eo-dot--green"></i> {{ totals().green }} at 75%+ <small>(4.5 h+)</small></span>
-      </div>
-    </div>
-    <div class="eo-dist-bar" role="img"
-         [attr.aria-label]="totals().redPct + '% red, ' + totals().yellowPct + '% yellow, ' + totals().greenPct + '% green'">
-      <svg width="100%" height="100%" aria-hidden="true" focusable="false">
-        <rect x="0" y="0" height="100%" fill="#ef4444"
-              [attr.width]="totals().distRed + '%'"></rect>
-        <rect y="0" height="100%" fill="#f5b300"
-              [attr.x]="totals().distRed + '%'"
-              [attr.width]="totals().distYellow + '%'"></rect>
-        <rect y="0" height="100%" fill="#22c55e"
-              [attr.x]="(totals().distRed + totals().distYellow) + '%'"
-              [attr.width]="totals().distGreen + '%'"></rect>
-      </svg>
-    </div>
-  </div>
-
-  <!-- Filters -->
-  <div class="eo-filters" *ngIf="!loading() && !error()">
-    <div class="eo-search">
-      <span class="material-icons">search</span>
-      <input type="text" placeholder="Search batch…" [ngModel]="search()"
-             (ngModelChange)="search.set($event)" />
-    </div>
-
-    <div class="eo-seg" role="tablist" aria-label="Filter by engagement band">
-      <button type="button" [class.active]="bandFilter() === 'all'" (click)="bandFilter.set('all')">All</button>
-      <button type="button" class="seg-red" [class.active]="bandFilter() === 'red'" (click)="bandFilter.set('red')">Red</button>
-      <button type="button" class="seg-yellow" [class.active]="bandFilter() === 'yellow'" (click)="bandFilter.set('yellow')">Yellow</button>
-      <button type="button" class="seg-green" [class.active]="bandFilter() === 'green'" (click)="bandFilter.set('green')">Green</button>
-    </div>
-
-    <select class="eo-select" [ngModel]="level()" (ngModelChange)="level.set($event)" aria-label="Filter by level">
-      <option value="">All levels</option>
-      <option *ngFor="let l of levels()" [value]="l">{{ l }}</option>
-    </select>
-
-    <select class="eo-select" [ngModel]="sort()" (ngModelChange)="sort.set($event)" aria-label="Sort batches">
-      <option value="batch">Sort: Batch no.</option>
-      <option value="worst">Sort: Worst engaged</option>
-      <option value="best">Sort: Best engaged</option>
-    </select>
-
-    <select class="eo-select" [ngModel]="globalWeek()" (ngModelChange)="onGlobalWeekChange($event)" aria-label="Filter all batches by week">
-      <option [ngValue]="null">Current week</option>
-      <option *ngFor="let w of weekOptions()" [ngValue]="w">Week {{ w }}</option>
-    </select>
-  </div>
-
-  <!-- Loading -->
-  <div class="eo-state" *ngIf="loading()">
-    <div class="eo-spinner"></div>
-    <p>Loading engagement data…</p>
-  </div>
-
-  <!-- Error -->
-  <div class="eo-state eo-state--error" *ngIf="error() && !loading()">
-    <span class="material-icons">error_outline</span>
-    <p>{{ error() }}</p>
-    <button type="button" (click)="load()">Retry</button>
-  </div>
-
-  <!-- Batches -->
-  <div class="eo-list" *ngIf="!loading() && !error()">
-    <article class="eo-batch" *ngFor="let b of visibleBatches(); trackBy: trackBatch" [class.is-loading]="b.loading">
-      <div class="eo-batch-head">
-        <div class="eo-batch-id">
-          <span class="eo-batch-name">Batch {{ b.batchName }}</span>
-          <span class="eo-batch-count">{{ b.studentCount }} students</span>
-        </div>
-
-        <div class="eo-batch-meta">
-          <span class="eo-health" [class.h-good]="healthPct(b) >= 65"
-                [class.h-mid]="healthPct(b) >= 40 && healthPct(b) < 65"
-                [class.h-low]="healthPct(b) < 40">
-            {{ healthPct(b) }}% health
-          </span>
-
-          <label class="eo-week" *ngIf="b.hasJourney">
-            <span>Week</span>
-            <select [ngModel]="b.selectedWeek" (ngModelChange)="onWeekChange(b, $event)" [disabled]="!!b.loading">
-              <option *ngFor="let w of weekOptions()" [ngValue]="w">
-                {{ w }}<ng-container *ngIf="w === b.currentWeek"> (current)</ng-container>
-              </option>
-            </select>
-          </label>
-          <span class="eo-week-fallback" *ngIf="!b.hasJourney"
-                [attr.title]="trackingHint(b)">
-            Rolling 7 days
-          </span>
-        </div>
-      </div>
-
-      <div class="eo-batch-stats">
-        <div class="eo-batch-stat">
-          <span class="eo-batch-stat-label">Tracking window</span>
-          <strong>{{ trackingLabel(b) }}</strong>
-          <small>{{ trackingHint(b) }}</small>
-        </div>
-        <div class="eo-batch-stat">
-          <span class="eo-batch-stat-label">On target</span>
-          <strong>{{ onTargetCount(b) }} / {{ b.studentCount }}</strong>
-          <small>{{ bandCount(b,'red') }} red · {{ bandCount(b,'yellow') }} yellow · {{ bandCount(b,'green') }} green</small>
-        </div>
-      </div>
-
-      <!-- Clickable segmented engagement bar -->
-      <button type="button" class="eo-segbar" (click)="openBatch(b)" [disabled]="!b.studentCount"
-              [attr.aria-label]="'View ' + b.studentCount + ' students in batch ' + b.batchName">
-        <span class="eo-segbar-track" *ngIf="b.studentCount">
-          <svg width="100%" height="100%" aria-hidden="true" focusable="false">
-            <rect x="0" y="0" height="100%" fill="#ef4444" [attr.width]="batchDist(b).r + '%'"></rect>
-            <rect y="0" height="100%" fill="#f5b300" [attr.x]="batchDist(b).r + '%'" [attr.width]="batchDist(b).y + '%'"></rect>
-            <rect y="0" height="100%" fill="#22c55e" [attr.x]="(batchDist(b).r + batchDist(b).y) + '%'" [attr.width]="batchDist(b).g + '%'"></rect>
-          </svg>
-        </span>
-        <span class="eo-segbar-empty" *ngIf="!b.studentCount">No students in this batch</span>
-
-        <span class="eo-segbar-counts" *ngIf="b.studentCount">
-          <span class="eo-segbar-badges">
-            <span class="eo-mini eo-mini--red" *ngIf="bandCount(b,'red')"><i></i>{{ bandCount(b,'red') }}</span>
-            <span class="eo-mini eo-mini--yellow" *ngIf="bandCount(b,'yellow')"><i></i>{{ bandCount(b,'yellow') }}</span>
-            <span class="eo-mini eo-mini--green" *ngIf="bandCount(b,'green')"><i></i>{{ bandCount(b,'green') }}</span>
-          </span>
-          <span class="eo-segbar-cta">View students <span aria-hidden="true">→</span></span>
-        </span>
-      </button>
-    </article>
-
-    <div class="eo-state" *ngIf="visibleBatches().length === 0">
-      <p>No batches match your search.</p>
-    </div>
-  </div>
-</div>
-
-<!-- Batch student-list popup -->
-<div class="eo-overlay" *ngIf="batchDetail() as bd" (click)="closeBatch()">
-  <div class="eo-sheet" (click)="$event.stopPropagation()">
-    <div class="eo-sheet-head">
-      <div>
-        <h3 class="eo-sheet-title">Batch {{ bd.batchName }}</h3>
-        <p class="eo-sheet-meta">
-          {{ bd.studentCount }} students ·
-          <ng-container *ngIf="bd.hasJourney; else s7">Week {{ bd.selectedWeek }}</ng-container>
-          <ng-template #s7>Last 7 days</ng-template>
-          · {{ targetHours() }} h/week target
+  <!-- Hero header -->
+  <header class="hero">
+    <div class="hero-top">
+      <div class="hero-text">
+        <p class="hero-eyebrow">Language Tracking</p>
+        <h1 class="hero-title">Batch Engagement Overview</h1>
+        <p class="hero-sub">
+          New Batch &amp; New Batch 2.0 journeys · Exercises, Gluck Buddy &amp; GlückArena · Live Classes
         </p>
       </div>
-      <button class="eo-card-close" type="button" (click)="closeBatch()" aria-label="Close">
+    </div>
+
+    <!-- Tab bar -->
+    <div class="tab-bar">
+      <button
+        class="tab-btn"
+        [class.tab-btn--active]="activeTab() === 'learning'"
+        type="button"
+        (click)="switchTab('learning')"
+      >
+        <span class="material-icons">menu_book</span>
+        Learning
+      </button>
+      <button
+        class="tab-btn"
+        [class.tab-btn--active]="activeTab() === 'classes'"
+        type="button"
+        (click)="switchTab('classes')"
+      >
+        <span class="material-icons">video_call</span>
+        Classes
+      </button>
+      <button
+        class="tab-btn"
+        [class.tab-btn--active]="activeTab() === 'payment'"
+        type="button"
+        (click)="switchTab('payment')"
+      >
+        <span class="material-icons">payments</span>
+        Payment
+      </button>
+    </div>
+  </header>
+
+  <!-- ════════════════════════════════════════════════════════
+       LEARNING TAB
+       ════════════════════════════════════════════════════════ -->
+  <ng-container *ngIf="activeTab() === 'learning'">
+
+    <!-- KPI grid -->
+    <div class="kpi-grid" *ngIf="!loading() && !error()">
+      <div class="kpi-card kpi-card--blue">
+        <div class="kpi-icon kpi-icon--blue"><span class="material-icons">schedule</span></div>
+        <div class="kpi-body">
+          <span class="kpi-num">{{ totals().fiveToSix }}</span>
+          <span class="kpi-lbl">5–6 hrs · almost on target</span>
+        </div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-icon kpi-icon--navy"><span class="material-icons">grid_view</span></div>
+        <div class="kpi-body">
+          <span class="kpi-num">{{ totals().batches }}</span>
+          <span class="kpi-lbl">Active batches</span>
+        </div>
+      </div>
+      <div class="kpi-card kpi-card--red">
+        <div class="kpi-icon kpi-icon--red"><span class="material-icons">trending_down</span></div>
+        <div class="kpi-body">
+          <span class="kpi-num">{{ totals().red }}</span>
+          <span class="kpi-lbl">0–3 hrs · below target</span>
+        </div>
+      </div>
+      <div class="kpi-card kpi-card--yellow">
+        <div class="kpi-icon kpi-icon--yellow"><span class="material-icons">trending_flat</span></div>
+        <div class="kpi-body">
+          <span class="kpi-num">{{ totals().yellow }}</span>
+          <span class="kpi-lbl">3–6 hrs · moderate</span>
+        </div>
+      </div>
+      <div class="kpi-card kpi-card--green">
+        <div class="kpi-icon kpi-icon--green"><span class="material-icons">trending_up</span></div>
+        <div class="kpi-body">
+          <span class="kpi-num">{{ totals().green }}</span>
+          <span class="kpi-lbl">6 h+ · on target</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Loading -->
+    <div class="state" *ngIf="loading()">
+      <div class="spinner"></div>
+      <p>Loading engagement data…</p>
+    </div>
+
+    <!-- Error -->
+    <div class="state state--err" *ngIf="error() && !loading()">
+      <span class="material-icons">error_outline</span>
+      <p>{{ error() }}</p>
+      <button type="button" class="btn-retry" (click)="load()">Retry</button>
+    </div>
+
+    <!-- Main chart panel -->
+    <section class="panel" *ngIf="!loading() && !error()">
+
+      <!-- Table -->
+      <div class="table-head">
+        <span>Batch</span>
+        <span>Engagement</span>
+        <span>Split</span>
+        <span>Week</span>
+      </div>
+
+      <div class="table-body">
+        <article
+          class="batch-row"
+          *ngFor="let b of visibleBatches(); trackBy: trackBatch"
+          [class.is-loading]="b.loading"
+        >
+          <!-- Batch info -->
+          <div class="batch-info">
+            <div class="batch-top">
+              <span class="batch-num">Batch {{ b.batchName }}</span>
+              <span class="badge" [class.badge--new2]="b.batchType === 'new2'">
+                {{ b.batchType === 'new2' ? '2.0' : 'New' }}
+              </span>
+            </div>
+            <div class="batch-meta">
+              <span>{{ b.studentCount }} students</span>
+              <span class="health" [class]="'health--' + healthClass(b)">{{ onTargetPct(b) }}% on target</span>
+            </div>
+          </div>
+
+          <!-- Engagement bar -->
+          <div class="engagement-col">
+            <button
+              class="bar-btn"
+              type="button"
+              (click)="openBatch(b)"
+              [disabled]="!b.studentCount"
+              [attr.aria-label]="'View students in batch ' + b.batchName"
+            >
+              <ng-container *ngIf="b.studentCount; else emptyBar">
+                <div class="bar-track">
+                  <div class="bar-seg bar-seg--red" *ngIf="b.bands.red" [style.flex]="b.bands.red">
+                    <span>{{ b.bands.red }}</span>
+                  </div>
+                  <div class="bar-seg bar-seg--yellow" *ngIf="b.bands.yellow" [style.flex]="b.bands.yellow">
+                    <span>{{ b.bands.yellow }}</span>
+                  </div>
+                  <div class="bar-seg bar-seg--green" *ngIf="b.bands.green" [style.flex]="b.bands.green">
+                    <span>{{ b.bands.green }}</span>
+                  </div>
+                </div>
+              </ng-container>
+              <ng-template #emptyBar>
+                <div class="bar-empty">No students</div>
+              </ng-template>
+            </button>
+            <button class="view-btn" type="button" (click)="openBatch(b)" [disabled]="!b.studentCount">
+              View students <span class="material-icons">chevron_right</span>
+            </button>
+          </div>
+
+          <!-- Pct breakdown -->
+          <div class="pct-col">
+            <span class="pct-red">{{ bandPct(b.studentCount, b.bands.red) }}</span>
+            <span class="pct-sep">|</span>
+            <span class="pct-yellow">{{ bandPct(b.studentCount, b.bands.yellow) }}</span>
+            <span class="pct-sep">|</span>
+            <span class="pct-green">{{ bandPct(b.studentCount, b.bands.green) }}</span>
+          </div>
+
+          <!-- Week selector -->
+          <div class="week-col">
+            <select
+              class="week-select"
+              *ngIf="b.hasJourney; else rolling"
+              [ngModel]="b.selectedWeek"
+              (ngModelChange)="onWeekChange(b, +$event)"
+              [disabled]="!!b.loading"
+            >
+              <option [ngValue]="0">Overall</option>
+              <option *ngFor="let w of weekOptionsFor(b)" [ngValue]="w">
+                Week {{ w }}<ng-container *ngIf="w === b.currentWeek"> · current</ng-container><ng-container *ngIf="b.currentWeek && w === b.currentWeek - 1"> · last</ng-container>
+              </option>
+            </select>
+            <ng-template #rolling>
+              <span class="week-pill">Rolling 7 days</span>
+            </ng-template>
+          </div>
+        </article>
+
+        <div class="state state--empty" *ngIf="visibleBatches().length === 0">
+          <span class="material-icons">inbox</span>
+          <p>No batches found.</p>
+        </div>
+      </div>
+    </section>
+  </ng-container>
+
+  <!-- ════════════════════════════════════════════════════════
+       CLASSES TAB
+       ════════════════════════════════════════════════════════ -->
+  <ng-container *ngIf="activeTab() === 'classes'">
+
+    <!-- KPI grid -->
+    <div class="kpi-grid" *ngIf="!classLoading() && !classError()">
+      <div class="kpi-card">
+        <div class="kpi-icon kpi-icon--blue"><span class="material-icons">groups</span></div>
+        <div class="kpi-body">
+          <span class="kpi-num">{{ classTotals().students }}</span>
+          <span class="kpi-lbl">Students tracked</span>
+        </div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-icon kpi-icon--navy"><span class="material-icons">grid_view</span></div>
+        <div class="kpi-body">
+          <span class="kpi-num">{{ classTotals().batches }}</span>
+          <span class="kpi-lbl">Active batches</span>
+        </div>
+      </div>
+      <div class="kpi-card kpi-card--red">
+        <div class="kpi-icon kpi-icon--red"><span class="material-icons">trending_down</span></div>
+        <div class="kpi-body">
+          <span class="kpi-num">{{ classTotals().red }}</span>
+          <span class="kpi-lbl">Below 60% attendance</span>
+        </div>
+      </div>
+      <div class="kpi-card kpi-card--yellow">
+        <div class="kpi-icon kpi-icon--yellow"><span class="material-icons">trending_flat</span></div>
+        <div class="kpi-body">
+          <span class="kpi-num">{{ classTotals().yellow }}</span>
+          <span class="kpi-lbl">60–80% attendance</span>
+        </div>
+      </div>
+      <div class="kpi-card kpi-card--green">
+        <div class="kpi-icon kpi-icon--green"><span class="material-icons">trending_up</span></div>
+        <div class="kpi-body">
+          <span class="kpi-num">{{ classTotals().green }}</span>
+          <span class="kpi-lbl">Above 80% attendance</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Loading -->
+    <div class="state" *ngIf="classLoading()">
+      <div class="spinner"></div>
+      <p>Loading class attendance data…</p>
+    </div>
+
+    <!-- Error -->
+    <div class="state state--err" *ngIf="classError() && !classLoading()">
+      <span class="material-icons">error_outline</span>
+      <p>{{ classError() }}</p>
+      <button type="button" class="btn-retry" (click)="loadClasses()">Retry</button>
+    </div>
+
+    <!-- Main chart panel -->
+    <section class="panel" *ngIf="!classLoading() && !classError()">
+
+      <!-- Table -->
+      <div class="table-head">
+        <span>Batch</span>
+        <span>Attendance</span>
+        <span>Split</span>
+        <span>Level</span>
+      </div>
+
+      <div class="table-body">
+        <article
+          class="batch-row"
+          *ngFor="let b of visibleClassBatches(); trackBy: trackClassBatch"
+          [class.is-loading]="b.loading"
+        >
+          <!-- Batch info -->
+          <div class="batch-info">
+            <div class="batch-top">
+              <span class="batch-num">Batch {{ b.batchName }}</span>
+              <span class="badge" [class.badge--new2]="b.batchType === 'new2'">
+                {{ b.batchType === 'new2' ? '2.0' : 'New' }}
+              </span>
+              <span class="level-badge">{{ b.selectedLevel }}</span>
+            </div>
+            <div class="batch-meta">
+              <span>{{ b.studentCount }} students</span>
+              <span class="health" [class]="'health--' + classHealthClass(b)">{{ classOnTargetPct(b) }}% above 80%</span>
+            </div>
+          </div>
+
+          <!-- Attendance bar -->
+          <div class="engagement-col">
+            <button
+              class="bar-btn"
+              type="button"
+              (click)="openClassBatch(b)"
+              [disabled]="!b.studentCount"
+              [attr.aria-label]="'View students in batch ' + b.batchName"
+            >
+              <ng-container *ngIf="b.studentCount; else emptyClassBar">
+                <div class="bar-track">
+                  <div class="bar-seg bar-seg--red" *ngIf="b.bands.red" [style.flex]="b.bands.red">
+                    <span>{{ b.bands.red }}</span>
+                  </div>
+                  <div class="bar-seg bar-seg--yellow" *ngIf="b.bands.yellow" [style.flex]="b.bands.yellow">
+                    <span>{{ b.bands.yellow }}</span>
+                  </div>
+                  <div class="bar-seg bar-seg--green" *ngIf="b.bands.green" [style.flex]="b.bands.green">
+                    <span>{{ b.bands.green }}</span>
+                  </div>
+                </div>
+              </ng-container>
+              <ng-template #emptyClassBar>
+                <div class="bar-empty">No students</div>
+              </ng-template>
+            </button>
+            <button class="view-btn" type="button" (click)="openClassBatch(b)" [disabled]="!b.studentCount">
+              View students <span class="material-icons">chevron_right</span>
+            </button>
+          </div>
+
+          <!-- Pct breakdown -->
+          <div class="pct-col">
+            <span class="pct-red">{{ bandPct(b.studentCount, b.bands.red) }}</span>
+            <span class="pct-sep">|</span>
+            <span class="pct-yellow">{{ bandPct(b.studentCount, b.bands.yellow) }}</span>
+            <span class="pct-sep">|</span>
+            <span class="pct-green">{{ bandPct(b.studentCount, b.bands.green) }}</span>
+          </div>
+
+          <!-- Level selector -->
+          <div class="week-col">
+            <select
+              class="week-select"
+              [ngModel]="b.selectedLevel"
+              (ngModelChange)="onLevelChange(b, $event)"
+              [disabled]="!!b.loading"
+            >
+              <option *ngFor="let lvl of b.availableLevels" [ngValue]="lvl">
+                {{ lvl }}<ng-container *ngIf="lvl === b.currentLevel"> · current</ng-container>
+              </option>
+            </select>
+          </div>
+        </article>
+
+        <div class="state state--empty" *ngIf="visibleClassBatches().length === 0">
+          <span class="material-icons">inbox</span>
+          <p>No batches found.</p>
+        </div>
+      </div>
+    </section>
+  </ng-container>
+
+  <!-- ════════════════════════════════════════════════════════
+       PAYMENT TAB
+       ════════════════════════════════════════════════════════ -->
+  <ng-container *ngIf="activeTab() === 'payment'">
+
+    <!-- KPI grid -->
+    <div class="kpi-grid" *ngIf="!paymentLoading() && !paymentError()">
+      <div class="kpi-card">
+        <div class="kpi-icon kpi-icon--blue"><span class="material-icons">groups</span></div>
+        <div class="kpi-body">
+          <span class="kpi-num">{{ paymentTotals().students }}</span>
+          <span class="kpi-lbl">Students tracked</span>
+        </div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-icon kpi-icon--navy"><span class="material-icons">grid_view</span></div>
+        <div class="kpi-body">
+          <span class="kpi-num">{{ paymentTotals().batches }}</span>
+          <span class="kpi-lbl">Active batches</span>
+        </div>
+      </div>
+      <div class="kpi-card kpi-card--green">
+        <div class="kpi-icon kpi-icon--green"><span class="material-icons">check_circle</span></div>
+        <div class="kpi-body">
+          <span class="kpi-num">{{ paymentTotals().green }}</span>
+          <span class="kpi-lbl">Full paid</span>
+        </div>
+      </div>
+      <div class="kpi-card kpi-card--yellow">
+        <div class="kpi-icon kpi-icon--yellow"><span class="material-icons">schedule</span></div>
+        <div class="kpi-body">
+          <span class="kpi-num">{{ paymentTotals().yellow }}</span>
+          <span class="kpi-lbl">Pending · day 1–5</span>
+        </div>
+      </div>
+      <div class="kpi-card kpi-card--red">
+        <div class="kpi-icon kpi-icon--red"><span class="material-icons">warning</span></div>
+        <div class="kpi-body">
+          <span class="kpi-num">{{ paymentTotals().red }}</span>
+          <span class="kpi-lbl">Pending · day 6+</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Loading -->
+    <div class="state" *ngIf="paymentLoading()">
+      <div class="spinner"></div>
+      <p>Loading payment data…</p>
+    </div>
+
+    <!-- Error -->
+    <div class="state state--err" *ngIf="paymentError() && !paymentLoading()">
+      <span class="material-icons">error_outline</span>
+      <p>{{ paymentError() }}</p>
+      <button type="button" class="btn-retry" (click)="loadPayment()">Retry</button>
+    </div>
+
+    <!-- Panel -->
+    <section class="panel" *ngIf="!paymentLoading() && !paymentError()">
+
+      <!-- Toolbar -->
+      <div class="toolbar">
+        <span class="dist-title" style="padding-left:.25rem">Payment health by batch</span>
+        <div class="toolbar-actions">
+          <span class="batch-count">{{ visiblePaymentBatches().length }} batches</span>
+          <button class="btn-refresh" type="button" (click)="refreshPayment()" [disabled]="paymentLoading()">
+            <span class="material-icons" [class.spinning]="paymentLoading()">refresh</span>
+            Refresh
+          </button>
+        </div>
+      </div>
+
+      <!-- Table -->
+      <div class="table-head">
+        <span>Batch</span>
+        <span>Payment health</span>
+        <span>Split</span>
+        <span>Level</span>
+      </div>
+
+      <div class="table-body">
+        <article
+          class="batch-row"
+          *ngFor="let b of visiblePaymentBatches(); trackBy: trackPaymentBatch"
+          [class.is-loading]="b.loading"
+        >
+          <!-- Batch info -->
+          <div class="batch-info">
+            <div class="batch-top">
+              <span class="batch-num">Batch {{ b.batchName }}</span>
+              <span class="badge" [class.badge--new2]="b.batchType === 'new2'">
+                {{ b.batchType === 'new2' ? '2.0' : 'New' }}
+              </span>
+              <span class="level-badge">{{ b.selectedLevel }}</span>
+            </div>
+            <div class="batch-meta">
+              <span>{{ b.studentCount }} students</span>
+              <span class="health" [class]="'health--' + paymentHealthClass(b)">{{ paymentHealthPct(b) }}% full paid</span>
+            </div>
+          </div>
+
+          <!-- Payment health bar -->
+          <div class="engagement-col">
+            <button
+              class="bar-btn"
+              type="button"
+              (click)="openPaymentBatch(b)"
+              [disabled]="!b.studentCount"
+              [attr.aria-label]="'View students in batch ' + b.batchName"
+            >
+              <ng-container *ngIf="b.studentCount; else emptyPayBar">
+                <div class="bar-track">
+                  <div class="bar-seg bar-seg--red" *ngIf="b.bands.red" [style.flex]="b.bands.red">
+                    <span>{{ b.bands.red }}</span>
+                  </div>
+                  <div class="bar-seg bar-seg--yellow" *ngIf="b.bands.yellow" [style.flex]="b.bands.yellow">
+                    <span>{{ b.bands.yellow }}</span>
+                  </div>
+                  <div class="bar-seg bar-seg--green" *ngIf="b.bands.green" [style.flex]="b.bands.green">
+                    <span>{{ b.bands.green }}</span>
+                  </div>
+                </div>
+              </ng-container>
+              <ng-template #emptyPayBar>
+                <div class="bar-empty">No students</div>
+              </ng-template>
+            </button>
+            <button class="view-btn" type="button" (click)="openPaymentBatch(b)" [disabled]="!b.studentCount">
+              View students <span class="material-icons">chevron_right</span>
+            </button>
+          </div>
+
+          <!-- Pct breakdown -->
+          <div class="pct-col">
+            <span class="pct-red">{{ bandPct(b.studentCount, b.bands.red) }}</span>
+            <span class="pct-sep">|</span>
+            <span class="pct-yellow">{{ bandPct(b.studentCount, b.bands.yellow) }}</span>
+            <span class="pct-sep">|</span>
+            <span class="pct-green">{{ bandPct(b.studentCount, b.bands.green) }}</span>
+          </div>
+
+          <!-- Level selector -->
+          <div class="week-col">
+            <select
+              class="week-select"
+              [ngModel]="b.selectedLevel"
+              (ngModelChange)="onPaymentLevelChange(b, $event)"
+              [disabled]="!!b.loading"
+            >
+              <option *ngFor="let lvl of b.availableLevels" [ngValue]="lvl">
+                {{ lvl }}<ng-container *ngIf="lvl === b.currentLevel"> · current</ng-container>
+              </option>
+            </select>
+          </div>
+        </article>
+
+        <div class="state state--empty" *ngIf="visiblePaymentBatches().length === 0">
+          <span class="material-icons">inbox</span>
+          <p>No batches found.</p>
+        </div>
+      </div>
+    </section>
+  </ng-container>
+
+</div>
+
+<!-- ════════════════════════════════════════════════════════
+     LEARNING: Batch modal
+     ════════════════════════════════════════════════════════ -->
+<div class="modal-backdrop" *ngIf="batchDetail() as bd" (click)="closeBatch()">
+  <div class="modal-sheet" (click)="$event.stopPropagation()">
+    <div class="modal-head">
+      <div>
+        <h2>Batch {{ bd.batchName }}</h2>
+        <p>{{ bd.studentCount }} students · {{ weekLabel(bd) }} · {{ targetHours() }} h/week</p>
+      </div>
+      <button class="modal-close" type="button" (click)="closeBatch()" aria-label="Close">
         <span class="material-icons">close</span>
       </button>
     </div>
 
-    <div class="eo-sheet-summary">
-      <span class="eo-mini eo-mini--red" *ngIf="bandCount(bd,'red')"><i></i>{{ bandCount(bd,'red') }} red</span>
-      <span class="eo-mini eo-mini--yellow" *ngIf="bandCount(bd,'yellow')"><i></i>{{ bandCount(bd,'yellow') }} yellow</span>
-      <span class="eo-mini eo-mini--green" *ngIf="bandCount(bd,'green')"><i></i>{{ bandCount(bd,'green') }} green</span>
+    <div class="modal-chips">
+      <span class="chip chip--red" *ngIf="bd.bands.red"><i class="dot dot--red"></i>{{ bd.bands.red }} · 0–3 hrs</span>
+      <span class="chip chip--yellow" *ngIf="bd.bands.yellow"><i class="dot dot--yellow"></i>{{ bd.bands.yellow }} · 3–6 hrs</span>
+      <span class="chip chip--green" *ngIf="bd.bands.green"><i class="dot dot--green"></i>{{ bd.bands.green }} · 6 h+</span>
     </div>
 
-    <div class="eo-sheet-list">
-      <button class="eo-row" *ngFor="let s of studentsFor(bd); trackBy: trackStudent" type="button"
-              (click)="openStudent(s, bd)">
-        <span class="eo-row-dot" [class.b-red]="s.band==='red'" [class.b-yellow]="s.band==='yellow'" [class.b-green]="s.band==='green'"></span>
-        <span class="eo-row-name">
+    <div class="modal-list">
+      <button class="modal-row" *ngFor="let s of studentsFor(bd); trackBy: trackStudent" type="button" (click)="openStudent(s, bd)">
+        <span class="row-dot" [class]="'row-dot--' + s.band"></span>
+        <span class="row-name">
           {{ s.name }}
           <small>{{ s.regNo || '—' }}<ng-container *ngIf="s.level"> · {{ s.level }}</ng-container></small>
         </span>
-        <span class="eo-row-hours">{{ s.hours }} h</span>
-        <span class="eo-row-pct" [class.b-red]="s.band==='red'" [class.b-yellow]="s.band==='yellow'" [class.b-green]="s.band==='green'">{{ s.pct }}%</span>
-        <span class="material-icons eo-row-chev">chevron_right</span>
+        <span class="row-hours" [class]="'row-hours--' + s.band">{{ s.hours }} h</span>
+        <span class="material-icons row-chev">chevron_right</span>
       </button>
     </div>
   </div>
 </div>
 
-<!-- Student detail popup -->
-<div class="eo-overlay eo-overlay--top" *ngIf="selected() as sel" (click)="closeStudent()">
-  <div class="eo-card" (click)="$event.stopPropagation()">
-    <button class="eo-card-close" type="button" (click)="closeStudent()" aria-label="Close">
+<!-- LEARNING: Student modal -->
+<div class="modal-backdrop modal-backdrop--top" *ngIf="selected() as sel" (click)="closeStudent()">
+  <div class="modal-card" (click)="$event.stopPropagation()">
+    <button class="modal-close" type="button" (click)="closeStudent()" aria-label="Close">
       <span class="material-icons">close</span>
     </button>
 
-    <div class="eo-card-head">
-      <div class="eo-card-avatar" [class.b-red]="sel.student.band === 'red'"
-           [class.b-yellow]="sel.student.band === 'yellow'"
-           [class.b-green]="sel.student.band === 'green'">
-        {{ sel.student.name.charAt(0) }}
-      </div>
+    <div class="student-head">
+      <div class="student-avatar" [class]="'student-avatar--' + sel.student.band">{{ sel.student.name.charAt(0) }}</div>
       <div>
-        <h3 class="eo-card-name">{{ sel.student.name }}</h3>
-        <p class="eo-card-meta">
+        <h2>{{ sel.student.name }}</h2>
+        <p>
           {{ sel.student.regNo || '—' }}
-          <span *ngIf="sel.student.level"> · Level {{ sel.student.level }}</span>
+          <span *ngIf="sel.student.level"> · {{ sel.student.level }}</span>
           · Batch {{ sel.batch }} ·
-          <ng-container *ngIf="sel.week !== null; else last7">Week {{ sel.week }}</ng-container>
-          <ng-template #last7>Last 7 days</ng-template>
+          <ng-container *ngIf="sel.week === 0">Overall</ng-container>
+          <ng-container *ngIf="sel.week !== null && sel.week !== 0">Week {{ sel.week }}</ng-container>
         </p>
       </div>
     </div>
 
-    <div class="eo-card-hero" [class.b-red]="sel.student.band === 'red'"
-         [class.b-yellow]="sel.student.band === 'yellow'"
-         [class.b-green]="sel.student.band === 'green'">
-      <div class="eo-card-hours">{{ sel.student.hours }}<span>h</span></div>
-      <div class="eo-card-pct">{{ sel.student.pct }}% of {{ targetHours() }} h target</div>
-      <div class="eo-card-band">{{ bandLabels[sel.student.band] }}</div>
+    <div class="student-hero" [class]="'student-hero--' + sel.student.band">
+      <div class="hero-hours">{{ sel.student.hours }}<small>h</small></div>
+      <div class="hero-pct">{{ sel.student.pct }}% of {{ targetHours() }} h target</div>
+      <div class="hero-band">{{ bandLabels[sel.student.band] }}</div>
     </div>
 
-    <div class="eo-card-breakdown">
-      <div class="eo-brk">
-        <span class="eo-brk-ico material-icons">edit_note</span>
-        <span class="eo-brk-label">Exercises</span>
-        <span class="eo-brk-val">{{ sel.student.breakdown.exerciseMin }} min</span>
+    <div class="student-breakdown">
+      <div class="brk">
+        <span class="material-icons">edit_note</span>
+        <span>Exercises</span>
+        <strong>{{ sel.student.breakdown.exerciseMin }} min</strong>
       </div>
-      <div class="eo-brk">
-        <span class="eo-brk-ico material-icons">forum</span>
-        <span class="eo-brk-label">Gluck Buddy</span>
-        <span class="eo-brk-val">{{ sel.student.breakdown.dgMin }} min</span>
+      <div class="brk">
+        <span class="material-icons">forum</span>
+        <span>Gluck Buddy</span>
+        <strong>{{ sel.student.breakdown.dgMin }} min</strong>
       </div>
-      <div class="eo-brk">
-        <span class="eo-brk-ico material-icons">sports_esports</span>
-        <span class="eo-brk-label">GlückArena</span>
-        <span class="eo-brk-val">{{ sel.student.breakdown.arenaMin }} min</span>
+      <div class="brk">
+        <span class="material-icons">sports_esports</span>
+        <span>GlückArena</span>
+        <strong>{{ sel.student.breakdown.arenaMin }} min</strong>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════
+     CLASSES: Batch modal
+     ════════════════════════════════════════════════════════ -->
+<div class="modal-backdrop" *ngIf="classBatchDetail() as bd" (click)="closeClassBatch()">
+  <div class="modal-sheet" (click)="$event.stopPropagation()">
+    <div class="modal-head">
+      <div>
+        <h2>Batch {{ bd.batchName }}</h2>
+        <p>{{ bd.studentCount }} students · Level {{ bd.selectedLevel }} · Live class attendance</p>
+      </div>
+      <button class="modal-close" type="button" (click)="closeClassBatch()" aria-label="Close">
+        <span class="material-icons">close</span>
+      </button>
+    </div>
+
+    <div class="modal-chips">
+      <span class="chip chip--red" *ngIf="bd.bands.red"><i class="dot dot--red"></i>{{ bd.bands.red }} · &lt; 60%</span>
+      <span class="chip chip--yellow" *ngIf="bd.bands.yellow"><i class="dot dot--yellow"></i>{{ bd.bands.yellow }} · 60–80%</span>
+      <span class="chip chip--green" *ngIf="bd.bands.green"><i class="dot dot--green"></i>{{ bd.bands.green }} · &gt; 80%</span>
+    </div>
+
+    <div class="modal-list">
+      <button class="modal-row" *ngFor="let s of classStudentsFor(bd); trackBy: trackClassStudent" type="button" (click)="openClassStudent(s, bd)">
+        <span class="row-dot" [class]="'row-dot--' + s.band"></span>
+        <span class="row-name">
+          {{ s.name }}
+          <small>{{ s.regNo || '—' }}<ng-container *ngIf="s.level"> · {{ s.level }}</ng-container></small>
+        </span>
+        <span class="row-hours">{{ s.attendedCount }}/{{ s.totalCount }}</span>
+        <span class="row-pct" [class]="'row-pct--' + s.band">{{ s.attendancePct }}%</span>
+        <span class="material-icons row-chev">chevron_right</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- CLASSES: Student modal -->
+<div class="modal-backdrop modal-backdrop--top" *ngIf="classSelected() as sel" (click)="closeClassStudent()">
+  <div class="modal-card" (click)="$event.stopPropagation()">
+    <button class="modal-close" type="button" (click)="closeClassStudent()" aria-label="Close">
+      <span class="material-icons">close</span>
+    </button>
+
+    <div class="student-head">
+      <div class="student-avatar" [class]="'student-avatar--' + sel.student.band">{{ sel.student.name.charAt(0) }}</div>
+      <div>
+        <h2>{{ sel.student.name }}</h2>
+        <p>
+          {{ sel.student.regNo || '—' }}
+          <span *ngIf="sel.student.level"> · {{ sel.student.level }}</span>
+          · Batch {{ sel.batch }} · Level {{ sel.level }}
+        </p>
+      </div>
+    </div>
+
+    <div class="student-hero" [class]="'student-hero--' + sel.student.band">
+      <div class="hero-hours">{{ sel.student.attendancePct }}<small>%</small></div>
+      <div class="hero-pct">{{ sel.student.attendedCount }} of {{ sel.student.totalCount }} classes attended</div>
+      <div class="hero-band">{{ attendanceBandLabels[sel.student.band] }}</div>
+    </div>
+
+    <div class="student-breakdown">
+      <div class="brk">
+        <span class="material-icons">check_circle</span>
+        <span>Attended</span>
+        <strong>{{ sel.student.attendedCount }} classes</strong>
+      </div>
+      <div class="brk">
+        <span class="material-icons">cancel</span>
+        <span>Absent</span>
+        <strong>{{ sel.student.totalCount - sel.student.attendedCount }} classes</strong>
+      </div>
+      <div class="brk">
+        <span class="material-icons">class</span>
+        <span>Total classes</span>
+        <strong>{{ sel.student.totalCount }}</strong>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════
+     PAYMENT: Batch modal
+     ════════════════════════════════════════════════════════ -->
+<div class="modal-backdrop" *ngIf="paymentBatchDetail() as bd" (click)="closePaymentBatch()">
+  <div class="modal-sheet" (click)="$event.stopPropagation()">
+    <div class="modal-head">
+      <div>
+        <h2>Batch {{ bd.batchName }}</h2>
+        <p>{{ bd.studentCount }} students · Level {{ bd.selectedLevel }} · Payment health</p>
+      </div>
+      <button class="modal-close" type="button" (click)="closePaymentBatch()" aria-label="Close">
+        <span class="material-icons">close</span>
+      </button>
+    </div>
+
+    <div class="modal-chips">
+      <span class="chip chip--green" *ngIf="bd.bands.green"><i class="dot dot--green"></i>{{ bd.bands.green }} · Full paid</span>
+      <span class="chip chip--yellow" *ngIf="bd.bands.yellow"><i class="dot dot--yellow"></i>{{ bd.bands.yellow }} · Pending day 1–5</span>
+      <span class="chip chip--red" *ngIf="bd.bands.red"><i class="dot dot--red"></i>{{ bd.bands.red }} · Pending day 6+</span>
+    </div>
+
+    <div class="modal-list">
+      <button class="modal-row" *ngFor="let s of paymentStudentsFor(bd); trackBy: trackPaymentStudent" type="button" (click)="openPaymentStudent(s, bd)">
+        <span class="row-dot" [class]="'row-dot--' + s.band"></span>
+        <span class="row-name">
+          {{ s.name }}
+          <small>{{ s.regNo || '—' }}<ng-container *ngIf="s.level"> · {{ s.level }}</ng-container></small>
+        </span>
+        <span class="row-hours" [class]="s.band !== 'green' ? 'row-pay--pending' : 'row-pay--paid'">
+          {{ s.band === 'green' ? 'Paid' : 'Pending' }}
+        </span>
+        <span class="row-pct" [class]="'row-pct--' + s.band">
+          <ng-container *ngIf="s.band !== 'green'">{{ formatAmount(s.totalPending) }}</ng-container>
+          <ng-container *ngIf="s.band === 'green'">✓</ng-container>
+        </span>
+        <span class="material-icons row-chev">chevron_right</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- PAYMENT: Student modal -->
+<div class="modal-backdrop modal-backdrop--top" *ngIf="paymentSelected() as sel" (click)="closePaymentStudent()">
+  <div class="modal-card" (click)="$event.stopPropagation()">
+    <button class="modal-close" type="button" (click)="closePaymentStudent()" aria-label="Close">
+      <span class="material-icons">close</span>
+    </button>
+
+    <div class="student-head">
+      <div class="student-avatar" [class]="'student-avatar--' + sel.student.band">{{ sel.student.name.charAt(0) }}</div>
+      <div>
+        <h2>{{ sel.student.name }}</h2>
+        <p>
+          {{ sel.student.regNo || '—' }}
+          <span *ngIf="sel.student.level"> · {{ sel.student.level }}</span>
+          · Batch {{ sel.batch }} · Levels up to {{ sel.level }}
+        </p>
+      </div>
+    </div>
+
+    <div class="student-hero" [class]="'student-hero--' + sel.student.band">
+      <div class="hero-hours">
+        <ng-container *ngIf="sel.student.band === 'green'">✓</ng-container>
+        <ng-container *ngIf="sel.student.band !== 'green'">Day {{ sel.student.daysIntoLevel ?? '—' }}</ng-container>
+      </div>
+      <div class="hero-pct">{{ paymentHealthLabel(sel.student) }}</div>
+      <div class="hero-band">{{ paymentBandLabels[sel.student.band] }}</div>
+    </div>
+
+    <div class="student-breakdown">
+      <div class="brk">
+        <span class="material-icons">payments</span>
+        <span>Paid (A1–{{ sel.level }})</span>
+        <strong>{{ formatAmount(sel.student.totalPaid) }}</strong>
+      </div>
+      <div class="brk">
+        <span class="material-icons">pending_actions</span>
+        <span>Outstanding</span>
+        <strong [style.color]="sel.student.totalPending > 0 ? 'var(--red)' : 'inherit'">{{ formatAmount(sel.student.totalPending) }}</strong>
+      </div>
+      <div class="brk" *ngIf="sel.student.currentJourneyDay != null">
+        <span class="material-icons">today</span>
+        <span>Journey day</span>
+        <strong>Day {{ sel.student.currentJourneyDay }}</strong>
       </div>
     </div>
   </div>

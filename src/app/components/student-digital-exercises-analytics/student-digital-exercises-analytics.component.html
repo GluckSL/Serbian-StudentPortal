@@ -95,7 +95,7 @@
                 <td>
                   <span class="level-pill" [style.background]="getLevelColor(ex.level)">{{ ex.level }}</span>
                 </td>
-                <td class="num">{{ ex.studentAttempt?.scorePercentage ?? '—' }}%</td>
+                <td class="num">{{ ex.studentAttempt?.scorePercentage ?? '—' }}% <span class="auto-tag" *ngIf="ex.studentAttempt?.autoSubmittedDueToLockBrowser">Auto</span></td>
                 <td class="results-cell">
                   <span class="r-ok">{{ ex.studentAttempt?.correctCount ?? '—' }} correct</span>
                   <span class="r-sep">·</span>
@@ -125,7 +125,7 @@
             <div class="card-body">
               <div class="card-stat">
                 <span class="label">Score</span>
-                <span class="value">{{ ex.studentAttempt?.scorePercentage ?? '—' }}%</span>
+                <span class="value">{{ ex.studentAttempt?.scorePercentage ?? '—' }}% <span class="auto-tag" *ngIf="ex.studentAttempt?.autoSubmittedDueToLockBrowser">Auto</span></span>
               </div>
               <div class="card-stat">
                 <span class="label">Results</span>

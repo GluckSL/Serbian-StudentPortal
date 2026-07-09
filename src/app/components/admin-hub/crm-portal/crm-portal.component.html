@@ -321,6 +321,20 @@
             Counsellors
           </button>
           <button class="crm-btn crm-btn--outline crm-btn--sm"
+            (click)="saveSalesDashboardImage()"
+            [disabled]="salesDashboard.loading || salesImageSaving || salesChatSending"
+            title="Download dashboard cards as PNG image">
+            <span class="material-icons">image</span>
+            {{ salesImageSaving ? 'Saving…' : 'Save' }}
+          </button>
+          <button class="crm-btn crm-btn--outline crm-btn--sm"
+            (click)="sendSalesDashboardToChat()"
+            [disabled]="salesDashboard.loading || salesImageSaving || salesChatSending"
+            title="Send dashboard snapshot to Google Chat group">
+            <span class="material-icons">send</span>
+            {{ salesChatSending ? 'Sending…' : 'Send' }}
+          </button>
+          <button class="crm-btn crm-btn--outline crm-btn--sm"
             (click)="openSalesDashboard(board)"
             [disabled]="salesDashboard.loading"
             title="Refresh">
@@ -394,12 +408,19 @@
           </div>
         </div>
 
+        <p class="crm-sales-image-msg" *ngIf="salesImageSaveMsg">{{ salesImageSaveMsg }}</p>
+        <p class="crm-sales-image-msg" *ngIf="salesChatSendMsg">{{ salesChatSendMsg }}</p>
+
+        <div #salesDashboardCapture class="crm-sales-capture">
         <div class="crm-sales-summary">
           <div class="crm-sales-summary__left">
             <strong>Counsellor Performance Dashboard</strong>
+            <strong class="crm-sales-report-label" *ngIf="salesDashboard.reportWindow?.reportText">
+              {{ salesDashboard.reportWindow?.reportText }}
+            </strong>
             <span>
               {{ salesGeneratedLabel() || 'Live' }}
-              · {{ salesDashboard.totals.enrollmentsScanned | number }} Enrollments Scanned
+              · {{ salesDashboard.totals.enrollmentsScanned | number }} Enrollments This Week
               · {{ salesDashboard.totals.counsellors }} watched
             </span>
           </div>
@@ -411,7 +432,6 @@
             <header class="crm-perf__banner">
               <div class="crm-perf__banner-main">
                 <h3>Excellence In Action</h3>
-                <p>Last 3 days (e.g. 8→6 Jul)</p>
               </div>
               <div class="crm-perf__metric">
                 <span class="crm-perf__num">{{ salesDashboard.green.length }}</span>
@@ -419,7 +439,6 @@
                   <div class="crm-perf__bar">
                     <span [style.width.%]="salesProgressPct(salesDashboard.green.length)"></span>
                   </div>
-                  <em>{{ salesTrendLabel(salesDashboard.trends.green) }}</em>
                 </div>
               </div>
             </header>
@@ -456,7 +475,6 @@
             <header class="crm-perf__banner">
               <div class="crm-perf__banner-main">
                 <h3>Nurturing Required</h3>
-                <p>Next 3 days (e.g. 5→3 Jul)</p>
               </div>
               <div class="crm-perf__metric">
                 <span class="crm-perf__num">{{ salesDashboard.yellow.length }}</span>
@@ -464,7 +482,6 @@
                   <div class="crm-perf__bar">
                     <span [style.width.%]="salesProgressPct(salesDashboard.yellow.length)"></span>
                   </div>
-                  <em>{{ salesTrendLabel(salesDashboard.trends.yellow) }}</em>
                 </div>
               </div>
             </header>
@@ -501,7 +518,6 @@
             <header class="crm-perf__banner">
               <div class="crm-perf__banner-main">
                 <h3>Critical Engagement</h3>
-                <p>Older / none (e.g. ≤2 Jul)</p>
               </div>
               <div class="crm-perf__metric">
                 <span class="crm-perf__num">{{ salesDashboard.red.length }}</span>
@@ -509,7 +525,6 @@
                   <div class="crm-perf__bar">
                     <span [style.width.%]="salesProgressPct(salesDashboard.red.length)"></span>
                   </div>
-                  <em>{{ salesTrendLabel(salesDashboard.trends.red) }}</em>
                 </div>
               </div>
             </header>
@@ -543,26 +558,6 @@
             </div>
           </section>
         </div>
-
-        <!-- Distribution summary -->
-        <div class="crm-sales-donut" *ngIf="salesDashboard.totals.counsellors > 0">
-          <div class="crm-sales-donut__chart"
-            [style.background]="
-              'conic-gradient(#16a34a 0 ' + salesProgressPct(salesDashboard.green.length) + '%, '
-              + '#d97706 ' + salesProgressPct(salesDashboard.green.length) + '% '
-              + (salesProgressPct(salesDashboard.green.length) + salesProgressPct(salesDashboard.yellow.length)) + '%, '
-              + '#dc2626 ' + (salesProgressPct(salesDashboard.green.length) + salesProgressPct(salesDashboard.yellow.length)) + '% 100%)'
-            ">
-            <div class="crm-sales-donut__hole">
-              <strong>{{ salesDashboard.totals.counsellors }}</strong>
-              <span>total</span>
-            </div>
-          </div>
-          <ul class="crm-sales-donut__legend">
-            <li><i class="crm-sales-donut__swatch crm-sales-donut__swatch--g"></i> Green · {{ salesDashboard.green.length }}</li>
-            <li><i class="crm-sales-donut__swatch crm-sales-donut__swatch--y"></i> Amber · {{ salesDashboard.yellow.length }}</li>
-            <li><i class="crm-sales-donut__swatch crm-sales-donut__swatch--r"></i> Red · {{ salesDashboard.red.length }}</li>
-          </ul>
         </div>
       </ng-container>
     </div>

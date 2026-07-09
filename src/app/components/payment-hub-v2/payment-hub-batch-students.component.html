@@ -6,7 +6,7 @@
         Back to finance dashboard
       </a>
       <h1 class="ph-insights-title">Batch {{ batch }} — students</h1>
-      <p class="ph-insights-sub">All students in this batch — click a card below to filter the table.</p>
+      <p class="ph-insights-sub">Students in this batch — use the status filter to show ongoing, completed, or other statuses.</p>
     </div>
   </div>
 
@@ -80,6 +80,21 @@
             <span class="ph-select-meta">{{ displayRows.length }} shown</span>
           </div>
           <div class="ph-scope-filter-bar">
+            <button
+              type="button"
+              class="ph-scope-btn ph-scope-btn--dropdown"
+              [class.ph-scope-btn--active]="!!studentStatus"
+              [matMenuTriggerFor]="statusFilterMenu"
+            >
+              {{ studentStatusLabel(studentStatus) }}
+              <mat-icon>arrow_drop_down</mat-icon>
+            </button>
+            <mat-menu #statusFilterMenu="matMenu">
+              <button mat-menu-item type="button" *ngFor="let opt of studentStatusOptions" (click)="setStudentStatus(opt.value)">
+                <mat-icon>{{ studentStatus === opt.value ? 'check' : '' }}</mat-icon>
+                <span>{{ opt.label }}</span>
+              </button>
+            </mat-menu>
             <button
               *ngFor="let btn of scopeButtons"
               type="button"
@@ -191,7 +206,7 @@
 
         <ng-template #empty>
           <p class="ph-empty-note">
-            {{ searchQuery || studentInsight ? 'No students match your filter.' : 'No students found for this batch.' }}
+            {{ searchQuery || studentInsight ? 'No students match your filter.' : (studentStatus ? 'No ' + studentStatusLabel(studentStatus).toLowerCase() + ' students in this batch.' : 'No students found for this batch.') }}
           </p>
         </ng-template>
       </section>

@@ -31,10 +31,52 @@
   </div>
 
   <div class="pja-summary" *ngIf="!loading && !error">
-    <div class="pja-summary__card">
+    <button
+      type="button"
+      class="pja-summary__card pja-summary__card--action"
+      [class.pja-summary__card--active]="statusFilter === 'unresolved' && mappingFilter === 'all'"
+      (click)="showUnresolved()"
+      title="All unresolved portal-join absences">
       <div class="pja-summary__val">{{ totalCount }}</div>
       <div class="pja-summary__lbl">Unresolved Cases</div>
+    </button>
+    <button
+      type="button"
+      class="pja-summary__card pja-summary__card--action"
+      [class.pja-summary__card--active]="statusFilter === 'unresolved' && mappingFilter === 'needs_mapping'"
+      (click)="toggleNeedsMappingFilter()"
+      title="Students with an unmapped matching name in Zoom participants">
+      <div class="pja-summary__val pja-summary__val--mapping">{{ needsMappingCount }}</div>
+      <div class="pja-summary__lbl">Need Manual Mapping</div>
+      <div class="pja-summary__hint">Name found in Zoom — map to student</div>
+    </button>
+    <div
+      class="pja-summary__card pja-summary__card--info"
+      title="Clicked Join but their name is not in Zoom participants">
+      <div class="pja-summary__val pja-summary__val--not-in-zoom">{{ notInZoomCount }}</div>
+      <div class="pja-summary__lbl">Clicked, Not in Zoom</div>
+      <div class="pja-summary__hint">No Zoom row to map — use Viewed</div>
     </div>
+    <button
+      type="button"
+      class="pja-summary__card pja-summary__card--action"
+      [class.pja-summary__card--active]="statusFilter === 'viewed'"
+      (click)="showViewed()"
+      title="Reviewed and confirmed truly absent">
+      <div class="pja-summary__val pja-summary__val--viewed">{{ viewedCount }}</div>
+      <div class="pja-summary__lbl">Viewed</div>
+      <div class="pja-summary__hint">Confirmed absent — no action needed</div>
+    </button>
+    <button
+      type="button"
+      class="pja-summary__card pja-summary__card--action"
+      [class.pja-summary__card--active]="statusFilter === 'fixed'"
+      (click)="showFixed()"
+      title="Attendance mapping completed">
+      <div class="pja-summary__val pja-summary__val--fixed">{{ fixedCount }}</div>
+      <div class="pja-summary__lbl">Fixed</div>
+      <div class="pja-summary__hint">Mapping done or issue resolved</div>
+    </button>
   </div>
 
   <div class="pja-filters" *ngIf="!loading">
@@ -55,7 +97,7 @@
       <option value="all">All Levels</option>
       <option *ngFor="let lvl of levelOptions" [value]="lvl">{{ lvl }}</option>
     </select>
-    <button class="pja-btn pja-btn--ghost" type="button" (click)="clearFilters()" *ngIf="searchQuery || batchFilter !== 'all' || levelFilter !== 'all'">
+    <button class="pja-btn pja-btn--ghost" type="button" (click)="clearFilters()" *ngIf="searchQuery || batchFilter !== 'all' || levelFilter !== 'all' || mappingFilter !== 'all' || statusFilter !== 'unresolved'">
       Clear filters
     </button>
   </div>
@@ -76,7 +118,9 @@
           <th>Date &amp; Time</th>
           <th>Clicks</th>
           <th>Portal Zoom Name</th>
-          <th></th>
+          <th>Attended %</th>
+          <th>Zoom Match</th>
+          <th>Actions</th>
         </tr>
       </thead>
       <tbody>
@@ -88,7 +132,9 @@
           <td><div class="pja-skeleton pja-skeleton--date"></div></td>
           <td><div class="pja-skeleton pja-skeleton--round"></div></td>
           <td><div class="pja-skeleton pja-skeleton--md"></div></td>
-          <td><div class="pja-skeleton pja-skeleton--btn"></div></td>
+          <td><div class="pja-skeleton pja-skeleton--chip"></div></td>
+          <td><div class="pja-skeleton pja-skeleton--chip"></div></td>
+          <td><div class="pja-skeleton pja-skeleton--actions"></div></td>
         </tr>
       </tbody>
     </table>
@@ -99,9 +145,11 @@
       <button class="pja-btn pja-btn--primary" type="button" (click)="load()">Retry</button>
     </div>
 
-    <div *ngIf="!loading && !error && totalCount === 0" class="pja-state pja-state--success">
+    <div *ngIf="!loading && !error && tableTotal === 0" class="pja-state pja-state--success">
       <i class="fa fa-circle-check"></i>
-      <p>No unresolved portal-join absences match your filters.</p>
+      <p *ngIf="statusFilter === 'unresolved'">No unresolved portal-join absences match your filters.</p>
+      <p *ngIf="statusFilter === 'viewed'">No viewed cases match your filters.</p>
+      <p *ngIf="statusFilter === 'fixed'">No fixed cases match your filters.</p>
     </div>
 
     <div class="pja-table-wrap" *ngIf="!loading && !error && list.length > 0">
@@ -114,43 +162,96 @@
             <th>Class Title</th>
             <th>Date &amp; Time</th>
             <th>Clicks</th>
-            <th>Portal Zoom Name</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr *ngFor="let r of list">
-            <td>
-              <div class="pja-student-name">{{ r.studentName }}</div>
-              <div class="pja-student-email">{{ r.studentEmail }}</div>
+          <th>Portal Zoom Name</th>
+          <th>Attended %</th>
+          <th>Zoom Match</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let r of list">
+          <td>
+            <div class="pja-student-name">{{ r.studentName }}</div>
+            <div class="pja-student-email">{{ r.studentEmail }}</div>
+          </td>
+          <td><span class="pja-badge">{{ r.batch || '—' }}</span></td>
+          <td>
+            <span class="pja-level" *ngIf="r.batchLevel; else noLevel">{{ r.batchLevel }}</span>
+            <ng-template #noLevel>—</ng-template>
+          </td>
+          <td class="pja-topic">{{ r.classTopic || '—' }}</td>
+          <td class="pja-date">
+            <span>{{ r.classDate | date:'MMM d, y' }}</span>
+            <span class="pja-time">{{ r.classDate | date:'h:mm a' }}</span>
+          </td>
+          <td class="pja-clicks">
+            <span class="pja-click-badge">{{ r.portalClickCount }}</span>
+          </td>
+          <td class="pja-zoom-name">{{ r.lastZoomDisplayName || '—' }}</td>
+            <td class="pja-attendance-cell">
+              <span
+                class="pja-attendance"
+                [ngClass]="getAttendancePctClass(r.attendancePercent)"
+                [title]="getAttendancePctHint(r.attendancePercent)">
+                {{ r.attendancePercent }}%
+              </span>
             </td>
-            <td><span class="pja-badge">{{ r.batch || '—' }}</span></td>
-            <td>
-              <span class="pja-level" *ngIf="r.batchLevel; else noLevel">{{ r.batchLevel }}</span>
-              <ng-template #noLevel>—</ng-template>
+            <td class="pja-zoom-status-cell">
+              <span
+                class="pja-zoom-status"
+                [ngClass]="getZoomStatusClass(r)"
+                [title]="getZoomStatusHint(r)">
+                {{ getZoomStatusLabel(r) }}
+              </span>
             </td>
-            <td class="pja-topic">{{ r.classTopic || '—' }}</td>
-            <td class="pja-date">
-              <span>{{ r.classDate | date:'MMM d, y' }}</span>
-              <span class="pja-time">{{ r.classDate | date:'h:mm a' }}</span>
-            </td>
-            <td class="pja-clicks">
-              <span class="pja-click-badge">{{ r.portalClickCount }}</span>
-            </td>
-            <td class="pja-zoom-name">{{ r.lastZoomDisplayName || '—' }}</td>
-            <td>
-              <button class="pja-btn pja-btn--primary pja-btn--sm" type="button" (click)="openFix(r)" title="Open attendance page in a new tab to manually map this student">
+            <td class="pja-actions">
+            <ng-container *ngIf="isUnresolvedTab; else reviewedMeta">
+              <button
+                class="pja-btn pja-btn--viewed pja-btn--sm"
+                type="button"
+                (click)="markViewed(r)"
+                [disabled]="isReviewing(r)"
+                [title]="r.clickedButNotInZoom ? 'Name not in Zoom — confirm truly absent' : 'Confirm student was truly absent — remove from unresolved list'">
+                <i class="fa fa-eye"></i> Viewed
+              </button>
+              <button
+                class="pja-btn pja-btn--primary pja-btn--sm"
+                type="button"
+                (click)="openFix(r)"
+                [disabled]="r.clickedButNotInZoom"
+                [title]="r.clickedButNotInZoom ? 'No matching Zoom participant to map' : 'Open attendance page to manually map this student'">
                 <i class="fa fa-arrow-up-right-from-square"></i> Fix
               </button>
-            </td>
+              <button
+                class="pja-btn pja-btn--fixed pja-btn--sm"
+                type="button"
+                (click)="markFixed(r)"
+                [disabled]="isReviewing(r)"
+                title="Mark mapping as done — remove from unresolved list">
+                <i class="fa fa-check"></i> Fixed
+              </button>
+            </ng-container>
+            <ng-template #reviewedMeta>
+              <div class="pja-reviewed">
+                <span class="pja-reviewed__badge" [class.pja-reviewed__badge--viewed]="r.reviewStatus === 'viewed'" [class.pja-reviewed__badge--fixed]="r.reviewStatus === 'fixed'">
+                  {{ r.reviewStatus === 'fixed' ? 'Fixed' : 'Viewed' }}
+                </span>
+                <span class="pja-reviewed__by" *ngIf="r.reviewedByName">by {{ r.reviewedByName }}</span>
+                <span class="pja-reviewed__at" *ngIf="r.reviewedAt">{{ r.reviewedAt | date:'MMM d, y h:mm a' }}</span>
+              </div>
+            </ng-template>
+          </td>
           </tr>
         </tbody>
       </table>
     </div>
 
-    <div class="pja-pagination" *ngIf="!loading && !error && totalCount > 0">
+    <div class="pja-pagination" *ngIf="!loading && !error && tableTotal > 0">
       <span class="pja-pagination__info">
-        Showing {{ pageStart }}–{{ pageEnd }} of {{ totalCount }}
+        Showing {{ pageStart }}–{{ pageEnd }} of {{ tableTotal }}
+        <span *ngIf="statusFilter === 'unresolved' && mappingFilter === 'needs_mapping'" class="pja-pagination__filter-note">(manual mapping only)</span>
+        <span *ngIf="statusFilter === 'viewed'" class="pja-pagination__filter-note">(viewed)</span>
+        <span *ngIf="statusFilter === 'fixed'" class="pja-pagination__filter-note">(fixed)</span>
       </span>
       <div class="pja-pagination__controls">
         <button class="pja-page-btn" type="button" (click)="prevPage()" [disabled]="currentPage <= 1">

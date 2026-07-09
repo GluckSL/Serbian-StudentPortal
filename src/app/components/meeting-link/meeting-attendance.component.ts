@@ -38,11 +38,16 @@ import { ZoomService } from '../../services/zoom.service';
           <span>
             <strong>{{ portalFixContext.studentName }}</strong> clicked Join from the portal but is still marked
             <strong>Absent</strong>.
-            <ng-container *ngIf="portalFixContext.zoomName">
+            <ng-container *ngIf="portalFixNoZoomMatch">
+              Their portal Zoom name <em>{{ portalFixContext.zoomName || portalFixContext.studentName }}</em> was
+              <strong>not found</strong> in Zoom participants — they likely clicked Join but never reached Zoom.
+              Use <strong>Viewed</strong> on the Portal Join Alert page if truly absent.
+            </ng-container>
+            <ng-container *ngIf="!portalFixNoZoomMatch && portalFixContext.zoomName">
               Their last Zoom display name was <em>{{ portalFixContext.zoomName }}</em> —
               use <strong>All Zoom Participants</strong> to map, or click <strong>Mark</strong> on their row.
             </ng-container>
-            <ng-container *ngIf="!portalFixContext.zoomName">
+            <ng-container *ngIf="!portalFixNoZoomMatch && !portalFixContext.zoomName">
               Use <strong>All Zoom Participants</strong> to map them, or click <strong>Mark</strong> on their row below.
             </ng-container>
           </span>
@@ -1575,6 +1580,7 @@ export class MeetingAttendanceComponent implements OnInit {
     studentName: string;
     zoomName: string;
   } | null = null;
+  portalFixNoZoomMatch = false;
   private highlightParticipantName = '';
   
   displayedColumns: string[] = ['name', 'email', 'status', 'confidence', 'zoomName', 'joinTime', 'leaveTime', 'duration', 'manualMark'];
@@ -1993,11 +1999,19 @@ export class MeetingAttendanceComponent implements OnInit {
       }
     }
 
+    this.portalFixNoZoomMatch = participantIndex < 0;
+
     if (participantIndex >= 0 && studentRow && !this.isAttendedByDuration(studentRow)) {
       this.selectedTab = 2;
       this.startMap(participantIndex, participants[participantIndex]);
       this.mapStudentEmail = this.portalFixContext.studentEmail;
       this.scrollToElement('portal-fix-participant-row');
+      return;
+    }
+
+    if (this.portalFixNoZoomMatch) {
+      this.selectedTab = 2;
+      this.scrollToElement('portal-fix-student-row');
       return;
     }
 

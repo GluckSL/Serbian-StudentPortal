@@ -324,6 +324,35 @@ export class BatchLeaderboardComponent implements OnInit, OnChanges {
     return null;
   }
 
+  /* ── Podium helpers ─────────────────────────────────────────────────── */
+  /** Top 3 by Glück Exam score (independent of engagement-based ranking). */
+  get topThree(): LeaderboardEntry[] {
+    return [...this.leaderboard]
+      .sort((a, b) => ((b.gluckExamScore ?? -1) - (a.gluckExamScore ?? -1)))
+      .slice(0, 3);
+  }
+
+  /** Ranks 4+ sorted by Glück Exam score. */
+  get restOfLeaderboard(): LeaderboardEntry[] {
+    return [...this.leaderboard]
+      .sort((a, b) => ((b.gluckExamScore ?? -1) - (a.gluckExamScore ?? -1)))
+      .slice(3);
+  }
+
+  podiumInitial(entry: LeaderboardEntry | null): string {
+    return entry?.name?.charAt(0)?.toUpperCase() ?? '-';
+  }
+
+  podiumScore(entry: LeaderboardEntry | null): string {
+    if (entry?.gluckExamScore == null) return '-';
+    const score = entry.gluckExamScore;
+    return score % 1 === 0 ? String(score) : score.toFixed(1);
+  }
+
+  podiumAvatarUrl(entry: LeaderboardEntry | null): string {
+    return entry?.profilePic ?? '';
+  }
+
   subTabs: SubTab[] = ['today', 'weekly', 'overall'];
   getSubTabLabel(tab: SubTab): string {
     return tab === 'today' ? 'Today' : tab === 'weekly' ? 'This Week' : 'Overall';

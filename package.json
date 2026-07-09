@@ -85,6 +85,7 @@
     "redis": "^5.12.1",
     "rxjs": "~7.8.0",
     "sanitize-html": "^2.17.3",
+    "sharp": "^0.33.5",
     "shepherd.js": "^15.2.2",
     "socket.io": "^4.8.1",
     "socket.io-client": "^4.8.3",

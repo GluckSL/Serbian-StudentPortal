@@ -551,6 +551,67 @@ async function attachEngagementMinutes(students, period, scores) {
   }
 }
 
+/** Aggregate Glück Exam scores (all Sprechen sessions + all exercises with attempts). */
+async function attachGluckExamScores(students, scores) {
+  if (!students.length) return;
+  const ids = students.map((s) => s._id);
+
+  // 1) All completed Sprechen exam sessions for these students (no module flag filter)
+  const spSessions = await SprechenExamSession.find({
+    studentId: { $in: ids },
+    completed: true,
+  })
+    .select('studentId scores finalScores')
+    .lean();
+
+  const spMap = new Map();
+  for (const s of spSessions) {
+    const sid = s.studentId.toString();
+    const total = s.scores?.total ?? s.finalScores?.total ?? 0;
+    if (!spMap.has(sid) || total > spMap.get(sid)) spMap.set(sid, total);
+  }
+
+  // 2) All exercises these students have completed (regardless of weeklyTestEnabled flag)
+  const exScores = await ExerciseAttempt.aggregate([
+    { $match: { studentId: { $in: ids }, status: 'completed' } },
+    { $group: { _id: { sid: '$studentId', eid: '$exerciseId' }, bestPct: { $max: '$scorePercentage' } } },
+  ]);
+
+  const exMap = new Map();
+  for (const r of exScores) {
+    const sid = r._id.sid.toString();
+    if (!exMap.has(sid)) exMap.set(sid, []);
+    exMap.get(sid).push(r.bestPct);
+  }
+
+  // 3) Compute score per student (matching frontend gluckExamOverallAggregate logic)
+  for (const id of Object.keys(scores)) {
+    const exPcts = exMap.get(id) || [];
+    const spTotal = spMap.get(id);
+
+    let totalScore = 0;
+    let scoreCount = 0;
+
+    for (const pct of exPcts) {
+      if (pct != null && Number.isFinite(Number(pct))) {
+        totalScore += (Number(pct) / 100) * 15;
+        scoreCount++;
+      }
+    }
+
+    if (spTotal != null) {
+      totalScore += spTotal;
+      scoreCount++;
+    }
+
+    scores[id].gluckExamScore = scoreCount > 0
+      ? Math.round((totalScore / scoreCount) * 10) / 10
+      : null;
+    scores[id].gluckExamCompleted = exPcts.length + (spTotal != null ? 1 : 0);
+    scores[id].gluckExamTotal = scoreCount;
+  }
+}
+
 async function buildLeaderboard(batchOrBatches, period) {
   const query = {
     role: 'STUDENT',
@@ -611,6 +672,9 @@ async function buildLeaderboard(batchOrBatches, period) {
       loggedToday: false,
       engagementMinutes: 0,
       liveClassMinutes: 0,
+      gluckExamScore: null,
+      gluckExamCompleted: 0,
+      gluckExamTotal: 0,
     };
   }
 
@@ -635,6 +699,7 @@ async function buildLeaderboard(batchOrBatches, period) {
 
   await attachExerciseProgress(students, period, scores);
   await attachEngagementMinutes(students, period, scores);
+  await attachGluckExamScores(students, scores);
 
   for (const id of Object.keys(scores)) {
     const s = scores[id];

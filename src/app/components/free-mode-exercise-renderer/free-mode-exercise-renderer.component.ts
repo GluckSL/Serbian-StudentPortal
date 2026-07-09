@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -52,12 +52,30 @@ type PlayerState = 'loading' | 'playing' | 'submitting' | 'submitted' | 'error';
     <p>Loading exercise...</p>
   </div>
 
-  <!-- Error -->
-  <div class="fmr-error" *ngIf="state === 'error'">
+  <!-- Error (generic) -->
+  <div class="fmr-error" *ngIf="state === 'error' && !noReattemptBlocked">
     <span class="material-icons error-icon">error_outline</span>
     <h3>Something went wrong</h3>
     <p>{{ errorMessage }}</p>
     <button class="btn-back" (click)="goBack()">Go Back</button>
+  </div>
+
+  <!-- Error (noReattempt) -->
+  <div class="fmr-error" *ngIf="state === 'error' && noReattemptBlocked">
+    <span class="material-icons error-icon">lock</span>
+    <h3>Already Attempted</h3>
+    <p>You have already completed this exercise and re-attempts are not allowed.</p>
+    <button class="btn-back" (click)="goBack()">Go Back</button>
+  </div>
+
+  <!-- Lock Browser Countdown Banner -->
+  <div class="lock-browser-alert"
+    *ngIf="state === 'playing' && exercise?.lockBrowser && lockBrowserCountdown > 0"
+    role="alert">
+    <span class="material-icons">visibility_off</span>
+    <span class="lock-browser-alert__text">
+      Tab switched — auto-submitting in <strong>{{ lockBrowserCountdown }}</strong> seconds
+    </span>
   </div>
 
   <!-- Playing -->
@@ -68,7 +86,23 @@ type PlayerState = 'loading' | 'playing' | 'submitting' | 'submitted' | 'error';
         <span class="material-icons">arrow_back</span>
       </button>
       <div class="fmr-header-info">
-        <h1>{{ exercise?.title }}</h1>
+        <div class="fmr-header-title-row">
+          <h1>{{ exercise?.title }}</h1>
+          <div class="fmr-restrictions" *ngIf="exercise?.lockBrowser || exercise?.noReattempt">
+            <span class="fmr-restriction-badge" *ngIf="exercise?.lockBrowser">
+              <span class="material-icons">lock</span> Browser Locked
+            </span>
+            <span class="fmr-restriction-badge" *ngIf="exercise?.noReattempt">
+              <span class="material-icons">block</span> No Re-attempt
+            </span>
+            <span class="fmr-restriction-note" *ngIf="exercise?.lockBrowser">
+              <span class="material-icons">info</span> Switching tabs/apps triggers auto-submit
+            </span>
+            <span class="fmr-restriction-note" *ngIf="exercise?.noReattempt">
+              <span class="material-icons">info</span> This exercise can only be attempted once
+            </span>
+          </div>
+        </div>
         <p class="fmr-meta">{{ exercise?.level }} · {{ exercise?.category }} · {{ exercise?.difficulty }}</p>
         <p class="fmr-desc">{{ exercise?.description }}</p>
       </div>
@@ -95,16 +129,16 @@ type PlayerState = 'loading' | 'playing' | 'submitting' | 'submitted' | 'error';
               <img *ngSwitchCase="'image'" [src]="resolveUrl(url)" class="att-img" (click)="openFullscreen($event)" />
               <ng-container *ngSwitchCase="'audio'">
                 <ng-container *ngIf="item.attachmentAudioCap != null; else unlimitedAudio">
-                  <p *ngIf="getContentAudioPlaysRemaining(idx, url)! > 0" class="att-audio-remaining">
+                  <p *ngIf="!isContentAudioExhausted(idx, url)" class="att-audio-remaining">
                     You can start this audio
                     <strong>{{ getContentAudioPlaysRemaining(idx, url)! }}</strong>
                     more time<span *ngIf="getContentAudioPlaysRemaining(idx, url)! !== 1">s</span>
                     this attempt (each press of Play counts).
                   </p>
-                  <span *ngIf="getContentAudioPlaysRemaining(idx, url)! === 0" class="cap-reached">
+                  <span *ngIf="isContentAudioExhausted(idx, url)" class="cap-reached">
                     <span class="material-icons">volume_off</span> Play limit reached for this attempt.
                   </span>
-                  <audio *ngIf="getContentAudioPlaysRemaining(idx, url)! > 0"
+                  <audio *ngIf="!isContentAudioExhausted(idx, url)"
                          [src]="resolveUrl(url)" controls class="att-audio"
                          (play)="onContentAudioPlay(idx, url, $any($event.target))">
                   </audio>
@@ -313,6 +347,9 @@ type PlayerState = 'loading' | 'playing' | 'submitting' | 'submitted' | 'error';
     <div class="result-card" [class.passed]="submitResult?.passed" [class.failed]="!submitResult?.passed">
       <span class="material-icons result-icon">{{ submitResult?.passed ? 'celebration' : 'sentiment_dissatisfied' }}</span>
       <h2>{{ submitResult?.passed ? 'Great job!' : 'Keep practicing!' }}</h2>
+      <p class="result-auto-submit-flag" *ngIf="autoSubmittedDueToLockBrowser">
+        <span class="material-icons">info</span> Auto-submitted due to tab/app switch
+      </p>
       <div class="result-score">
         <span class="score-pct">{{ submitResult?.scorePercentage }}%</span>
         <span class="score-detail">{{ submitResult?.earnedPoints }} / {{ submitResult?.totalPoints }} points</span>
@@ -321,7 +358,7 @@ type PlayerState = 'loading' | 'playing' | 'submitting' | 'submitted' | 'error';
         <button class="btn-review" (click)="goToReview()">
           <span class="material-icons">rate_review</span> View Review
         </button>
-        <button class="btn-retry" (click)="retry()">
+        <button class="btn-retry" (click)="retry()" *ngIf="!exercise?.noReattempt">
           <span class="material-icons">replay</span> Try Again
         </button>
       </div>
@@ -427,8 +464,9 @@ type PlayerState = 'loading' | 'playing' | 'submitting' | 'submitted' | 'error';
     .fmr-back-btn .material-icons { font-size: 20px; }
 
     .fmr-header-info { flex: 1; }
-    .fmr-header-info h1 { margin: 0 0 4px; font-size: 18px; font-weight: 700; }
-    .fmr-meta { margin: 0 0 2px; font-size: 11px; opacity: 0.8; }
+    .fmr-header-title-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .fmr-header-title-row h1 { margin: 0; font-size: 18px; font-weight: 700; }
+    .fmr-meta { margin: 4px 0 2px; font-size: 11px; opacity: 0.8; }
     .fmr-desc { margin: 0; font-size: 12px; opacity: 0.7; }
 
     .fmr-progress {
@@ -438,6 +476,36 @@ type PlayerState = 'loading' | 'playing' | 'submitting' | 'submitted' | 'error';
       font-size: 11px;
       font-weight: 600;
       white-space: nowrap;
+    }
+
+    .fmr-restrictions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+
+    .fmr-restriction-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      padding: 3px 8px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      background: #fef3c7;
+      color: #92400e;
+    }
+
+    .fmr-restriction-badge .material-icons { font-size: 14px; }
+
+    .fmr-restriction-note {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      font-size: 11px;
+      color: rgba(255,255,255,0.75);
+      white-space: nowrap;
+    }
+
+    .fmr-restriction-note .material-icons {
+      font-size: 13px;
     }
 
     /* Content Block */
@@ -918,6 +986,23 @@ type PlayerState = 'loading' | 'playing' | 'submitting' | 'submitted' | 'error';
 
     .result-card h2 { margin: 12px 0 8px; font-size: 20px; color: #1e293b; }
 
+    .result-auto-submit-flag {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      margin: 0 0 16px;
+      font-size: 13px;
+      color: #92400e;
+      background: #fef3c7;
+      border-radius: 8px;
+      padding: 8px 14px;
+    }
+
+    .result-auto-submit-flag .material-icons {
+      font-size: 18px;
+    }
+
     .result-score { margin-bottom: 20px; }
     .score-pct { display: block; font-size: 42px; font-weight: 800; color: #0369a1; line-height: 1; }
     .score-detail { display: block; font-size: 13px; color: #64748b; margin-top: 4px; }
@@ -965,9 +1050,33 @@ type PlayerState = 'loading' | 'playing' | 'submitting' | 'submitted' | 'error';
     @media (max-width: 762px) {
       .att-img { width: 100%; }
     }
+
+    .lock-browser-alert {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 9999;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 20px;
+      background: #dc2626;
+      color: #fff;
+      font-size: 15px;
+      font-weight: 600;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      animation: fmr-lb-slide-down 0.25s ease-out;
+    }
+    .lock-browser-alert .material-icons { font-size: 22px; }
+    .lock-browser-alert__text strong { font-size: 17px; }
+    @keyframes fmr-lb-slide-down {
+      from { transform: translateY(-100%); opacity: 0; }
+      to   { transform: translateY(0);    opacity: 1; }
+    }
   `]
 })
-export class FreeModeExerciseRendererComponent implements OnInit {
+export class FreeModeExerciseRendererComponent implements OnInit, OnDestroy {
   state: PlayerState = 'loading';
   exercise: DigitalExercise | null = null;
   renderList: RenderItem[] = [];
@@ -987,6 +1096,15 @@ export class FreeModeExerciseRendererComponent implements OnInit {
   private attachmentAudioPlaysUsed: Record<string, number> = {};
   private currentAudio: HTMLAudioElement | null = null;
 
+  /** lockBrowser state */
+  lockBrowserCountdown = 0;
+  autoSubmittedDueToLockBrowser = false;
+  private lockBrowserSilentTimer: ReturnType<typeof setTimeout> | null = null;
+  private lockBrowserCountdownTimer: ReturnType<typeof setInterval> | null = null;
+  private lockBrowserAutoSubmitted = false;
+  /** noReattempt */
+  noReattemptBlocked = false;
+
   constructor(
     private route: ActivatedRoute,
     private router: Router,
@@ -1001,6 +1119,27 @@ export class FreeModeExerciseRendererComponent implements OnInit {
       return;
     }
     this.loadExercise();
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', this.onVisibilityChange);
+    }
+    if (typeof window !== 'undefined') {
+      window.addEventListener('blur', this.onWindowBlur);
+      window.addEventListener('focus', this.onWindowFocus);
+      document.addEventListener('fullscreenchange', this.onFullscreenChange);
+    }
+  }
+
+  ngOnDestroy(): void {
+    if (typeof document !== 'undefined') {
+      document.removeEventListener('visibilitychange', this.onVisibilityChange);
+    }
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('blur', this.onWindowBlur);
+      window.removeEventListener('focus', this.onWindowFocus);
+      document.removeEventListener('fullscreenchange', this.onFullscreenChange);
+    }
+    this.clearLockBrowserTimer();
+    this.exitFullscreenOnLock();
   }
 
   private loadExercise(): void {
@@ -1014,6 +1153,7 @@ export class FreeModeExerciseRendererComponent implements OnInit {
         this.totalQuestions = (ex.questions || []).length;
         this.startTime = Date.now();
         this.state = 'playing';
+        void this.requestFullscreenOnLock();
       },
       error: (err) => {
         this.setError(err?.error?.error || err?.message || 'Failed to load exercise');
@@ -1439,6 +1579,14 @@ export class FreeModeExerciseRendererComponent implements OnInit {
     return used >= item.attachmentAudioCap;
   }
 
+  /** True only when used > cap (counter at -1 or below) — hides player entirely. */
+  isContentAudioExhausted(renderIdx: number, url: string): boolean {
+    const item = this.renderList[renderIdx];
+    if (!item || item.kind !== 'content-block' || item.attachmentAudioCap == null) return false;
+    const used = this.attachmentAudioPlaysUsed[this.getAudioPlayKey(renderIdx, url)] ?? 0;
+    return used > item.attachmentAudioCap;
+  }
+
   getContentAudioPlaysRemaining(renderIdx: number, url: string): number | null {
     const item = this.renderList[renderIdx];
     if (!item || item.kind !== 'content-block' || item.attachmentAudioCap == null) return null;
@@ -1452,7 +1600,7 @@ export class FreeModeExerciseRendererComponent implements OnInit {
     const key = this.getAudioPlayKey(renderIdx, url);
     const used = (this.attachmentAudioPlaysUsed[key] ?? 0) + 1;
     this.attachmentAudioPlaysUsed[key] = used;
-    if (used >= item.attachmentAudioCap) {
+    if (used > item.attachmentAudioCap) {
       audioEl.pause();
       audioEl.removeAttribute('src');
       audioEl.load();
@@ -1490,33 +1638,102 @@ export class FreeModeExerciseRendererComponent implements OnInit {
     }
   }
 
+  private readonly onVisibilityChange = (): void => {
+    if (this.exercise?.lockBrowser && this.state === 'playing') {
+      this.handleLockBrowserVisibilityChange();
+    }
+  };
+
+  private readonly onWindowBlur = (): void => {
+    if (this.exercise?.lockBrowser && this.state === 'playing') {
+      this.startLockBrowserAwayTimer();
+    }
+  };
+
+  private readonly onWindowFocus = (): void => {
+    if (this.exercise?.lockBrowser) {
+      this.clearLockBrowserSilentTimer();
+    }
+  };
+
+  private readonly onFullscreenChange = (): void => {
+    if (this.exercise?.lockBrowser && this.state === 'playing' && !document.fullscreenElement) {
+      this.startLockBrowserAwayTimer();
+    }
+  };
+
+  private async requestFullscreenOnLock(): Promise<void> {
+    if (!this.exercise?.lockBrowser) return;
+    try {
+      await document.documentElement.requestFullscreen();
+    } catch {
+      // Fullscreen may be blocked; continue without it.
+    }
+  }
+
+  private exitFullscreenOnLock(): void {
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {});
+    }
+  }
+
+  private handleLockBrowserVisibilityChange(): void {
+    if (document.visibilityState === 'hidden') {
+      this.startLockBrowserAwayTimer();
+    } else {
+      this.clearLockBrowserSilentTimer();
+    }
+  }
+
+  private clearLockBrowserSilentTimer(): void {
+    if (this.lockBrowserSilentTimer) {
+      clearTimeout(this.lockBrowserSilentTimer);
+      this.lockBrowserSilentTimer = null;
+    }
+  }
+
+  private startLockBrowserAwayTimer(): void {
+    if (this.lockBrowserAutoSubmitted || this.lockBrowserSilentTimer || this.lockBrowserCountdownTimer) return;
+    this.lockBrowserSilentTimer = setTimeout(() => {
+      this.lockBrowserSilentTimer = null;
+      if (!this.lockBrowserAutoSubmitted && this.state === 'playing') {
+        this.lockBrowserCountdown = 5;
+        this.lockBrowserCountdownTimer = setInterval(() => {
+          this.lockBrowserCountdown--;
+          if (this.lockBrowserCountdown <= 0) {
+            this.clearLockBrowserTimer();
+            if (!this.lockBrowserAutoSubmitted && this.state === 'playing') {
+              this.lockBrowserAutoSubmitted = true;
+              this.autoSubmittedDueToLockBrowser = true;
+              this.submit();
+            }
+          }
+        }, 1000);
+      }
+    }, 5000);
+  }
+
+  private clearLockBrowserTimer(): void {
+    if (this.lockBrowserSilentTimer) {
+      clearTimeout(this.lockBrowserSilentTimer);
+      this.lockBrowserSilentTimer = null;
+    }
+    if (this.lockBrowserCountdownTimer) {
+      clearInterval(this.lockBrowserCountdownTimer);
+      this.lockBrowserCountdownTimer = null;
+    }
+    this.lockBrowserCountdown = 0;
+  }
+
   submit(): void {
     if (this.submitting) return;
 
-    const questions = this.exercise?.questions || [];
     this.questionErrors = {};
-
-    // Validate all questions are answered
-    let hasError = false;
-    for (let i = 0; i < questions.length; i++) {
-      if (!this.isQuestionAnswered(i)) {
-        this.questionErrors[i] = 'This question is not answered yet.';
-        hasError = true;
-      }
-    }
-
-    if (hasError) {
-      this.snackBar.open('Some questions are unanswered', 'Close', { duration: 4000, panelClass: ['error-snack'] });
-      // Scroll to first error
-      const firstErrorIdx = Object.keys(this.questionErrors).map(Number).sort()[0];
-      const el = document.querySelectorAll('.question-card')[firstErrorIdx];
-      el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      return;
-    }
 
     this.submitting = true;
     this.state = 'submitting';
 
+    const questions = this.exercise?.questions || [];
     const responses = questions.map((q, i) => {
       const ans = this.answers[i] || {};
       const resp: any = { questionIndex: i };
@@ -1544,11 +1761,13 @@ export class FreeModeExerciseRendererComponent implements OnInit {
       next: (attempt) => {
         this.attemptId = attempt.attemptId;
         this.attemptNumber = attempt.attemptNumber;
-        this.exerciseService.submitAttempt(this.exerciseId, this.attemptId, responses, timeSpentSeconds).subscribe({
+        this.exerciseService.submitAttempt(this.exerciseId, this.attemptId, responses, timeSpentSeconds, this.autoSubmittedDueToLockBrowser || undefined).subscribe({
           next: (result) => {
             this.submitResult = result;
             this.submitting = false;
             this.state = 'submitted';
+            this.clearLockBrowserTimer();
+            this.exitFullscreenOnLock();
           },
           error: (err) => {
             this.submitting = false;
@@ -1560,6 +1779,12 @@ export class FreeModeExerciseRendererComponent implements OnInit {
       error: (err) => {
         this.submitting = false;
         this.state = 'playing';
+        const code = err?.error?.code;
+        if (code === 'NO_REATTEMPT') {
+          this.noReattemptBlocked = true;
+          this.state = 'error';
+          return;
+        }
         this.snackBar.open(err?.error?.error || 'Failed to start attempt', 'Close', { duration: 4000, panelClass: ['error-snack'] });
       }
     });
@@ -1572,17 +1797,28 @@ export class FreeModeExerciseRendererComponent implements OnInit {
   }
 
   retry(): void {
+    if (this.exercise?.noReattempt) {
+      this.noReattemptBlocked = true;
+      this.state = 'error';
+      return;
+    }
     this.answers = {};
     this.questionErrors = {};
     this.submitResult = null;
     this.attemptId = '';
     this.attachmentAudioPlaysUsed = {};
     this.currentAudio = null;
+    this.noReattemptBlocked = false;
+    this.clearLockBrowserTimer();
+    this.lockBrowserAutoSubmitted = false;
+    this.autoSubmittedDueToLockBrowser = false;
+    this.exitFullscreenOnLock();
     this.startTime = Date.now();
     if (this.exercise) {
       this.initAnswers(this.exercise);
     }
     this.state = 'playing';
+    void this.requestFullscreenOnLock();
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 

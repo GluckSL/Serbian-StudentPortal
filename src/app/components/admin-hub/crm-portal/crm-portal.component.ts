@@ -1,9 +1,10 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, OnInit, OnDestroy, ViewChild, ElementRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { Subject, forkJoin, of } from 'rxjs';
 import { catchError, takeUntil } from 'rxjs/operators';
+import html2canvas from 'html2canvas';
 import { AuthService } from '../../../services/auth.service';
 
 export type BoardType = 'enrollment' | 'language';
@@ -108,6 +109,14 @@ export interface SalesDashboardResult {
     red: number;
   };
   generatedAt: string;
+  reportWindow?: {
+    period: 'morning' | 'evening';
+    start: string;
+    end: string;
+    startLabel: string;
+    endLabel: string;
+    reportText: string;
+  };
 }
 
 export interface WaAutomationItem {
@@ -330,6 +339,12 @@ export class CrmPortalComponent implements OnInit, OnDestroy {
   salesWatchSaving = false;
   salesWatchSaveMsg = '';
   salesWatchFilter = '';
+  salesImageSaving = false;
+  salesImageSaveMsg = '';
+  salesChatSending = false;
+  salesChatSendMsg = '';
+
+  @ViewChild('salesDashboardCapture') salesDashboardCapture?: ElementRef<HTMLElement>;
 
   readonly dateRelativeOptions = DATE_RELATIVE_OPTIONS;
 
@@ -1207,7 +1222,10 @@ export class CrmPortalComponent implements OnInit, OnDestroy {
     };
     this.salesWatchSaveMsg = '';
 
-    this.http.post<any>('/api/crm-portal/enrollment-board/sales-dashboard', { simple: {} })
+    this.http.post<any>('/api/crm-portal/enrollment-board/sales-dashboard', {
+      simple: {},
+      reportPeriod: this.salesReportPeriod(),
+    })
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (res) => this.applySalesDashboardResponse(res),
@@ -1249,6 +1267,7 @@ export class CrmPortalComponent implements OnInit, OnDestroy {
         red: res.trends?.red || 0,
       },
       generatedAt: res.generatedAt || new Date().toISOString(),
+      reportWindow: res.reportWindow || undefined,
     };
     this.salesWatchDraft = [...(res.watchedNames || [])];
     if (res.setupRequired) {
@@ -1346,10 +1365,21 @@ export class CrmPortalComponent implements OnInit, OnDestroy {
     return `${days} Days Ago`;
   }
 
-  salesTrendLabel(delta: number): string {
-    if (delta > 0) return `+${delta} from last week`;
-    if (delta < 0) return `${delta} from last week`;
-    return 'Same as last week';
+  salesReportPeriod(): 'morning' | 'evening' {
+    const hour = Number(
+      new Date().toLocaleString('en-GB', {
+        timeZone: 'Asia/Colombo',
+        hour: 'numeric',
+        hour12: false,
+      })
+    );
+    return hour >= 19 ? 'evening' : 'morning';
+  }
+
+  salesReportWindowLabel(): string {
+    const w = this.salesDashboard.reportWindow;
+    if (!w?.startLabel || !w?.endLabel) return '';
+    return `${w.startLabel} to ${w.endLabel}`;
   }
 
   salesProgressPct(count: number): number {
@@ -1368,6 +1398,107 @@ export class CrmPortalComponent implements OnInit, OnDestroy {
       month: 'long',
       day: 'numeric',
     });
+  }
+
+  async captureSalesDashboardPng(): Promise<string | null> {
+    const el = this.salesDashboardCapture?.nativeElement;
+    if (!el) return null;
+
+    const bodies = el.querySelectorAll<HTMLElement>('.crm-perf__body');
+    const prevMaxHeights: string[] = [];
+    bodies.forEach((body, i) => {
+      prevMaxHeights[i] = body.style.maxHeight;
+      body.style.maxHeight = 'none';
+      body.style.overflow = 'visible';
+    });
+
+    try {
+      await new Promise(r => setTimeout(r, 80));
+      const canvas = await html2canvas(el, {
+        scale: 3,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: '#ffffff',
+        logging: false,
+      });
+      return canvas.toDataURL('image/png');
+    } finally {
+      bodies.forEach((body, i) => {
+        body.style.maxHeight = prevMaxHeights[i] || '';
+        body.style.overflow = '';
+      });
+    }
+  }
+
+  async saveSalesDashboardImage(): Promise<void> {
+    if (this.salesImageSaving || this.salesDashboard.loading) return;
+
+    this.salesImageSaving = true;
+    this.salesImageSaveMsg = '';
+
+    try {
+      const dataUrl = await this.captureSalesDashboardPng();
+      if (!dataUrl) {
+        this.salesImageSaveMsg = 'Nothing to capture yet.';
+        return;
+      }
+
+      const date = new Date().toISOString().slice(0, 10);
+      const link = document.createElement('a');
+      link.download = `counsellor-performance-${date}.png`;
+      link.href = dataUrl;
+      link.click();
+
+      this.salesImageSaveMsg = 'Image saved.';
+      setTimeout(() => { this.salesImageSaveMsg = ''; }, 3000);
+    } catch {
+      this.salesImageSaveMsg = 'Failed to save image. Try again.';
+    } finally {
+      this.salesImageSaving = false;
+    }
+  }
+
+  sendSalesDashboardToChat(): void {
+    if (this.salesChatSending || this.salesDashboard.loading) return;
+
+    this.salesChatSending = true;
+    this.salesChatSendMsg = '';
+
+    this.captureSalesDashboardPng()
+      .then(imagePngBase64 => {
+        if (!imagePngBase64) {
+          this.salesChatSending = false;
+          this.salesChatSendMsg = 'Nothing to capture yet.';
+          return;
+        }
+
+        this.http
+          .post<any>('/api/crm-portal/enrollment-board/sales-dashboard/send-to-chat', {
+            imagePngBase64,
+            reportPeriod: this.salesReportPeriod(),
+          })
+          .pipe(takeUntil(this.destroy$))
+          .subscribe({
+            next: (res) => {
+              this.salesChatSending = false;
+              if (!res?.success) {
+                this.salesChatSendMsg = res?.message || 'Failed to send to Google Chat.';
+                return;
+              }
+              this.salesChatSendMsg = res.message || 'Sent to Google Chat.';
+              setTimeout(() => { this.salesChatSendMsg = ''; }, 4000);
+            },
+            error: (err) => {
+              this.salesChatSending = false;
+              this.salesChatSendMsg =
+                err?.error?.message || 'Failed to send to Google Chat.';
+            },
+          });
+      })
+      .catch(() => {
+        this.salesChatSending = false;
+        this.salesChatSendMsg = 'Failed to capture dashboard image.';
+      });
   }
 
   private buildComparePayload(board: ReturnType<typeof this.createBoardState>): object {

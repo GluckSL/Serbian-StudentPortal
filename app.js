@@ -147,6 +147,7 @@ const { schedulePublishScheduledAnnouncements } = require('./jobs/publishSchedul
 const { scheduleGluckRoomAutoStart } = require('./jobs/gluckRoomAutoStart');
 const { scheduleDailyStudentStatusReport } = require('./jobs/dailyStudentStatusReport');
 const { scheduleStudentDetailChangesReport } = require('./jobs/studentDetailChangesReport');
+const { scheduleSalesDashboardChatReport } = require('./jobs/salesDashboardChatReport');
 const { scheduleNeverLoggedInReport } = require('./jobs/neverLoggedInReport');
 const { scheduleCrucialStudentsReport } = require('./services/crucialStudentsEmailService');
 const { scheduleBatchDay1Reminders } = require('./jobs/batchDay1Reminder');
@@ -653,6 +654,7 @@ connectMongoDb()
       scheduleGluckRoomAutoStart();
       scheduleDailyStudentStatusReport();
       scheduleStudentDetailChangesReport();
+      scheduleSalesDashboardChatReport();
       scheduleCrucialStudentsReport();
       scheduleNeverLoggedInReport();
       scheduleBatchDay1Reminders();

@@ -198,7 +198,7 @@
         </div>
         <div class="row-action">
           <button
-            *ngIf="!isExerciseJourneyLocked(ex)"
+            *ngIf="!isExerciseJourneyLocked(ex) && (!ex.noReattempt || !ex.studentAttempt)"
             type="button"
             class="btn-start"
             (click)="startExercise(ex)"
@@ -248,7 +248,7 @@
               <span class="material-icons">analytics</span>
             </button>
             <button
-              *ngIf="!isExerciseJourneyLocked(ex)"
+              *ngIf="!isExerciseJourneyLocked(ex) && (!ex.noReattempt || !ex.studentAttempt)"
               type="button"
               class="btn-start"
               (click)="startExercise(ex)"

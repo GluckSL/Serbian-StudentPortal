@@ -108,12 +108,16 @@ async function pruneStaleStudents(syncedEmails) {
 /**
  * Fetch all enrollment-board students from CRM and mirror into SalesStudent.
  * @param {string|null} staffUserId
+ * @param {{ crmRows?: object[] }} [options] — pass pre-fetched rows to skip a second CRM pull
  */
-async function fetchAndCommitFromCrm(staffUserId) {
+async function fetchAndCommitFromCrm(staffUserId, options = {}) {
   const started = Date.now();
-  console.log('[KrishDash] CRM fetch started');
+  const reusedFetch = Array.isArray(options.crmRows);
+  console.log(`[KrishDash] CRM fetch started${reusedFetch ? ' (reusing pre-fetched rows)' : ''}`);
 
-  const crmRowsRaw = await fetchAllCrmRecords('enrollment', { simple: {}, advanced: null });
+  const crmRowsRaw = reusedFetch
+    ? options.crmRows
+    : await fetchAllCrmRecords('enrollment', { simple: {}, advanced: null });
 
   if (!crmRowsRaw.length) {
     const pruned = await pruneStaleStudents(new Set());
@@ -130,6 +134,7 @@ async function fetchAndCommitFromCrm(staffUserId) {
       crmTotal: 0,
       crmDuplicatesSkipped: 0,
       overviewTotal: 0,
+      crmRowsRaw,
       fetchedAt: new Date().toISOString(),
       durationMs: Date.now() - started,
     };
@@ -163,6 +168,7 @@ async function fetchAndCommitFromCrm(staffUserId) {
     crmDuplicatesSkipped: duplicatesSkipped,
     overviewTotal,
     professionCount: parsed.professionCount,
+    crmRowsRaw,
     fetchedAt: new Date().toISOString(),
     durationMs: Date.now() - started,
   };

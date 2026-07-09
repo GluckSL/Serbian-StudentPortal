@@ -1,9 +1,26 @@
 /**
- * Journey days: standard batches use 1–200 (start date = Day 1).
+ * Journey days: standard batches use 1–220 (start date = Day 1).
  * When trialDayEnabled on a batch: start date = Trial (stored as 0), then Day 1, 2, …
  */
 
-const JOURNEY_DAY_MAX = 200;
+const JOURNEY_DAY_MAX = 220;
+
+/**
+ * Level schedule definitions for the per-level start date system.
+ * When levelCalendarDates[level].startDate is set for any level,
+ * the batch day is computed from these ranges rather than batchStartDate.
+ *
+ * A1: Day 1–42   (41 class days + 1 exam day)
+ * A2: Day 43–84  (41 class days + 1 exam day)
+ * B1: Day 85–149 (64 class days + 1 exam day)
+ * B2: Day 150–214 (64 class days + 1 exam day)
+ */
+const LEVEL_SCHEDULE = [
+  { level: 'A1', dayStart: 1,   dayEnd: 42  },
+  { level: 'A2', dayStart: 43,  dayEnd: 84  },
+  { level: 'B1', dayStart: 85,  dayEnd: 149 },
+  { level: 'B2', dayStart: 150, dayEnd: 214 },
+];
 const STANDARD_JOURNEY_MIN = 1;
 const TRIAL_JOURNEY_DAY = 0;
 const MS_PER_DAY = 86_400_000;
@@ -56,8 +73,53 @@ function computeJourneyDayWithTrialWindow(trialAccessStartDate, dayOneStartDate,
   return clampStandardJourneyDay(elapsed + 1, max);
 }
 
+/**
+ * Computes the current journey day using per-level start dates stored in
+ * cfg.levelCalendarDates[level].startDate.
+ *
+ * Algorithm:
+ *   1. Walk levels A1→A2→B1→B2, find the latest whose startDate has passed.
+ *   2. journeyDay = level.dayStart + daysSince(that level's startDate).
+ *   3. Cap at level.dayEnd so that during inter-level breaks the batch day
+ *      stays at the end of the current level until the next one begins.
+ *   4. Returns Day 1 (STANDARD_JOURNEY_MIN) if no level has started yet.
+ */
+function computeJourneyDayFromLevelSchedule(cfg, now = new Date()) {
+  const today = utcMidnightMs(now);
+  const max = cfg.journeyLength != null ? cfg.journeyLength : JOURNEY_DAY_MAX;
+  let activeLevel = null;
+  for (const entry of LEVEL_SCHEDULE) {
+    const sd = cfg.levelCalendarDates?.[entry.level]?.startDate;
+    if (!sd) continue;
+    const startUTC = utcMidnightMs(new Date(sd));
+    if (today >= startUTC) {
+      activeLevel = { ...entry, startUTC };
+    }
+  }
+  if (!activeLevel) return STANDARD_JOURNEY_MIN;
+  const elapsed = Math.floor((today - activeLevel.startUTC) / MS_PER_DAY);
+  const raw = activeLevel.dayStart + elapsed;
+  return clampStandardJourneyDay(Math.min(raw, activeLevel.dayEnd), max);
+}
+
+function hasLevelScheduleDates(cfgOrLevelDates) {
+  const lcd = cfgOrLevelDates?.levelCalendarDates ?? cfgOrLevelDates;
+  if (!lcd || typeof lcd !== 'object') return false;
+  return LEVEL_SCHEDULE.some((entry) => lcd[entry.level]?.startDate);
+}
+
+function batchHasAutoSchedule(cfg) {
+  if (!cfg) return false;
+  return !!(cfg.batchStartDate || hasLevelScheduleDates(cfg));
+}
+
 function computeJourneyDayFromBatchConfig(cfg, now = new Date()) {
   if (!cfg) return STANDARD_JOURNEY_MIN;
+
+  // When any level start date is configured, use the level-schedule system.
+  const hasLevelDates = hasLevelScheduleDates(cfg);
+  if (hasLevelDates) return computeJourneyDayFromLevelSchedule(cfg, now);
+
   const max = cfg.journeyLength != null ? cfg.journeyLength : JOURNEY_DAY_MAX;
   const trial = !!cfg.trialDayEnabled;
   const batchStartDate = cfg.batchStartDate;
@@ -157,12 +219,16 @@ module.exports = {
   STANDARD_JOURNEY_MIN,
   TRIAL_JOURNEY_DAY,
   MS_PER_DAY,
+  LEVEL_SCHEDULE,
+  hasLevelScheduleDates,
+  batchHasAutoSchedule,
   clampStandardJourneyDay,
   clampJourneyDayForBatch,
   clampJourneyDay,
   utcMidnightMs,
   daysSinceJourneyStart,
   computeJourneyDayFromStartDate,
+  computeJourneyDayFromLevelSchedule,
   computeJourneyDayFromBatchConfig,
   computeJourneyDayWithTrialWindow,
   contentUnlockDayForJourney,

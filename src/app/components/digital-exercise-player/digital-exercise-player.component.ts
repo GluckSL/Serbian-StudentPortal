@@ -495,9 +495,39 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   /** For localStorage draft keying (per user + exercise). */
   private draftUserId = '';
   private draftSaveTimer: ReturnType<typeof setTimeout> | null = null;
+  /** lockBrowser: countdown seconds shown after the silent 5s grace period */
+  lockBrowserCountdown = 0;
+  autoSubmittedDueToLockBrowser = false;
+  private lockBrowserAutoSubmitted = false;
+  private lockBrowserSilentTimer: ReturnType<typeof setTimeout> | null = null;
+  private lockBrowserCountdownTimer: ReturnType<typeof setInterval> | null = null;
+  /** noReattempt: set true when reattempt is blocked */
+  noReattemptBlocked = false;
+
   private readonly onVisibilityChange = (): void => {
     if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
       this.flushDraftSave();
+    }
+    if (this.exercise?.lockBrowser && this.state === 'playing') {
+      this.handleLockBrowserVisibilityChange();
+    }
+  };
+
+  private readonly onWindowBlur = (): void => {
+    if (this.exercise?.lockBrowser && this.state === 'playing') {
+      this.startLockBrowserAwayTimer();
+    }
+  };
+
+  private readonly onWindowFocus = (): void => {
+    if (this.exercise?.lockBrowser) {
+      this.clearLockBrowserSilentTimer();
+    }
+  };
+
+  private readonly onFullscreenChange = (): void => {
+    if (this.exercise?.lockBrowser && this.state === 'playing' && !document.fullscreenElement) {
+      this.startLockBrowserAwayTimer();
     }
   };
 
@@ -525,12 +555,22 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     if (typeof document !== 'undefined') {
       document.addEventListener('visibilitychange', this.onVisibilityChange);
     }
+    if (typeof window !== 'undefined') {
+      window.addEventListener('blur', this.onWindowBlur);
+      window.addEventListener('focus', this.onWindowFocus);
+      document.addEventListener('fullscreenchange', this.onFullscreenChange);
+    }
     this.loadExercise();
   }
 
   ngOnDestroy(): void {
     if (typeof document !== 'undefined') {
       document.removeEventListener('visibilitychange', this.onVisibilityChange);
+    }
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('blur', this.onWindowBlur);
+      window.removeEventListener('focus', this.onWindowFocus);
+      document.removeEventListener('fullscreenchange', this.onFullscreenChange);
     }
     if (this.draftSaveTimer) {
       clearTimeout(this.draftSaveTimer);
@@ -557,6 +597,8 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     this.ollyContext.clearActivityDetail();
     this.clearVpBufferStallTimer();
     this.clearVpPrefetchMap();
+    this.clearLockBrowserTimer();
+    this.exitFullscreenOnLock();
   }
 
   /** Share live exercise context with Olly so it can give activity-aware support. */
@@ -1558,7 +1600,71 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     });
   }
 
+  private async requestFullscreenOnLock(): Promise<void> {
+    if (!this.exercise?.lockBrowser) return;
+    try {
+      await document.documentElement.requestFullscreen();
+    } catch {
+      // Fullscreen may be blocked by browser; continue without it.
+    }
+  }
+
+  private exitFullscreenOnLock(): void {
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {});
+    }
+  }
+
+  private handleLockBrowserVisibilityChange(): void {
+    if (document.visibilityState === 'hidden') {
+      this.startLockBrowserAwayTimer();
+    } else {
+      this.clearLockBrowserSilentTimer();
+    }
+  }
+
+  private clearLockBrowserSilentTimer(): void {
+    if (this.lockBrowserSilentTimer) {
+      clearTimeout(this.lockBrowserSilentTimer);
+      this.lockBrowserSilentTimer = null;
+    }
+  }
+
+  private startLockBrowserAwayTimer(): void {
+    if (this.lockBrowserAutoSubmitted || this.lockBrowserSilentTimer || this.lockBrowserCountdownTimer) return;
+    this.lockBrowserSilentTimer = setTimeout(() => {
+      this.lockBrowserSilentTimer = null;
+      if (!this.lockBrowserAutoSubmitted && this.state === 'playing') {
+        this.lockBrowserCountdown = 5;
+        this.lockBrowserCountdownTimer = setInterval(() => {
+          this.lockBrowserCountdown--;
+          if (this.lockBrowserCountdown <= 0) {
+            this.clearLockBrowserTimer();
+            if (!this.lockBrowserAutoSubmitted && this.state === 'playing') {
+              this.lockBrowserAutoSubmitted = true;
+              this.autoSubmittedDueToLockBrowser = true;
+              this.confirmFinishSubmit();
+            }
+          }
+        }, 1000);
+      }
+    }, 5000);
+  }
+
+  private clearLockBrowserTimer(): void {
+    if (this.lockBrowserSilentTimer) {
+      clearTimeout(this.lockBrowserSilentTimer);
+      this.lockBrowserSilentTimer = null;
+    }
+    if (this.lockBrowserCountdownTimer) {
+      clearInterval(this.lockBrowserCountdownTimer);
+      this.lockBrowserCountdownTimer = null;
+    }
+    this.lockBrowserCountdown = 0;
+  }
+
   startExercise(): void {
+    void this.requestFullscreenOnLock();
     this.exerciseService.startAttempt(this.exerciseId).subscribe({
       next: (res) => {
         this.attemptId = res.attemptId;
@@ -1583,6 +1689,11 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       },
       error: (err) => {
         const code = err?.error?.code;
+        if (code === 'NO_REATTEMPT') {
+          this.noReattemptBlocked = true;
+          this.state = 'error';
+          return;
+        }
         if (code === 'SEQUENCE_LOCKED' || code === 'COURSE_DAY_LOCKED') {
           this.handleExerciseLoadError(err);
           return;
@@ -3951,9 +4062,11 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     this.showFinishSummary = false;
     this.stopTimer();
     this.syncElapsedSeconds();
+    this.clearLockBrowserTimer();
+    this.exitFullscreenOnLock();
 
     const responses = this.buildAllResponses();
-    this.exerciseService.submitAttempt(this.exerciseId, this.attemptId, responses, this.elapsedSeconds).subscribe({
+    this.exerciseService.submitAttempt(this.exerciseId, this.attemptId, responses, this.elapsedSeconds, this.autoSubmittedDueToLockBrowser || undefined).subscribe({
       next: (result) => {
         this.result = result;
         this.finishingAll = false;
@@ -4036,6 +4149,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     if ((q.type as string) === 'jumble-word' && correctAnswer.expectedWord) {
       return 'Correct word: ' + correctAnswer.expectedWord;
     }
+    if (correctAnswer.explanation) return correctAnswer.explanation;
     return '';
   }
 
@@ -4242,8 +4356,16 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   }
 
   tryAgain(): void {
+    if (this.exercise?.noReattempt && !this.isStaffTester) {
+      return;
+    }
     this.clearExerciseDraftStorage();
     this.result = null;
+    this.noReattemptBlocked = false;
+    this.lockBrowserAutoSubmitted = false;
+    this.autoSubmittedDueToLockBrowser = false;
+    this.clearLockBrowserTimer();
+    this.exitFullscreenOnLock();
     this.initPlayerQuestions();
     this.currentIndex = 0;
     this.startExercise();

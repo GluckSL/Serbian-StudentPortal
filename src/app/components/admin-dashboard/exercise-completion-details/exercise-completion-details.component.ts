@@ -22,6 +22,7 @@ interface Attempt {
   timeSpentSeconds: number;
   startedAt?: string;
   completedAt: string;
+  autoSubmittedDueToLockBrowser?: boolean;
   responses?: Array<{
     questionIndex: number;
     questionType?: string;

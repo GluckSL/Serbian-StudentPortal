@@ -214,6 +214,14 @@
   color: #64748b;
 }
 
+.auto-submit-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: #92400e;
+  font-weight: 600;
+}
+
 .section {
   background: #fff;
   border-radius: 16px;

@@ -184,6 +184,28 @@
               </small>
             </div>
           </div>
+          <div class="field-group field-group--day">
+            <label class="field-label">Restrictions</label>
+            <div class="d-flex gap-3 flex-wrap align-items-center">
+              <label class="visibility-toggle" title="Students can only attempt this exercise once">
+                <input type="checkbox" [(ngModel)]="noReattempt" />
+                <span class="toggle-track"><span class="toggle-thumb"></span></span>
+                <span class="toggle-label">
+                  No Re-attempt
+                </span>
+              </label>
+              <label class="visibility-toggle" title="Lock browser in fullscreen; switching tabs ends the test">
+                <input type="checkbox" [(ngModel)]="lockBrowser" />
+                <span class="toggle-track"><span class="toggle-thumb"></span></span>
+                <span class="toggle-label">
+                  Lock Browser
+                </span>
+              </label>
+              <small class="text-muted" style="flex-basis:100%">
+                No Re-attempt = students can only attempt once. Lock Browser = fullscreen mode; leaving the tab auto-submits after 10s.
+              </small>
+            </div>
+          </div>
           <div class="field-group field-group--batches" *ngIf="isV2Exercise">
             <label class="field-label" for="ex-target-batches">
               <span class="material-icons" aria-hidden="true">groups</span>
@@ -656,7 +678,7 @@
           <div class="field-group full">
             <label class="field-label">
               <span class="material-icons" style="font-size:16px;vertical-align:middle;margin-right:4px;">lightbulb</span>
-              Answer Explanation <span class="label-optional">(shown to students in review)</span>
+               Overall Explanation <span class="label-optional">(shown to students in review)</span>
             </label>
             <div class="explanation-field-wrap">
               <app-rich-text-input
@@ -747,7 +769,7 @@
               </button>
             </div>
             <div class="field-group full">
-              <label class="field-label">Explanation (shown after answer)</label>
+              <label class="field-label">Per-Answer Explanation (shown after student answers)</label>
               <app-rich-text-input [(ngModel)]="q.explanation" placeholder="Explain why the correct answer is right..."></app-rich-text-input>
             </div>
           </ng-container>
@@ -1298,7 +1320,7 @@
                         </button>
                       </div>
                       <div class="field-group full">
-                        <label class="field-label">Explanation (shown after answer)</label>
+                        <label class="field-label">Per-Answer Explanation (shown after student answers)</label>
                         <app-rich-text-input [(ngModel)]="sq.explanation" placeholder="Explain why the correct answer is right..."></app-rich-text-input>
                       </div>
                     </div>

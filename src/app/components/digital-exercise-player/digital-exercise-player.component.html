@@ -19,10 +19,19 @@
   </div>
 
   <!-- ─── ERROR ───────────────────────────────────────────────────────────── -->
-  <div class="state-centered" *ngIf="state === 'error'">
+  <div class="state-centered" *ngIf="state === 'error' && !noReattemptBlocked">
     <span class="material-icons error-icon">error_outline</span>
     <h3>Exercise not found</h3>
     <p>This exercise may not be available or the link is incorrect.</p>
+    <button class="btn-primary" (click)="backToExercises()">
+      <span class="material-icons">arrow_back</span> Back to Exercises
+    </button>
+  </div>
+
+  <div class="state-centered" *ngIf="state === 'error' && noReattemptBlocked">
+    <span class="material-icons error-icon">lock</span>
+    <h3>Already Attempted</h3>
+    <p>You have already completed this exercise and re-attempts are not allowed.</p>
     <button class="btn-primary" (click)="backToExercises()">
       <span class="material-icons">arrow_back</span> Back to Exercises
     </button>
@@ -54,6 +63,9 @@
           </div>
           <p class="result-exercise-label">{{ exercise?.title }}</p>
           <h1 class="result-heading">Your Result</h1>
+          <p class="result-auto-submit-flag" *ngIf="autoSubmittedDueToLockBrowser">
+            <span class="material-icons">info</span> Auto-submitted due to tab/app switch
+          </p>
           <p
             class="result-video-kicker"
             *ngIf="
@@ -139,6 +151,7 @@
               Review answers
             </button>
             <button
+              *ngIf="!exercise?.noReattempt || isStaffTester"
               class="btn-reattempt"
               type="button"
               (click)="tryAgain()"
@@ -669,6 +682,18 @@
         </button>
       </div>
     </div>
+  </div>
+
+  <!-- ─── Lock Browser Countdown Banner ────────────────────────────── -->
+  <div
+    class="lock-browser-alert"
+    *ngIf="state === 'playing' && exercise?.lockBrowser && lockBrowserCountdown > 0"
+    role="alert"
+  >
+    <span class="material-icons">visibility_off</span>
+    <span class="lock-browser-alert__text">
+      Tab switched — auto-submitting in <strong>{{ lockBrowserCountdown }}</strong> seconds
+    </span>
   </div>
 
   <!-- ─── PLAYING (hidden when result/review screen is shown) ───────────────── -->
@@ -1803,6 +1828,21 @@
                 <strong>{{ totalPoints }}</strong> Total Points
               </div>
             </div>
+          </div>
+
+          <div class="info-restrictions" *ngIf="exercise?.lockBrowser || exercise?.noReattempt">
+            <span class="info-restriction-badge" *ngIf="exercise?.lockBrowser">
+              <span class="material-icons">lock</span> Browser Locked
+            </span>
+            <span class="info-restriction-badge" *ngIf="exercise?.noReattempt">
+              <span class="material-icons">block</span> No Re-attempt
+            </span>
+            <span class="info-restriction-note" *ngIf="exercise?.lockBrowser">
+              <span class="material-icons">info</span> Switching tabs/apps triggers auto-submit
+            </span>
+            <span class="info-restriction-note" *ngIf="exercise?.noReattempt">
+              <span class="material-icons">info</span> This exercise can only be attempted once
+            </span>
           </div>
 
           <div class="info-progress">

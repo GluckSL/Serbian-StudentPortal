@@ -269,6 +269,10 @@ export interface DigitalExercise {
    * video clip and tap "Next". Controlled by admin only (default: false).
    */
   watchOnlyMode?: boolean;
+  /** When true, students can only attempt this exercise once. */
+  noReattempt?: boolean;
+  /** When true, the player locks the browser into fullscreen and auto-submits on tab switch. */
+  lockBrowser?: boolean;
   /** QA badge: true when a tester marked the exercise as reviewed in admin list. */
   testerVerified?: boolean;
   /** Content blocks that trail after the last question (free mode builder). */
@@ -303,6 +307,7 @@ export interface ExerciseAttempt {
   status?: string;
   completedAt?: Date;
   timeSpentSeconds?: number;
+  autoSubmittedDueToLockBrowser?: boolean;
   /** Populated on student exercise list for analytics (best attempt) */
   wrongCount?: number;
   correctCount?: number;
@@ -347,6 +352,7 @@ export interface MyExerciseReviewResponse {
     totalPoints?: number;
     completedAt?: string;
     timeSpentSeconds?: number;
+    autoSubmittedDueToLockBrowser?: boolean;
   };
   summary: ExerciseReviewSummary;
   perQuestion: AttemptReviewRow[];
@@ -425,6 +431,7 @@ export interface SubmitResult {
     pointsEarned: number;
     correctAnswer: any;
   }>;
+  autoSubmittedDueToLockBrowser?: boolean;
 }
 
 export interface SubmitQuestionResult {
@@ -672,11 +679,12 @@ export class DigitalExerciseService {
     exerciseId: string,
     attemptId: string,
     responses: QuestionResponse[],
-    timeSpentSeconds: number
+    timeSpentSeconds: number,
+    autoSubmittedDueToLockBrowser?: boolean
   ): Observable<SubmitResult> {
     return this.http.post<SubmitResult>(
       `${this.apiUrl}/${exerciseId}/submit`,
-      { attemptId, responses, timeSpentSeconds },
+      { attemptId, responses, timeSpentSeconds, autoSubmittedDueToLockBrowser },
       { withCredentials: true }
     ).pipe(
       tap((res: any) => {
