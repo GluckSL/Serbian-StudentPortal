@@ -11,7 +11,7 @@ import { environment } from '../../../../environments/environment';
 import { NotificationService } from '../../../services/notification.service';
 import { AuthService } from '../../../services/auth.service';
 import { TestAccountBadgeComponent } from '../../../shared/test-account-badge/test-account-badge.component';
-import { clampJourneyDayForBatch, computeJourneyDayFromStartDate, formatJourneyDayLabel } from '../../../utils/journey-day.util';
+import { clampJourneyDayForBatch, computeJourneyDayFromBatchConfigLike, formatJourneyDayLabel, hasLevelScheduleDates, activeLevelScheduleEntry } from '../../../utils/journey-day.util';
 
 interface BatchSummary {
   batchName: string;
@@ -561,8 +561,8 @@ interface TimelineDay {
           <div class="j-ro-card-body">
             <span class="j-ro-card-label">Current batch day</span>
             <span class="j-ro-card-value">
-              Day {{ editBatchStartDate ? computedDayFromDate() : editBatchDay }}
-              <span class="j-auto-badge" *ngIf="editBatchStartDate" style="margin-left:6px"><i class="fas fa-magic"></i> Auto</span>
+              Day {{ isAutoScheduleActive() ? computedDayFromDate() : editBatchDay }}
+              <span class="j-auto-badge" *ngIf="isAutoScheduleActive()" style="margin-left:6px"><i class="fas fa-magic"></i> Auto</span>
             </span>
           </div>
         </div>
@@ -665,13 +665,13 @@ interface TimelineDay {
             <div class="j-config-field">
               <label class="j-field-label">
                 Current batch day
-                <span class="j-auto-badge j-auto-badge--sm" *ngIf="editBatchStartDate"><i class="fas fa-magic"></i> Auto</span>
+                <span class="j-auto-badge j-auto-badge--sm" *ngIf="isAutoScheduleActive()"><i class="fas fa-magic"></i> Auto</span>
               </label>
-              <div *ngIf="editBatchStartDate" class="j-batch-day-inline">
+              <div *ngIf="isAutoScheduleActive()" class="j-batch-day-inline">
                 <span class="j-day-pill">{{ formatBatchDay(computedDayFromDate()) }}</span>
                 <span class="j-field-hint j-field-hint--inline">{{ batchScheduleHint() }}</span>
               </div>
-              <input *ngIf="!editBatchStartDate"
+              <input *ngIf="!isAutoScheduleActive()"
                      type="number" [(ngModel)]="editBatchDay"
                      [min]="editTrialDayEnabled ? 0 : 1" [max]="editJourneyLength" class="j-input j-input--compact">
             </div>
@@ -846,7 +846,7 @@ interface TimelineDay {
       </div>
 
       <!-- Info box when start date is set -->
-      <div class="j-start-date-info" *ngIf="editBatchStartDate && !(editJourneyPaused && isNewStyleBatch)">
+      <div class="j-start-date-info" *ngIf="isAutoScheduleActive() && !(editJourneyPaused && isNewStyleBatch)">
         <i class="fas fa-calendar-check"></i>
         <div>
           <strong>Auto-schedule active.</strong>
@@ -5479,6 +5479,27 @@ export class JourneyManagementComponent implements OnInit {
       });
   }
 
+  /** True when auto schedule is driven by batch start date or any level start date. */
+  isAutoScheduleActive(): boolean {
+    return !!this.editBatchStartDate || this.hasAnyLevelStartDate();
+  }
+
+  private levelCalendarDatesFromEdit(): BatchSummary['levelCalendarDates'] {
+    return Object.fromEntries(
+      this.LEVEL_SCHEDULE_ITEMS.map((item) => [
+        item.level,
+        { startDate: this.editLevelStartDates[item.level] || null },
+      ])
+    );
+  }
+
+  private levelCalendarDatesFromBatch(b: BatchSummary): BatchSummary['levelCalendarDates'] {
+    if (b.levelCalendarDates) return b.levelCalendarDates;
+    return Object.fromEntries(
+      this.LEVEL_SCHEDULE_ITEMS.map((item) => [item.level, { startDate: null }])
+    );
+  }
+
   /** Days elapsed since editBatchStartDate (0 if today = start date) */
   daysSinceStart(): number {
     if (!this.editBatchStartDate) return 0;
@@ -5489,10 +5510,11 @@ export class JourneyManagementComponent implements OnInit {
     return Math.max(0, Math.floor((todayUTC - startUTC) / 86_400_000));
   }
 
-  /** True when a batch has a start date and its stored day has fallen behind the calendar. */
+  /** True when a batch has auto schedule and its stored day has fallen behind the calendar. */
   batchBehindCalendar(b: BatchSummary): boolean {
-    if (!b.autoDay || !b.batchStartDate) return false;
     if (b.journeyPaused) return false;
+    if (!b.autoDay && !hasLevelScheduleDates(b.levelCalendarDates)) return false;
+    if (!b.batchStartDate && !hasLevelScheduleDates(b.levelCalendarDates)) return false;
     return this.calendarDayForBatch(b) > b.batchCurrentDay;
   }
 
@@ -5510,29 +5532,31 @@ export class JourneyManagementComponent implements OnInit {
     return `${n} student${n === 1 ? '' : 's'} on a lower day than batch Day ${b.batchCurrentDay}. They will catch up at the next midnight rollover (lenient) or after attending live class (Platinum).`;
   }
 
-  /** Calendar day today for a batch based on its start date. */
+  /** Calendar day today for a batch based on level schedule or start date. */
   calendarDayForBatch(b: BatchSummary): number {
-    if (!b.batchStartDate) return b.batchCurrentDay;
-    return computeJourneyDayFromStartDate(
-      b.batchStartDate,
-      new Date(),
-      b.journeyLength,
-      !!b.trialDayEnabled,
-      b.trialAccessStartDate || null
-    );
+    if (!b.batchStartDate && !hasLevelScheduleDates(b.levelCalendarDates)) {
+      return b.batchCurrentDay;
+    }
+    return computeJourneyDayFromBatchConfigLike({
+      batchStartDate: b.batchStartDate,
+      levelCalendarDates: this.levelCalendarDatesFromBatch(b),
+      journeyLength: b.journeyLength,
+      trialDayEnabled: !!b.trialDayEnabled,
+      trialAccessStartDate: b.trialAccessStartDate || null,
+    });
   }
 
   computedDayFromDate(): number {
     if (this.editJourneyPaused && this.isNewStyleBatch) {
       return this.selectedBatch?.batchCurrentDay ?? this.editBatchDay;
     }
-    return computeJourneyDayFromStartDate(
-      this.editBatchStartDate || null,
-      new Date(),
-      this.editJourneyLength,
-      this.editTrialDayEnabled,
-      this.editTrialAccessStartDate || null
-    );
+    return computeJourneyDayFromBatchConfigLike({
+      batchStartDate: this.editBatchStartDate || null,
+      levelCalendarDates: this.levelCalendarDatesFromEdit(),
+      journeyLength: this.editJourneyLength,
+      trialDayEnabled: this.editTrialDayEnabled,
+      trialAccessStartDate: this.editTrialAccessStartDate || null,
+    });
   }
 
   get isNewStyleBatch(): boolean {
@@ -5564,6 +5588,22 @@ export class JourneyManagementComponent implements OnInit {
   }
 
   batchScheduleHint(): string {
+    if (this.hasAnyLevelStartDate()) {
+      const active = activeLevelScheduleEntry(this.levelCalendarDatesFromEdit());
+      if (!active) return 'Waiting for first level start date';
+      const startIso =
+        typeof active.startDate === 'string'
+          ? active.startDate
+          : active.startDate.toISOString().slice(0, 10);
+      const todayUTC = Date.UTC(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
+      const startUTC = Date.UTC(
+        Number(startIso.slice(0, 4)),
+        Number(startIso.slice(5, 7)) - 1,
+        Number(startIso.slice(8, 10))
+      );
+      const elapsed = Math.max(0, Math.floor((todayUTC - startUTC) / 86_400_000));
+      return `${active.level} · ${elapsed}d since ${this.formatIsoDateLabel(startIso)}`;
+    }
     if (!this.editBatchStartDate) return '';
     const day = this.computedDayFromDate();
     if (this.editTrialDayEnabled && this.editTrialAccessStartDate) {
@@ -5576,6 +5616,15 @@ export class JourneyManagementComponent implements OnInit {
   }
 
   scheduleSummaryText(): string {
+    if (this.hasAnyLevelStartDate()) {
+      const active = activeLevelScheduleEntry(this.levelCalendarDatesFromEdit());
+      if (!active) return 'Level schedule configured — waiting for first level';
+      const startIso =
+        typeof active.startDate === 'string'
+          ? active.startDate
+          : active.startDate.toISOString().slice(0, 10);
+      return `${active.level} active since ${this.formatIsoDateLabel(startIso)} (level schedule)`;
+    }
     if (!this.editBatchStartDate) return 'Manual mode';
     if (this.editTrialDayEnabled && this.editTrialAccessStartDate) {
       return `Trial from ${this.formatIsoDateLabel(this.editTrialAccessStartDate)} · Day 1 from ${this.formatIsoDateLabel(this.editBatchStartDate)}`;
@@ -5618,14 +5667,14 @@ export class JourneyManagementComponent implements OnInit {
   }
 
   canPickBulkApplyDay(): boolean {
-    return !!this.editBatchStartDate && this.isNewStyleBatch && this.editJourneyPaused;
+    return this.isAutoScheduleActive() && this.isNewStyleBatch && this.editJourneyPaused;
   }
 
   bulkApplyDayTarget(): number {
     if (this.canPickBulkApplyDay() && this.bulkApplyDay != null) {
       return Math.floor(Number(this.bulkApplyDay));
     }
-    return this.editBatchStartDate ? this.computedDayFromDate() : this.editBatchDay;
+    return this.isAutoScheduleActive() ? this.computedDayFromDate() : this.editBatchDay;
   }
 
   isBulkApplyDayValid(): boolean {
@@ -5895,7 +5944,7 @@ export class JourneyManagementComponent implements OnInit {
     this.selectedBatch.journeyLength = config.journeyLength;
     this.selectedBatch.batchCurrentDay = config.batchCurrentDay;
     this.selectedBatch.batchStartDate = config.batchStartDate || null;
-    this.selectedBatch.autoDay = !!config.batchStartDate;
+    this.selectedBatch.autoDay = !!(config.batchStartDate || hasLevelScheduleDates(config.levelCalendarDates));
     this.selectedBatch.notes = config.notes;
     this.selectedBatch.batchType = this.normalizeEditBatchType(config.batchType);
     this.selectedBatch.strictJourneyRule = !!config.strictJourneyRule;

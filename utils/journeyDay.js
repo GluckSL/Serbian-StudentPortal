@@ -102,13 +102,22 @@ function computeJourneyDayFromLevelSchedule(cfg, now = new Date()) {
   return clampStandardJourneyDay(Math.min(raw, activeLevel.dayEnd), max);
 }
 
+function hasLevelScheduleDates(cfgOrLevelDates) {
+  const lcd = cfgOrLevelDates?.levelCalendarDates ?? cfgOrLevelDates;
+  if (!lcd || typeof lcd !== 'object') return false;
+  return LEVEL_SCHEDULE.some((entry) => lcd[entry.level]?.startDate);
+}
+
+function batchHasAutoSchedule(cfg) {
+  if (!cfg) return false;
+  return !!(cfg.batchStartDate || hasLevelScheduleDates(cfg));
+}
+
 function computeJourneyDayFromBatchConfig(cfg, now = new Date()) {
   if (!cfg) return STANDARD_JOURNEY_MIN;
 
   // When any level start date is configured, use the level-schedule system.
-  const hasLevelDates = LEVEL_SCHEDULE.some(
-    (e) => cfg.levelCalendarDates?.[e.level]?.startDate
-  );
+  const hasLevelDates = hasLevelScheduleDates(cfg);
   if (hasLevelDates) return computeJourneyDayFromLevelSchedule(cfg, now);
 
   const max = cfg.journeyLength != null ? cfg.journeyLength : JOURNEY_DAY_MAX;
@@ -211,6 +220,8 @@ module.exports = {
   TRIAL_JOURNEY_DAY,
   MS_PER_DAY,
   LEVEL_SCHEDULE,
+  hasLevelScheduleDates,
+  batchHasAutoSchedule,
   clampStandardJourneyDay,
   clampJourneyDayForBatch,
   clampJourneyDay,
