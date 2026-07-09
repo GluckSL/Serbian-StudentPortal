@@ -191,9 +191,9 @@
             <td class="pja-attendance-cell">
               <span
                 class="pja-attendance"
-                [ngClass]="getAttendancePctClass(r.attendancePercent ?? 0)"
-                [title]="getAttendancePctHint(r.attendancePercent ?? 0)">
-                {{ r.attendancePercent ?? 0 }}%
+                [ngClass]="getAttendancePctClass(r.attendancePercent)"
+                [title]="getAttendancePctHint(r.attendancePercent)">
+                {{ r.attendancePercent }}%
               </span>
             </td>
             <td class="pja-zoom-status-cell">
