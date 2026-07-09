@@ -286,6 +286,12 @@ export class NavService {
       ]
     },
     {
+      group: 'Gluck Room',
+      items: [
+        { id: 'gluck-room', label: 'Gluck Room', icon: 'meeting_room', route: '/gluck-room', subGroup: null }
+      ]
+    },
+    {
       group: 'Profile',
       items: [
         { id: 'profile', label: 'Profile', icon: 'person', route: '/profile', subGroup: null }
@@ -310,6 +316,12 @@ export class NavService {
         { id: 'student-announcements', label: 'Announcements', icon: 'campaign', route: '/student/announcements', subGroup: null },
         { id: 'job-openings', label: 'Job Openings', icon: 'work', route: '/student/job-openings', subGroup: null },
         { id: 'performance', label: 'Performance History', icon: 'assessment', route: '/performance-history', subGroup: null }
+      ]
+    },
+    {
+      group: 'Gluck Room',
+      items: [
+        { id: 'gluck-room', label: 'Gluck Room', icon: 'meeting_room', route: '/student/gluck-room', subGroup: null }
       ]
     },
     {

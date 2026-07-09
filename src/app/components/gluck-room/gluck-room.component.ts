@@ -109,6 +109,11 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
     return this.hostId === this.userId;
   }
 
+  get canEndSession(): boolean {
+    const adminRoles = ['ADMIN', 'TEACHER_ADMIN', 'SUB_ADMIN'];
+    return adminRoles.includes(this.userRole) || this.hostId === this.userId;
+  }
+
   get mainParticipantName(): string {
     return this.mainParticipant?.name || 'Unknown';
   }

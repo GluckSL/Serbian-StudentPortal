@@ -66,10 +66,10 @@
           <span class="breakout-indicator" *ngIf="activeBreakoutId">
             <mat-icon [style.font-size.px]="14">group_work</mat-icon> Breakout
           </span>
-          <button mat-mini-fab *ngIf="isHostUser && !isEnding" color="warn" (click)="endSession()" class="ctrl-btn leave-btn">
+          <button mat-mini-fab *ngIf="canEndSession && !isEnding" color="warn" (click)="endSession()" class="ctrl-btn leave-btn">
             <mat-icon>call_end</mat-icon>
           </button>
-          <button mat-mini-fab *ngIf="isHostUser && isEnding" color="warn" disabled class="ctrl-btn leave-btn">
+          <button mat-mini-fab *ngIf="canEndSession && isEnding" color="warn" disabled class="ctrl-btn leave-btn">
             <mat-spinner diameter="18"></mat-spinner>
           </button>
           <button mat-mini-fab (click)="leave()" class="ctrl-btn leave-btn">
@@ -237,7 +237,7 @@
               <button *ngIf="session.status === 'active'" mat-raised-button color="primary" class="join-now-btn" (click)="onJoinClick()">
                 <mat-icon>videocam</mat-icon> Join Now
               </button>
-              <button *ngIf="session.status === 'active' && isHostUser" mat-raised-button color="warn" (click)="endFromCard()" [disabled]="cardActionLoading">
+              <button *ngIf="session.status === 'active' && canEndSession" mat-raised-button color="warn" (click)="endFromCard()" [disabled]="cardActionLoading">
                 <mat-icon *ngIf="!cardActionLoading">stop</mat-icon>
                 <mat-spinner *ngIf="cardActionLoading" diameter="16" style="display:inline-block;margin-right:4px"></mat-spinner>
                 {{ cardActionLoading ? 'Ending...' : 'End' }}
