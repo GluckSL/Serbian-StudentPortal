@@ -129,6 +129,7 @@ export class NavService {
       group: 'Overview',
       items: [
         { id: 'dashboard',  label: 'Dashboard', icon: 'dashboard', route: '/admin-dashboard', subGroup: null },
+        { id: 'engagement-overview', label: 'Batch Overview', icon: 'insights', route: '/admin/engagement-overview', subGroup: null },
         { id: 'students',   label: 'Students',  icon: 'school',    route: '/admin/students',  subGroup: 'Student Management' },
         { id: 'teachers',   label: 'Teachers',  icon: 'group',     route: '/teachers',        subGroup: 'Teacher Management' },
         { id: 'user-roles', label: 'User Roles', icon: 'key',      route: '/user-roles',      subGroup: null },
@@ -187,7 +188,6 @@ export class NavService {
         { id: 'student-progress',  label: 'Student Progress',  icon: 'trending_up', route: '/admin/student-progress', subGroup: null },
         { id: 'admin-performance', label: 'Performance',       icon: 'speed',       route: '/admin/performance',      subGroup: null },
         { id: 'language-tracking', label: 'Language Tracking', icon: 'translate',   route: '/admin/language-tracking', subGroup: null },
-        { id: 'engagement-overview', label: 'Engagement Overview', icon: 'insights', route: '/admin/engagement-overview', subGroup: null },
         { id: 'batch-leaderboard', label: 'Batch Leaderboard', icon: 'leaderboard', route: '/admin/leaderboard',      subGroup: null },
         { id: 'journey',           label: 'Journey',           icon: 'map',         route: '/admin/journey',          subGroup: null },
         { id: 'go-students',       label: 'GO Students',       icon: 'rocket_launch', route: '/admin/go-students',    subGroup: null }
