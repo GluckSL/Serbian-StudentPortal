@@ -1,12 +1,16 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { Observable, from, of, throwError, forkJoin } from 'rxjs';
+import { switchMap, timeout } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
 import { getAuthToken } from './auth.service';
 
 @Injectable({ providedIn: 'root' })
 export class ClassResourceService {
   private base = `${environment.apiUrl}/class-resources`;
+  private readonly maxFileSize = 50 * 1024 * 1024;
+  /** Direct R2 PUT + register — allow slow mobile networks but never hang forever. */
+  private readonly uploadTimeoutMs = 10 * 60 * 1000;
 
   constructor(private http: HttpClient) {}
 
@@ -19,9 +23,95 @@ export class ClassResourceService {
   }
 
   upload(meetingId: string, files: File[]): Observable<any> {
-    const fd = new FormData();
-    files.forEach(f => fd.append('files', f));
-    return this.http.post(`${this.base}/${meetingId}/upload`, fd, { withCredentials: true });
+    const tooLarge = files.filter((f) => f.size > this.maxFileSize);
+    if (tooLarge.length > 0) {
+      return throwError(() => ({
+        error: {
+          message: `File too large (max 50 MB each): ${tooLarge.map((f) => f.name).join(', ')}`
+        }
+      }));
+    }
+
+    // Direct R2 PUT bypasses nginx proxy timeouts on large mobile uploads.
+    return forkJoin(files.map((file) => this.presignAndPut(file))).pipe(
+      timeout(this.uploadTimeoutMs),
+      switchMap((uploadedFiles) =>
+        this.http.post(
+          `${this.base}/${meetingId}/register-upload`,
+          { files: uploadedFiles },
+          { withCredentials: true }
+        ).pipe(timeout(60_000))
+      )
+    );
+  }
+
+  private presignAndPut(file: File): Observable<{
+    key: string;
+    fileUrl: string;
+    originalName: string;
+    mimeType: string;
+    fileSize: number;
+  }> {
+    const contentType = file.type || 'application/octet-stream';
+    return this.http
+      .post<{
+        uploadUrl: string;
+        fileUrl: string;
+        key?: string;
+        error?: string;
+      }>(
+        `${environment.apiUrl}/r2/generate-upload-url`,
+        {
+          filename: file.name,
+          contentType,
+          prefix: 'class-resources',
+        },
+        { withCredentials: true }
+      )
+      .pipe(
+        switchMap((res) => {
+          const key =
+            res?.key ||
+            (res?.fileUrl?.includes('class-resources/')
+              ? res.fileUrl.slice(res.fileUrl.indexOf('class-resources/'))
+              : '');
+          if (!res?.uploadUrl || !res?.fileUrl || !key) {
+            return throwError(() => ({
+              error: { message: res?.error || 'Failed to prepare upload' }
+            }));
+          }
+
+          const controller = new AbortController();
+          const timer = window.setTimeout(() => controller.abort(), this.uploadTimeoutMs);
+
+          return from(
+            fetch(res.uploadUrl, {
+              method: 'PUT',
+              headers: { 'Content-Type': contentType },
+              body: file,
+              signal: controller.signal,
+            }).finally(() => window.clearTimeout(timer))
+          ).pipe(
+            switchMap((response) => {
+              if (!response.ok) {
+                return throwError(() => ({
+                  error: {
+                    message: `Cloud storage upload failed (HTTP ${response.status}). Try again on Wi‑Fi or use a smaller file.`
+                  }
+                }));
+              }
+              return of({
+                key,
+                fileUrl: res.fileUrl,
+                originalName: file.name,
+                mimeType: contentType,
+                fileSize: file.size,
+              });
+            })
+          );
+        }),
+        timeout(this.uploadTimeoutMs)
+      );
   }
 
   delete(resourceId: string): Observable<any> {

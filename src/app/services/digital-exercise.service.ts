@@ -282,6 +282,7 @@ export interface DigitalExercise {
     instruction?: string;
     example?: string;
     attachmentUrls?: string[];
+    attachmentAudioMaxPlaysPerAttempt?: number | null;
   }>;
   /** Present when created via Free Mode builder. */
   isFreeMode?: boolean;

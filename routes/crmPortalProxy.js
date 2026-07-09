@@ -11,6 +11,7 @@ const { sendManualWhatsappMessage, isWhatsappManualSendEnabled, isWhatsappAutoma
 const { compareBoardWithPortal } = require('../services/crmPortalCompare');
 const { buildSalesDashboard, getWatchlistSettings, saveWatchlistSettings } = require('../services/crmSalesDashboard');
 const { sendSalesDashboardToChat } = require('../services/crmSalesChatNotify');
+const { runSalesDashboardChatReport } = require('../jobs/salesDashboardChatReport');
 
 const router = express.Router();
 
@@ -172,7 +173,7 @@ router.put('/enrollment-board/sales-dashboard/settings', async (req, res) => {
   }
 });
 
-/** Manually send Sales Dashboard snapshot to Google Chat */
+/** Manually send Sales Dashboard snapshot to Google Chat (browser-captured image) */
 router.post('/enrollment-board/sales-dashboard/send-to-chat', async (req, res) => {
   try {
     const result = await sendSalesDashboardToChat({
@@ -185,6 +186,22 @@ router.post('/enrollment-board/sales-dashboard/send-to-chat', async (req, res) =
     res.status(502).json({
       success: false,
       message: err.response?.data?.message || err.message || 'Failed to send to Google Chat',
+    });
+  }
+});
+
+/** Manual cron test — CRM fetch + server-rendered image + Google Chat (10 AM or 6 PM window) */
+router.post('/enrollment-board/sales-dashboard/trigger-chat', async (req, res) => {
+  try {
+    const reportPeriod = req.body?.reportPeriod === 'morning' ? 'morning' : 'evening';
+    const label = reportPeriod === 'morning' ? '10:00 AM (manual)' : '6:00 PM (manual)';
+    const result = await runSalesDashboardChatReport(label, reportPeriod);
+    res.json(result);
+  } catch (err) {
+    console.error('[crm-portal] trigger-chat:', err.message);
+    res.status(502).json({
+      success: false,
+      message: err.response?.data?.message || err.message || 'Failed to trigger sales dashboard chat report',
     });
   }
 });

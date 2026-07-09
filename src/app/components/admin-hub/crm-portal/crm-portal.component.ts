@@ -342,6 +342,7 @@ export class CrmPortalComponent implements OnInit, OnDestroy {
   salesImageSaving = false;
   salesImageSaveMsg = '';
   salesChatSending = false;
+  salesChatTriggerPeriod: 'morning' | 'evening' | null = null;
   salesChatSendMsg = '';
 
   @ViewChild('salesDashboardCapture') salesDashboardCapture?: ElementRef<HTMLElement>;
@@ -1210,7 +1211,10 @@ export class CrmPortalComponent implements OnInit, OnDestroy {
     this.salesWatchSaveMsg = '';
   }
 
-  openSalesDashboard(board: ReturnType<typeof this.createBoardState>): void {
+  openSalesDashboard(
+    board: ReturnType<typeof this.createBoardState>,
+    reportPeriod?: 'morning' | 'evening'
+  ): void {
     if (board.type !== 'enrollment') return;
 
     this.closeCompare();
@@ -1224,7 +1228,7 @@ export class CrmPortalComponent implements OnInit, OnDestroy {
 
     this.http.post<any>('/api/crm-portal/enrollment-board/sales-dashboard', {
       simple: {},
-      reportPeriod: this.salesReportPeriod(),
+      reportPeriod: reportPeriod ?? this.salesReportPeriod(),
     })
       .pipe(takeUntil(this.destroy$))
       .subscribe({
@@ -1360,9 +1364,14 @@ export class CrmPortalComponent implements OnInit, OnDestroy {
 
   salesDaysLabel(days: number | null): string {
     if (days == null) return 'Inactive';
-    if (days === 0) return 'Today';
+    const morning = this.salesDashboard.reportWindow?.period === 'morning';
+    if (days === 0) return morning ? 'Yesterday' : 'Today';
     if (days === 1) return '1 Day Ago';
     return `${days} Days Ago`;
+  }
+
+  salesDaysHighlight(days: number | null): boolean {
+    return this.salesDashboard.reportWindow?.period === 'morning' && days === 0;
   }
 
   salesReportPeriod(): 'morning' | 'evening' {
@@ -1373,7 +1382,7 @@ export class CrmPortalComponent implements OnInit, OnDestroy {
         hour12: false,
       })
     );
-    return hour >= 19 ? 'evening' : 'morning';
+    return hour >= 18 ? 'evening' : 'morning';
   }
 
   salesReportWindowLabel(): string {
@@ -1458,10 +1467,44 @@ export class CrmPortalComponent implements OnInit, OnDestroy {
     }
   }
 
+  triggerSalesDashboardChat(period: 'morning' | 'evening', board: ReturnType<typeof this.createBoardState>): void {
+    if (this.salesChatSending || this.salesDashboard.loading) return;
+
+    this.salesChatSending = true;
+    this.salesChatTriggerPeriod = period;
+    this.salesChatSendMsg = '';
+
+    this.http
+      .post<any>('/api/crm-portal/enrollment-board/sales-dashboard/trigger-chat', {
+        reportPeriod: period,
+      })
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.salesChatSending = false;
+          this.salesChatTriggerPeriod = null;
+          if (!res?.success) {
+            this.salesChatSendMsg = res?.message || 'Failed to send to Google Chat.';
+            return;
+          }
+          this.salesChatSendMsg = res.message || `Sent ${period === 'morning' ? '10 AM' : '6 PM'} report to Google Chat.`;
+          setTimeout(() => { this.salesChatSendMsg = ''; }, 5000);
+          this.openSalesDashboard(board, period);
+        },
+        error: (err) => {
+          this.salesChatSending = false;
+          this.salesChatTriggerPeriod = null;
+          this.salesChatSendMsg =
+            err?.error?.message || 'Failed to send to Google Chat.';
+        },
+      });
+  }
+
   sendSalesDashboardToChat(): void {
     if (this.salesChatSending || this.salesDashboard.loading) return;
 
     this.salesChatSending = true;
+    this.salesChatTriggerPeriod = null;
     this.salesChatSendMsg = '';
 
     this.captureSalesDashboardPng()

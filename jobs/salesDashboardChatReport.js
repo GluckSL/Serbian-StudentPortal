@@ -1,6 +1,6 @@
 /**
  * Daily Sales Dashboard → Google Chat
- * Fires every day at 10:00 AM and 7:00 PM IST (Asia/Colombo).
+ * Fires every day at 10:00 AM and 6:00 PM IST (Asia/Colombo).
  *
  * Each run:
  * 1. Fetches the latest CRM enrollment board (all pages) — fresh data
@@ -63,14 +63,14 @@ function scheduleSalesDashboardChatReport() {
     );
   }, { timezone: TZ });
 
-  // 7:00 PM every day, Asia/Colombo — week including today
-  cron.schedule('0 19 * * *', () => {
-    runSalesDashboardChatReport('7:00 PM', 'evening').catch((err) =>
-      console.error('[SalesDashboardChatReport] 7 PM job error:', err.message)
+  // 6:00 PM every day, Asia/Colombo — week including today
+  cron.schedule('0 18 * * *', () => {
+    runSalesDashboardChatReport('6:00 PM', 'evening').catch((err) =>
+      console.error('[SalesDashboardChatReport] 6 PM job error:', err.message)
     );
   }, { timezone: TZ });
 
-  console.log('[SalesDashboardChatReport] Scheduled — 10:00 AM (week excl. today) & 7:00 PM (week incl. today)');
+  console.log('[SalesDashboardChatReport] Scheduled — 10:00 AM (week excl. today) & 6:00 PM (week incl. today)');
 }
 
 module.exports = {

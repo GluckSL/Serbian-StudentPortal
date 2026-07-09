@@ -1309,6 +1309,7 @@
 
   .crm-perf-row {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+    align-items: start;
     gap: 20px;
     padding: 20px 16px 16px;
   }
@@ -1333,11 +1334,12 @@
 
   .crm-perf {
     border-radius: 12px;
+    height: auto;
   }
 
   .crm-perf__banner {
-    gap: 16px;
-    padding: 20px 24px 24px;
+    gap: 12px;
+    padding: 16px 20px 18px;
   }
 
   .crm-perf__banner-main h3 {
@@ -1348,21 +1350,18 @@
     font-size: 3.3rem;
   }
 
-  .crm-perf__meter em {
-    margin-top: 6px;
-    font-size: 20px;
-  }
-
   .crm-perf__bar {
     height: 12px;
   }
 
   .crm-perf__body {
-    max-height: 440px;
+    flex: 0 0 auto;
+    max-height: none;
+    overflow: visible;
   }
 
   .crm-perf__empty {
-    padding: 28px 20px;
+    padding: 16px 20px;
     font-size: 22px;
   }
 
@@ -1370,12 +1369,12 @@
     font-size: 22px;
 
     th {
-      padding: 14px 16px;
+      padding: 10px 16px;
       font-size: 18px;
     }
 
     td {
-      padding: 14px 16px;
+      padding: 10px 16px;
     }
 
     &__name {
@@ -1715,6 +1714,16 @@
   &--ok {
     color: #15803d;
     .material-icons { color: #22c55e; }
+  }
+
+  &--yesterday {
+    background: #fef9c3;
+    color: #a16207;
+    padding: 3px 10px;
+    border-radius: 6px;
+    font-weight: 700;
+
+    .material-icons { color: #ca8a04; }
   }
 
   &--warn {

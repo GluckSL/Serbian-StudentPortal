@@ -86,6 +86,7 @@ function extractMediaKeyFromUrl(url) {
     'exercise-attachments/',
     'pdf-exercises/',
     'teacher-resources/',
+    'class-resources/',
     'glueck-arena/',
     'job-openings/',
     'dg-context-images/',

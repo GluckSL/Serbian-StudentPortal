@@ -219,6 +219,7 @@ export class FreeModeExerciseBuilderComponent implements OnInit {
               instruction: block.instruction || '',
               example: block.example || '',
               attachmentUrls: block.attachmentUrls || [],
+              attachmentAudioMaxPlaysPerAttempt: block.attachmentAudioMaxPlaysPerAttempt ?? undefined,
             };
             this.items.push(item);
             this.initContentBlockFields(item);
@@ -672,7 +673,19 @@ export class FreeModeExerciseBuilderComponent implements OnInit {
   }
 
   hasAudioAttachment(item: FreeModeItem): boolean {
-    return (item.attachmentUrls || []).some(u => this.getAttachmentType(u) === 'audio');
+    return (item.attachmentUrls || []).some((u) => this.getAttachmentType(u) === 'audio');
+  }
+
+  showAttachmentAudioLimitField(item: FreeModeItem): boolean {
+    if (this.hasAudioAttachment(item)) return true;
+    const cap = this.normalizeAttachmentAudioMaxPlays(item.attachmentAudioMaxPlaysPerAttempt);
+    return cap != null;
+  }
+
+  private normalizeAttachmentAudioMaxPlays(raw: unknown): number | undefined {
+    const n = typeof raw === 'number' ? raw : parseInt(String(raw ?? '').trim(), 10);
+    if (!Number.isFinite(n) || n < 1) return undefined;
+    return Math.min(99, Math.floor(n));
   }
 
   triggerAttachmentFile(item: FreeModeItem): void {
@@ -733,6 +746,9 @@ export class FreeModeExerciseBuilderComponent implements OnInit {
   removeAttachmentAt(item: FreeModeItem, index: number): void {
     if (!item.attachmentUrls || index < 0 || index >= item.attachmentUrls.length) return;
     item.attachmentUrls.splice(index, 1);
+    if (!this.hasAudioAttachment(item)) {
+      item.attachmentAudioMaxPlaysPerAttempt = undefined;
+    }
   }
 
   getTypeLabel(type: string): string {
@@ -780,6 +796,14 @@ export class FreeModeExerciseBuilderComponent implements OnInit {
       items: this.items.map(item => {
         const clone: any = { ...item };
         delete clone.uid;
+        if (clone.kind === 'content') {
+          const cap = this.normalizeAttachmentAudioMaxPlays(clone.attachmentAudioMaxPlaysPerAttempt);
+          if (this.hasAudioAttachment(item) && cap != null) {
+            clone.attachmentAudioMaxPlaysPerAttempt = cap;
+          } else {
+            delete clone.attachmentAudioMaxPlaysPerAttempt;
+          }
+        }
         return clone;
       }),
     };

@@ -48,6 +48,7 @@ router.post(
         'exercise-attachments',
         'pdf-exercises',
         'teacher-resources',
+        'class-resources',
         'glueck-arena/game-audio',
         'glueck-arena/game-images',
         'glueck-arena/game-thumbnails',

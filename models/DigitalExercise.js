@@ -377,6 +377,7 @@ const DigitalExerciseSchema = new mongoose.Schema({
     instruction: { type: String, default: '' },
     example: { type: String, default: '' },
     attachmentUrls: [{ type: String }],
+    attachmentAudioMaxPlaysPerAttempt: { type: Number, default: null, min: 1, max: 99 },
   }],
 
   /**

@@ -328,11 +328,25 @@
             {{ salesImageSaving ? 'Saving…' : 'Save' }}
           </button>
           <button class="crm-btn crm-btn--outline crm-btn--sm"
+            (click)="triggerSalesDashboardChat('morning', board)"
+            [disabled]="salesDashboard.loading || salesImageSaving || salesChatSending"
+            title="Fetch CRM and send 10 AM weekly report to Google Chat">
+            <span class="material-icons">schedule</span>
+            {{ salesChatSending && salesChatTriggerPeriod === 'morning' ? 'Sending…' : '10 AM' }}
+          </button>
+          <button class="crm-btn crm-btn--outline crm-btn--sm"
+            (click)="triggerSalesDashboardChat('evening', board)"
+            [disabled]="salesDashboard.loading || salesImageSaving || salesChatSending"
+            title="Fetch CRM and send 6 PM weekly report to Google Chat">
+            <span class="material-icons">nights_stay</span>
+            {{ salesChatSending && salesChatTriggerPeriod === 'evening' ? 'Sending…' : '6 PM' }}
+          </button>
+          <button class="crm-btn crm-btn--outline crm-btn--sm"
             (click)="sendSalesDashboardToChat()"
             [disabled]="salesDashboard.loading || salesImageSaving || salesChatSending"
-            title="Send dashboard snapshot to Google Chat group">
+            title="Send current dashboard snapshot (browser capture) to Google Chat">
             <span class="material-icons">send</span>
-            {{ salesChatSending ? 'Sending…' : 'Send' }}
+            {{ salesChatSending && !salesChatTriggerPeriod ? 'Sending…' : 'Send' }}
           </button>
           <button class="crm-btn crm-btn--outline crm-btn--sm"
             (click)="openSalesDashboard(board)"
@@ -455,7 +469,8 @@
                   <tr *ngFor="let c of salesDashboard.green">
                     <td class="crm-perf-table__name">{{ c.name }}</td>
                     <td>
-                      <span class="crm-perf-status crm-perf-status--ok">
+                      <span class="crm-perf-status crm-perf-status--ok"
+                        [class.crm-perf-status--yesterday]="salesDaysHighlight(c.daysSince)">
                         <span class="material-icons">check_circle</span>
                         {{ salesDaysLabel(c.daysSince) }}
                       </span>
@@ -498,7 +513,8 @@
                   <tr *ngFor="let c of salesDashboard.yellow">
                     <td class="crm-perf-table__name">{{ c.name }}</td>
                     <td>
-                      <span class="crm-perf-status crm-perf-status--warn">
+                      <span class="crm-perf-status crm-perf-status--warn"
+                        [class.crm-perf-status--yesterday]="salesDaysHighlight(c.daysSince)">
                         <span class="material-icons">warning</span>
                         {{ salesDaysLabel(c.daysSince) }}
                       </span>

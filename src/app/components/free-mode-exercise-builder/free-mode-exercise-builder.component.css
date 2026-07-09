@@ -663,6 +663,48 @@
   object-fit: contain;
 }
 .attachment-audio-preview { max-width: 100%; height: 36px; }
+
+.attachment-audio-limit-row {
+  margin-top: 2px;
+  padding-top: 8px;
+  border-top: 1px dashed #e2e8f0;
+}
+
+.attachment-audio-limit-row label {
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 11px;
+}
+
+.label-optional {
+  font-weight: 500;
+  color: #94a3b8;
+  font-size: 10px;
+  text-transform: none;
+}
+
+.attachment-audio-limit-input {
+  width: 88px;
+  padding: 6px 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 5px;
+  font-size: 12px;
+  font-family: inherit;
+  background: #f8fafc;
+  outline: none;
+}
+
+.attachment-audio-limit-input:focus {
+  border-color: #7c3aed;
+  box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.12);
+}
+
+.field-hint {
+  margin: 0;
+  font-size: 10px;
+  color: #64748b;
+  line-height: 1.4;
+}
 .attachment-video-preview {
   max-height: 180px;
   max-width: 100%;

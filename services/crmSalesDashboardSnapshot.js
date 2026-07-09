@@ -1,26 +1,22 @@
 /**
- * Renders Sales Dashboard data as a PNG (SVG → sharp) for Google Chat sharing.
- * Dimensions are 2× the base layout for readability in chat.
+ * Renders Sales Dashboard data as a PNG (SVG → resvg) for Google Chat sharing.
+ * Layout mirrors the CRM portal table UI (Name / Last / Enrolled columns).
  */
 
+const { Resvg } = require('@resvg/resvg-js');
 const { putPaymentProof, isPaymentR2Configured } = require('../modules/payments-v2/backend/services/paymentProofR2Service');
 
-let sharpModule = null;
-
-function getSharp() {
-  if (!sharpModule) {
-    // Lazy-load so a sharp/Node mismatch does not crash the whole portal on startup.
-    sharpModule = require('sharp');
-  }
-  return sharpModule;
-}
-
+const FONT = 'Arial, Helvetica, sans-serif';
 const SCALE = 2;
-const CARD_W = 360 * SCALE;
-const CARD_GAP = 16 * SCALE;
-const ROW_STEP = 34 * SCALE;
-const HEADER_H = 56 * SCALE;
-const BODY_PAD = 36 * SCALE;
+const CARD_W = 380 * SCALE;
+const CARD_GAP = 14 * SCALE;
+const HEADER_H = 78 * SCALE;
+const THEAD_H = 30 * SCALE;
+const ROW_H = 38 * SCALE;
+const BODY_PAD_BOTTOM = 8 * SCALE;
+const COL1_W = CARD_W * 0.4;
+const COL2_W = CARD_W * 0.34;
+const COL3_W = CARD_W - COL1_W - COL2_W;
 
 function esc(s) {
   return String(s ?? '')
@@ -30,11 +26,15 @@ function esc(s) {
     .replace(/"/g, '&quot;');
 }
 
-function dayLabel(days) {
+function dayLabel(days, period) {
   if (days == null) return 'Inactive';
-  if (days === 0) return 'Today';
+  if (days === 0) return period === 'morning' ? 'Yesterday' : 'Today';
   if (days === 1) return '1 Day Ago';
   return `${days} Days Ago`;
+}
+
+function isYesterdayHighlight(days, period) {
+  return period === 'morning' && days === 0;
 }
 
 function isoToDisplay(iso) {
@@ -44,33 +44,89 @@ function isoToDisplay(iso) {
   return `${m[3]}-${m[2]}-${m[1]}`;
 }
 
-function cardRows(counsellors, emptyLabel) {
+function truncateName(name, max = 22) {
+  const s = String(name || '');
+  return s.length > max ? `${s.slice(0, max - 1)}…` : s;
+}
+
+function riskLabel(c, period) {
+  if (c.daysSince != null) return dayLabel(c.daysSince, period);
+  return c.riskType || 'No activity found';
+}
+
+function statusColor(cardType, c) {
+  if (cardType === 'green') return '#15803d';
+  if (cardType === 'yellow') return '#b45309';
+  if (c.riskType === 'Delayed') return '#b45309';
+  return '#dc2626';
+}
+
+function cardBodyHeight(counsellors) {
+  if (!counsellors.length) return THEAD_H + 28 + BODY_PAD_BOTTOM;
+  return THEAD_H + counsellors.length * ROW_H + BODY_PAD_BOTTOM;
+}
+
+function tableHead(midLabel) {
+  const y = HEADER_H + 20;
+  return `
+    <rect x="0" y="${HEADER_H}" width="${CARD_W}" height="${THEAD_H}" fill="#f8fafc"/>
+    <line x1="0" y1="${HEADER_H + THEAD_H}" x2="${CARD_W}" y2="${HEADER_H + THEAD_H}" stroke="#e2e8f0"/>
+    <text x="${12 * SCALE}" y="${y}" font-size="${16}" font-weight="700" fill="#64748b" font-family="${FONT}">NAME</text>
+    <text x="${COL1_W + 8}" y="${y}" font-size="${16}" font-weight="700" fill="#64748b" font-family="${FONT}">${esc(midLabel)}</text>
+    <text x="${COL1_W + COL2_W + 8}" y="${y}" font-size="${16}" font-weight="700" fill="#64748b" font-family="${FONT}">ENROLLED</text>
+  `;
+}
+
+function tableRows(counsellors, cardType, period, emptyLabel) {
   if (!counsellors.length) {
-    return `<text x="${14 * SCALE}" y="${102 * SCALE}" font-size="${22}" fill="#94a3b8" font-family="Segoe UI, Arial, sans-serif">${esc(emptyLabel)}</text>`;
+    const y = HEADER_H + THEAD_H + 22;
+    return `<text x="${12 * SCALE}" y="${y}" font-size="${18}" fill="#94a3b8" font-family="${FONT}">${esc(emptyLabel)}</text>`;
   }
+
   return counsellors
     .map((c, i) => {
-      const y = 92 * SCALE + i * ROW_STEP;
+      const rowTop = HEADER_H + THEAD_H + i * ROW_H;
+      const textY = rowTop + 24;
+      const lastText = cardType === 'red' ? riskLabel(c, period) : dayLabel(c.daysSince, period);
+      const lastColor = statusColor(cardType, c);
+      const highlight = cardType !== 'red' && isYesterdayHighlight(c.daysSince, period);
+      const highlightBg = highlight
+        ? `<rect x="${COL1_W + 4}" y="${rowTop + 6}" width="${COL2_W - 8}" height="${ROW_H - 10}" rx="6" fill="#fef9c3"/>`
+        : '';
+      const rowLine =
+        i < counsellors.length - 1
+          ? `<line x1="0" y1="${rowTop + ROW_H}" x2="${CARD_W}" y2="${rowTop + ROW_H}" stroke="#f1f5f9"/>`
+          : '';
+
       return `
-        <text x="${14 * SCALE}" y="${y}" font-size="${22}" font-weight="600" fill="#0f172a" font-family="Segoe UI, Arial, sans-serif">${esc(c.name)}</text>
-        <text x="${14 * SCALE}" y="${y + 28}" font-size="${20}" fill="#64748b" font-family="Segoe UI, Arial, sans-serif">${esc(dayLabel(c.daysSince))} · ${esc(isoToDisplay(c.lastEnrollment))}</text>
+        ${rowLine}
+        <text x="${12 * SCALE}" y="${textY}" font-size="${20}" font-weight="600" fill="#0f172a" font-family="${FONT}">${esc(truncateName(c.name))}</text>
+        ${highlightBg}
+        <text x="${COL1_W + 8}" y="${textY}" font-size="${highlight ? 19 : 18}" font-weight="${highlight ? 700 : 600}" fill="${highlight ? '#a16207' : lastColor}" font-family="${FONT}">${esc(lastText)}</text>
+        <text x="${COL1_W + COL2_W + 8}" y="${textY}" font-size="${18}" font-weight="600" fill="#475569" font-family="${FONT}">${esc(isoToDisplay(c.lastEnrollment))}</text>
       `;
     })
     .join('');
 }
 
-function cardBlock(x, y, title, count, headerColor, counsellors, bodyH) {
+function cardBlock(x, y, title, count, total, headerColor, counsellors, cardType, period, bodyH) {
   const h = HEADER_H + bodyH;
+  const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+  const barW = CARD_W - 28 * SCALE;
+  const fillW = Math.max(0, (barW * pct) / 100);
+  const midLabel = cardType === 'red' ? 'RISK' : 'LAST';
+
   return `
     <g transform="translate(${x}, ${y})">
       <rect width="${CARD_W}" height="${h}" rx="${10 * SCALE}" fill="#ffffff" stroke="#e2e8f0"/>
       <rect width="${CARD_W}" height="${HEADER_H}" rx="${10 * SCALE}" fill="${headerColor}"/>
-      <rect y="${46 * SCALE}" width="${CARD_W}" height="${10 * SCALE}" fill="${headerColor}"/>
-      <text x="${14 * SCALE}" y="${34 * SCALE}" font-size="${24}" font-weight="700" fill="#ffffff" font-family="Segoe UI, Arial, sans-serif">${esc(title)}</text>
-      <text x="${320 * SCALE}" y="${36 * SCALE}" font-size="${52}" font-weight="800" fill="#ffffff" text-anchor="end" font-family="Segoe UI, Arial, sans-serif">${count}</text>
-      <g transform="translate(0, ${HEADER_H})">
-        ${cardRows(counsellors, 'None in this bucket')}
-      </g>
+      <rect y="${68 * SCALE}" width="${CARD_W}" height="${10 * SCALE}" fill="${headerColor}"/>
+      <text x="${14 * SCALE}" y="${28 * SCALE}" font-size="${22}" font-weight="800" fill="#ffffff" font-family="${FONT}">${esc(title)}</text>
+      <text x="${CARD_W - 14 * SCALE}" y="${30 * SCALE}" font-size="${44}" font-weight="800" fill="#ffffff" text-anchor="end" font-family="${FONT}">${count}</text>
+      <rect x="${14 * SCALE}" y="${48 * SCALE}" width="${barW}" height="${8 * SCALE}" rx="999" fill="rgba(255,255,255,0.28)"/>
+      <rect x="${14 * SCALE}" y="${48 * SCALE}" width="${fillW}" height="${8 * SCALE}" rx="999" fill="rgba(255,255,255,0.92)"/>
+      ${tableHead(midLabel)}
+      ${tableRows(counsellors, cardType, period, 'None in this bucket')}
     </g>
   `;
 }
@@ -84,32 +140,51 @@ function buildDashboardSvg(data) {
     day: 'numeric',
   });
 
-  const weekLabel = data.reportWindow?.reportText
-    ? data.reportWindow.reportText.replace(/^Enrollment report from /, '')
+  const period = data.reportWindow?.period === 'morning' ? 'morning' : 'evening';
+  const reportText = data.reportWindow?.reportText || '';
+  const total = data.totals?.counsellors || 10;
+
+  const maxBodyH = Math.max(
+    cardBodyHeight(data.green),
+    cardBodyHeight(data.yellow),
+    cardBodyHeight(data.red)
+  );
+
+  let topY = 32 * SCALE;
+  const titleLine = `<text x="${16 * SCALE}" y="${topY}" font-size="${34}" font-weight="700" fill="#0f172a" font-family="${FONT}">Counsellor Performance Dashboard</text>`;
+  topY += 28 * SCALE;
+
+  const reportLine = reportText
+    ? `<text x="${16 * SCALE}" y="${topY}" font-size="${24}" font-weight="700" fill="#0f172a" font-family="${FONT}">${esc(reportText)}</text>`
     : '';
+  if (reportText) topY += 26 * SCALE;
 
-  const reportLine = data.reportWindow?.reportText || '';
+  const subtitle = `${date} · ${data.totals.enrollmentsScanned} Enrollments This Week · ${total} watched`;
+  const subtitleLine = `<text x="${16 * SCALE}" y="${topY}" font-size="${20}" fill="#64748b" font-family="${FONT}">${esc(subtitle)}</text>`;
+  const cardTop = topY + 18 * SCALE;
 
-  const maxRows = Math.max(data.green.length, data.yellow.length, data.red.length, 1);
-  const bodyH = BODY_PAD * SCALE + maxRows * ROW_STEP;
-  const cardTop = reportLine ? 102 * SCALE : 88 * SCALE;
   const width = CARD_W * 3 + CARD_GAP * 2 + 32 * SCALE;
-  const height = cardTop + HEADER_H + bodyH + 24 * SCALE;
+  const height = cardTop + HEADER_H + maxBodyH + 16 * SCALE;
 
-  const green = cardBlock(16 * SCALE, cardTop, 'Excellence In Action', data.green.length, '#16a34a', data.green, bodyH);
-  const yellow = cardBlock(16 * SCALE + CARD_W + CARD_GAP, cardTop, 'Nurturing Required', data.yellow.length, '#d97706', data.yellow, bodyH);
-  const red = cardBlock(16 * SCALE + (CARD_W + CARD_GAP) * 2, cardTop, 'Critical Engagement', data.red.length, '#dc2626', data.red, bodyH);
-
-  const subtitle = weekLabel
-    ? `${date} · ${weekLabel} · ${data.totals.enrollmentsScanned} enrollments · ${data.totals.counsellors} watched`
-    : `${date} · ${data.totals.enrollmentsScanned} enrollments · ${data.totals.counsellors} watched`;
+  const green = cardBlock(
+    16 * SCALE, cardTop, 'Excellence In Action', data.green.length, total,
+    '#16a34a', data.green, 'green', period, maxBodyH
+  );
+  const yellow = cardBlock(
+    16 * SCALE + CARD_W + CARD_GAP, cardTop, 'Nurturing Required', data.yellow.length, total,
+    '#d97706', data.yellow, 'yellow', period, maxBodyH
+  );
+  const red = cardBlock(
+    16 * SCALE + (CARD_W + CARD_GAP) * 2, cardTop, 'Critical Engagement', data.red.length, total,
+    '#dc2626', data.red, 'red', period, maxBodyH
+  );
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
   <rect width="${width}" height="${height}" fill="#ffffff"/>
-  <text x="${16 * SCALE}" y="${32 * SCALE}" font-size="${36}" font-weight="700" fill="#0f172a" font-family="Segoe UI, Arial, sans-serif">Counsellor Performance Dashboard</text>
-  ${reportLine ? `<text x="${16 * SCALE}" y="${54 * SCALE}" font-size="${24}" font-weight="700" fill="#0f172a" font-family="Segoe UI, Arial, sans-serif">${esc(reportLine)}</text>` : ''}
-  <text x="${16 * SCALE}" y="${reportLine ? 76 * SCALE : 54 * SCALE}" font-size="${22}" fill="#64748b" font-family="Segoe UI, Arial, sans-serif">${esc(subtitle)}</text>
+  ${titleLine}
+  ${reportLine}
+  ${subtitleLine}
   ${green}
   ${yellow}
   ${red}
@@ -118,7 +193,13 @@ function buildDashboardSvg(data) {
 
 async function renderDashboardPng(data) {
   const svg = buildDashboardSvg(data);
-  return getSharp()(Buffer.from(svg)).png().toBuffer();
+  const resvg = new Resvg(svg, {
+    font: {
+      loadSystemFonts: true,
+      defaultFontFamily: 'Arial',
+    },
+  });
+  return Buffer.from(resvg.render().asPng());
 }
 
 function pngBufferFromBase64(dataUrl) {

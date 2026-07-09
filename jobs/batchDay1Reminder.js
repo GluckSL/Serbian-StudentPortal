@@ -1,29 +1,37 @@
 /**
  * Batch Day-1 Launch Reminder — sends excitement emails to students when
- * their batch's live-class journey is about to begin.
+ * their batch's first live class is about to begin.
  *
  * Two emails per batch:
- *   • "Eve" email  — sent at midnight the day BEFORE batchStartDate
- *   • "Day 1" email — sent at midnight ON batchStartDate
+ *   • "Eve" email  — sent at midnight the day BEFORE the first scheduled class
+ *   • "Day 1" email — sent at midnight ON the first scheduled class day
+ *
+ * Launch date resolution (first match wins):
+ *   1. Earliest scheduled MeetingLink with courseDay 1, else earliest scheduled class
+ *   2. levelCalendarDates.A1.startDate when level schedule is active
+ *   3. batchStartDate (legacy fallback)
  *
  * Uses CronJobLog with keys  batchDay1Reminder:<batchName>:eve
  * and  batchDay1Reminder:<batchName>:day1  so each email is sent at most
  * once per calendar date (safe across server restarts).
  *
- * Only batches with:
- *   - journeyActive: true
- *   - batchStartDate set (not null)
- * are eligible. Students must be ONGOING + isActive to receive the email.
+ * Only batches with journeyActive: true and a resolvable launch date are eligible.
+ * Students must be ONGOING + isActive to receive the email.
+ *
+ * Regular same-day / 30-minute class reminders are handled separately by
+ * jobs/classDayReminder.js and jobs/zoomMeetingReminderEmails.js.
  */
 
-const cron       = require('node-cron');
+const cron = require('node-cron');
 const BatchConfig = require('../models/BatchConfig');
-const User        = require('../models/User');
-const CronJobLog  = require('../models/CronJobLog');
+const MeetingLink = require('../models/MeetingLink');
+const User = require('../models/User');
+const CronJobLog = require('../models/CronJobLog');
 const transporter = require('../config/emailConfig');
 const { buildBatchDay1ReminderEmail } = require('../utils/emailTemplates');
+const { hasLevelScheduleDates } = require('../utils/journeyDay');
 
-const TZ = 'Asia/Colombo';  // IST (+05:30)
+const TZ = 'Asia/Colombo'; // IST (+05:30)
 const LOG_PREFIX = '[BatchDay1Reminder]';
 
 /** Returns YYYY-MM-DD string for a Date in the given timezone. */
@@ -46,6 +54,49 @@ function formatDisplayDate(dateStr) {
   });
 }
 
+/**
+ * Resolve the calendar date used for eve/day-1 launch emails.
+ * Prefers the first scheduled live class, then A1 level date, then batchStartDate.
+ */
+function resolveLaunchDateStr(batch, firstClassStartTime) {
+  if (firstClassStartTime) {
+    return toDateStr(new Date(firstClassStartTime));
+  }
+  if (hasLevelScheduleDates(batch)) {
+    const a1Start = batch.levelCalendarDates?.A1?.startDate;
+    if (a1Start) return toDateStr(new Date(a1Start));
+  }
+  if (batch.batchStartDate) {
+    return toDateStr(new Date(batch.batchStartDate));
+  }
+  return null;
+}
+
+/** Map batch name → earliest relevant scheduled class startTime. */
+async function loadFirstScheduledClassByBatch() {
+  const [day1Rows, earliestRows] = await Promise.all([
+    MeetingLink.aggregate([
+      { $match: { status: 'scheduled', courseDay: 1, startTime: { $type: 'date' } } },
+      { $sort: { startTime: 1 } },
+      { $group: { _id: '$batch', startTime: { $first: '$startTime' } } },
+    ]),
+    MeetingLink.aggregate([
+      { $match: { status: 'scheduled', startTime: { $type: 'date' } } },
+      { $sort: { startTime: 1 } },
+      { $group: { _id: '$batch', startTime: { $first: '$startTime' } } },
+    ]),
+  ]);
+
+  const map = new Map();
+  for (const row of earliestRows) {
+    map.set(String(row._id), row.startTime);
+  }
+  for (const row of day1Rows) {
+    map.set(String(row._id), row.startTime);
+  }
+  return map;
+}
+
 /** Returns true if we already sent this job key today. */
 async function alreadySentToday(jobKey, todayStr) {
   const log = await CronJobLog.findOne({ jobName: jobKey }).lean();
@@ -62,28 +113,29 @@ async function markSent(jobKey, todayStr) {
 }
 
 /**
- * Core logic: find batches whose Day-1 launch is today or tomorrow,
+ * Core logic: find batches whose first class day is today or tomorrow,
  * then email all eligible students.
  */
 async function processBatchDay1Reminders() {
   const todayStr = toDateStr(new Date());
-  const tomorrowStr = shiftDateStr(todayStr, 1); // today + 1 day = "tomorrow's" batchStartDate triggers eve email today
+  const tomorrowStr = shiftDateStr(todayStr, 1);
 
-  const batches = await BatchConfig.find({
-    journeyActive: true,
-    batchStartDate: { $ne: null },
-  }).lean();
+  const [batches, firstClassByBatch] = await Promise.all([
+    BatchConfig.find({ journeyActive: true }).lean(),
+    loadFirstScheduledClassByBatch(),
+  ]);
 
   let totalSent = 0;
   let totalSkipped = 0;
 
   for (const batch of batches) {
-    const startDateStr = toDateStr(new Date(batch.batchStartDate));
+    const firstClassStartTime = firstClassByBatch.get(String(batch.batchName)) || null;
+    const startDateStr = resolveLaunchDateStr(batch, firstClassStartTime);
+    if (!startDateStr) continue;
 
-    // Determine which type of reminder applies today
     let reminderType = null;
-    if (startDateStr === tomorrowStr) reminderType = 'eve';   // Day 1 is tomorrow
-    else if (startDateStr === todayStr) reminderType = 'day1'; // Day 1 is today
+    if (startDateStr === tomorrowStr) reminderType = 'eve';
+    else if (startDateStr === todayStr) reminderType = 'day1';
 
     if (!reminderType) continue;
 
@@ -108,6 +160,11 @@ async function processBatchDay1Reminders() {
     }
 
     const displayDate = formatDisplayDate(startDateStr);
+    const source = firstClassStartTime
+      ? 'scheduled class'
+      : hasLevelScheduleDates(batch)
+        ? 'A1 level date'
+        : 'batch start date';
     let batchSent = 0;
 
     for (const student of students) {
@@ -136,7 +193,9 @@ async function processBatchDay1Reminders() {
 
     await markSent(jobKey, todayStr);
     totalSent += batchSent;
-    console.log(`${LOG_PREFIX} Batch "${batch.batchName}" [${reminderType}]: sent ${batchSent}/${students.length}`);
+    console.log(
+      `${LOG_PREFIX} Batch "${batch.batchName}" [${reminderType}] (${source}, ${startDateStr}): sent ${batchSent}/${students.length}`
+    );
   }
 
   console.log(`${LOG_PREFIX} Done for ${todayStr}. Total sent: ${totalSent}, failed: ${totalSkipped}`);
@@ -147,7 +206,6 @@ async function processBatchDay1Reminders() {
  * aligned with the journey day rollover.
  */
 function scheduleBatchDay1Reminders() {
-  // Primary: midnight IST
   cron.schedule('0 0 * * *', () => {
     processBatchDay1Reminders().catch((err) =>
       console.error(`${LOG_PREFIX} ❌ Job error:`, err.message),
@@ -161,7 +219,14 @@ function scheduleBatchDay1Reminders() {
     );
   }, 10_000);
 
-  console.log(`⏰ ${LOG_PREFIX} Scheduled — daily 00:00 ${TZ} (Day-1 eve + Day-1 launch reminders)`);
+  console.log(`⏰ ${LOG_PREFIX} Scheduled — daily 00:00 ${TZ} (first-class eve + launch reminders)`);
 }
 
-module.exports = { scheduleBatchDay1Reminders, processBatchDay1Reminders };
+module.exports = {
+  scheduleBatchDay1Reminders,
+  processBatchDay1Reminders,
+  resolveLaunchDateStr,
+  toDateStr,
+  shiftDateStr,
+  formatDisplayDate,
+};

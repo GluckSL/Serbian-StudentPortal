@@ -462,6 +462,7 @@ export class TeacherMyClassesComponent implements OnInit, OnDestroy {
   }
 
   closeResourceModal(): void {
+    this.uploadingFiles = false;
     this.showResourceModal = false;
     this.resourceMeeting = null;
     this.resources = [];
@@ -500,7 +501,12 @@ export class TeacherMyClassesComponent implements OnInit, OnDestroy {
       },
       error: (err) => {
         this.uploadingFiles = false;
-        this.notify.error(err?.error?.message || 'Upload failed. If the file is large, try again on a faster connection.');
+        const msg =
+          err?.name === 'TimeoutError'
+            ? 'Upload timed out. Try again on Wi‑Fi or use a smaller file (max 50 MB).'
+            : err?.error?.message || err?.message || 'Upload failed. If the file is large, try again on a faster connection.';
+        this.notify.error(msg);
+        input.value = '';
       }
     });
   }

@@ -12,7 +12,17 @@ import {
   PaymentStudent,
 } from './engagement-overview.service';
 
-export type ActiveTab = 'learning' | 'classes' | 'payment';
+export type ActiveTab = 'learning' | 'classes' | 'payment' | 'overall';
+
+export interface OverallBatch {
+  batchName: string;
+  batchType: string;
+  studentCount: number;
+  overall: EngBand;
+  learning: EngBand | null;
+  classes: EngBand | null;
+  payment: EngBand | null;
+}
 
 @Component({
   selector: 'app-engagement-overview',
@@ -85,10 +95,10 @@ export class EngagementOverviewComponent implements OnInit {
   // ── Tab switching ─────────────────────────────────────────────────────────────
   switchTab(tab: ActiveTab): void {
     this.activeTab.set(tab);
-    if (tab === 'classes' && !this.classLoaded()) {
+    if ((tab === 'classes' || tab === 'overall') && !this.classLoaded()) {
       this.loadClasses();
     }
-    if (tab === 'payment' && !this.paymentLoaded()) {
+    if ((tab === 'payment' || tab === 'overall') && !this.paymentLoaded()) {
       this.loadPayment();
     }
   }
@@ -406,6 +416,67 @@ export class EngagementOverviewComponent implements OnInit {
     if (d == null) return 'Pending';
     if (s.band === 'yellow') return `Day ${d} of level · safe`;
     return `Day ${d} of level · urgent`;
+  }
+
+  // ── Overall tab ───────────────────────────────────────────────────────────
+  overallLoading = computed(() =>
+    this.loading() || this.classLoading() || this.paymentLoading()
+  );
+
+  overallBatches = computed((): OverallBatch[] => {
+    const lMap = new Map(this.batches().map(b => [b.batchName, b]));
+    const cMap = new Map(this.classBatches().map(b => [b.batchName, b]));
+    const pMap = new Map(this.paymentBatches().map(b => [b.batchName, b]));
+
+    const allNames = new Set([...lMap.keys(), ...cMap.keys(), ...pMap.keys()]);
+
+    return Array.from(allNames)
+      .sort((a, b) => Number(a) - Number(b))
+      .map(name => {
+        const lb = lMap.get(name);
+        const cb = cMap.get(name);
+        const pb = pMap.get(name);
+
+        const lColor = lb ? this.dominantBatchColor(lb.bands) : null;
+        const cColor = cb ? this.dominantBatchColor(cb.bands) : null;
+        const pColor = pb ? this.dominantBatchColor(pb.bands) : null;
+
+        const available = [lColor, cColor, pColor].filter((c): c is EngBand => c !== null);
+        const overall: EngBand = this.worstColor(available);
+
+        return {
+          batchName: name,
+          batchType: lb?.batchType ?? cb?.batchType ?? pb?.batchType ?? 'new',
+          studentCount: lb?.studentCount ?? cb?.studentCount ?? pb?.studentCount ?? 0,
+          overall,
+          learning: lColor,
+          classes: cColor,
+          payment: pColor,
+        };
+      });
+  });
+
+  overallTotals = computed(() => {
+    let green = 0, yellow = 0, red = 0;
+    for (const b of this.overallBatches()) {
+      if (b.overall === 'green') green++;
+      else if (b.overall === 'yellow') yellow++;
+      else red++;
+    }
+    return { green, yellow, red, total: this.overallBatches().length };
+  });
+
+  private dominantBatchColor(bands: { red: number; yellow: number; green: number }): EngBand {
+    if (bands.red >= bands.yellow && bands.red >= bands.green) return 'red';
+    if (bands.yellow >= bands.green) return 'yellow';
+    return 'green';
+  }
+
+  private worstColor(colors: EngBand[]): EngBand {
+    if (!colors.length) return 'green';
+    if (colors.includes('red')) return 'red';
+    if (colors.includes('yellow')) return 'yellow';
+    return 'green';
   }
 
   bandPct(total: number, count: number): string {

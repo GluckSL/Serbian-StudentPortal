@@ -223,19 +223,26 @@
                 <span class="material-icons">delete</span>
               </button>
             </div>
-            <div *ngIf="hasAudioAttachment(item)" class="field-group full" style="margin-top:8px;">
-              <label class="field-label">
-                Max audio plays per attempt
-                <span class="label-optional">(leave empty for unlimited)</span>
-              </label>
-              <input
-                type="number"
-                class="field-input"
-                [(ngModel)]="item.attachmentAudioMaxPlaysPerAttempt"
-                min="1" max="99" step="1"
-                placeholder="Unlimited"
-              />
-            </div>
+          </div>
+        </div>
+        <div class="field-row" *ngIf="isContentFieldVisible(item, 'attachments') && showAttachmentAudioLimitField(item)">
+          <div class="field-group full attachment-audio-limit-row">
+            <label>
+              Max audio plays per attempt
+              <span class="label-optional">(leave empty for unlimited)</span>
+            </label>
+            <input
+              type="number"
+              class="attachment-audio-limit-input"
+              [(ngModel)]="item.attachmentAudioMaxPlaysPerAttempt"
+              min="1"
+              max="99"
+              step="1"
+              placeholder="Unlimited"
+            />
+            <p class="field-hint">
+              Students see how many plays they have left. After the limit they must re-attempt the whole exercise.
+            </p>
           </div>
         </div>
       </div>

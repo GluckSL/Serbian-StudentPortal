@@ -9,8 +9,170 @@ const s3Client = require('../config/s3');
 const ClassResource = require('../models/ClassResource');
 const MeetingLink = require('../models/MeetingLink');
 const { verifyToken, verifyMediaToken, checkRole } = require('../middleware/auth');
-const { presignStoredS3Url, presignS3DownloadUrl, presignS3InlineUrl } = require('../config/presign');
+const { presignStoredS3Url, presignS3DownloadUrl, presignS3InlineUrl, presignMediaUrl } = require('../config/presign');
 const { resolveContentType, isBrowserPreviewable } = require('../utils/fileMime');
+const {
+  isExerciseR2Configured,
+  getExerciseR2Config,
+  publicUrlForKey,
+  getExerciseMediaBuffer,
+  extractMediaKeyFromUrl,
+  isExerciseR2Url,
+} = require('../services/exerciseMediaR2');
+
+const R2_KEY_PREFIX = 'class-resources/';
+const MAX_FILES = 5;
+
+function isClassResourceR2Key(key) {
+  const normalized = String(key || '').replace(/^\/+/, '');
+  return normalized.startsWith(R2_KEY_PREFIX);
+}
+
+function isClassResourceS3Key(key) {
+  const prefix = process.env.S3_PREFIX || 'uploads';
+  const normalized = String(key || '').replace(/^\/+/, '');
+  return normalized.startsWith(`${prefix}/class-resources/`);
+}
+
+function isClassResourceKey(key) {
+  return isClassResourceR2Key(key) || isClassResourceS3Key(key);
+}
+
+function isR2ClassResource(row) {
+  const key = String(row?.fileName || '').replace(/^\/+/, '');
+  if (isClassResourceR2Key(key)) return true;
+  return isExerciseR2Url(row?.fileUrl);
+}
+
+async function headClassResourceR2(key) {
+  const cfg = getExerciseR2Config();
+  if (!cfg) return null;
+  try {
+    return await cfg.client.send(new HeadObjectCommand({ Bucket: cfg.bucket, Key: key }));
+  } catch {
+    return null;
+  }
+}
+
+async function deleteClassResourceStorage(key) {
+  const normalized = String(key || '').replace(/^\/+/, '').trim();
+  if (!normalized) return;
+
+  if (isClassResourceR2Key(normalized)) {
+    const cfg = getExerciseR2Config();
+    if (!cfg) return;
+    try {
+      await cfg.client.send(new DeleteObjectCommand({ Bucket: cfg.bucket, Key: normalized }));
+    } catch (_) {
+      // best effort
+    }
+    return;
+  }
+
+  if (process.env.S3_BUCKET) {
+    try {
+      await s3Client.send(new DeleteObjectCommand({ Bucket: process.env.S3_BUCKET, Key: normalized }));
+    } catch (_) {
+      // best effort
+    }
+  }
+}
+
+async function resolveClassResourceUrl(row) {
+  if (isR2ClassResource(row)) {
+    const url = row.fileUrl || publicUrlForKey(row.fileName);
+    row.fileUrl = await presignMediaUrl(url);
+    return row;
+  }
+  if (row.fileUrl) row.fileUrl = await presignStoredS3Url(row.fileName, row.fileUrl);
+  return row;
+}
+
+function rejectDangerousOriginalName(originalName) {
+  const name = String(originalName || '');
+  if (DANGEROUS_EXT.test(name)) {
+    const err = new Error('This file type is not allowed for security reasons.');
+    err.status = 400;
+    throw err;
+  }
+}
+
+async function verifyUploadedClassResourceFile(fileMeta) {
+  const key = String(fileMeta?.key || '').replace(/^\//, '').trim();
+  if (!key || !isClassResourceKey(key)) {
+    const err = new Error('Invalid storage key');
+    err.status = 400;
+    throw err;
+  }
+
+  const originalName = String(fileMeta.originalName || '').trim() || key.split('/').pop();
+  rejectDangerousOriginalName(originalName);
+
+  if (isClassResourceR2Key(key)) {
+    if (!isExerciseR2Configured()) {
+      const err = new Error('R2 is not configured');
+      err.status = 500;
+      throw err;
+    }
+    const head = await headClassResourceR2(key);
+    if (!head) {
+      const err = new Error('Uploaded file not found in storage. Try uploading again.');
+      err.status = 400;
+      throw err;
+    }
+    const size = Number(head.ContentLength || 0);
+    if (!size || size > 50 * 1024 * 1024) {
+      const err = new Error('Uploaded file is missing or exceeds the 50 MB limit');
+      err.status = 400;
+      throw err;
+    }
+    if (head.ContentType && DANGEROUS_MIME.test(head.ContentType)) {
+      const err = new Error('This file type is not allowed for security reasons.');
+      err.status = 400;
+      throw err;
+    }
+    return {
+      key,
+      fileUrl: String(fileMeta.fileUrl || publicUrlForKey(key) || '').trim(),
+      originalName,
+      mimeType: String(fileMeta.mimeType || head.ContentType || 'application/octet-stream').trim(),
+      fileSize: size,
+    };
+  }
+
+  if (!process.env.S3_BUCKET) {
+    const err = new Error('File storage is not configured');
+    err.status = 500;
+    throw err;
+  }
+
+  const head = await s3Client.send(
+    new HeadObjectCommand({
+      Bucket: process.env.S3_BUCKET,
+      Key: key,
+    })
+  );
+  const size = Number(head.ContentLength || 0);
+  if (!size || size > 50 * 1024 * 1024) {
+    const err = new Error('Uploaded file is missing or exceeds the 50 MB limit');
+    err.status = 400;
+    throw err;
+  }
+
+  const region = process.env.AWS_REGION || 'us-east-1';
+  const host =
+    region === 'us-east-1'
+      ? `${process.env.S3_BUCKET}.s3.amazonaws.com`
+      : `${process.env.S3_BUCKET}.s3.${region}.amazonaws.com`;
+
+  return {
+    key,
+    fileUrl: String(fileMeta.fileUrl || `https://${host}/${key}`).trim(),
+    originalName,
+    mimeType: String(fileMeta.mimeType || head.ContentType || 'application/octet-stream').trim(),
+    fileSize: size,
+  };
+}
 
 // Allow most resource types (docs, images, audio, video, archives, etc.).
 // Block obvious executable / installer extensions and PE-related MIME types.
@@ -44,6 +206,61 @@ const upload = multer({
 });
 
 const uploadResources = upload.array('files', 5);
+
+// POST /:meetingId/register-upload — browser PUT to R2 first, then register metadata (avoids nginx timeouts)
+router.post(
+  '/:meetingId/register-upload',
+  verifyToken,
+  checkRole(['TEACHER', 'TEACHER_ADMIN', 'ADMIN']),
+  async (req, res) => {
+    const uploadedKeys = [];
+    try {
+      const meeting = await MeetingLink.findById(req.params.meetingId);
+      if (!meeting) return res.status(404).json({ success: false, message: 'Meeting not found' });
+
+      const files = req.body?.files;
+      if (!Array.isArray(files) || files.length === 0) {
+        return res.status(400).json({ success: false, message: 'At least one file is required' });
+      }
+      if (files.length > MAX_FILES) {
+        return res.status(400).json({ success: false, message: `Up to ${MAX_FILES} files are allowed per upload` });
+      }
+
+      for (const f of files) {
+        const key = String(f?.key || '').replace(/^\//, '').trim();
+        if (key) uploadedKeys.push(key);
+      }
+
+      const verifiedFiles = await Promise.all(files.map((f) => verifyUploadedClassResourceFile(f)));
+      const docs = verifiedFiles.map((f) => ({
+        meetingId: meeting._id,
+        uploadedBy: req.user.id,
+        fileName: f.key,
+        originalName: f.originalName,
+        fileUrl: f.fileUrl,
+        fileSize: f.fileSize,
+        mimeType: f.mimeType,
+      }));
+
+      const saved = await ClassResource.insertMany(docs);
+      const data = await Promise.all(
+        saved.map(async (doc) => {
+          const o = typeof doc.toObject === 'function' ? doc.toObject() : { ...doc };
+          await resolveClassResourceUrl(o);
+          return o;
+        })
+      );
+      res.json({ success: true, data });
+    } catch (err) {
+      if (uploadedKeys.length > 0) {
+        await Promise.allSettled(uploadedKeys.map((key) => deleteClassResourceStorage(key)));
+      }
+      const status = err.status || 500;
+      console.error('classResources register-upload error:', err);
+      res.status(status).json({ success: false, message: err.message || 'Upload failed' });
+    }
+  }
+);
 
 // POST /:meetingId/upload  — teacher uploads files for a class
 router.post('/:meetingId/upload', verifyToken, checkRole(['TEACHER', 'TEACHER_ADMIN', 'ADMIN']), (req, res, next) => {
@@ -86,7 +303,7 @@ router.post('/:meetingId/upload', verifyToken, checkRole(['TEACHER', 'TEACHER_AD
     const data = await Promise.all(
       saved.map(async (doc) => {
         const o = typeof doc.toObject === 'function' ? doc.toObject() : { ...doc };
-        if (o.fileUrl) o.fileUrl = await presignStoredS3Url(o.fileName, o.fileUrl);
+        await resolveClassResourceUrl(o);
         return o;
       })
     );
@@ -109,6 +326,14 @@ router.get('/download/:resourceId', verifyMediaToken, async (req, res) => {
 
     const contentType = resolveContentType(resource.originalName, resource.mimeType);
     const filename = String(resource.originalName || 'download').replace(/["\r\n]/g, '_');
+
+    if (isR2ClassResource(resource)) {
+      const r2Key = extractMediaKeyFromUrl(resource.fileUrl) || String(resource.fileName).replace(/^\//, '').trim();
+      const buffer = await getExerciseMediaBuffer(r2Key);
+      res.setHeader('Content-Type', contentType);
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      return res.send(buffer);
+    }
 
     const objectKey = String(resource.fileName).replace(/^\//, '').trim();
     const command = new GetObjectCommand({
@@ -140,19 +365,25 @@ router.get('/view/:resourceId', verifyToken, async (req, res) => {
     if (!resource) return res.status(404).json({ success: false, message: 'Resource not found' });
 
     const previewable = isBrowserPreviewable(resource.originalName, resource.mimeType);
-    const url = previewable
-      ? await presignS3InlineUrl(
-          resource.fileName,
-          resource.fileUrl,
-          resource.originalName,
-          resource.mimeType
-        )
-      : await presignS3DownloadUrl(
-          resource.fileName,
-          resource.fileUrl,
-          resource.originalName,
-          resource.mimeType
-        );
+    let url;
+    if (isR2ClassResource(resource)) {
+      const baseUrl = resource.fileUrl || publicUrlForKey(resource.fileName);
+      url = await presignMediaUrl(baseUrl);
+    } else {
+      url = previewable
+        ? await presignS3InlineUrl(
+            resource.fileName,
+            resource.fileUrl,
+            resource.originalName,
+            resource.mimeType
+          )
+        : await presignS3DownloadUrl(
+            resource.fileName,
+            resource.fileUrl,
+            resource.originalName,
+            resource.mimeType
+          );
+    }
 
     if (!url) {
       return res.status(500).json({ success: false, message: 'Could not build view URL' });
@@ -171,10 +402,8 @@ router.get('/:meetingId', verifyToken, async (req, res) => {
       .sort({ uploadedAt: -1 })
       .lean();
 
-    // Prefer canonical S3 key (fileName) when signing — avoids %20 / %2520 key mismatches vs fileUrl
-    await Promise.all(resources.map(async (r) => {
-      if (r.fileUrl) r.fileUrl = await presignStoredS3Url(r.fileName, r.fileUrl);
-    }));
+    // Prefer canonical storage key (fileName) when signing — avoids key mismatches vs fileUrl
+    await Promise.all(resources.map(async (r) => resolveClassResourceUrl(r)));
 
     res.json({ success: true, data: resources });
   } catch (err) {
@@ -188,10 +417,8 @@ router.delete('/:resourceId', verifyToken, checkRole(['TEACHER', 'TEACHER_ADMIN'
     const resource = await ClassResource.findById(req.params.resourceId);
     if (!resource) return res.status(404).json({ success: false, message: 'Resource not found' });
 
-    if (resource.fileName && process.env.S3_BUCKET) {
-      try {
-        await s3Client.send(new DeleteObjectCommand({ Bucket: process.env.S3_BUCKET, Key: resource.fileName }));
-      } catch (_) { /* best effort */ }
+    if (resource.fileName) {
+      await deleteClassResourceStorage(resource.fileName);
     }
 
     await ClassResource.findByIdAndDelete(resource._id);
@@ -210,6 +437,14 @@ router.get('/:resourceId/file', verifyToken, async (req, res) => {
     }
     const resource = await ClassResource.findById(resourceId).lean();
     if (!resource) return res.status(404).json({ success: false, message: 'Resource not found' });
+
+    if (isR2ClassResource(resource)) {
+      const r2Key = extractMediaKeyFromUrl(resource.fileUrl) || String(resource.fileName).replace(/^\//, '').trim();
+      const buffer = await getExerciseMediaBuffer(r2Key);
+      res.setHeader('Content-Type', resolveContentType(resource.originalName, resource.mimeType));
+      res.setHeader('Content-Disposition', `inline; filename="${resource.originalName}"`);
+      return res.send(buffer);
+    }
 
     const command = new GetObjectCommand({
       Bucket: process.env.S3_BUCKET,

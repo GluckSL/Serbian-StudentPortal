@@ -113,7 +113,7 @@ function formatReportDateParts(parts) {
 /**
  * Weekly report window (7 days, Asia/Colombo).
  * Morning (10 AM): excludes today — e.g. 9 Jul → 2 Jul to 8 Jul.
- * Evening (7 PM): includes today — e.g. 9 Jul → 3 Jul to 9 Jul.
+ * Evening (6 PM): includes today — e.g. 9 Jul → 3 Jul to 9 Jul.
  */
 function getWeeklyReportWindow(period = 'evening', now = new Date()) {
   const today = colomboDateParts(now);

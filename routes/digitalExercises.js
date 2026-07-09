@@ -3029,6 +3029,7 @@ router.post('/freemode', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_AD
           instruction: items[i].instruction || '',
           example: items[i].example || '',
           attachmentUrls: items[i].attachmentUrls || [],
+          attachmentAudioMaxPlaysPerAttempt: items[i].attachmentAudioMaxPlaysPerAttempt ?? null,
         });
       }
     }
@@ -3185,6 +3186,7 @@ router.put('/freemode/:id', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER
           instruction: items[i].instruction || '',
           example: items[i].example || '',
           attachmentUrls: items[i].attachmentUrls || [],
+          attachmentAudioMaxPlaysPerAttempt: items[i].attachmentAudioMaxPlaysPerAttempt ?? null,
         });
       }
     }

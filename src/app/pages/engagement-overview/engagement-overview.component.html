@@ -41,6 +41,15 @@
         <span class="material-icons">payments</span>
         Payment
       </button>
+      <button
+        class="tab-btn"
+        [class.tab-btn--active]="activeTab() === 'overall'"
+        type="button"
+        (click)="switchTab('overall')"
+      >
+        <span class="material-icons">dashboard_customize</span>
+        Overall
+      </button>
     </div>
   </header>
 
@@ -509,6 +518,117 @@
         </article>
 
         <div class="state state--empty" *ngIf="visiblePaymentBatches().length === 0">
+          <span class="material-icons">inbox</span>
+          <p>No batches found.</p>
+        </div>
+      </div>
+    </section>
+  </ng-container>
+
+
+  <!-- ════════════════════════════════════════════════════════
+       OVERALL TAB
+       ════════════════════════════════════════════════════════ -->
+  <ng-container *ngIf="activeTab() === 'overall'">
+
+    <!-- KPI grid -->
+    <div class="kpi-grid" *ngIf="!overallLoading()">
+      <div class="kpi-card">
+        <div class="kpi-icon kpi-icon--navy"><span class="material-icons">grid_view</span></div>
+        <div class="kpi-body">
+          <span class="kpi-num">{{ overallTotals().total }}</span>
+          <span class="kpi-lbl">Total batches</span>
+        </div>
+      </div>
+      <div class="kpi-card kpi-card--green">
+        <div class="kpi-icon kpi-icon--green"><span class="material-icons">check_circle</span></div>
+        <div class="kpi-body">
+          <span class="kpi-num">{{ overallTotals().green }}</span>
+          <span class="kpi-lbl">On track</span>
+        </div>
+      </div>
+      <div class="kpi-card kpi-card--yellow">
+        <div class="kpi-icon kpi-icon--yellow"><span class="material-icons">warning</span></div>
+        <div class="kpi-body">
+          <span class="kpi-num">{{ overallTotals().yellow }}</span>
+          <span class="kpi-lbl">Needs attention</span>
+        </div>
+      </div>
+      <div class="kpi-card kpi-card--red">
+        <div class="kpi-icon kpi-icon--red"><span class="material-icons">cancel</span></div>
+        <div class="kpi-body">
+          <span class="kpi-num">{{ overallTotals().red }}</span>
+          <span class="kpi-lbl">At risk</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Loading -->
+    <div class="state" *ngIf="overallLoading()">
+      <div class="spinner"></div>
+      <p>Loading all data…</p>
+    </div>
+
+    <!-- Main panel -->
+    <section class="panel" *ngIf="!overallLoading()">
+
+      <div class="table-head">
+        <span>Batch</span>
+        <span>Overall Health</span>
+        <span>L · C · P</span>
+        <span>Status</span>
+      </div>
+
+      <div class="table-body">
+        <article
+          class="batch-row"
+          *ngFor="let b of overallBatches()"
+        >
+          <!-- Batch info -->
+          <div class="batch-info">
+            <div class="batch-top">
+              <span class="batch-num">Batch {{ b.batchName }}</span>
+              <span class="badge" [class.badge--new2]="b.batchType === 'new2'">
+                {{ b.batchType === 'new2' ? '2.0' : 'New' }}
+              </span>
+            </div>
+            <div class="batch-meta">
+              <span>{{ b.studentCount }} students</span>
+            </div>
+          </div>
+
+          <!-- Overall solid bar -->
+          <div class="engagement-col">
+            <div class="overall-bar" [class]="'overall-bar--' + b.overall">
+              <span class="material-icons">
+                {{ b.overall === 'green' ? 'check_circle' : b.overall === 'yellow' ? 'warning' : 'cancel' }}
+              </span>
+              <span>{{ b.overall === 'green' ? 'On Track' : b.overall === 'yellow' ? 'Needs Attention' : 'At Risk' }}</span>
+            </div>
+          </div>
+
+          <!-- L · C · P mini breakdown pills -->
+          <div class="mini-pill-col">
+            <span class="mini-pill" [class]="'mini-pill--' + (b.learning || 'none')" title="Learning">
+              <span class="material-icons">menu_book</span>
+            </span>
+            <span class="mini-pill" [class]="'mini-pill--' + (b.classes || 'none')" title="Classes">
+              <span class="material-icons">video_call</span>
+            </span>
+            <span class="mini-pill" [class]="'mini-pill--' + (b.payment || 'none')" title="Payment">
+              <span class="material-icons">payments</span>
+            </span>
+          </div>
+
+          <!-- Health badge -->
+          <div class="week-col">
+            <span class="health" [class]="b.overall === 'green' ? 'health--good' : b.overall === 'yellow' ? 'health--mid' : 'health--low'">
+              {{ b.overall === 'green' ? 'On Track' : b.overall === 'yellow' ? 'Moderate' : 'At Risk' }}
+            </span>
+          </div>
+        </article>
+
+        <div class="state state--empty" *ngIf="overallBatches().length === 0">
           <span class="material-icons">inbox</span>
           <p>No batches found.</p>
         </div>
