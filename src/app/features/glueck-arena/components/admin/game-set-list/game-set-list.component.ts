@@ -16,21 +16,21 @@ import { GameSet, GameType } from '../../../glueck-arena.types';
       <header class="ga-hero">
         <div class="ga-hero__copy">
           <div class="ga-hero__badge"><mat-icon>sports_esports</mat-icon> GlückArena</div>
-          <h1>Game modules</h1>
-          <p>Create games, assign them to batches, and publish when ready. Students only see GlückArena if their batch has at least one published game.</p>
+          <h1>Moduli igre</h1>
+          <p>Kreirajte igre, dodelite ih grupama i objavite kada ste spremni. Studenti vide GlückArenu samo ako njihova grupa ima barem jednu objavljenu igru.</p>
         </div>
         <div class="ga-hero__actions">
           <button mat-stroked-button class="ga-btn-ghost" routerLink="/admin/glueck-arena/command-center">
-            <mat-icon>dashboard</mat-icon> Command Center
+            <mat-icon>dashboard</mat-icon> Kontrolni centar
           </button>
           <button mat-stroked-button class="ga-btn-ghost" routerLink="/admin/glueck-arena/analytics">
-            <mat-icon>insights</mat-icon> Analytics
+            <mat-icon>insights</mat-icon> Analitika
           </button>
           <button mat-stroked-button class="ga-btn-ghost" routerLink="/admin/glueck-arena/battlefield/team-battles">
-            <mat-icon>sports_kabaddi</mat-icon> Host Battlefield
+            <mat-icon>sports_kabaddi</mat-icon> Organizuj bojno polje
           </button>
           <button mat-raised-button color="primary" routerLink="/admin/glueck-arena/create">
-            <mat-icon>add</mat-icon> New game set
+            <mat-icon>add</mat-icon> Novi set igre
           </button>
         </div>
       </header>
@@ -38,15 +38,15 @@ import { GameSet, GameType } from '../../../glueck-arena.types';
       <div class="ga-stats" *ngIf="!loadError && !loading">
         <div class="ga-stat">
           <span class="ga-stat__value">{{ pagination.total }}</span>
-          <span class="ga-stat__label">Total sets</span>
+          <span class="ga-stat__label">Ukupno setova</span>
         </div>
         <div class="ga-stat">
           <span class="ga-stat__value">{{ publishedCount }}</span>
-          <span class="ga-stat__label">Published</span>
+          <span class="ga-stat__label">Objavljeno</span>
         </div>
         <div class="ga-stat">
           <span class="ga-stat__value">{{ draftCount }}</span>
-          <span class="ga-stat__label">Drafts</span>
+          <span class="ga-stat__label">Nacrti</span>
         </div>
       </div>
 
@@ -54,7 +54,7 @@ import { GameSet, GameType } from '../../../glueck-arena.types';
         <div class="ga-toolbar__search">
           <mat-icon>search</mat-icon>
           <input type="search" [(ngModel)]="searchTerm" (ngModelChange)="onSearch()"
-            placeholder="Search game sets…" aria-label="Search game sets">
+            placeholder="Pretraži setove igre…" aria-label="Pretraži setove igre">
         </div>
         <div class="ga-toolbar__dropdown-wrap">
           <div class="ga-toolbar__dropdown" (click)="typeOpen = !typeOpen">
@@ -62,7 +62,7 @@ import { GameSet, GameType } from '../../../glueck-arena.types';
             <mat-icon>expand_more</mat-icon>
           </div>
           <div class="ga-toolbar__dropdown-menu" *ngIf="typeOpen" (click)="$event.stopPropagation()">
-            <div class="ga-toolbar__dropdown-item" (click)="setType('')">All types</div>
+            <div class="ga-toolbar__dropdown-item" (click)="setType('')">Svi tipovi</div>
             <div class="ga-toolbar__dropdown-item" (click)="setType('scramble_rush')">Scramble Rush</div>
             <div class="ga-toolbar__dropdown-item" (click)="setType('sentence_builder')">Sentence Builder</div>
             <div class="ga-toolbar__dropdown-item" (click)="setType('matching')">Matching</div>
@@ -82,31 +82,31 @@ import { GameSet, GameType } from '../../../glueck-arena.types';
             <mat-icon>expand_more</mat-icon>
           </div>
           <div class="ga-toolbar__dropdown-menu" *ngIf="statusOpen">
-            <div class="ga-toolbar__dropdown-item" (click)="setStatus('')">All</div>
-            <div class="ga-toolbar__dropdown-item" (click)="setStatus(true)">Published</div>
-            <div class="ga-toolbar__dropdown-item" (click)="setStatus(false)">Draft</div>
+            <div class="ga-toolbar__dropdown-item" (click)="setStatus('')">Sve</div>
+            <div class="ga-toolbar__dropdown-item" (click)="setStatus(true)">Objavljeno</div>
+            <div class="ga-toolbar__dropdown-item" (click)="setStatus(false)">Nacrt</div>
           </div>
         </div>
       </div>
 
       <div *ngIf="loading" class="ga-loading">
         <mat-spinner diameter="44"></mat-spinner>
-        <span>Loading game sets…</span>
+        <span>Učitavanje setova igre…</span>
       </div>
 
       <div *ngIf="loadError && !loading" class="ga-error">
         <mat-icon>cloud_off</mat-icon>
-        <h3>Could not load game sets</h3>
+        <h3>Nije moguće učitati setove igre</h3>
         <p>{{ loadError }}</p>
         <button mat-raised-button color="primary" (click)="load()">
-          <mat-icon>refresh</mat-icon> Try again
+          <mat-icon>refresh</mat-icon> Pokušaj ponovo
         </button>
       </div>
 
       <div *ngIf="!loading && !loadError" class="ga-table-card">
         <table mat-table [dataSource]="sets" class="ga-table">
           <ng-container matColumnDef="title">
-            <th mat-header-cell *matHeaderCellDef>Game</th>
+            <th mat-header-cell *matHeaderCellDef>Igra</th>
             <td mat-cell *matCellDef="let s">
               <div class="ga-row-title">
                 <div class="ga-row-title__icon"><mat-icon>{{ s.icon || 'sports_esports' }}</mat-icon></div>
@@ -119,9 +119,9 @@ import { GameSet, GameType } from '../../../glueck-arena.types';
           </ng-container>
 
           <ng-container matColumnDef="batches">
-            <th mat-header-cell *matHeaderCellDef>Batches</th>
+            <th mat-header-cell *matHeaderCellDef>Grupe</th>
             <td mat-cell *matCellDef="let s">
-              <span *ngIf="!(s.targetBatches?.length)" class="ga-batch-pill ga-batch-pill--all">All batches</span>
+              <span *ngIf="!(s.targetBatches?.length)" class="ga-batch-pill ga-batch-pill--all">Sve grupe</span>
               <div *ngIf="s.targetBatches?.length" class="ga-batch-chips">
                 <span *ngFor="let b of s.targetBatches | slice:0:2" class="ga-batch-pill">{{ b }}</span>
                 <span *ngIf="s.targetBatches.length > 2" class="ga-batch-pill ga-batch-pill--more">+{{ s.targetBatches.length - 2 }}</span>
@@ -130,14 +130,14 @@ import { GameSet, GameType } from '../../../glueck-arena.types';
           </ng-container>
 
           <ng-container matColumnDef="gameType">
-            <th mat-header-cell *matHeaderCellDef>Type</th>
+            <th mat-header-cell *matHeaderCellDef>Tip</th>
             <td mat-cell *matCellDef="let s">
               <span class="ga-pill ga-pill--blue">{{ formatType(s.gameType) }}</span>
             </td>
           </ng-container>
 
           <ng-container matColumnDef="difficulty">
-            <th mat-header-cell *matHeaderCellDef>Difficulty</th>
+            <th mat-header-cell *matHeaderCellDef>Težina</th>
             <td mat-cell *matCellDef="let s">
               <span class="ga-pill" [class]="'ga-pill--' + (s.difficulty | lowercase)">{{ s.difficulty }}</span>
             </td>
@@ -157,7 +157,7 @@ import { GameSet, GameType } from '../../../glueck-arena.types';
             <th mat-header-cell *matHeaderCellDef>Status</th>
             <td mat-cell *matCellDef="let s">
               <span class="ga-status" [class.ga-status--live]="s.isPublished && s.visibleToStudents">
-                {{ s.isPublished ? (s.visibleToStudents ? 'Live' : 'Published') : 'Draft' }}
+                {{ s.isPublished ? (s.visibleToStudents ? 'Uživo' : 'Objavljeno') : 'Nacrt' }}
               </span>
             </td>
           </ng-container>
@@ -165,16 +165,16 @@ import { GameSet, GameType } from '../../../glueck-arena.types';
           <ng-container matColumnDef="actions">
             <th mat-header-cell *matHeaderCellDef></th>
             <td mat-cell *matCellDef="let s">
-              <button mat-icon-button matTooltip="Play preview" [routerLink]="['/admin/glueck-arena', s._id, 'play']" color="primary">
+              <button mat-icon-button matTooltip="Pregled igre" [routerLink]="['/admin/glueck-arena', s._id, 'play']" color="primary">
                 <mat-icon>play_circle</mat-icon>
               </button>
-              <button mat-icon-button matTooltip="Edit" [routerLink]="['/admin/glueck-arena', s._id, 'edit']">
+              <button mat-icon-button matTooltip="Izmeni" [routerLink]="['/admin/glueck-arena', s._id, 'edit']">
                 <mat-icon>edit</mat-icon>
               </button>
-              <button mat-icon-button [matTooltip]="s.isPublished ? 'Unpublish' : 'Publish'" (click)="togglePublish(s)">
+              <button mat-icon-button [matTooltip]="s.isPublished ? 'Skini s objave' : 'Objavi'" (click)="togglePublish(s)">
                 <mat-icon>{{ s.isPublished ? 'visibility_off' : 'publish' }}</mat-icon>
               </button>
-              <button mat-icon-button matTooltip="Delete" color="warn" (click)="deleteSet(s)">
+              <button mat-icon-button matTooltip="Obriši" color="warn" (click)="deleteSet(s)">
                 <mat-icon>delete</mat-icon>
               </button>
             </td>
@@ -186,10 +186,10 @@ import { GameSet, GameType } from '../../../glueck-arena.types';
 
         <div *ngIf="sets.length === 0" class="ga-empty">
           <mat-icon>sports_esports</mat-icon>
-          <h3>No game sets yet</h3>
-          <p>Create your first module and assign it to a batch so students can see GlückArena.</p>
+          <h3>Nema setova igre</h3>
+          <p>Kreirajte prvi modul i dodelite ga grupi kako bi studenti videli GlückArenu.</p>
           <button mat-raised-button color="primary" routerLink="/admin/glueck-arena/create">
-            <mat-icon>add</mat-icon> Create game set
+            <mat-icon>add</mat-icon> Kreiraj set igre
           </button>
         </div>
 
@@ -313,10 +313,10 @@ export class GameSetListComponent implements OnInit {
   typeOpen = false;
   statusOpen = false;
 
-  getTypeLabel(v: string): string { return v ? this.formatType(v as GameType) : 'Game type'; }
+  getTypeLabel(v: string): string { return v ? this.formatType(v as GameType) : 'Tip igre'; }
   getStatusLabel(v: boolean | ''): string {
-    if (v === true) return 'Published';
-    if (v === false) return 'Draft';
+    if (v === true) return 'Objavljeno';
+    if (v === false) return 'Nacrt';
     return 'Status';
   }
   setType(v: string) { this.filterGameType = v; this.typeOpen = false; this.load(); }

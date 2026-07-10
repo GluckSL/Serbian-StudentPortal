@@ -2,13 +2,13 @@
   <!-- Header -->
   <header class="page-top">
     <div>
-      <h2>📄 Document Management</h2>
-      <p class="subtitle">Manage student documents and requirements</p>
+      <h2>📄 Upravljanje dokumentima</h2>
+      <p class="subtitle">Upravljajte dokumentima i zahtevima studenata</p>
     </div>
     <div class="header-actions">
       <a mat-stroked-button routerLink="/admin/university-applications" target="_blank" rel="noopener noreferrer" class="btn-university">
         <mat-icon>school</mat-icon>
-        Manage University
+        Upravljanje univerzitetom
       </a>
     </div>
   </header>
@@ -16,33 +16,33 @@
   <!-- Tabs -->
   <mat-tab-group class="doc-tabs">
     <!-- Tab 1: Student Document Verification -->
-    <mat-tab label="Student Document Verification">
+    <mat-tab label="Verifikacija dokumenata studenata">
       <div class="tab-content">
         <!-- Action Buttons -->
         <div class="action-buttons-row">
           <button mat-flat-button class="toolbar-btn toolbar-btn--primary" (click)="openBulkUploadDialog()">
             <mat-icon>cloud_upload</mat-icon>
-            Bulk Upload
+            Grupno otpremanje
           </button>
           <button mat-flat-button class="toolbar-btn toolbar-btn--success" (click)="openMarkVerifiedDialog()">
             <mat-icon>verified</mat-icon>
-            Mark Verified
+            Označi verifikovano
           </button>
           <button mat-flat-button class="toolbar-btn toolbar-btn--accent" (click)="bulkVerifySelected()" [disabled]="selectedDocuments.length === 0">
             <mat-icon>check_circle</mat-icon>
-            Verify ({{ selectedDocuments.length }})
+            Verifikuj ({{ selectedDocuments.length }})
           </button>
           <button mat-flat-button class="toolbar-btn toolbar-btn--export" (click)="exportToCSV()">
             <mat-icon>download</mat-icon>
-            Export CSV
+            Izvezi CSV
           </button>
           <button mat-flat-button class="toolbar-btn toolbar-btn--agreement" (click)="openAgreementDialog()">
             <mat-icon>post_add</mat-icon>
-            Generate Agreement
+            Generiši ugovor
           </button>
           <button mat-flat-button class="toolbar-btn toolbar-btn--templates" (click)="openAgreementTemplates()">
             <mat-icon>description</mat-icon>
-            Templates
+            Šabloni
           </button>
         </div>
 
@@ -55,7 +55,7 @@
         </div>
         <div class="stat-info">
           <h3>{{ stats.totalDocuments }}</h3>
-          <p>Total Documents</p>
+          <p>Ukupno dokumenata</p>
         </div>
       </mat-card-content>
     </mat-card>
@@ -67,7 +67,7 @@
         </div>
         <div class="stat-info">
           <h3>{{ stats.pendingDocuments }}</h3>
-          <p>Pending Review</p>
+          <p>Čeka pregled</p>
         </div>
       </mat-card-content>
     </mat-card>
@@ -79,7 +79,7 @@
         </div>
         <div class="stat-info">
           <h3>{{ stats.verifiedDocuments }}</h3>
-          <p>Verified</p>
+          <p>Verifikovano</p>
         </div>
       </mat-card-content>
     </mat-card>
@@ -91,7 +91,7 @@
         </div>
         <div class="stat-info">
           <h3>{{ stats.rejectedDocuments }}</h3>
-          <p>Rejected</p>
+          <p>Odbijeno</p>
         </div>
       </mat-card-content>
     </mat-card>
@@ -103,7 +103,7 @@
         </div>
         <div class="stat-info">
           <h3>{{ stats.totalStudents }}</h3>
-          <p>Students</p>
+          <p>Studenti</p>
         </div>
       </mat-card-content>
     </mat-card>
@@ -119,7 +119,7 @@
             type="text"
             [(ngModel)]="searchQuery"
             (input)="applyFilters()"
-            placeholder="Search student email or document…" />
+            placeholder="Pretraži email studenta ili dokument…" />
         </div>
 
         <div class="filters-actions">
@@ -128,21 +128,21 @@
             class="pill-btn filter-toggle-btn"
             [class.pill-btn--active]="showAdvancedFilters"
             (click)="toggleAdvancedFilters()"
-            [matTooltip]="showAdvancedFilters ? 'Hide filters' : 'Show filters'">
+            [matTooltip]="showAdvancedFilters ? 'Sakrij filtere' : 'Prikaži filtere'">
             <mat-icon>filter_alt</mat-icon>
-            Filters
+            Filteri
           </button>
 
           <button mat-stroked-button class="pill-btn clear-filters-btn" (click)="clearFilters()">
             <mat-icon>close</mat-icon>
-            Clear
+            Očisti
           </button>
 
           <div class="view-toggle">
-            <button mat-icon-button [class.active-view]="viewMode === 'compact'" (click)="switchView('compact')" matTooltip="List view">
+            <button mat-icon-button [class.active-view]="viewMode === 'compact'" (click)="switchView('compact')" matTooltip="Prikaz liste">
               <mat-icon>view_list</mat-icon>
             </button>
-            <button mat-icon-button [class.active-view]="viewMode === 'detailed'" (click)="switchView('detailed')" matTooltip="Table view">
+            <button mat-icon-button [class.active-view]="viewMode === 'detailed'" (click)="switchView('detailed')" matTooltip="Prikaz tabele">
               <mat-icon>table_rows</mat-icon>
             </button>
           </div>
@@ -153,17 +153,17 @@
         <mat-form-field appearance="outline" class="filter-field">
           <mat-label>Status</mat-label>
           <mat-select [(ngModel)]="selectedStatus" (selectionChange)="applyFilters()">
-            <mat-option value="ALL">All Status</mat-option>
-            <mat-option value="PENDING">Pending</mat-option>
-            <mat-option value="VERIFIED">Verified</mat-option>
-            <mat-option value="REJECTED">Rejected</mat-option>
+            <mat-option value="ALL">Svi statusi</mat-option>
+            <mat-option value="PENDING">Na čekanju</mat-option>
+            <mat-option value="VERIFIED">Verifikovano</mat-option>
+            <mat-option value="REJECTED">Odbijeno</mat-option>
           </mat-select>
         </mat-form-field>
 
         <mat-form-field appearance="outline" class="filter-field">
-          <mat-label>Document Type</mat-label>
+          <mat-label>Vrsta dokumenta</mat-label>
           <mat-select [(ngModel)]="selectedDocumentType" (selectionChange)="applyFilters()">
-            <mat-option value="ALL">All Types</mat-option>
+            <mat-option value="ALL">Sve vrste</mat-option>
             <mat-option *ngFor="let type of documentTypes" [value]="type.value">
               {{ type.label }}
             </mat-option>
@@ -173,7 +173,7 @@
         <mat-form-field appearance="outline" class="filter-field filter-field-crm">
           <mat-label>CRM status</mat-label>
           <mat-select [(ngModel)]="selectedCrmStudentStatus" (selectionChange)="applyFilters()">
-            <mat-option value="ALL">All statuses</mat-option>
+            <mat-option value="ALL">Svi statusi</mat-option>
             <mat-option *ngFor="let st of crmStudentStatusOptions" [value]="st">
               {{ st }}
             </mat-option>
@@ -181,9 +181,9 @@
         </mat-form-field>
 
         <mat-form-field appearance="outline" class="filter-field filter-field-crm">
-          <mat-label>Package</mat-label>
+          <mat-label>Paket</mat-label>
           <mat-select [(ngModel)]="selectedPackage" (selectionChange)="applyFilters()">
-            <mat-option value="ALL">All packages</mat-option>
+            <mat-option value="ALL">Svi paketi</mat-option>
             <mat-option *ngFor="let pkg of packageOptions" [value]="pkg">
               {{ pkg }}
             </mat-option>
@@ -191,9 +191,9 @@
         </mat-form-field>
 
         <mat-form-field appearance="outline" class="filter-field filter-field-crm">
-          <mat-label>Service opted</mat-label>
+          <mat-label>Odabrana usluga</mat-label>
           <mat-select [(ngModel)]="selectedServiceOpted" (selectionChange)="applyFilters()">
-            <mat-option value="ALL">All services</mat-option>
+            <mat-option value="ALL">Sve usluge</mat-option>
             <mat-option *ngFor="let service of serviceOptedOptions" [value]="service">
               {{ service }}
             </mat-option>
@@ -201,9 +201,9 @@
         </mat-form-field>
 
         <mat-form-field appearance="outline" class="filter-field filter-field-qual">
-          <mat-label>Qualification</mat-label>
+          <mat-label>Kvalifikacija</mat-label>
           <mat-select [(ngModel)]="selectedQualification" (selectionChange)="applyFilters()">
-            <mat-option value="ALL">All qualifications</mat-option>
+            <mat-option value="ALL">Sve kvalifikacije</mat-option>
             <mat-option *ngFor="let q of qualificationOptions" [value]="q">
               {{ q }}
             </mat-option>
@@ -211,38 +211,38 @@
         </mat-form-field>
 
         <mat-form-field appearance="outline" class="filter-field">
-          <mat-label>Batch</mat-label>
+          <mat-label>Grupa</mat-label>
           <mat-select [(ngModel)]="selectedBatch" (selectionChange)="applyFilters()">
-            <mat-option value="ALL">All batches</mat-option>
+            <mat-option value="ALL">Sve grupe</mat-option>
             <mat-option *ngFor="let b of batchOptions" [value]="b">{{ b }}</mat-option>
           </mat-select>
         </mat-form-field>
 
         <mat-form-field appearance="outline" class="filter-field">
-          <mat-label>Level</mat-label>
+          <mat-label>Nivo</mat-label>
           <mat-select [(ngModel)]="selectedLevel" (selectionChange)="applyFilters()">
-            <mat-option value="ALL">All levels</mat-option>
+            <mat-option value="ALL">Svi nivoi</mat-option>
             <mat-option *ngFor="let lv of levelOptions" [value]="lv">{{ lv }}</mat-option>
           </mat-select>
         </mat-form-field>
 
         <mat-form-field appearance="outline" class="filter-field-qual">
-          <mat-label>Language level opted</mat-label>
+          <mat-label>Odabrani nivo jezika</mat-label>
           <mat-select [(ngModel)]="selectedLanguageLevelOpted" (selectionChange)="applyFilters()">
-            <mat-option value="ALL">All language levels</mat-option>
+            <mat-option value="ALL">Svi nivoi jezika</mat-option>
             <mat-option *ngFor="let ll of languageLevelOptedOptions" [value]="ll">{{ ll }}</mat-option>
           </mat-select>
         </mat-form-field>
 
         <mat-form-field appearance="outline" class="search-field">
-          <mat-label>Student name</mat-label>
-          <input matInput [(ngModel)]="studentNameQuery" (input)="applyFilters()" placeholder="Search student...">
+          <mat-label>Ime studenta</mat-label>
+          <input matInput [(ngModel)]="studentNameQuery" (input)="applyFilters()" placeholder="Pretraži studenta...">
           <mat-icon matSuffix>person_search</mat-icon>
         </mat-form-field>
 
         <mat-form-field appearance="outline" class="search-field">
-          <mat-label>Teacher</mat-label>
-          <input matInput [(ngModel)]="teacherQuery" (input)="applyFilters()" placeholder="Search teacher...">
+          <mat-label>Nastavnik</mat-label>
+          <input matInput [(ngModel)]="teacherQuery" (input)="applyFilters()" placeholder="Pretraži nastavnika...">
           <mat-icon matSuffix>school</mat-icon>
         </mat-form-field>
       </div>
@@ -252,7 +252,7 @@
   <div *ngIf="viewMode === 'compact' && !loading">
     <div *ngIf="filteredStudentGroups.length === 0" class="no-data">
       <mat-icon>folder_open</mat-icon>
-      <p>No documents found</p>
+      <p>Nema pronađenih dokumenata</p>
     </div>
 
     <div class="student-group-list table-card">
@@ -261,9 +261,9 @@
           <thead>
             <tr>
               <th>Student</th>
-              <th>CRM Snapshot</th>
-              <th>Documents</th>
-              <th>Actions</th>
+              <th>CRM Snimak</th>
+              <th>Dokumenti</th>
+              <th>Akcije</th>
             </tr>
           </thead>
           <tbody>
@@ -294,16 +294,16 @@
                 </td>
                 <td>
                   <div class="student-group-stats">
-                    <span class="doc-count total" matTooltip="Total Documents">
+                    <span class="doc-count total" matTooltip="Ukupno dokumenata">
                       <mat-icon>description</mat-icon> {{ group.totalDocs }}
                     </span>
-                    <span class="doc-count pending" *ngIf="group.pendingDocs > 0" matTooltip="Pending Review">
+                    <span class="doc-count pending" *ngIf="group.pendingDocs > 0" matTooltip="Čeka pregled">
                       <mat-icon>schedule</mat-icon> {{ group.pendingDocs }}
                     </span>
-                    <span class="doc-count verified" *ngIf="group.verifiedDocs > 0" matTooltip="Verified">
+                    <span class="doc-count verified" *ngIf="group.verifiedDocs > 0" matTooltip="Verifikovano">
                       <mat-icon>check_circle</mat-icon> {{ group.verifiedDocs }}
                     </span>
-                    <span class="doc-count rejected" *ngIf="group.rejectedDocs > 0" matTooltip="Rejected">
+                    <span class="doc-count rejected" *ngIf="group.rejectedDocs > 0" matTooltip="Odbijeno">
                       <mat-icon>cancel</mat-icon> {{ group.rejectedDocs }}
                     </span>
                   </div>
@@ -312,7 +312,7 @@
                   <div class="action-buttons">
                     <button mat-flat-button class="view-btn"
                             (click)="openStudentDocumentsPage(group); $event.stopPropagation()">
-                      View
+                      Prikaži
                     </button>
                   </div>
                 </td>
@@ -336,12 +336,12 @@
     <mat-card-content>
       <div *ngIf="loading" class="loading-container">
         <mat-spinner></mat-spinner>
-        <p>Loading documents...</p>
+        <p>Učitavanje dokumenata...</p>
       </div>
 
       <div *ngIf="!loading && paginatedDocuments.length === 0" class="no-data">
         <mat-icon>folder_open</mat-icon>
-        <p>No documents found</p>
+        <p>Nema pronađenih dokumenata</p>
       </div>
 
       <div *ngIf="!loading && paginatedDocuments.length > 0" class="table-container">
@@ -368,7 +368,7 @@
           
           <!-- Student Name Column -->
           <ng-container matColumnDef="studentName">
-            <th mat-header-cell *matHeaderCellDef>Student</th>
+            <th mat-header-cell *matHeaderCellDef>Student</th>  <!-- kept as-is, proper noun -->
             <td mat-cell *matCellDef="let doc">
               <div class="student-info">
                 <strong>{{ doc.studentName }}</strong>
@@ -391,7 +391,7 @@
 
           <!-- Document Type Column -->
           <ng-container matColumnDef="documentType">
-            <th mat-header-cell *matHeaderCellDef>Document Type</th>
+            <th mat-header-cell *matHeaderCellDef>Vrsta dokumenta</th>
             <td mat-cell *matCellDef="let doc">
               {{ doc.documentTypeDisplay || doc.documentType }}
             </td>
@@ -399,25 +399,25 @@
 
           <!-- Document Name Column -->
           <ng-container matColumnDef="documentName">
-            <th mat-header-cell *matHeaderCellDef>Document Name</th>
+            <th mat-header-cell *matHeaderCellDef>Naziv dokumenta</th>
             <td mat-cell *matCellDef="let doc">{{ doc.documentName }}</td>
           </ng-container>
 
           <!-- File Size Column -->
           <ng-container matColumnDef="fileSize">
-            <th mat-header-cell *matHeaderCellDef>Size</th>
+            <th mat-header-cell *matHeaderCellDef>Veličina</th>
             <td mat-cell *matCellDef="let doc">{{ doc.formattedFileSize }}</td>
           </ng-container>
 
           <!-- Uploaded At Column -->
           <ng-container matColumnDef="uploadedAt">
-            <th mat-header-cell *matHeaderCellDef>Uploaded</th>
+            <th mat-header-cell *matHeaderCellDef>Otpremljeno</th>
             <td mat-cell *matCellDef="let doc">{{ formatDate(doc.uploadedAt) }}</td>
           </ng-container>
 
           <!-- Status Column -->
           <ng-container matColumnDef="status">
-            <th mat-header-cell *matHeaderCellDef>Status</th>
+            <th mat-header-cell *matHeaderCellDef>Status</th>  <!-- "Status" is same in Serbian -->
             <td mat-cell *matCellDef="let doc">
               <mat-chip [color]="getStatusColor(doc.status)" selected>
                 <mat-icon>{{ getStatusIcon(doc.status) }}</mat-icon>
@@ -428,20 +428,20 @@
 
           <!-- Actions Column -->
           <ng-container matColumnDef="actions">
-            <th mat-header-cell *matHeaderCellDef>Actions</th>
+            <th mat-header-cell *matHeaderCellDef>Akcije</th>
             <td mat-cell *matCellDef="let doc">
               <div class="action-buttons">
                 <button mat-icon-button color="primary" 
                         (click)="openDocumentInNewTab(doc)"
                         [disabled]="doc.fileName === 'NO_FILE_UPLOADED'"
-                        [matTooltip]="doc.fileName === 'NO_FILE_UPLOADED' ? 'No file available - verified without upload' : 'View in new tab'">
+                        [matTooltip]="doc.fileName === 'NO_FILE_UPLOADED' ? 'Nema dostupnog fajla - verifikovano bez otpremanja' : 'Prikaži u novoj kartici'">
                   <mat-icon>open_in_new</mat-icon>
                 </button>
                 
                 <button mat-icon-button 
                         (click)="downloadDocument(doc)"
                         [disabled]="doc.fileName === 'NO_FILE_UPLOADED'"
-                        matTooltip="Download"
+                        matTooltip="Preuzmite"
                         style="color: #1976d2;">
                   <mat-icon>download</mat-icon>
                 </button>
@@ -449,19 +449,19 @@
                 <button mat-icon-button color="accent" 
                         (click)="openVerificationDialog(doc, 'VERIFIED')"
                         [disabled]="doc.status === 'VERIFIED'"
-                        matTooltip="Verify">
+                        matTooltip="Verifikuj">
                   <mat-icon>check_circle</mat-icon>
                 </button>
                 
                 <button mat-icon-button color="warn" 
                         (click)="requestReupload(doc)"
                         [disabled]="doc.status === 'REJECTED'"
-                        matTooltip="Request re-upload">
+                        matTooltip="Zahtevaj ponovano otpremanje">
                   <mat-icon>assignment_return</mat-icon>
                 </button>
                 <button mat-icon-button
                         (click)="replaceDocument(doc)"
-                        matTooltip="Replace document with new version"
+                        matTooltip="Zameni dokument novom verzijom"
                         style="color: #6f42c1;">
                   <mat-icon>sync_alt</mat-icon>
                 </button>
@@ -469,7 +469,7 @@
                 <button mat-icon-button 
                         *ngIf="doc.status === 'VERIFIED'"
                         (click)="unlockDocument(doc)"
-                        matTooltip="Unlock for student to update"
+                        matTooltip="Otključaj za ažuriranje od strane studenta"
                         style="color: #ff9800;">
                   <mat-icon>lock_open</mat-icon>
                 </button>
@@ -496,14 +496,14 @@
     </mat-tab>
 
     <!-- Tab 2: Required Documents -->
-    <mat-tab label="Required Documents">
+    <mat-tab label="Obavezni dokumenti">
       <div class="tab-content">
         <div class="requirements-header">
-          <h3>📋 Manage Required Document Types</h3>
+          <h3>📋 Upravljanje vrstama obaveznih dokumenata</h3>
           <div class="header-actions">
             <button mat-raised-button color="primary" (click)="openRequirementForm()">
               <mat-icon>add</mat-icon>
-              Add Document Type
+              Dodajte vrstu dokumenta
             </button>
           </div>
         </div>
@@ -517,24 +517,24 @@
                     <h4>{{ req.label }}</h4>
                     <div class="requirement-badges">
                       <span class="badge badge-category">{{ req.category }}</span>
-                      <span class="badge badge-required" *ngIf="req.required">Required</span>
-                      <span class="badge badge-optional" *ngIf="!req.required">Optional</span>
-                      <span class="badge badge-category" *ngIf="req.allowMultiple">Multiple Allowed</span>
-                      <span class="badge badge-inactive" *ngIf="!req.active">Inactive</span>
+                      <span class="badge badge-required" *ngIf="req.required">Obavezno</span>
+                      <span class="badge badge-optional" *ngIf="!req.required">Opciono</span>
+                      <span class="badge badge-category" *ngIf="req.allowMultiple">Dozvoljeno više</span>
+                      <span class="badge badge-inactive" *ngIf="!req.active">Neaktivno</span>
                     </div>
                   </div>
                   <p class="requirement-description">{{ req.description }}</p>
-                  <small class="requirement-meta">Type: {{ req.type }} | Order: {{ req.order }}</small>
+                  <small class="requirement-meta">Vrsta: {{ req.type }} | Redosled: {{ req.order }}</small>
                   <div *ngIf="req.applicableServices?.length" class="requirement-services">
-                    <small>Applies to: </small>
+                    <small>Primenjuje se na: </small>
                     <span class="badge badge-service" *ngFor="let svc of req.applicableServices">{{ svc }}</span>
                   </div>
                 </div>
                 <div class="requirement-actions">
-                  <button mat-icon-button color="primary" (click)="openRequirementForm(req)" matTooltip="Edit">
+                  <button mat-icon-button color="primary" (click)="openRequirementForm(req)" matTooltip="Uredi">
                     <mat-icon>edit</mat-icon>
                   </button>
-                  <button mat-icon-button color="warn" (click)="deleteRequirement(req)" matTooltip="Delete">
+                  <button mat-icon-button color="warn" (click)="deleteRequirement(req)" matTooltip="Obriši">
                     <mat-icon>delete</mat-icon>
                   </button>
                 </div>
@@ -542,10 +542,10 @@
 
               <div *ngIf="requirements.length === 0" class="no-requirements">
                 <mat-icon>folder_open</mat-icon>
-                <p>No document requirements found</p>
+                <p>Nema pronađenih zahteva za dokumentima</p>
                 <button mat-raised-button color="primary" (click)="openRequirementForm()">
                   <mat-icon>add</mat-icon>
-                  Add First Document Type
+                  Dodajte prvu vrstu dokumenta
                 </button>
               </div>
             </div>
@@ -564,7 +564,7 @@
         <mat-icon [color]="verificationAction === 'VERIFIED' ? 'accent' : 'warn'">
           {{ verificationAction === 'VERIFIED' ? 'check_circle' : 'assignment_return' }}
         </mat-icon>
-        {{ verificationAction === 'VERIFIED' ? 'Verify' : 'Request Re-upload' }} Document
+        {{ verificationAction === 'VERIFIED' ? 'Verifikuj' : 'Zahtevaj ponovano otpremanje' }} dokument
       </h3>
       <button mat-icon-button (click)="closeVerificationDialog()">
         <mat-icon>close</mat-icon>
@@ -574,28 +574,28 @@
     <div class="dialog-content" *ngIf="selectedDocument">
       <div class="document-details">
         <p><strong>Student:</strong> {{ selectedDocument.studentName }}</p>
-        <p><strong>Document:</strong> {{ selectedDocument.documentName }}</p>
-        <p><strong>Type:</strong> {{ selectedDocument.documentTypeDisplay }}</p>
+        <p><strong>Dokument:</strong> {{ selectedDocument.documentName }}</p>
+        <p><strong>Vrsta:</strong> {{ selectedDocument.documentTypeDisplay }}</p>
       </div>
 
       <mat-form-field appearance="outline" class="full-width">
         <mat-label>
-          {{ verificationAction === 'VERIFIED' ? 'Verification Notes (Optional)' : 'Reason for Re-upload (Required)' }}
+          {{ verificationAction === 'VERIFIED' ? 'Napomene o verifikaciji (opciono)' : 'Razlog za ponovano otpremanje (obavezno)' }}
         </mat-label>
         <textarea matInput [(ngModel)]="verificationNotes" 
                   rows="4"
-                  [placeholder]="verificationAction === 'VERIFIED' ? 'Add any notes about this verification...' : 'Please provide a reason (e.g., blur image, missing page, unclear file)...'">
+                  [placeholder]="verificationAction === 'VERIFIED' ? 'Dodajte napomene o ovoj verifikaciji...' : 'Navedite razlog (npr. zamagljena slika, nedostaje stranica, nejasan fajl)...'">
         </textarea>
       </mat-form-field>
     </div>
 
     <div class="dialog-actions">
-      <button mat-button (click)="closeVerificationDialog()">Cancel</button>
+      <button mat-button (click)="closeVerificationDialog()">Otkaži</button>
       <button mat-raised-button 
               [color]="verificationAction === 'VERIFIED' ? 'accent' : 'warn'"
               (click)="confirmVerification()"
               [disabled]="verificationAction === 'REJECTED' && !verificationNotes.trim()">
-        {{ verificationAction === 'VERIFIED' ? 'Verify' : 'Send Re-upload Request' }}
+        {{ verificationAction === 'VERIFIED' ? 'Verifikuj' : 'Pošalji zahtev za ponovano otpremanje' }}
       </button>
     </div>
   </div>
@@ -608,7 +608,7 @@
     <div class="dialog-header">
       <h3>
         <mat-icon>{{ editingRequirement ? 'edit' : 'add' }}</mat-icon>
-        {{ editingRequirement ? 'Edit' : 'Add' }} Document Requirement
+        {{ editingRequirement ? 'Uredi' : 'Dodaj' }} zahtev za dokument
       </h3>
       <button mat-icon-button (click)="closeRequirementForm()">
         <mat-icon>close</mat-icon>
@@ -617,24 +617,24 @@
 
     <div class="dialog-content">
       <mat-form-field appearance="outline" class="full-width">
-        <mat-label>Document Label</mat-label>
-        <input matInput [(ngModel)]="requirementForm.label" placeholder="e.g., Passport">
+        <mat-label>Naziv dokumenta</mat-label>
+        <input matInput [(ngModel)]="requirementForm.label" placeholder="npr. Pasoš">
       </mat-form-field>
 
       <mat-form-field appearance="outline" class="full-width" *ngIf="!editingRequirement">
-        <mat-label>Document Type (auto-generated if empty)</mat-label>
-        <input matInput [(ngModel)]="requirementForm.type" placeholder="e.g., PASSPORT">
-        <mat-hint>Leave empty to auto-generate from label</mat-hint>
+        <mat-label>Vrsta dokumenta (automatski generisana ako je prazno)</mat-label>
+        <input matInput [(ngModel)]="requirementForm.type" placeholder="npr. PASSPORT">
+        <mat-hint>Ostavite prazno za automatsko generisanje iz naziva</mat-hint>
       </mat-form-field>
 
       <mat-form-field appearance="outline" class="full-width">
-        <mat-label>Description</mat-label>
+        <mat-label>Opis</mat-label>
         <textarea matInput [(ngModel)]="requirementForm.description" rows="3"
-                  placeholder="Describe what this document is and any specific requirements"></textarea>
+                  placeholder="Opišite dokument i specifične zahteve"></textarea>
       </mat-form-field>
 
       <mat-form-field appearance="outline" class="full-width">
-        <mat-label>Category</mat-label>
+        <mat-label>Kategorija</mat-label>
         <mat-select [(ngModel)]="requirementForm.category">
           <mat-option *ngFor="let cat of categories" [value]="cat.value">
             {{ cat.label }}
@@ -644,23 +644,23 @@
 
       <div class="form-row">
         <mat-form-field appearance="outline" style="flex: 1;">
-          <mat-label>Display Order</mat-label>
+          <mat-label>Redosled prikaza</mat-label>
           <input matInput type="number" [(ngModel)]="requirementForm.order">
         </mat-form-field>
 
         <mat-checkbox [(ngModel)]="requirementForm.required" style="margin-left: 20px;">
-          Required Document
+          Obavezan dokument
         </mat-checkbox>
         <mat-checkbox [(ngModel)]="requirementForm.allowMultiple" style="margin-left: 20px;">
-          Allow Multiple Uploads
+          Dozvoli više otpremanja
         </mat-checkbox>
       </div>
     </div>
 
     <div class="dialog-actions">
-      <button mat-button (click)="closeRequirementForm()">Cancel</button>
+      <button mat-button (click)="closeRequirementForm()">Otkaži</button>
       <button mat-raised-button color="primary" (click)="saveRequirement()">
-        {{ editingRequirement ? 'Update' : 'Create' }}
+        {{ editingRequirement ? 'Ažuriraj' : 'Kreiraj' }}
       </button>
     </div>
   </div>
@@ -673,7 +673,7 @@
     <div class="dialog-header">
       <h3>
         <mat-icon>cloud_upload</mat-icon>
-        Bulk Upload Documents for Student
+        Grupno otpremanje dokumenata za studenta
       </h3>
       <button mat-icon-button (click)="closeBulkUploadDialog()">
         <mat-icon>close</mat-icon>
@@ -681,28 +681,28 @@
     </div>
 
     <div class="dialog-content">
-      <p class="info-text">Upload multiple documents on behalf of a student</p>
+      <p class="info-text">Otpremite više dokumenata u ime studenta</p>
 
       <mat-form-field appearance="outline" class="full-width">
-        <mat-label>Search Student</mat-label>
+        <mat-label>Pretraži studenta</mat-label>
         <input matInput 
                [formControl]="studentSearchControl"
                [matAutocomplete]="autoStudent"
-               placeholder="Type name, email, or reg no...">
+               placeholder="Ukucajte ime, email ili reg. br...">
         <mat-icon matSuffix>search</mat-icon>
         <mat-autocomplete #autoStudent="matAutocomplete" (optionSelected)="selectStudent($event.option.value)">
           <mat-option *ngFor="let student of filteredStudents" [value]="student">
             <div class="student-option">
               <strong>{{ student.name }}<app-test-account-badge [show]="!!student.isTestAccount"></app-test-account-badge></strong>
               <small>{{ student.email }}</small>
-              <small *ngIf="student.regNo">Reg: {{ student.regNo }}</small>
+                  <small *ngIf="student.regNo">Reg: {{ student.regNo }}</small>
             </div>
           </mat-option>
         </mat-autocomplete>
       </mat-form-field>
 
       <mat-form-field appearance="outline" class="full-width">
-        <mat-label>Document Type</mat-label>
+        <mat-label>Vrsta dokumenta</mat-label>
         <mat-select [(ngModel)]="bulkUploadForm.documentType">
           <mat-option *ngFor="let type of documentTypes" [value]="type.value">
             {{ type.label }}
@@ -713,7 +713,7 @@
       <div class="file-upload-section">
         <label class="file-upload-label">
           <mat-icon>attach_file</mat-icon>
-          Select Files (Multiple)
+          Izaberite fajlove (više)
         </label>
         <input 
           type="file" 
@@ -724,19 +724,19 @@
           #bulkFileInput>
         <button mat-raised-button (click)="bulkFileInput.click()">
           <mat-icon>folder_open</mat-icon>
-          Choose Files
+          Izaberite fajlove
         </button>
         <p *ngIf="bulkUploadForm.files.length > 0" class="files-selected">
-          {{ bulkUploadForm.files.length }} file(s) selected
+          {{ bulkUploadForm.files.length }} fajl(ova) izabrano
         </p>
       </div>
     </div>
 
     <div class="dialog-actions">
-      <button mat-button (click)="closeBulkUploadDialog()">Cancel</button>
+      <button mat-button (click)="closeBulkUploadDialog()">Otkaži</button>
       <button mat-raised-button color="primary" (click)="uploadBulkDocuments()">
         <mat-icon>cloud_upload</mat-icon>
-        Upload All
+        Otpremi sve
       </button>
     </div>
   </div>
@@ -749,7 +749,7 @@
     <div class="dialog-header">
       <h3>
         <mat-icon style="color: #4caf50;">verified</mat-icon>
-        Mark Document as Verified (Without Upload)
+        Označi dokument kao verifikovan (bez otpremanja)
       </h3>
       <button mat-icon-button (click)="closeMarkVerifiedDialog()">
         <mat-icon>close</mat-icon>
@@ -758,16 +758,16 @@
 
     <div class="dialog-content">
       <p class="info-text">
-        Use this to mark documents as verified that were collected physically or through other means.
-        No file will be uploaded, but the document will be recorded as VERIFIED in the system.
+        Koristite ovo za označavanje dokumenata koji su prikupljeni fizički ili na drugi način.
+        Nijedan fajl neće biti otpremljen, ali dokument će biti evidentiran kao VERIFIKOVAN u sistemu.
       </p>
 
       <mat-form-field appearance="outline" class="full-width">
-        <mat-label>Search Student</mat-label>
+        <mat-label>Pretraži studenta</mat-label>
         <input matInput 
                [formControl]="markVerifiedStudentControl"
                [matAutocomplete]="autoMarkStudent"
-               placeholder="Type name, email, or reg no...">
+               placeholder="Ukucajte ime, email ili reg. br...">
         <mat-icon matSuffix>search</mat-icon>
         <mat-autocomplete #autoMarkStudent="matAutocomplete" (optionSelected)="selectMarkVerifiedStudent($event.option.value)">
           <mat-option *ngFor="let student of markVerifiedFilteredStudents" [value]="student">
@@ -781,7 +781,7 @@
       </mat-form-field>
 
       <mat-form-field appearance="outline" class="full-width">
-        <mat-label>Document Type</mat-label>
+        <mat-label>Vrsta dokumenta</mat-label>
         <mat-select [(ngModel)]="markVerifiedForm.documentType">
           <mat-option *ngFor="let type of documentTypes" [value]="type.value">
             {{ type.label }}
@@ -790,25 +790,25 @@
       </mat-form-field>
 
       <mat-form-field appearance="outline" class="full-width">
-        <mat-label>Document Name</mat-label>
+        <mat-label>Naziv dokumenta</mat-label>
         <input matInput [(ngModel)]="markVerifiedForm.documentName" 
-               placeholder="e.g., Passport - John Doe">
-        <mat-hint>Enter a descriptive name for this document</mat-hint>
+               placeholder="npr. Pasoš - Jovan Jovanović">
+        <mat-hint>Unesite opisni naziv dokumenta</mat-hint>
       </mat-form-field>
 
       <mat-form-field appearance="outline" class="full-width">
-        <mat-label>Verification Notes</mat-label>
+        <mat-label>Napomene o verifikaciji</mat-label>
         <textarea matInput [(ngModel)]="markVerifiedForm.verificationNotes" rows="3"
-                  placeholder="e.g., Document collected physically on 2024-01-15"></textarea>
-        <mat-hint>Optional: Add notes about how/when this document was verified</mat-hint>
+                  placeholder="npr. Dokument prikupljen fizički 2024-01-15"></textarea>
+        <mat-hint>Opciono: Dodajte napomene o načinu/vremenu verifikacije</mat-hint>
       </mat-form-field>
     </div>
 
     <div class="dialog-actions">
-      <button mat-button (click)="closeMarkVerifiedDialog()">Cancel</button>
+      <button mat-button (click)="closeMarkVerifiedDialog()">Otkaži</button>
       <button mat-raised-button style="background-color: #4caf50; color: white;" (click)="markAsVerifiedWithoutUpload()">
         <mat-icon>verified</mat-icon>
-        Mark as Verified
+        Označi kao verifikovano
       </button>
     </div>
   </div>
@@ -826,15 +826,15 @@
         </div>
       </div>
       <div class="preview-header-actions">
-        <button mat-icon-button matTooltip="Download" (click)="downloadDocument(previewDocument!)">
+        <button mat-icon-button matTooltip="Preuzmite" (click)="downloadDocument(previewDocument!)">
           <mat-icon>download</mat-icon>
         </button>
-        <button mat-icon-button matTooltip="Verify" color="accent"
+        <button mat-icon-button matTooltip="Verifikuj" color="accent"
                 *ngIf="previewDocument?.status === 'PENDING'"
                 (click)="openVerificationDialog(previewDocument!, 'VERIFIED')">
           <mat-icon>check_circle</mat-icon>
         </button>
-        <button mat-icon-button matTooltip="Reject" color="warn"
+        <button mat-icon-button matTooltip="Odbij" color="warn"
                 *ngIf="previewDocument?.status === 'PENDING'"
                 (click)="openVerificationDialog(previewDocument!, 'REJECTED')">
           <mat-icon>cancel</mat-icon>
@@ -848,7 +848,7 @@
     <div class="preview-body">
       <div *ngIf="previewLoading" class="preview-loading">
         <mat-spinner diameter="48"></mat-spinner>
-        <p>Loading preview...</p>
+        <p>Učitavanje pregleda...</p>
       </div>
 
       <iframe *ngIf="!previewLoading && previewType === 'pdf' && previewUrl" 
@@ -863,17 +863,17 @@
 
       <div *ngIf="!previewLoading && previewType === 'unsupported'" class="preview-unsupported">
         <mat-icon>insert_drive_file</mat-icon>
-        <p>Preview not available for this file type</p>
+        <p>Pregled nije dostupan za ovaj tip fajla</p>
         <button mat-raised-button color="primary" (click)="downloadDocument(previewDocument!)">
           <mat-icon>download</mat-icon>
-          Download to View
+          Preuzmite za prikaz
         </button>
       </div>
 
       <div *ngIf="!previewLoading && previewType === 'not-found'" class="preview-unsupported">
         <mat-icon>cloud_off</mat-icon>
-        <p>File not found on server</p>
-        <small>The physical file may have been moved or deleted.</small>
+        <p>Fajl nije pronađen na serveru</p>
+        <small>Fajl je možda premešten ili obrisan.</small>
       </div>
     </div>
   </div>
@@ -885,7 +885,7 @@
     <div class="dialog-header">
       <h3>
         <mat-icon style="color: #1976d2;">email</mat-icon>
-        Send Email to {{ emailForm.studentName }}
+        Pošalji email studentu {{ emailForm.studentName }}
       </h3>
       <button mat-icon-button (click)="closeEmailDialog()">
         <mat-icon>close</mat-icon>
@@ -894,26 +894,26 @@
 
     <div class="dialog-content">
       <mat-form-field appearance="outline" class="full-width">
-        <mat-label>To</mat-label>
+        <mat-label>Prima</mat-label>
         <input matInput [value]="emailForm.to" disabled>
       </mat-form-field>
 
       <mat-form-field appearance="outline" class="full-width">
-        <mat-label>Subject</mat-label>
-        <input matInput [(ngModel)]="emailForm.subject" placeholder="Enter email subject">
+        <mat-label>Naslov</mat-label>
+        <input matInput [(ngModel)]="emailForm.subject" placeholder="Unesite naslov emaila">
       </mat-form-field>
 
       <mat-form-field appearance="outline" class="full-width">
-        <mat-label>Message</mat-label>
-        <textarea matInput [(ngModel)]="emailForm.message" rows="6" placeholder="Type your message here..."></textarea>
+        <mat-label>Poruka</mat-label>
+        <textarea matInput [(ngModel)]="emailForm.message" rows="6" placeholder="Ukucajte poruku ovde..."></textarea>
       </mat-form-field>
     </div>
 
     <div class="dialog-actions">
-      <button mat-button (click)="closeEmailDialog()">Cancel</button>
+      <button mat-button (click)="closeEmailDialog()">Otkaži</button>
       <button mat-raised-button color="primary" (click)="sendEmail()" [disabled]="sendingEmail">
         <mat-icon>{{ sendingEmail ? 'hourglass_empty' : 'send' }}</mat-icon>
-        {{ sendingEmail ? 'Sending...' : 'Send Email' }}
+        {{ sendingEmail ? 'Slanje...' : 'Pošalji email' }}
       </button>
     </div>
   </div>
@@ -925,7 +925,7 @@
     <div class="dialog-header">
       <h3>
         <mat-icon style="color: #5e35b1;">assignment</mat-icon>
-        Generate Agreement for Student
+        Generiši ugovor za studenta
       </h3>
       <button mat-icon-button (click)="closeAgreementDialog()">
         <mat-icon>close</mat-icon>
@@ -934,16 +934,16 @@
 
     <div class="dialog-content">
       <p class="info-text">
-        Select a student and agreement template, fill in the dynamic fields, then save the PDF or save and email it to the student.
-        <a class="template-link" (click)="openAgreementTemplates(); $event.preventDefault()">Manage templates</a>
+        Izaberite studenta i šablon ugovora, popunite dinamička polja, a zatim sačuvajte PDF ili sačuvajte i pošaljite studentu emailom.
+        <a class="template-link" (click)="openAgreementTemplates(); $event.preventDefault()">Upravljanje šablonima</a>
       </p>
 
       <mat-form-field appearance="outline" class="full-width">
-        <mat-label>Search Student</mat-label>
+        <mat-label>Pretraži studenta</mat-label>
         <input matInput
                [formControl]="agreementStudentControl"
                [matAutocomplete]="autoAgreementStudent"
-               placeholder="Type name, email, or reg no...">
+               placeholder="Ukucajte ime, email ili reg. br...">
         <mat-icon matSuffix>search</mat-icon>
         <mat-autocomplete #autoAgreementStudent="matAutocomplete" (optionSelected)="selectAgreementStudent($event.option.value)">
           <mat-option *ngFor="let student of agreementFilteredStudents" [value]="student">
@@ -956,11 +956,11 @@
       </mat-form-field>
 
       <mat-form-field appearance="outline" class="full-width">
-        <mat-label>Agreement Template</mat-label>
+        <mat-label>Šablon ugovora</mat-label>
         <mat-select [(ngModel)]="agreementForm.templateId" (ngModelChange)="onAgreementTemplateChange()" [disabled]="agreementTemplatesLoading">
-          <mat-option *ngFor="let t of agreementTemplates" [value]="t._id">{{ t.name }} ({{ t.dynamicFields.length }} fields)</mat-option>
+          <mat-option *ngFor="let t of agreementTemplates" [value]="t._id">{{ t.name }} ({{ t.dynamicFields.length }} polja)</mat-option>
         </mat-select>
-        <mat-hint *ngIf="agreementTemplates.length === 0 && !agreementTemplatesLoading">No templates yet — create one via Agreement Templates</mat-hint>
+        <mat-hint *ngIf="agreementTemplates.length === 0 && !agreementTemplatesLoading">Nema šablona — kreirajte jedan putem Šablona ugovora</mat-hint>
       </mat-form-field>
 
       <ng-container *ngIf="agreementSelectedTemplate">
@@ -971,33 +971,33 @@
         </mat-form-field>
 
         <mat-form-field appearance="outline" class="full-width">
-          <mat-label>Agreement Name</mat-label>
-          <input matInput [(ngModel)]="agreementForm.displayName" placeholder="e.g. Job Placement Agreement – John Doe" />
+          <mat-label>Naziv ugovora</mat-label>
+          <input matInput [(ngModel)]="agreementForm.displayName" placeholder="npr. Ugovor o zapošljavanju – Jovan Jovanović" />
         </mat-form-field>
 
         <div class="agreement-preview-wrap" *ngIf="agreementSelectedTemplate">
           <p class="agreement-preview-note" *ngIf="!agreementPreviewUrl && !agreementPreviewing">
-            Preview updates as you type — your values replace the red placeholders.
+            Pregled se ažurira dok kucate — vaše vrednosti zamenjuju crvene placeholdere.
           </p>
-          <p class="agreement-preview-note" *ngIf="agreementPreviewing">Updating preview…</p>
+          <p class="agreement-preview-note" *ngIf="agreementPreviewing">Ažuriranje pregleda…</p>
           <iframe *ngIf="agreementPreviewUrl" [src]="agreementPreviewUrl" class="agreement-preview-iframe" title="Agreement Preview"></iframe>
         </div>
       </ng-container>
     </div>
 
     <div class="dialog-actions">
-      <button mat-button (click)="closeAgreementDialog()">Cancel</button>
+      <button mat-button (click)="closeAgreementDialog()">Otkaži</button>
       <button mat-stroked-button (click)="previewAgreementPdf()" [disabled]="agreementPreviewing || !agreementForm.templateId">
         <mat-icon>visibility</mat-icon>
-        Preview
+        Pregled
       </button>
       <button mat-raised-button style="background:#1565c0;color:#fff" (click)="saveAgreement(false)" [disabled]="agreementSaving">
         <mat-icon>save</mat-icon>
-        {{ agreementSaving ? 'Saving…' : 'Save PDF' }}
+        {{ agreementSaving ? 'Čuvanje…' : 'Sačuvaj PDF' }}
       </button>
       <button mat-raised-button color="primary" (click)="saveAgreement(true)" [disabled]="agreementSaving">
         <mat-icon>email</mat-icon>
-        {{ agreementSaving ? 'Sending…' : 'Save & Send Email' }}
+        {{ agreementSaving ? 'Slanje…' : 'Sačuvaj i pošalji email' }}
       </button>
     </div>
   </div>

@@ -1411,7 +1411,7 @@ export class ModuleManagementComponent implements OnInit {
   }
 
   formatDate(date: Date | string): string {
-    return new Date(date).toLocaleDateString('en-US', {
+    return new Date(date).toLocaleDateString('sr-Latn-RS', {
       year: 'numeric',
       month: 'short',
       day: 'numeric',

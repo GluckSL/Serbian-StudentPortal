@@ -82,15 +82,15 @@ export class PaymentApprovalDecisionDialogComponent implements AfterViewInit {
   readonly levels = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
   readonly paymentMethods = ['Bank Transfer', 'UPI', 'Cash', 'Card', 'Other'];
   readonly paymentTypes = [
-    { value: 'LANGUAGE_FEE', label: 'Language course fee' },
-    { value: 'DOCS_PAYMENT', label: 'Documentation payment' },
-    { value: 'VISA_PAYMENT', label: 'Visa payment' },
-    { value: 'CUSTOM_PAYMENT', label: 'Custom / level slot' },
-    { value: 'Monthly Fee', label: 'Monthly fee' },
-    { value: 'Registration', label: 'Registration' },
-    { value: 'Exam Fee', label: 'Exam fee' },
-    { value: 'Custom', label: 'Custom (legacy)' },
-    { value: 'Other', label: 'Other' },
+    { value: 'LANGUAGE_FEE', label: 'Naknada za jezički kurs' },
+    { value: 'DOCS_PAYMENT', label: 'Plaćanje dokumentacije' },
+    { value: 'VISA_PAYMENT', label: 'Plaćanje vize' },
+    { value: 'CUSTOM_PAYMENT', label: 'Prilagođeno / nivo slot' },
+    { value: 'Monthly Fee', label: 'Mesečna naknada' },
+    { value: 'Registration', label: 'Registracija' },
+    { value: 'Exam Fee', label: 'Naknada za ispit' },
+    { value: 'Custom', label: 'Prilagođeno (nasleđeno)' },
+    { value: 'Other', label: 'Ostalo' },
   ];
 
   constructor(
@@ -135,7 +135,7 @@ export class PaymentApprovalDecisionDialogComponent implements AfterViewInit {
   }
 
   get title(): string {
-    return 'Review payment';
+    return 'Pregledaj plaćanje';
   }
 
   get studentName(): string {
@@ -163,7 +163,7 @@ export class PaymentApprovalDecisionDialogComponent implements AfterViewInit {
   }
 
   get customTypeLabel(): string {
-    return this.paymentType === 'LANGUAGE_FEE' ? 'Level (A1–B2)' : 'Category / label';
+    return this.paymentType === 'LANGUAGE_FEE' ? 'Nivo (A1–B2)' : 'Kategorija / oznaka';
   }
 
   get canApprove(): boolean {
@@ -232,7 +232,7 @@ export class PaymentApprovalDecisionDialogComponent implements AfterViewInit {
   }
 
   fmt(val: number): string {
-    return (val ?? 0).toLocaleString('en-IN');
+    return (val ?? 0).toLocaleString('sr-Latn-RS');
   }
 
   currencyLabel(currency: string | null | undefined): string {

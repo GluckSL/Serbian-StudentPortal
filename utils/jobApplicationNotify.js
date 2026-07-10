@@ -53,13 +53,13 @@ async function notifyJobApplicationSubmitted({ application, opening, file }) {
   const recipients = parseJobApplicationNotifyEmails();
   if (!recipients.length) return;
 
-  const adminUrl = `${process.env.FRONTEND_URL || 'https://gluckstudentsportal.com'}/admin/job-openings`;
+  const adminUrl = `${process.env.PORTAL_URL || process.env.FRONTEND_URL || 'https://portal.gluckglobal.rs'}/admin/job-openings`;
   const appliedAt = application.createdAt
-    ? new Date(application.createdAt).toLocaleString('en-IN', {
+    ? new Date(application.createdAt).toLocaleString('sr-Latn-RS', {
         dateStyle: 'medium',
         timeStyle: 'short',
       })
-    : new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
+    : new Date().toLocaleString('sr-Latn-RS', { dateStyle: 'medium', timeStyle: 'short' });
 
   const attachments = buildJobApplicationResumeAttachment(file, application.resumeUrl);
   const resumeNote = attachments.length

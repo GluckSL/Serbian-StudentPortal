@@ -3,37 +3,37 @@
     <div class="acr-header__main">
       <a class="acr-back" routerLink="/class-recordings">
         <mat-icon>arrow_back</mat-icon>
-        Class Recordings
+        Snimci časova
       </a>
-      <h1 class="acr-header__title">Self Pace</h1>
+      <h1 class="acr-header__title">Sopstveni tempo</h1>
       <p class="acr-header__sub">
-        Activate batches, create journey days, and map whichever recordings you want for each day.
+        Aktivirajte grupe, kreirajte dane putovanja i mapirajte snimke koje želite za svaki dan.
       </p>
     </div>
     <div class="acr-header__actions">
       <button type="button" class="acr-btn acr-btn--ghost-light" (click)="loadRules()" [disabled]="loading">
         <mat-icon>refresh</mat-icon>
-        Refresh
+        Osveži
       </button>
       <button *ngIf="canManage" type="button" class="acr-btn acr-btn--light" (click)="openAddForm()">
         <mat-icon>add</mat-icon>
-        Add day
+        Dodaj dan
       </button>
     </div>
   </header>
 
   <section class="acr-card acr-batch-activation">
     <div class="acr-card__toolbar">
-      <span class="acr-card__count">Activated batches for Self Pace</span>
+      <span class="acr-card__count">Aktivirane grupe za sopstveni tempo</span>
     </div>
     <div class="acr-batch-activation__body">
       <div class="acr-batch-input-row">
         <input class="acr-input" type="text" [(ngModel)]="batchInput"
-          placeholder="Type batch (e.g. 36 or Batch 36) and press Enter" (keyup.enter)="addBatchFromInput()" />
-        <button type="button" class="acr-btn acr-btn--ghost" (click)="addBatchFromInput()">Add batch</button>
+          placeholder="Unesite grupu (npr. 36 ili Grupa 36) i pritisnite Enter" (keyup.enter)="addBatchFromInput()" />
+        <button type="button" class="acr-btn acr-btn--ghost" (click)="addBatchFromInput()">Dodaj grupu</button>
         <button *ngIf="canManage" type="button" class="acr-btn acr-btn--primary" (click)="saveActiveBatches()"
           [disabled]="savingBatches">
-          {{ savingBatches ? 'Saving…' : 'Save active batches' }}
+          {{ savingBatches ? 'Čuvanje…' : 'Sačuvaj aktivne grupe' }}
         </button>
       </div>
       <div class="acr-batch-chips">
@@ -43,7 +43,7 @@
             <mat-icon>close</mat-icon>
           </button>
         </span>
-        <span *ngIf="!activeBatches.length" class="acr-batch-empty">No active batch yet.</span>
+        <span *ngIf="!activeBatches.length" class="acr-batch-empty">Nema aktivnih grupa.</span>
       </div>
     </div>
   </section>
@@ -56,21 +56,21 @@
   <div class="acr-stats" *ngIf="!loading || rules.length">
     <div class="acr-stat acr-stat--purple">
       <span class="acr-stat__val">{{ loading ? '…' : activeRulesCount }}</span>
-      <span class="acr-stat__lbl">Active journeys</span>
+      <span class="acr-stat__lbl">Aktivna putovanja</span>
     </div>
     <div class="acr-stat acr-stat--slate">
       <span class="acr-stat__val">{{ loading ? '…' : inactiveRulesCount }}</span>
-      <span class="acr-stat__lbl">Inactive</span>
+      <span class="acr-stat__lbl">Neaktivno</span>
     </div>
     <div class="acr-stat acr-stat--blue">
       <span class="acr-stat__val">{{ loading ? '…' : rules.length }}</span>
-      <span class="acr-stat__lbl">Total days</span>
+      <span class="acr-stat__lbl">Ukupno dana</span>
     </div>
   </div>
 
   <div class="acr-card" *ngIf="loading">
     <div class="acr-card__toolbar">
-      <span class="acr-card__count">Loading journeys…</span>
+      <span class="acr-card__count">Učitavanje putovanja…</span>
     </div>
     <div class="acr-skeleton">
       <div *ngFor="let _ of skeletonRows" class="acr-skeleton__row"></div>
@@ -79,47 +79,47 @@
 
   <div class="acr-card acr-card--empty" *ngIf="!loading && !rules.length">
     <mat-icon class="acr-empty__icon">route</mat-icon>
-    <h2>No journey day yet</h2>
-    <p>Create journey day cards and map recordings to them.</p>
+    <h2>Nema dana putovanja</h2>
+    <p>Kreirajte kartice dana putovanja i mapirajte snimke na njih.</p>
     <button *ngIf="canManage" type="button" class="acr-btn acr-btn--primary" (click)="openAddForm()">
       <mat-icon>add</mat-icon>
-      Add first journey day
+      Dodaj prvi dan putovanja
     </button>
   </div>
 
   <div class="acr-card" *ngIf="!loading && rules.length">
     <div class="acr-card__toolbar">
-      <span class="acr-card__count">{{ rules.length }} journey day{{ rules.length !== 1 ? 's' : '' }}</span>
+      <span class="acr-card__count">{{ rules.length }} dan{{ rules.length !== 1 ? 'a' : '' }} putovanja</span>
     </div>
     <div class="acr-rules">
       <article *ngFor="let rule of rules" class="acr-rule" [class.acr-rule--inactive]="!rule.active">
         <div class="acr-rule__main">
           <div class="acr-rule__flow">
             <div class="acr-rule__day">
-              <span class="acr-rule__batch-label">Journey</span>
+              <span class="acr-rule__batch-label">Putovanje</span>
               <span class="acr-rule__day-value">{{ journeyCardTitle(rule) }}</span>
             </div>
             <div class="acr-rule__connector" aria-hidden="true"><mat-icon>arrow_forward</mat-icon></div>
             <div class="acr-rule__batch acr-rule__batch--student">
-              <span class="acr-rule__batch-label">Batches</span>
+              <span class="acr-rule__batch-label">Grupe</span>
               <span class="acr-rule__batch-value">{{ formatBatchList(rule.targetBatches || []) }}</span>
             </div>
           </div>
           <div class="acr-rule__meta">
             <span class="acr-pill" [class.acr-pill--active]="rule.active" [class.acr-pill--inactive]="!rule.active">
-              {{ rule.active ? 'Active' : 'Inactive' }}
+              {{ rule.active ? 'Aktivno' : 'Neaktivno' }}
             </span>
-            <span class="acr-rule__date" *ngIf="rule.createdAt">Added {{ formatDate(rule.createdAt) }}</span>
+            <span class="acr-rule__date" *ngIf="rule.createdAt">Dodato {{ formatDate(rule.createdAt) }}</span>
             <p class="acr-rule__notes" *ngIf="rule.notes">{{ rule.notes }}</p>
             <div class="acr-mapped-counts">
-              <span class="acr-badge acr-badge--ok">Manual: {{ (rule.mappedManualRecordingIds || []).length }}</span>
+              <span class="acr-badge acr-badge--ok">Ručno: {{ (rule.mappedManualRecordingIds || []).length }}</span>
               <span class="acr-badge">Zoom: {{ (rule.mappedZoomMeetingLinkIds || []).length }}</span>
             </div>
           </div>
           <div class="acr-rule__actions">
             <button type="button" class="acr-icon-btn acr-icon-btn--active" (click)="openMapping(rule)">
               <mat-icon>playlist_add</mat-icon>
-              <span class="acr-icon-btn__label">Map recordings</span>
+              <span class="acr-icon-btn__label">Mapiraj snimke</span>
             </button>
             <button type="button" class="acr-icon-btn" [class.acr-icon-btn--active]="isPreviewOpen(rule)"
               (click)="loadPreview(rule)">
@@ -137,7 +137,7 @@
         <div class="acr-preview" *ngIf="isPreviewOpen(rule)">
           <div class="acr-preview__loading" *ngIf="previewLoading">
             <mat-spinner diameter="28"></mat-spinner>
-            <span>Loading preview…</span>
+            <span>Učitavanje pregleda…</span>
           </div>
           <ng-container *ngIf="!previewLoading && preview">
             <div class="acr-preview__stats">
@@ -145,14 +145,14 @@
                 <mat-icon>how_to_reg</mat-icon>
                 <div>
                   <span class="acr-preview-stat__val">{{ preview.attendedCount }}</span>
-                  <span class="acr-preview-stat__lbl">Attended</span>
+                  <span class="acr-preview-stat__lbl">Prisustvovalo</span>
                 </div>
               </div>
               <div class="acr-preview-stat">
                 <mat-icon>groups</mat-icon>
                 <div>
                   <span class="acr-preview-stat__val">{{ preview.totalStudents }}</span>
-                  <span class="acr-preview-stat__lbl">Students</span>
+                  <span class="acr-preview-stat__lbl">Učenici</span>
                 </div>
               </div>
               <div class="acr-preview-stat acr-preview-stat--purple">
@@ -160,7 +160,7 @@
                 <div>
                   <span class="acr-preview-stat__val">{{ preview.sourceZoomRecordings.length +
                     preview.sourceManualRecordings.length }}</span>
-                  <span class="acr-preview-stat__lbl">Mapped recordings</span>
+                  <span class="acr-preview-stat__lbl">Mapirani snimci</span>
                 </div>
               </div>
             </div>
@@ -175,24 +175,24 @@
     <div class="acr-modal" (click)="$event.stopPropagation()">
       <header class="acr-modal__header">
         <div>
-          <h2 class="acr-modal__title">{{ editing ? 'Edit Journey Day' : 'Create Journey Day' }}</h2>
-          <p class="acr-modal__subtitle">Select which active batches this day applies to.</p>
+          <h2 class="acr-modal__title">{{ editing ? 'Uredi dan putovanja' : 'Kreiraj dan putovanja' }}</h2>
+          <p class="acr-modal__subtitle">Izaberite koje aktivne grupe ovaj dan obuhvata.</p>
         </div>
         <button type="button" class="acr-modal__close" (click)="closeForm()"><mat-icon>close</mat-icon></button>
       </header>
       <div class="acr-modal__body">
         <div class="acr-form-grid">
           <div class="acr-field">
-            <label class="acr-label">Journey title</label>
-            <input class="acr-input" [(ngModel)]="form.journeyTitle" placeholder="e.g. Journey 1 (optional)" />
+            <label class="acr-label">Naslov putovanja</label>
+            <input class="acr-input" [(ngModel)]="form.journeyTitle" placeholder="npr. Putovanje 1 (opciono)" />
           </div>
           <div class="acr-field">
-            <label class="acr-label">Journey day <span class="acr-required">*</span></label>
+            <label class="acr-label">Dan putovanja <span class="acr-required">*</span></label>
             <input class="acr-input" type="number" min="1" max="200" [(ngModel)]="form.courseDay"
-              placeholder="e.g. 1" />
+              placeholder="npr. 1" />
           </div>
           <div class="acr-field acr-field--full">
-            <label class="acr-label">Applies to active batches <span class="acr-required">*</span></label>
+            <label class="acr-label">Primenjuje se na aktivne grupe <span class="acr-required">*</span></label>
             <div class="acr-selector-chips">
               <button type="button" class="acr-selector-chip"
                 [class.acr-selector-chip--active]="form.targetBatches.includes(b)" *ngFor="let b of activeBatches"
@@ -202,17 +202,17 @@
             </div>
           </div>
           <div class="acr-field acr-field--full">
-            <label class="acr-label">Notes</label>
+            <label class="acr-label">Napomene</label>
             <textarea class="acr-input acr-textarea" rows="2" [(ngModel)]="form.notes"
-              placeholder="Optional note"></textarea>
+              placeholder="Opcionalna napomena"></textarea>
           </div>
         </div>
         <div *ngIf="formError" class="acr-form-error"><mat-icon>warning</mat-icon>{{ formError }}</div>
       </div>
       <footer class="acr-modal__footer">
-        <button type="button" class="acr-btn acr-btn--ghost" (click)="closeForm()">Cancel</button>
+        <button type="button" class="acr-btn acr-btn--ghost" (click)="closeForm()">Otkaži</button>
         <button type="button" class="acr-btn acr-btn--primary" (click)="saveRule()" [disabled]="saving">
-          {{ saving ? 'Saving…' : (editing ? 'Save changes' : 'Create day') }}
+          {{ saving ? 'Čuvanje…' : (editing ? 'Sačuvaj izmene' : 'Kreiraj dan') }}
         </button>
       </footer>
     </div>
@@ -223,33 +223,33 @@
     <div class="acr-modal acr-modal--wide" (click)="$event.stopPropagation()">
       <header class="acr-modal__header">
         <div>
-          <h2 class="acr-modal__title">Map recordings · {{ journeyCardTitle(mappingJourney) }}</h2>
-          <p class="acr-modal__subtitle">Students get these recordings after attending this journey day class.</p>
+          <h2 class="acr-modal__title">Mapiraj snimke · {{ journeyCardTitle(mappingJourney) }}</h2>
+          <p class="acr-modal__subtitle">Učenici dobijaju ove snimke nakon pohađanja ovog dana putovanja.</p>
         </div>
         <button type="button" class="acr-modal__close" (click)="closeMapping()"><mat-icon>close</mat-icon></button>
       </header>
       <div class="acr-modal__body">
         <input class="acr-input" [(ngModel)]="mappingSearch" (ngModelChange)="applyCatalogFilter()"
-          placeholder="Search recordings..." />
+          placeholder="Pretraži snimke..." />
         <div class="acr-catalog-list" *ngIf="!mappingLoading; else mapLoading">
           <div class="acr-catalog-item" *ngFor="let row of filteredCatalog">
             <div>
               <div class="acr-catalog-title">{{ row.title }}</div>
-              <div class="acr-catalog-meta">{{ row.type | titlecase }} · Day {{ row.courseDay || '—' }} · {{
-                row.isPublished ? 'Published' : 'Unpublished' }}</div>
+              <div class="acr-catalog-meta">{{ row.type | titlecase }} · Dan {{ row.courseDay || '—' }} · {{
+                row.isPublished ? 'Objavljeno' : 'Neobjavljeno' }}</div>
             </div>
             <button type="button" class="acr-btn" [class.acr-btn--primary]="!isRecordingMapped(mappingJourney, row)"
               [class.acr-btn--ghost]="isRecordingMapped(mappingJourney, row)"
               (click)="toggleMappedRecording(mappingJourney, row)">
-              {{ isRecordingMapped(mappingJourney, row) ? 'Unmap' : 'Map' }}
+              {{ isRecordingMapped(mappingJourney, row) ? 'Odmapi' : 'Mapiraj' }}
             </button>
           </div>
-          <div class="acr-batch-empty" *ngIf="!filteredCatalog.length">No recording found.</div>
+          <div class="acr-batch-empty" *ngIf="!filteredCatalog.length">Snimak nije pronađen.</div>
         </div>
         <ng-template #mapLoading>
           <div class="acr-preview__loading">
             <mat-spinner diameter="28"></mat-spinner>
-            <span>Loading recordings…</span>
+            <span>Učitavanje snimaka…</span>
           </div>
         </ng-template>
       </div>

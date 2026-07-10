@@ -68,8 +68,8 @@ async function sumTimeSpent(studentId, start, end) {
 function buildMessage(student, stats) {
   const { thisWeek, lastWeek } = stats;
   return (
-    `Hi ${student.name}! This week: ${thisWeek.classes} classes, ${thisWeek.exercises} exercises, ` +
-    `${thisWeek.timeSpent} min study (last week: ${lastWeek.classes}, ${lastWeek.exercises}, ${lastWeek.timeSpent} min). Keep going!`
+    `Zdravo ${student.name}! Ova nedelja: ${thisWeek.classes} časova, ${thisWeek.exercises} vežbi, ` +
+    `${thisWeek.timeSpent} min učenja (prošla nedelja: ${lastWeek.classes}, ${lastWeek.exercises}, ${lastWeek.timeSpent} min). Nastavite tako!`
   );
 }
 

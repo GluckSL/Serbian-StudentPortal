@@ -15,7 +15,7 @@
       routerLink="/admin/payment-notifications"
       class="sidebar-notif-btn"
       routerLinkActive="sidebar-notif-btn--active"
-      [attr.aria-label]="paymentDueNotificationCount > 0 ? paymentDueNotificationCount + ' payment alerts' : 'Payment notifications'"
+      [attr.aria-label]="paymentDueNotificationCount > 0 ? paymentDueNotificationCount + ' obaveštenja o plaćanju' : 'Obaveštenja o plaćanju'"
       (click)="closeSidebar.emit()">
       <span class="material-icons" aria-hidden="true">notifications</span>
       <span class="sidebar-notif-badge" *ngIf="paymentDueNotificationCount > 0">{{ paymentDueNotificationCount }}</span>
@@ -23,7 +23,7 @@
     <button
       type="button"
       class="sidebar-close-btn"
-      aria-label="Close menu"
+      aria-label="Zatvori meni"
       (click)="closeSidebar.emit()">
       <span class="material-icons" aria-hidden="true">close</span>
     </button>
@@ -69,7 +69,7 @@
               <span
                 *ngIf="item.id === 'payment-request' && paymentRequestPendingCount > 0"
                 class="nav-pending-badge"
-                [attr.aria-label]="paymentRequestPendingCount + ' pending approvals'">
+                [attr.aria-label]="paymentRequestPendingCount + ' čeka na odobrenje'">
                 {{ paymentRequestPendingCount }}
               </span>
             </a>
@@ -95,11 +95,11 @@
     </a>
     <button *ngIf="isStudent || isTeacher" class="tour-btn" (click)="restartTour()">
       <span class="material-icons">school</span>
-      Take a Tour
+      Obilazak portala
     </button>
     <button class="logout-btn" (click)="logout()">
       <span class="material-icons">logout</span>
-      Logout
+      Odjava
     </button>
   </div>
 </nav>

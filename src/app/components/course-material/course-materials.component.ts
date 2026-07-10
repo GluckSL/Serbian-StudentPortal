@@ -21,7 +21,7 @@ interface Course {
   styleUrls: ['./course-materials.component.css']
 })
 export class CourseMaterialsComponent implements OnInit {
-    apiBaseUrl = environment.apiUrl; // https://gluckstudentsportal.com
+    apiBaseUrl = environment.apiUrl || 'https://portal.gluckglobal.rs';
     materials: (CourseMaterial & { courseTitle?: string })[] = [];
     loading = true;
     error = '';

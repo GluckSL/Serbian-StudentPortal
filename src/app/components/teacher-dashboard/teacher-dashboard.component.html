@@ -8,15 +8,15 @@
         <div class="col-md-8">
           <h1 class="teacher-title">
             <i class="fas fa-users"></i>
-            My Students
+            Moji učenici
           </h1>
-          <p class="teacher-subtitle">View and monitor your assigned students</p>
+          <p class="teacher-subtitle">Pregledajte i pratite vaše dodeljene učenike</p>
         </div>
         <div class="col-md-4 text-end">
           <div class="teacher-stats-quick">
             <div class="stat-item">
               <span class="stat-number">{{ filteredStudents.length }}</span>
-              <span class="stat-label">Total Students</span>
+              <span class="stat-label">Ukupno učenika</span>
             </div>
           </div>
         </div>
@@ -36,18 +36,18 @@
             <ng-container *ngIf="isTeacherAdmin()">
               <button class="btn btn-outline-danger me-2" routerLink="/admin-dashboard">
                 <i class="fas fa-user-graduate"></i>
-                Manage All Students
+                Upravljaj svim učenicima
               </button>
               <button class="btn btn-outline-warning me-2" routerLink="/teachers">
                 <i class="fas fa-chalkboard-teacher"></i>
-                Manage Teachers
+                Upravljaj nastavnicima
               </button>
             </ng-container>
           </div>
           <div class="col-md-6 text-end">
             <button class="btn btn-outline-primary" routerLink="/teacher/resources">
               <i class="fas fa-file-powerpoint"></i>
-              Resources
+              Resursi
             </button>
           </div>
         </div>
@@ -59,22 +59,22 @@
           <div class="card-header d-flex justify-content-between align-items-center">
             <h5 class="mb-0">
               <i class="fas fa-filter"></i>
-              Filter Students
+              Filtriraj učenike
             </h5>
             <button class="btn btn-outline-secondary btn-sm" (click)="clearFilters()">
-              <i class="fas fa-times"></i> Clear Filters
+              <i class="fas fa-times"></i> Obriši filtere
             </button>
           </div>
           <div class="card-body">
             <div class="row g-2">
               <div class="col-md-3">
-                <label class="form-label">Student Name</label>
-                <input type="text" class="form-control" [(ngModel)]="filters.name" placeholder="Search by name..." (input)="applyFilters()">
+                <label class="form-label">Ime učenika</label>
+                <input type="text" class="form-control" [(ngModel)]="filters.name" placeholder="Pretraži po imenu..." (input)="applyFilters()">
               </div>
               <div class="col-md-3">
-                <label class="form-label">Level</label>
+                <label class="form-label">Nivo</label>
                 <select class="form-select" [(ngModel)]="filters.level" (change)="applyFilters()">
-                  <option value="">All Levels</option>
+                  <option value="">Svi nivoi</option>
                   <option value="A1">A1</option>
                   <option value="A2">A2</option>
                   <option value="B1">B1</option>
@@ -86,14 +86,14 @@
               <div class="col-md-3">
                 <label class="form-label">Plan</label>
                 <select class="form-select" [(ngModel)]="filters.plan" (change)="applyFilters()">
-                  <option value="">All Plans</option>
+                  <option value="">Svi planovi</option>
                   <option value="PLATINUM">Platinum</option>
                   <option value="SILVER">Silver</option>
                 </select>
               </div>
               <div class="col-md-3">
-                <label class="form-label">Batch</label>
-                <input type="number" class="form-control" [(ngModel)]="filters.batch" placeholder="Batch #" (input)="applyFilters()">
+                <label class="form-label">Grupa</label>
+                <input type="number" class="form-control" [(ngModel)]="filters.batch" placeholder="Grupa #" (input)="applyFilters()">
               </div>
             </div>
           </div>
@@ -105,7 +105,7 @@
         <div class="d-flex justify-content-between align-items-center">
           <div class="results-info">
             <span class="results-count">{{ filteredStudents.length }}</span>
-            <span class="results-text">students found</span>
+            <span class="results-text">pronađenih učenika</span>
           </div>
         </div>
       </div>
@@ -117,14 +117,14 @@
             <table class="table table-hover mb-0">
               <thead class="table-dark">
                 <tr>
-                  <th>Reg No</th>
-                  <th>Student Info</th>
+                  <th>Reg. br.</th>
+                  <th>Podaci učenika</th>
                   <th>Plan</th>
-                  <th>Batch</th>
-                  <th>Level</th>
-                  <th>Medium</th>
+                  <th>Grupa</th>
+                  <th>Nivo</th>
+                  <th>Medijum</th>
                   <th>Status</th>
-                  <th>Last Credentials Sent</th>
+                  <th>Poslednje poslate akreditive</th>
                 </tr>
               </thead>
               <tbody>

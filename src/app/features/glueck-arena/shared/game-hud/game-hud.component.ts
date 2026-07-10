@@ -9,12 +9,12 @@ import { MaterialModule } from '../../../../shared/material.module';
   template: `
     <div class="hud">
       <!-- Lives as smile buddies (GlückArena vibe) -->
-      <div class="hud__lives" *ngIf="showLives" role="group" aria-label="Lives remaining">
+      <div class="hud__lives" *ngIf="showLives" role="group" aria-label="Preostali životi">
         <span
           *ngFor="let h of lifeSlots"
           class="hud__life"
           [class.hud__life--lost]="h > lives"
-          [attr.aria-label]="h <= lives ? 'Life active' : 'Life used'"
+          [attr.aria-label]="h <= lives ? 'Aktivan život' : 'Iskorišćen život'"
         ><mat-icon class="hud__life-icon" aria-hidden="true">sentiment_very_satisfied</mat-icon></span>
       </div>
 

@@ -277,7 +277,7 @@ async function sendNeverLoggedInReport() {
       return;
     }
 
-    const today = new Date().toLocaleDateString('en-IN', {
+    const today = new Date().toLocaleDateString('sr-Latn-RS', {
       timeZone: TZ,
       weekday: 'long',
       year: 'numeric',

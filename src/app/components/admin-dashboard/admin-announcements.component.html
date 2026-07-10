@@ -1,13 +1,13 @@
 <div class="ann-page">
   <header class="ann-header">
-    <h1>Create Announcement</h1>
-    <p>Broadcast information across specific student batches and schedule deployment.</p>
+    <h1>Kreiraj obaveštenje</h1>
+    <p>Emitujte informacije za određene grupe učenika i zakazujte slanje.</p>
   </header>
 
   <div class="ann-layout">
     <section class="ann-main">
       <div class="ann-block">
-        <div class="ann-block__title">Announcement Content</div>
+        <div class="ann-block__title">Sadržaj obaveštenja</div>
 
         <div class="ann-type-switch">
           <label class="ann-radio ann-radio--fixed">
@@ -16,17 +16,17 @@
         </div>
 
         <div class="ann-field">
-          <label>Website Announcement Title</label>
+          <label>Naslov obaveštenja na veb-sajtu</label>
           <quill-editor
             class="ann-editor ann-title-editor"
             [(ngModel)]="title"
             [modules]="titleQuillModules"
-            placeholder="e.g. Q4 Academic Calendar Update"
+            placeholder="npr. Ažuriranje akademskog kalendara za 4. kvartal"
           ></quill-editor>
         </div>
 
         <div class="ann-field">
-          <label>Announcement Body</label>
+          <label>Telo obaveštenja</label>
           <quill-editor
             class="ann-editor"
             [(ngModel)]="body"
@@ -36,7 +36,7 @@
         </div>
 
         <div class="ann-email-box">
-          <h3>Email Add-on</h3>
+          <h3>Email dodatak</h3>
           <p class="ann-email-box__note">
             For <strong>Website + Email</strong>, the <strong>email subject</strong> and <strong>email body</strong> will use the same
             <strong>Title</strong> and <strong>Body</strong> you entered above.
@@ -45,12 +45,12 @@
       </div>
 
       <div class="ann-block">
-        <div class="ann-block__title">Attachments</div>
+        <div class="ann-block__title">Prilozi</div>
         <label class="ann-dropzone">
           <input type="file" multiple (change)="onFileChange($event)" />
           <span class="ann-dropzone__icon">⬆</span>
-          <strong>Click to upload or drag and drop</strong>
-          <small>PDF, DOCX, JPG or PNG (max. 25MB each)</small>
+          <strong>Kliknite za otpremanje ili prevucite i pustite</strong>
+          <small>PDF, DOCX, JPG ili PNG (maks. 25MB svaki)</small>
         </label>
 
         <div class="ann-file-list" *ngIf="selectedFiles.length">
@@ -66,12 +66,12 @@
 
     <aside class="ann-side">
       <div class="ann-block ann-block--side">
-        <div class="ann-block__title">Distribution Settings</div>
+        <div class="ann-block__title">Podešavanja distribucije</div>
 
         <div class="ann-field">
-          <label>Target Batches</label>
+          <label>Ciljne grupe</label>
           <select [(ngModel)]="batchToAdd" (change)="onBatchDropdownChange()">
-            <option value="">Select target batch...</option>
+            <option value="">Izaberite ciljnu grupu...</option>
             <option [value]="goStudentsTargetValue">{{ goStudentsTargetLabel }}</option>
             <option *ngFor="let batch of batches" [value]="batch.batchName">{{ batch.batchName }}</option>
           </select>
@@ -84,7 +84,7 @@
         </div>
 
         <div class="ann-field">
-          <label>Send Type</label>
+          <label>Vrsta slanja</label>
           <div class="ann-send-toggle">
             <button
               type="button"
@@ -92,7 +92,7 @@
               [class.ann-send-toggle__btn--active]="sendMode === 'instant'"
               (click)="setSendMode('instant')"
             >
-              Instant
+              Odmah
             </button>
             <button
               type="button"
@@ -100,19 +100,19 @@
               [class.ann-send-toggle__btn--active]="sendMode === 'schedule'"
               (click)="setSendMode('schedule')"
             >
-              Schedule
+              Zakaži
             </button>
           </div>
         </div>
 
         <div class="ann-field" *ngIf="isScheduled">
-          <label>Schedule Date & Time</label>
+          <label>Datum i vreme zakazivanja</label>
           <input type="datetime-local" [(ngModel)]="scheduleAt" [attr.min]="minScheduleLocal" />
-          <small>Select when this announcement should be sent.</small>
+          <small>Izaberite kada treba poslati ovo obaveštenje.</small>
         </div>
 
         <div class="ann-preview">
-          <div class="ann-preview__tag">Live Preview</div>
+          <div class="ann-preview__tag">Pregled uživo</div>
           <div class="ann-preview__title">{{ previewTitle }}</div>
           <div class="ann-preview__body">{{ previewBody }}</div>
         </div>
@@ -120,37 +120,37 @@
         <button type="button" class="ann-submit" [disabled]="saving" (click)="createAnnouncement()">
           {{
             saving
-              ? (isScheduled ? 'Scheduling...' : 'Sending...')
-              : (isScheduled ? 'Schedule announcement' : 'Send Announcement')
+              ? (isScheduled ? 'Zakazivanje...' : 'Slanje...')
+              : (isScheduled ? 'Zakaži obaveštenje' : 'Pošalji obaveštenje')
           }}
         </button>
         <button type="button" class="ann-draft" [disabled]="saving" (click)="saveDraftPlaceholder()">
-          Save as Draft
+          Sačuvaj kao nacrt
         </button>
       </div>
 
       <div class="ann-block ann-targets">
-        <div class="ann-block__title">Visible To Recipients</div>
+        <div class="ann-block__title">Vidljivo primaocima</div>
         <div class="ann-targets__count">
           {{ targetStudents.length }} student{{ targetStudents.length === 1 ? '' : 's' }}
           <span *ngIf="targetTeachers.length"> · {{ targetTeachers.length }} teacher{{ targetTeachers.length === 1 ? '' : 's' }}</span>
         </div>
         <p class="ann-targets__hint" *ngIf="!selectedBatches.length">
-          Select an audience to preview students and teachers who will receive this announcement.
+          Izaberite publiku za pregled učenika i nastavnika koji će primiti ovo obaveštenje.
         </p>
         <p class="ann-targets__hint" *ngIf="selectedBatches.length && loadingTargetStudents">
-          Loading students...
+          Učitavanje učenika...
         </p>
         <div class="ann-targets__empty" *ngIf="selectedBatches.length && !loadingTargetStudents && !targetStudents.length && !targetTeachers.length">
-          No active students or teachers found for selected audience.
+          Nema aktivnih učenika ili nastavnika za izabranu publiku.
         </div>
         <div class="ann-targets__list" *ngIf="!loadingTargetStudents && targetTeachers.length">
           <div class="ann-targets__item" *ngFor="let teacher of targetTeachers | slice:0:4">
-            <div class="ann-targets__name">{{ teacher.name }} <span class="ann-targets__role">Teacher</span></div>
+            <div class="ann-targets__name">{{ teacher.name }} <span class="ann-targets__role">Nastavnik</span></div>
             <div class="ann-targets__meta">{{ teacher.regNo }} | {{ teacher.email }}</div>
           </div>
           <div class="ann-targets__more" *ngIf="targetTeachers.length > 4">
-            +{{ targetTeachers.length - 4 }} more teachers
+            +{{ targetTeachers.length - 4 }} još nastavnika
           </div>
         </div>
         <div class="ann-targets__list" *ngIf="!loadingTargetStudents && targetStudents.length">
@@ -159,7 +159,7 @@
             <div class="ann-targets__meta">{{ student.regNo }} | {{ student.batch }}</div>
           </div>
           <div class="ann-targets__more" *ngIf="targetStudents.length > 8">
-            +{{ targetStudents.length - 8 }} more students
+            +{{ targetStudents.length - 8 }} još učenika
           </div>
         </div>
       </div>
@@ -168,14 +168,14 @@
 
   <section class="ann-history">
     <div class="ann-list-head">
-      <h2>All Announcements</h2>
+      <h2>Sva obaveštenja</h2>
       <button type="button" [disabled]="refreshing" (click)="refreshAnnouncements()">
-        {{ refreshing ? 'Refreshing...' : 'Refresh' }}
+        {{ refreshing ? 'Osvežavanje...' : 'Osveži' }}
       </button>
     </div>
 
-    <p *ngIf="loading">Loading announcements...</p>
-    <div *ngIf="!loading && !announcements.length" class="ann-empty">No announcements yet.</div>
+    <p *ngIf="loading">Učitavanje obaveštenja...</p>
+    <div *ngIf="!loading && !announcements.length" class="ann-empty">Još nema obaveštenja.</div>
 
     <div class="ann-item" *ngFor="let item of announcements">
       <div class="ann-item-head">
@@ -197,7 +197,7 @@
           class="ann-action ann-action--comments"
           (click)="openCommentsDialog(item)"
         >
-          Comments
+          Komentari
         </button>
         <button
           type="button"
@@ -205,7 +205,7 @@
           [disabled]="actionAnnouncementId === item._id"
           (click)="editAnnouncement(item)"
         >
-          Edit
+          Uredi
         </button>
         <button
           type="button"
@@ -213,7 +213,7 @@
           [disabled]="actionAnnouncementId === item._id"
           (click)="deleteAnnouncement(item)"
         >
-          {{ actionAnnouncementId === item._id ? 'Working...' : 'Delete' }}
+          {{ actionAnnouncementId === item._id ? 'Radi...' : 'Obriši' }}
         </button>
       </div>
       <div class="ann-files" *ngIf="item.attachments?.length">
@@ -225,10 +225,10 @@
 
     <div class="ann-pagination" *ngIf="!loading && totalCount > 0">
       <button type="button" class="ann-pagination__btn" [disabled]="currentPage <= 1" (click)="goToPage(currentPage - 1)">
-        Previous
+        Prethodna
       </button>
       <span class="ann-pagination__meta">
-        Page {{ currentPage }} of {{ totalPages || 1 }} · {{ totalCount }} total
+        Stranica {{ currentPage }} od {{ totalPages || 1 }} · {{ totalCount }} ukupno
       </span>
       <button
         type="button"
@@ -236,7 +236,7 @@
         [disabled]="currentPage >= totalPages || totalPages <= 1"
         (click)="goToPage(currentPage + 1)"
       >
-        Next
+        Sledeća
       </button>
     </div>
   </section>
@@ -251,43 +251,43 @@
   <div class="ann-modal-backdrop" *ngIf="editModalOpen">
     <div class="ann-modal" role="dialog" aria-modal="true" aria-label="Edit Announcement">
       <div class="ann-modal__head">
-        <h3>Edit Announcement</h3>
+        <h3>Uredi obaveštenje</h3>
         <button type="button" class="ann-modal__close" [disabled]="!!actionAnnouncementId" (click)="closeEditModal()">
           ✕
         </button>
       </div>
 
       <div class="ann-field">
-        <label>Title</label>
+        <label>Naslov</label>
         <quill-editor
           class="ann-editor ann-title-editor"
           [(ngModel)]="editForm.title"
           [modules]="titleQuillModules"
-          placeholder="Update title..."
+          placeholder="Ažurirajte naslov..."
         ></quill-editor>
       </div>
 
       <div class="ann-field">
-        <label>Body</label>
+        <label>Telo</label>
         <quill-editor
           class="ann-editor"
           [(ngModel)]="editForm.body"
           [modules]="quillModules"
-          placeholder="Update announcement body..."
+          placeholder="Ažurirajte telo obaveštenja..."
         ></quill-editor>
       </div>
 
       <div class="ann-field">
-        <label>Target Batches (comma separated)</label>
-        <input type="text" [(ngModel)]="editForm.targetBatchesText" placeholder="e.g. 100, 101A" />
+        <label>Ciljne grupe (odvojene zarezom)</label>
+        <input type="text" [(ngModel)]="editForm.targetBatchesText" placeholder="npr. 100, 101A" />
       </div>
 
       <div class="ann-modal__actions">
         <button type="button" class="ann-modal__btn ann-modal__btn--cancel" [disabled]="!!actionAnnouncementId" (click)="closeEditModal()">
-          Cancel
+          Otkaži
         </button>
         <button type="button" class="ann-modal__btn ann-modal__btn--save" [disabled]="!!actionAnnouncementId" (click)="saveEditedAnnouncement()">
-          {{ actionAnnouncementId ? 'Saving...' : 'Save Changes' }}
+          {{ actionAnnouncementId ? 'Čuvanje...' : 'Sačuvaj promene' }}
         </button>
       </div>
     </div>

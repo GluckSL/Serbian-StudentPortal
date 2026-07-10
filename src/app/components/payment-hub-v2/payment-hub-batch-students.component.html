@@ -3,17 +3,17 @@
     <div class="ph-insights-header-inner">
       <a routerLink="/admin/finance-dashboard/batches" class="ph-insights-back">
         <mat-icon>arrow_back</mat-icon>
-        Back to finance dashboard
+        Nazad na finansijsku kontrolnu tablu
       </a>
-      <h1 class="ph-insights-title">Batch {{ batch }} — students</h1>
-      <p class="ph-insights-sub">Students in this batch — use the status filter to show ongoing, completed, or other statuses.</p>
+      <h1 class="ph-insights-title">Grupa {{ batch }} — učenici</h1>
+      <p class="ph-insights-sub">Učenici u ovoj grupi — koristite filter statusa za prikaz aktivnih, završenih ili drugih statusa.</p>
     </div>
   </div>
 
   <div class="ph-insights-body">
     <ng-container *ngIf="!loading; else skeleton">
       <div class="ph-health-grid" *ngIf="rows.length">
-        <p class="ph-health-grid-heading">Student breakdown · click to filter table</p>
+        <p class="ph-health-grid-heading">Pregled učenika · kliknite za filtriranje tabele</p>
         <div class="ph-health-cards">
           <button
             type="button"
@@ -22,7 +22,7 @@
             [class.ph-health-card--active]="isInsightActive(opt.value)"
             [disabled]="insightCount(opt.key) === 0 && opt.value !== ''"
             (click)="applyInsightFilter(opt.value)"
-            [matTooltip]="opt.hint + (opt.value ? ' · Click again to clear' : '')"
+            [matTooltip]="opt.hint + (opt.value ? ' · Kliknite ponovo da biste obrisali' : '')"
           >
             <div class="ph-health-card-icon">
               <mat-icon>{{ opt.icon }}</mat-icon>
@@ -56,9 +56,9 @@
                   [hideZero]="true"
                 ></app-payment-currency-overdue-totals>
               </div>
-              <span class="ph-health-card-hint" *ngIf="opt.key === 'all'">In this batch</span>
+              <span class="ph-health-card-hint" *ngIf="opt.key === 'all'">U ovoj grupi</span>
               <span class="ph-health-card-hint" *ngIf="opt.key !== 'all'">
-                {{ studentPct(insightCount(opt.key), insightCount('all')) }} of students
+                {{ studentPct(insightCount(opt.key), insightCount('all')) }} učenika
               </span>
             </div>
             <mat-icon class="ph-health-card-chevron" *ngIf="isInsightActive(opt.value)">filter_alt</mat-icon>
@@ -69,15 +69,15 @@
       <section class="ph-table-section ph-surface" id="ph-batch-stu-table">
         <div class="ph-table-toolbar">
           <div class="ph-table-toolbar-left">
-            <h2 class="ph-section-title">Students</h2>
+            <h2 class="ph-section-title">Učenici</h2>
             <span class="ph-insight-filter-chip" *ngIf="studentInsight">
               <mat-icon>filter_alt</mat-icon>
               {{ activeInsightLabel() }}
-              <button type="button" class="ph-insight-filter-clear" (click)="applyInsightFilter(studentInsight)" matTooltip="Clear filter">
+              <button type="button" class="ph-insight-filter-clear" (click)="applyInsightFilter(studentInsight)" matTooltip="Obriši filter">
                 <mat-icon>close</mat-icon>
               </button>
             </span>
-            <span class="ph-select-meta">{{ displayRows.length }} shown</span>
+            <span class="ph-select-meta">{{ displayRows.length }} prikazano</span>
           </div>
           <div class="ph-scope-filter-bar">
             <button
@@ -108,7 +108,7 @@
               [class.ph-scope-btn--active]="isSlotScope"
               [matMenuTriggerFor]="slotScopeMenu"
             >
-              {{ isSlotScope ? slotScopeLabel : 'Level / Type' }}
+              {{ isSlotScope ? slotScopeLabel : 'Nivo / Vrsta' }}
               <mat-icon>arrow_drop_down</mat-icon>
             </button>
             <mat-menu #slotScopeMenu="matMenu">
@@ -124,8 +124,8 @@
               class="ph-batch-stu-search-input"
               type="search"
               [(ngModel)]="searchQuery"
-              placeholder="Search by name or email…"
-              aria-label="Search students"
+              placeholder="Pretraži po imenu ili emailu…"
+              aria-label="Pretraži učenike"
             />
           </div>
         </div>
@@ -134,15 +134,15 @@
           <table class="ph-table">
             <thead>
               <tr>
-                <th>Student</th>
+                <th>Učenik</th>
                 <th>Email</th>
-                <th>Level</th>
-                <th class="ph-num ph-col-compact">Journey day</th>
-                <th class="ph-num">Total amount</th>
-                <th class="ph-num">Total received</th>
-                <th class="ph-num">Pending</th>
-                <th>Language fee</th>
-                <th class="ph-col-actions">Actions</th>
+                <th>Nivo</th>
+                <th class="ph-num ph-col-compact">Dan putovanja</th>
+                <th class="ph-num">Ukupan iznos</th>
+                <th class="ph-num">Ukupno primljeno</th>
+                <th class="ph-num">Na čekanju</th>
+                <th>Naknada za jezik</th>
+                <th class="ph-col-actions">Akcije</th>
               </tr>
             </thead>
             <tbody>
@@ -184,10 +184,10 @@
                     class="ph-pending-incl-badge"
                     [class.ph-pending-incl-badge--off]="isStudentPendingExcluded(r.studentId)"
                     (click)="toggleStudentPendingExclusion(r)"
-                    [matTooltip]="isStudentPendingExcluded(r.studentId) ? 'Excluded from pending totals · tap to include' : 'Included in pending totals · tap to exclude'"
+                    [matTooltip]="isStudentPendingExcluded(r.studentId) ? 'Isključeno iz ukupnih iznosa na čekanju · kliknite da biste uključili' : 'Uključeno u ukupne iznose na čekanju · kliknite da biste isključili'"
                   >
                     <mat-icon>{{ isStudentPendingExcluded(r.studentId) ? 'do_not_disturb_on' : 'check_circle' }}</mat-icon>
-                    {{ isStudentPendingExcluded(r.studentId) ? 'excl.' : 'incl.' }}
+                    {{ isStudentPendingExcluded(r.studentId) ? 'isklj.' : 'uklj.' }}
                   </button>
                 </td>
                 <td>
@@ -196,7 +196,7 @@
                 <td class="ph-col-actions">
                   <button mat-flat-button color="primary" class="ph-btn-row" type="button" (click)="openStudentDetail(r)">
                     <mat-icon>open_in_new</mat-icon>
-                    Payments
+                    Plaćanja
                   </button>
                 </td>
               </tr>
@@ -206,14 +206,14 @@
 
         <ng-template #empty>
           <p class="ph-empty-note">
-            {{ searchQuery || studentInsight ? 'No students match your filter.' : (studentStatus ? 'No ' + studentStatusLabel(studentStatus).toLowerCase() + ' students in this batch.' : 'No students found for this batch.') }}
+            {{ searchQuery || studentInsight ? 'Nema učenika koji odgovaraju vašem filteru.' : (studentStatus ? 'Nema ' + studentStatusLabel(studentStatus).toLowerCase() + ' učenika u ovoj grupi.' : 'Nisu pronađeni učenici za ovu grupu.') }}
           </p>
         </ng-template>
       </section>
     </ng-container>
 
     <ng-template #skeleton>
-      <div class="ph-skeleton-layout" aria-busy="true" aria-label="Loading students">
+      <div class="ph-skeleton-layout" aria-busy="true" aria-label="Učitavanje učenika">
         <div class="ph-health-cards ph-batch-stu-skeleton-cards">
           <div class="ph-skeleton-card" *ngFor="let _ of skeletonRows"></div>
         </div>

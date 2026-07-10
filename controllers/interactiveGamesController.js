@@ -87,10 +87,10 @@ function normalizeTapBoxesSettings(raw) {
 }
 
 function badRequest(res, msg) { return res.status(400).json({ success: false, message: msg }); }
-function notFound(res, msg = 'Not found') { return res.status(404).json({ success: false, message: msg }); }
+function notFound(res, msg = 'Nije pronađeno') { return res.status(404).json({ success: false, message: msg }); }
 function serverError(res, err) {
   console.error('[glueck-arena]', err);
-  return res.status(500).json({ success: false, message: err.message || 'Server error' });
+  return res.status(500).json({ success: false, message: err.message || 'Greška servera' });
 }
 
 /** Count total image-word pairs across all questions in a game set */
@@ -141,7 +141,7 @@ async function attachStudentProgressToSets(studentId, sets) {
 exports.getJourneyGames = async (req, res) => {
   try {
     if (req.user.role !== 'STUDENT') {
-      return res.status(403).json({ success: false, message: 'Students only' });
+      return res.status(403).json({ success: false, message: 'Samo za učenike' });
     }
     const access = await journeyFilterService.hasArenaAccess(req.user.id);
     const filter = await journeyFilterService.buildStudentFilter(req.user.id);
@@ -263,7 +263,7 @@ exports.startAttempt = async (req, res) => {
     // Check journey gate for students only
     if (req.user.role === 'STUDENT') {
       const gated = await journeyFilterService.isGated(req.user.id, set);
-      if (gated) return res.status(403).json({ success: false, message: 'This game is not yet unlocked for your level.' });
+      if (gated) return res.status(403).json({ success: false, message: 'Ova igra još nije otključana za vaš nivo.' });
     }
 
     // Determine attempt number
@@ -408,7 +408,7 @@ exports.submitSentenceSlot = async (req, res) => {
     const attempt = await GameAttempt.findById(req.params.attemptId).lean();
     if (!attempt) return notFound(res, 'Attempt not found');
     if (!ownsAttempt(attempt, req)) {
-      return res.status(403).json({ success: false, message: 'Forbidden' });
+      return res.status(403).json({ success: false, message: 'Zabranjeno' });
     }
     if (attempt.gameType !== 'sentence_builder') {
       return badRequest(res, 'Invalid game type for slot submission');
@@ -499,7 +499,7 @@ exports.submitImageMatchSlot = async (req, res) => {
     const attempt = await GameAttempt.findById(req.params.attemptId).lean();
     if (!attempt) return notFound(res, 'Attempt not found');
     if (!ownsAttempt(attempt, req)) {
-      return res.status(403).json({ success: false, message: 'Forbidden' });
+      return res.status(403).json({ success: false, message: 'Zabranjeno' });
     }
     if (attempt.gameType !== 'image_matching') {
       return badRequest(res, 'Invalid game type for image matching');
@@ -621,7 +621,7 @@ exports.submitWordPictureMatchSlot = async (req, res) => {
     const attempt = await GameAttempt.findById(req.params.attemptId).lean();
     if (!attempt) return notFound(res, 'Attempt not found');
     if (!ownsAttempt(attempt, req)) {
-      return res.status(403).json({ success: false, message: 'Forbidden' });
+      return res.status(403).json({ success: false, message: 'Zabranjeno' });
     }
     if (attempt.gameType !== 'word_picture_match') {
       return badRequest(res, 'Invalid game type for word-picture match');
@@ -710,7 +710,7 @@ exports.submitMemoryMatch = async (req, res) => {
     const attempt = await GameAttempt.findById(req.params.attemptId).lean();
     if (!attempt) return notFound(res, 'Attempt not found');
     if (!ownsAttempt(attempt, req)) {
-      return res.status(403).json({ success: false, message: 'Forbidden' });
+      return res.status(403).json({ success: false, message: 'Zabranjeno' });
     }
     if (attempt.gameType !== 'memory') {
       return badRequest(res, 'Invalid game type for memory match');
@@ -814,7 +814,7 @@ exports.submitAnswer = async (req, res) => {
     const attempt = await GameAttempt.findById(req.params.attemptId).lean();
     if (!attempt) return notFound(res, 'Attempt not found');
     if (!ownsAttempt(attempt, req)) {
-      return res.status(403).json({ success: false, message: 'Forbidden' });
+      return res.status(403).json({ success: false, message: 'Zabranjeno' });
     }
 
     const staffPreview = isArenaStaff(req.user.role);
@@ -977,7 +977,7 @@ exports.completeAttempt = async (req, res) => {
     const attempt = await GameAttempt.findById(req.params.attemptId).lean();
     if (!attempt) return notFound(res, 'Attempt not found');
     if (!ownsAttempt(attempt, req)) {
-      return res.status(403).json({ success: false, message: 'Forbidden' });
+      return res.status(403).json({ success: false, message: 'Zabranjeno' });
     }
     if (attempt.status !== 'in-progress') return badRequest(res, 'Attempt already finalized');
 
@@ -1264,7 +1264,7 @@ exports.adminDeleteSet = async (req, res) => {
       { new: true }
     );
     if (!set) return notFound(res);
-    res.json({ success: true, message: 'Game set deleted' });
+    res.json({ success: true, message: 'Set igre je obrisan' });
   } catch (err) {
     serverError(res, err);
   }
@@ -1683,7 +1683,7 @@ exports.adminDeleteQuestion = async (req, res) => {
     const count = await GameQuestion.countDocuments({ gameSetId: q.gameSetId, isDeleted: { $ne: true } });
     await GameSet.findByIdAndUpdate(q.gameSetId, { questionCount: count });
 
-    res.json({ success: true, message: 'Question deleted' });
+    res.json({ success: true, message: 'Pitanje je obrisano' });
   } catch (err) {
     serverError(res, err);
   }

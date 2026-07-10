@@ -45,7 +45,7 @@ import { germanUppercase } from '../../utils/german-text';
           <span *ngIf="lastFastest" class="srmp__bonus">⚡ Fastest!</span>
         </div>
         <div class="srmp__feedback srmp__feedback--wrong" *ngIf="feedback === 'wrong'">
-          <mat-icon>cancel</mat-icon> {{ revealWord || 'Wrong' }}
+          <mat-icon>cancel</mat-icon> {{ revealWord || 'Netačno' }}
         </div>
         <div class="srmp__locked" *ngIf="answered">Waiting for next round…</div>
       </div>

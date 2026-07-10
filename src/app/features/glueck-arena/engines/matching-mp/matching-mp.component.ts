@@ -42,7 +42,7 @@ import {
         <div class="mmp__actions">
           <button mat-raised-button color="primary" (click)="submit()"
             [disabled]="!allSelected || !!feedback">
-            <mat-icon>check</mat-icon> Submit
+            <mat-icon>check</mat-icon> Pošalji
           </button>
         </div>
         <div class="mmp__feedback mmp__feedback--correct" *ngIf="feedback === 'correct'">

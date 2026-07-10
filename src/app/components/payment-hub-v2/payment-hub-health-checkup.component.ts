@@ -42,10 +42,10 @@ const HEALTH_CHECKUP_PAGE_SIZE = 50;
 export type HealthStatusFilter = 'ONGOING' | 'UNCERTAIN' | 'WITHDREW' | 'ALL';
 
 const HEALTH_STATUS_OPTIONS: { value: HealthStatusFilter; label: string }[] = [
-  { value: 'ONGOING', label: 'Ongoing' },
-  { value: 'UNCERTAIN', label: 'Uncertain' },
-  { value: 'WITHDREW', label: 'Withdrew' },
-  { value: 'ALL', label: 'All statuses' },
+  { value: 'ONGOING', label: 'Aktivan' },
+  { value: 'UNCERTAIN', label: 'Neizvestan' },
+  { value: 'WITHDREW', label: 'Povukao se' },
+  { value: 'ALL', label: 'Svi statusi' },
 ];
 
 export interface HealthStudentRow extends BatchStudentPaymentRow {
@@ -157,7 +157,7 @@ export class PaymentHubHealthCheckupComponent implements OnInit {
   }
 
   get statusFilterLabel(): string {
-    if (this.statusFilter === 'ALL') return 'all statuses';
+    if (this.statusFilter === 'ALL') return 'svi statusi';
     return formatStudentStatusLabel(this.statusFilter).toLowerCase();
   }
 
@@ -352,12 +352,12 @@ export class PaymentHubHealthCheckupComponent implements OnInit {
   // ── Helpers ──────────────────────────────────────────────────────────────
 
   healthLabel(row: HealthStudentRow): string {
-    if (this.isFullPaid(row)) return 'Full Paid';
+    if (this.isFullPaid(row)) return 'Potpuno plaćeno';
     const d = row.daysIntoLevel;
-    if (d == null) return 'Unknown';
-    if (row.healthColor === 'green') return `Day ${d} — Safe`;
-    if (row.healthColor === 'yellow') return `Day ${d} — Follow up`;
-    return `Day ${d} — Urgent`;
+    if (d == null) return 'Nepoznato';
+    if (row.healthColor === 'green') return `Dan ${d} — Bezbedno`;
+    if (row.healthColor === 'yellow') return `Dan ${d} — Pratiti`;
+    return `Dan ${d} — Hitno`;
   }
 
   levelForDay(journeyDay: number | null): string {

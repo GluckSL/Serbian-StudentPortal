@@ -325,12 +325,12 @@ router.get('/export', auth.verifyToken, auth.isAdmin, async (req, res) => {
       escape(f.studentEmail),
       escape(f.batch),
       escape(f.classTitle),
-      escape(f.classDate ? new Date(f.classDate).toLocaleDateString('en-GB') : ''),
+      escape(f.classDate ? new Date(f.classDate).toLocaleDateString('sr-Latn-RS') : ''),
       escape(UNDERSTANDING_LABELS[f.understanding] || f.understanding),
       escape(PACE_LABELS[f.pace] || f.pace),
       escape('★'.repeat(f.confidence || 0)),
       escape(MOTIVATION_LABELS[f.motivation] || f.motivation),
-      escape(f.submittedAt ? new Date(f.submittedAt).toLocaleString('en-GB') : ''),
+      escape(f.submittedAt ? new Date(f.submittedAt).toLocaleString('sr-Latn-RS') : ''),
     ]);
 
     const csv = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');

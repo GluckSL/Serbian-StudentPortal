@@ -1,12 +1,12 @@
 <div class="pad-root">
   <div class="pad-header">
     <div>
-      <h2 class="pad-title">Edit signup details</h2>
+      <h2 class="pad-title">Uredi detalje registracije</h2>
       <p class="pad-sub" *ngIf="studentName">
-        Correct plan or payment amounts for <strong>{{ studentName }}</strong> before approving.
+        Ispravite plan ili iznose plaćanja za <strong>{{ studentName }}</strong> pre odobravanja.
       </p>
     </div>
-    <button mat-icon-button type="button" (click)="cancel()" aria-label="Close">
+    <button mat-icon-button type="button" (click)="cancel()" aria-label="Zatvori">
       <mat-icon>close</mat-icon>
     </button>
   </div>
@@ -20,14 +20,14 @@
     </p>
 
     <p class="pad-hint">
-      Fix mismatches between what the student entered and what they actually paid. Click Save, then Approve in the queue.
+      Ispravite neslaganja između onoga što je učenik uneo i onoga što je zapravo platio. Kliknite Sačuvaj, zatim Odobri u redu.
     </p>
 
     <section class="pad-section">
-      <h3 class="pad-section__title">Course</h3>
+      <h3 class="pad-section__title">Kurs</h3>
       <div class="pad-form-grid">
         <mat-form-field appearance="outline" subscriptSizing="dynamic">
-          <mat-label>Level</mat-label>
+          <mat-label>Nivo</mat-label>
           <mat-select [(ngModel)]="level" required>
             <mat-option *ngFor="let lv of levels" [value]="lv">{{ lv }}</mat-option>
           </mat-select>
@@ -39,44 +39,44 @@
           </mat-select>
         </mat-form-field>
         <mat-form-field appearance="outline" subscriptSizing="dynamic">
-          <mat-label>Currency</mat-label>
+          <mat-label>Valuta</mat-label>
           <mat-select [(ngModel)]="currency">
             <mat-option *ngFor="let c of currencies" [value]="c">{{ c }}</mat-option>
           </mat-select>
         </mat-form-field>
         <mat-form-field appearance="outline" subscriptSizing="dynamic">
-          <mat-label>Quoted course fee</mat-label>
+          <mat-label>Navedena naknada za kurs</mat-label>
           <input matInput type="number" min="1" [(ngModel)]="quotedFee" required />
-          <mat-hint>Full plan price</mat-hint>
+          <mat-hint>Puna cena plana</mat-hint>
         </mat-form-field>
       </div>
     </section>
 
     <section class="pad-section">
-      <h3 class="pad-section__title">Payment proof</h3>
+      <h3 class="pad-section__title">Dokaz o plaćanju</h3>
       <div class="pad-form-grid">
         <mat-form-field appearance="outline" subscriptSizing="dynamic">
-          <mat-label>Amount paid (declared)</mat-label>
+          <mat-label>Plaćeni iznos (deklarisano)</mat-label>
           <input matInput type="number" min="1" [(ngModel)]="declaredPaid" required />
-          <mat-hint>What they actually transferred</mat-hint>
+          <mat-hint>Šta su zapravo preneli</mat-hint>
         </mat-form-field>
         <mat-form-field appearance="outline" subscriptSizing="dynamic">
-          <mat-label>Payment date</mat-label>
+          <mat-label>Datum plaćanja</mat-label>
           <input matInput type="datetime-local" [(ngModel)]="paymentDate" />
         </mat-form-field>
         <mat-form-field appearance="outline" subscriptSizing="dynamic" class="pad-span-2">
-          <mat-label>Account holder name</mat-label>
+          <mat-label>Ime vlasnika računa</mat-label>
           <input matInput [(ngModel)]="accountHolderName" required />
         </mat-form-field>
       </div>
     </section>
 
     <section class="pad-section">
-      <h3 class="pad-section__title">On approve</h3>
+      <h3 class="pad-section__title">Kod odobravanja</h3>
       <div class="pad-form-grid">
         <mat-form-field appearance="outline" subscriptSizing="dynamic" class="pad-span-2">
-          <mat-label>Batch (optional)</mat-label>
-          <input matInput [(ngModel)]="batch" placeholder="e.g. B1-2026" />
+          <mat-label>Grupa (opciono)</mat-label>
+          <input matInput [(ngModel)]="batch" placeholder="npr. B1-2026" />
         </mat-form-field>
       </div>
     </section>
@@ -86,7 +86,7 @@
 
   <div class="pad-footer">
     <p class="pad-hint pad-hint--error" *ngIf="validationError">{{ validationError }}</p>
-    <button mat-stroked-button type="button" (click)="cancel()">Cancel</button>
-    <button mat-flat-button color="primary" type="button" (click)="save()">Save changes</button>
+    <button mat-stroked-button type="button" (click)="cancel()">Otkaži</button>
+    <button mat-flat-button color="primary" type="button" (click)="save()">Sačuvaj izmene</button>
   </div>
 </div>

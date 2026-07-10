@@ -258,7 +258,7 @@ router.get('/templates', verifyToken, checkRole(['ADMIN']), async (req, res) => 
 router.get('/templates/:id', verifyToken, checkRole(['ADMIN']), async (req, res) => {
   try {
     const template = await AgreementTemplate.findById(req.params.id).lean();
-    if (!template) return res.status(404).json({ success: false, message: 'Template not found' });
+    if (!template) return res.status(404).json({ success: false, message: 'Šablon nije pronađen' });
     res.json({ success: true, template });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -268,9 +268,9 @@ router.get('/templates/:id', verifyToken, checkRole(['ADMIN']), async (req, res)
 // POST /api/agreements/templates/upload — upload PDF or Word (DOC/DOCX), convert to PDF, store in R2
 router.post('/templates/upload', verifyToken, checkRole(['ADMIN']), memUpload.single('pdf'), async (req, res) => {
   try {
-    if (!req.file) return res.status(400).json({ success: false, message: 'File required (PDF, DOC, or DOCX)' });
+    if (!req.file) return res.status(400).json({ success: false, message: 'Fajl je obavezan (PDF, DOC ili DOCX)' });
     if (!isAgreementR2Configured()) {
-      return res.status(503).json({ success: false, message: 'R2 storage is not configured' });
+      return res.status(503).json({ success: false, message: 'R2 skladište nije konfigurisano' });
     }
     const tempId = new mongoose.Types.ObjectId().toHexString();
     const result = await processTemplateFileUpload(req.file, tempId);
@@ -290,24 +290,24 @@ router.post(
   memUpload.single('pdf'),
   async (req, res) => {
     try {
-      if (!req.file) return res.status(400).json({ success: false, message: 'File required (PDF, DOC, or DOCX)' });
+      if (!req.file) return res.status(400).json({ success: false, message: 'Fajl je obavezan (PDF, DOC ili DOCX)' });
       const name = String(req.body?.name || '').trim();
-      if (!name) return res.status(400).json({ success: false, message: 'name required' });
+      if (!name) return res.status(400).json({ success: false, message: 'Naziv je obavezan' });
       if (!isAgreementR2Configured()) {
-        return res.status(503).json({ success: false, message: 'R2 storage is not configured' });
+        return res.status(503).json({ success: false, message: 'R2 skladište nije konfigurisano' });
       }
 
       const slug = slugify(name);
       const existing = await AgreementTemplate.findOne({ slug });
       if (existing) {
-        return res.status(409).json({ success: false, message: 'A template with this name already exists' });
+        return res.status(409).json({ success: false, message: 'Šablon sa ovim imenom već postoji' });
       }
 
       const templateId = new mongoose.Types.ObjectId();
       const storageId = templateId.toHexString();
       const uploaded = await processTemplateFileUpload(req.file, storageId);
       if (!uploaded.r2Key && !uploaded.docxR2Key) {
-        return res.status(400).json({ success: false, message: 'Upload failed — no file stored' });
+        return res.status(400).json({ success: false, message: 'Otpremanje neuspelo — nijedan fajl nije sačuvan' });
       }
 
       const template = await AgreementTemplate.create({
@@ -343,14 +343,14 @@ router.post(
 router.post('/templates', verifyToken, checkRole(['ADMIN']), async (req, res) => {
   try {
     const { name, description, r2Key, docxR2Key, fillMode, pageCount, tempId } = req.body;
-    if (!name) return res.status(400).json({ success: false, message: 'name required' });
+    if (!name) return res.status(400).json({ success: false, message: 'Naziv je obavezan' });
     if (!r2Key && !docxR2Key) {
-      return res.status(400).json({ success: false, message: 'Upload a PDF or Word (.docx) file first' });
+      return res.status(400).json({ success: false, message: 'Prvo otpremite PDF ili Word (.docx) fajl' });
     }
 
     const slug = slugify(name);
     const existing = await AgreementTemplate.findOne({ slug });
-    if (existing) return res.status(409).json({ success: false, message: 'A template with this name already exists' });
+    if (existing) return res.status(409).json({ success: false, message: 'Šablon sa ovim imenom već postoji' });
 
     const template = await AgreementTemplate.create({
       name,
@@ -376,19 +376,19 @@ router.post('/templates', verifyToken, checkRole(['ADMIN']), async (req, res) =>
 // POST /api/agreements/templates/:id/upload-docx — attach Word source for real text fill (upgrade overlay templates)
 router.post('/templates/:id/upload-docx', verifyToken, checkRole(['ADMIN']), memUpload.single('docx'), async (req, res) => {
   try {
-    if (!req.file) return res.status(400).json({ success: false, message: '.docx file required' });
+    if (!req.file) return res.status(400).json({ success: false, message: '.docx fajl je obavezan' });
     if (!isAgreementR2Configured()) {
-      return res.status(503).json({ success: false, message: 'R2 storage is not configured' });
+      return res.status(503).json({ success: false, message: 'R2 skladište nije konfigurisano' });
     }
     if (!isDocxBuffer(req.file.buffer, req.file.originalname) && !isDocxFile(req.file.originalname)) {
       return res.status(400).json({
         success: false,
-        message: 'Only .docx files are accepted. Save your agreement in Word as .docx with {{placeholders}}.'
+        message: 'Prihvataju se samo .docx fajlovi. Sačuvajte vaš ugovor u Wordu kao .docx sa {{oznakama}}.'
       });
     }
 
     const template = await AgreementTemplate.findById(req.params.id);
-    if (!template) return res.status(404).json({ success: false, message: 'Template not found' });
+    if (!template) return res.status(404).json({ success: false, message: 'Šablon nije pronađen' });
 
     const id = template._id.toHexString();
     let docxBuf = req.file.buffer;
@@ -396,7 +396,7 @@ router.post('/templates/:id/upload-docx', verifyToken, checkRole(['ADMIN']), mem
       docxBuf = await ensureDocxBuffer(docxBuf, req.file.mimetype, req.file.originalname);
     }
     if (!docxBuf) {
-      return res.status(400).json({ success: false, message: 'Could not read .docx file' });
+      return res.status(400).json({ success: false, message: 'Nije moguće čitati .docx fajl' });
     }
 
     const updates = { fillMode: 'docx' };
@@ -416,8 +416,8 @@ router.post('/templates/:id/upload-docx', verifyToken, checkRole(['ADMIN']), mem
       updates.pageCount = pageCount;
     } catch (convErr) {
       warning =
-        'DOCX attached (Word mode enabled). PDF preview failed — install LibreOffice or open Word once, then try again. ' +
-        'Sharing/preview with filled fields may still work if conversion succeeds at that step.';
+        'DOCX priložen (Word režim aktiviran). Generisanje PDF pregleda neuspelo — instalirajte LibreOffice ili otvorite Word jednom, zatim pokušajte ponovo. ' +
+        'Deljenje/pregled sa popunjenim poljima može i dalje raditi ako konverzija uspe u tom koraku.';
       console.warn('[agreements] upload-docx PDF failed:', convErr.message);
     }
 
@@ -434,7 +434,7 @@ router.post('/templates/:id/upload-docx', verifyToken, checkRole(['ADMIN']), mem
       fields,
       source,
       warning,
-      message: 'DOCX source attached. Agreements will use real text replacement (no white boxes).'
+      message: 'DOCX izvor priložen. Ugovori će koristiti stvarnu zamenu teksta (bez belih okvira).'
     });
   } catch (err) {
     console.error('❌ upload-docx:', err);
@@ -447,9 +447,9 @@ router.post('/templates/:id/upload-docx', verifyToken, checkRole(['ADMIN']), mem
 router.post('/templates/:id/detect-placeholders', verifyToken, checkRole(['ADMIN']), async (req, res) => {
   try {
     const template = await AgreementTemplate.findById(req.params.id);
-    if (!template) return res.status(404).json({ success: false, message: 'Template not found' });
+    if (!template) return res.status(404).json({ success: false, message: 'Šablon nije pronađen' });
     if (!isAgreementR2Configured()) {
-      return res.status(503).json({ success: false, message: 'R2 not configured' });
+      return res.status(503).json({ success: false, message: 'R2 nije konfigurisano' });
     }
     const { fields, source } = await detectTemplateFields(template);
     res.json({ success: true, fields, count: fields.length, source });
@@ -465,9 +465,9 @@ router.post('/templates/:id/detect-placeholders', verifyToken, checkRole(['ADMIN
 router.post('/templates/:id/detect-red-fields', verifyToken, checkRole(['ADMIN']), async (req, res) => {
   try {
     const template = await AgreementTemplate.findById(req.params.id);
-    if (!template) return res.status(404).json({ success: false, message: 'Template not found' });
+    if (!template) return res.status(404).json({ success: false, message: 'Šablon nije pronađen' });
     if (!isAgreementR2Configured()) {
-      return res.status(503).json({ success: false, message: 'R2 not configured' });
+      return res.status(503).json({ success: false, message: 'R2 nije konfigurisano' });
     }
     const { fields, source } = await detectTemplateFields(template);
     res.json({ success: true, fields, count: fields.length, source });
@@ -481,9 +481,9 @@ router.post('/templates/:id/detect-red-fields', verifyToken, checkRole(['ADMIN']
 router.post('/templates/:id/analyze', verifyToken, checkRole(['ADMIN']), async (req, res) => {
   try {
     const template = await AgreementTemplate.findById(req.params.id);
-    if (!template) return res.status(404).json({ success: false, message: 'Template not found' });
+    if (!template) return res.status(404).json({ success: false, message: 'Šablon nije pronađen' });
     if (!isAgreementR2Configured()) {
-      return res.status(503).json({ success: false, message: 'R2 not configured' });
+      return res.status(503).json({ success: false, message: 'R2 nije konfigurisano' });
     }
     const { fields: detected, source: detectSource } = await detectTemplateFields(template);
     if (detected.length > 0) {
@@ -517,19 +517,19 @@ router.post('/templates/:id/locate-text', verifyToken, checkRole(['ADMIN']), asy
   try {
     const { sampleText } = req.body;
     if (!sampleText || !String(sampleText).trim()) {
-      return res.status(400).json({ success: false, message: 'sampleText is required' });
+      return res.status(400).json({ success: false, message: 'sampleText je obavezan' });
     }
     const template = await AgreementTemplate.findById(req.params.id);
-    if (!template) return res.status(404).json({ success: false, message: 'Template not found' });
+    if (!template) return res.status(404).json({ success: false, message: 'Šablon nije pronađen' });
     if (!isAgreementR2Configured()) {
-      return res.status(503).json({ success: false, message: 'R2 not configured' });
+      return res.status(503).json({ success: false, message: 'R2 nije konfigurisano' });
     }
     const buf = await getAgreementTemplateBuffer(template.r2Key);
     const hit = await locateTextInPdf(buf, sampleText);
     if (!hit) {
       return res.status(404).json({
         success: false,
-        message: `Could not find "${sampleText}" in PDF. Use the exact text from the PDF (e.g. {{level}} or {{Level}}).`
+        message: `Nije moguće pronaći "${sampleText}" u PDF-u. Koristite tačan tekst iz PDF-a (npr. {{nivo}} ili {{Nivo}}).`
       });
     }
     res.json({
@@ -556,14 +556,14 @@ router.put('/templates/:id/fields', verifyToken, checkRole(['ADMIN']), async (re
   try {
     const { fields } = req.body;
     if (!Array.isArray(fields) || fields.length > 20) {
-      return res.status(400).json({ success: false, message: 'Provide 1–20 dynamic fields' });
+      return res.status(400).json({ success: false, message: 'Navedite 1–20 dinamičkih polja' });
     }
     const template = await AgreementTemplate.findByIdAndUpdate(
       req.params.id,
       { dynamicFields: fields },
       { new: true }
     );
-    if (!template) return res.status(404).json({ success: false, message: 'Template not found' });
+    if (!template) return res.status(404).json({ success: false, message: 'Šablon nije pronađen' });
     res.json({ success: true, template });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -574,7 +574,7 @@ router.put('/templates/:id/fields', verifyToken, checkRole(['ADMIN']), async (re
 router.get('/templates/:id/preview', verifyToken, checkRole(['ADMIN']), async (req, res) => {
   try {
     const template = await AgreementTemplate.findById(req.params.id).lean();
-    if (!template) return res.status(404).json({ success: false, message: 'Template not found' });
+    if (!template) return res.status(404).json({ success: false, message: 'Šablon nije pronađen' });
     const url = await getAgreementTemplateSignedUrl(template.r2Key, 600);
     res.json({ success: true, url });
   } catch (err) {
@@ -613,11 +613,11 @@ async function deleteStudentAgreementsForTemplate(templateId) {
 router.delete('/templates/:id', verifyToken, checkRole(['ADMIN']), async (req, res) => {
   try {
     const template = await AgreementTemplate.findById(req.params.id);
-    if (!template) return res.status(404).json({ success: false, message: 'Template not found' });
+    if (!template) return res.status(404).json({ success: false, message: 'Šablon nije pronađen' });
 
     if (req.query.soft === 'true') {
       await AgreementTemplate.findByIdAndUpdate(template._id, { isActive: false });
-      return res.json({ success: true, message: 'Template hidden from list', mode: 'soft' });
+      return res.json({ success: true, message: 'Šablon je sakriven sa liste', mode: 'soft' });
     }
 
     const inUse = await StudentAgreement.countDocuments({ templateId: template._id });
@@ -626,7 +626,7 @@ router.delete('/templates/:id', verifyToken, checkRole(['ADMIN']), async (req, r
     if (inUse > 0 && !cascade) {
       return res.status(409).json({
         success: false,
-        message: `Cannot delete: ${inUse} student agreement(s) use this template. Hide it instead (?soft=true), use ?cascade=true to delete those agreements too, or remove them first.`
+        message: `Nije moguće obrisati: ${inUse} ugovor(a) studenata koristi ovaj šablon. Sakrijte ga umesto toga (?soft=true), koristite ?cascade=true da obrišete i te ugovore, ili ih najpre ručno uklonite.`
       });
     }
 
@@ -645,8 +645,8 @@ router.delete('/templates/:id', verifyToken, checkRole(['ADMIN']), async (req, r
     res.json({
       success: true,
       message: cascade
-        ? `Template deleted (${cascadeCleanup.removedAgreements} linked student agreement(s) removed)`
-        : 'Template and R2 files deleted permanently',
+        ? `Šablon obrisan (${cascadeCleanup.removedAgreements} povezan${cascadeCleanup.removedAgreements !== 1 ? 'ih' : ''} ugovor${cascadeCleanup.removedAgreements !== 1 ? 'a' : ''} studenata uklonjen${cascadeCleanup.removedAgreements !== 1 ? 'o' : 'o'})`
+        : 'Šablon i R2 fajlovi trajno obrisani',
       mode: cascade ? 'hard-cascade' : 'hard',
       cascadeCleanup,
       r2Cleanup
@@ -664,11 +664,11 @@ router.post('/instances/preview', verifyToken, checkRole(['ADMIN']), async (req,
   try {
     const { templateId, fieldValues } = req.body;
     const template = await AgreementTemplate.findById(templateId).lean();
-    if (!template) return res.status(404).json({ success: false, message: 'Template not found' });
+    if (!template) return res.status(404).json({ success: false, message: 'Šablon nije pronađen' });
     const fields = template.dynamicFields || [];
     const mapped = normalizeFieldValues(fields, fieldValues);
     if (!Object.keys(mapped).length) {
-      return res.status(400).json({ success: false, message: 'Enter at least one field value before preview' });
+      return res.status(400).json({ success: false, message: 'Unesite najmanje jednu vrednost polja pre pregleda' });
     }
     const { pdfBuffer } = await generateFilledAgreement(template, mapped);
     res.set('Content-Type', 'application/pdf');
@@ -685,11 +685,11 @@ router.post('/instances/share', verifyToken, checkRole(['ADMIN']), async (req, r
   try {
     const { templateId, studentId, studentEmail, fieldValues, displayName, sendEmail } = req.body;
     if (!templateId || !displayName) {
-      return res.status(400).json({ success: false, message: 'templateId and displayName required' });
+      return res.status(400).json({ success: false, message: 'templateId i displayName su obavezni' });
     }
 
     const template = await AgreementTemplate.findById(templateId).lean();
-    if (!template) return res.status(404).json({ success: false, message: 'Template not found' });
+    if (!template) return res.status(404).json({ success: false, message: 'Šablon nije pronađen' });
 
     let studentOid = parseStudentObjectId(studentId);
     let student = null;
@@ -709,7 +709,7 @@ router.post('/instances/share', verifyToken, checkRole(['ADMIN']), async (req, r
       return res.status(400).json({
         success: false,
         message:
-          'Student not found. Open Generate Agreement from the student document profile, or ensure the student email is correct.'
+          'Student nije pronađen. Otvorite Generisanje ugovora iz profila dokumenta studenta, ili proverite da li je e-mail studenta tačan.'
       });
     }
 
@@ -718,7 +718,7 @@ router.post('/instances/share', verifyToken, checkRole(['ADMIN']), async (req, r
     if (!Object.keys(mappedValues).length) {
       return res.status(400).json({
         success: false,
-        message: 'Enter at least one field value before saving or sending'
+        message: 'Unesite najmanje jednu vrednost polja pre čuvanja ili slanja'
       });
     }
 
@@ -772,13 +772,13 @@ router.post('/instances/share', verifyToken, checkRole(['ADMIN']), async (req, r
     if (sendEmail !== false && isDocumentEmailConfigured()) {
       try {
         const transporter = getDocumentTransporter();
-        const portalUrl = (process.env.FRONTEND_URL || 'https://gluckstudentsportal.com').replace(/\/$/, '');
+        const portalUrl = (process.env.PORTAL_URL || process.env.FRONTEND_URL || 'https://portal.serbia.gluckglobal.com').replace(/\/$/, '');
         const docsUrl = `${portalUrl}/student-documents`;
         await transporter.sendMail({
           from: getDocumentFromAddress(),
           to: student.email,
           cc: getDocumentCc(),
-          subject: `Agreement ready for signature — ${displayName}`,
+          subject: `Ugovor spreman za potpisivanje — ${displayName}`,
           attachments: [{ filename: `${safeDisplay}.pdf`, content: filledBuf, contentType: 'application/pdf' }],
           html: `
             <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;">
@@ -786,16 +786,16 @@ router.post('/instances/share', verifyToken, checkRole(['ADMIN']), async (req, r
                 <h2 style="margin:0;">Glück Global</h2>
               </div>
               <div style="padding:24px;">
-                <p>Dear <strong>${student.name}</strong>,</p>
-                <p>Your agreement <strong>${displayName}</strong> is ready. The PDF is attached to this email.</p>
-                <p>Please review it, sign it, and upload the signed copy in the student portal.</p>
+                <p>Poštovani/a <strong>${student.name}</strong>,</p>
+                <p>Vaš ugovor <strong>${displayName}</strong> je spreman. PDF je priložen ovom e-mailu.</p>
+                <p>Molimo pregledajte ga, potpišite ga i učitajte potpisanu kopiju na studentski portal.</p>
                 <div style="text-align:center;margin:24px 0;">
                   <a href="${docsUrl}" style="background:#1565c0;color:white;padding:14px 28px;text-decoration:none;border-radius:8px;font-weight:600;">
-                    Check it out
+                    Pogledajte ovde
                   </a>
                 </div>
                 <p style="font-size:13px;color:#666;">Portal: <a href="${docsUrl}">${docsUrl}</a></p>
-                <p>Regards,<br><strong>Glück Global Team</strong></p>
+                <p>S poštovanjem,<br><strong>Tim Glück Global</strong></p>
               </div>
             </div>`
         });
@@ -810,8 +810,8 @@ router.post('/instances/share', verifyToken, checkRole(['ADMIN']), async (req, r
       studentDocumentId: docRecord._id,
       downloadUrl: `/api/agreements/instances/${agreement._id}/download`,
       message: sendEmail !== false
-        ? 'Agreement saved to student portal and email sent'
-        : 'Agreement saved to student portal — student can view and upload signed copy'
+        ? 'Ugovor sačuvan na studentskom portalu i e-mail poslat'
+        : 'Ugovor sačuvan na studentskom portalu — student može da pregleda i učita potpisanu kopiju'
     });
   } catch (err) {
     console.error('❌ instance share:', err);
@@ -827,7 +827,7 @@ router.get('/instances', verifyToken, async (req, res) => {
     const studentOid = parseStudentObjectId(rawStudentId);
     const summary = ['1', 'true', 'yes'].includes(String(req.query.summary || '').toLowerCase());
     if (!studentOid) {
-      return res.status(400).json({ success: false, message: 'Valid studentId required' });
+      return res.status(400).json({ success: false, message: 'Ispravan studentId je obavezan' });
     }
 
     const agreements = await StudentAgreement.find({ studentId: studentOid })
@@ -850,11 +850,11 @@ router.get('/instances', verifyToken, async (req, res) => {
 router.get('/instances/:id/download', verifyToken, async (req, res) => {
   try {
     const agreement = await StudentAgreement.findById(req.params.id).lean();
-    if (!agreement) return res.status(404).json({ success: false, message: 'Not found' });
+    if (!agreement) return res.status(404).json({ success: false, message: 'Nije pronađeno' });
 
     const isAdmin = req.user.role === 'ADMIN';
     if (!isAdmin && String(agreement.studentId) !== String(req.user.id)) {
-      return res.status(403).json({ success: false, message: 'Forbidden' });
+      return res.status(403).json({ success: false, message: 'Zabranjeno' });
     }
 
     const type = req.query.type === 'signed' ? 'signed' : 'generated';
@@ -862,7 +862,7 @@ router.get('/instances/:id/download', verifyToken, async (req, res) => {
     if (type === 'signed') {
       const fileInfo = agreement.signedFile;
       if (!fileInfo?.s3Key) {
-        return res.status(404).json({ success: false, message: 'signed file not found' });
+        return res.status(404).json({ success: false, message: 'Potpisani fajl nije pronađen' });
       }
       const signedUrl = await createSignedS3Url(fileInfo.s3Key);
       return res.redirect(signedUrl);
@@ -893,7 +893,7 @@ router.get('/instances/:id/download', verifyToken, async (req, res) => {
 
     const template = await AgreementTemplate.findById(agreement.templateId).lean();
     if (!template?.r2Key && !template?.docxR2Key) {
-      return res.status(404).json({ success: false, message: 'Template not found' });
+      return res.status(404).json({ success: false, message: 'Šablon nije pronađen' });
     }
     const fv = agreement.fieldValues || {};
     const mapped = normalizeFieldValues(template.dynamicFields || [], fv);
@@ -912,11 +912,11 @@ router.get('/instances/:id/download', verifyToken, async (req, res) => {
 router.post('/instances/:id/upload-signed', verifyToken, signedUpload.single('file'), async (req, res) => {
   try {
     const agreement = await StudentAgreement.findById(req.params.id);
-    if (!agreement) return res.status(404).json({ success: false, message: 'Not found' });
+    if (!agreement) return res.status(404).json({ success: false, message: 'Nije pronađeno' });
     if (String(agreement.studentId) !== String(req.user.id)) {
-      return res.status(403).json({ success: false, message: 'Forbidden' });
+      return res.status(403).json({ success: false, message: 'Zabranjeno' });
     }
-    if (!req.file) return res.status(400).json({ success: false, message: 'File required' });
+    if (!req.file) return res.status(400).json({ success: false, message: 'Fajl je obavezan' });
 
     const ext = req.file.originalname.split('.').pop();
     const s3Key = `uploads/agreements/${req.user.id}/${agreement._id}_signed_${Date.now()}.${ext}`;
@@ -943,7 +943,7 @@ router.post('/instances/:id/upload-signed', verifyToken, signedUpload.single('fi
       });
     }
 
-    res.json({ success: true, message: 'Signed agreement uploaded successfully' });
+    res.json({ success: true, message: 'Potpisani ugovor je uspešno učitan' });
   } catch (err) {
     console.error('❌ upload-signed:', err);
     res.status(500).json({ success: false, message: err.message });
@@ -955,10 +955,10 @@ router.put('/instances/:id/verify', verifyToken, checkRole(['ADMIN']), async (re
   try {
     const { status, notes } = req.body;
     if (!['VERIFIED', 'REJECTED'].includes(status)) {
-      return res.status(400).json({ success: false, message: 'status must be VERIFIED or REJECTED' });
+      return res.status(400).json({ success: false, message: 'Status mora biti VERIFIED ili REJECTED' });
     }
     const agreement = await StudentAgreement.findById(req.params.id);
-    if (!agreement) return res.status(404).json({ success: false, message: 'Not found' });
+    if (!agreement) return res.status(404).json({ success: false, message: 'Nije pronađeno' });
 
     agreement.status = status;
     agreement.verificationNotes = notes || '';
@@ -1013,11 +1013,11 @@ router.put('/instances/:id/verify', verifyToken, checkRole(['ADMIN']), async (re
       agreement,
       emailSent,
       message: status === 'REJECTED' && emailSent
-        ? 'Rejected — student notified by email'
+        ? 'Odbijeno — student obavešten e-mailom'
         : status === 'VERIFIED' && emailSent
-          ? 'Approved — student notified by email'
+          ? 'Odobreno — student obavešten e-mailom'
           : status === 'VERIFIED'
-            ? 'Approved (email not sent — check DOCS_EMAIL_* in .env)'
+            ? 'Odobreno (e-mail nije poslat — proverite DOCS_EMAIL_* u .env)'
             : undefined
     });
   } catch (err) {

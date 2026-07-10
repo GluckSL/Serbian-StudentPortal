@@ -72,7 +72,7 @@ export class DgBotHubComponent implements OnInit, OnChanges {
   readonly pageSize = 12;
   totalPages = 1;
 
-  searchInputPlaceholder = 'Search modules by title…';
+  searchInputPlaceholder = 'Pretraži module po nazivu…';
 
   private searchTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -94,7 +94,7 @@ export class DgBotHubComponent implements OnInit, OnChanges {
         takeUntilDestroyed(),
       )
       .subscribe((compact) => {
-        this.searchInputPlaceholder = compact ? 'Search…' : 'Search modules by title…';
+        this.searchInputPlaceholder = compact ? 'Pretraži…' : 'Pretraži module po nazivu…';
       });
   }
 
@@ -151,7 +151,7 @@ export class DgBotHubComponent implements OnInit, OnChanges {
         this.loading = false;
       },
       error: (e) => {
-        this.error = e?.error?.message || 'Could not load modules';
+        this.error = e?.error?.message || 'Nije moguće učitati module';
         this.loading = false;
       },
     });
@@ -320,10 +320,10 @@ export class DgBotHubComponent implements OnInit, OnChanges {
   }
 
   hubStatusLabel(m: DgModuleSummary): string {
-    if (this.isModuleCompleted(m)) return 'Completed';
+    if (this.isModuleCompleted(m)) return 'Završeno';
     const p = this.moduleBestCompletionPercent(m);
-    if (p > 0) return `${p}% completed`;
-    return m.visibleToStudents ? 'Available' : 'Draft';
+    if (p > 0) return `${p}% završeno`;
+    return m.visibleToStudents ? 'Dostupno' : 'Nacrt';
   }
 
   /**
@@ -371,8 +371,15 @@ export class DgBotHubComponent implements OnInit, OnChanges {
 
   journeyDayLabel(m: DgModuleSummary): string {
     const d = this.moduleCourseDayNum(m);
-    if (d == null) return 'Any day';
-    return d === 0 ? 'Trial' : `Day ${d}`;
+    if (d == null) return 'Bilo koji dan';
+    return d === 0 ? 'Probni' : `Dan ${d}`;
+  }
+
+  getTabLabel(tab: HubTab): string {
+    if (tab === 'completed') return 'završeno';
+    if (tab === 'pending') return 'na čekanju';
+    if (tab === 'new') return 'novo';
+    return 'sve';
   }
 
   trackModule = (_: number, m: DgModuleSummary): string => m._id;

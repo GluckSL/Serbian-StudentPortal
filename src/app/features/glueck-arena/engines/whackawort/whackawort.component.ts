@@ -443,9 +443,9 @@ export class WhackawortComponent implements OnInit, OnDestroy {
     ctx.textAlign = 'center';
     ctx.font = 'bold 13px sans-serif';
     ctx.fillStyle = '#E8D5B7';
-    ctx.fillText('Score: ' + this.score, w * 0.55, 16);
+    ctx.fillText('Rezultat: ' + this.score, w * 0.55, 16);
     ctx.fillStyle = '#A8D8EA';
-    ctx.fillText('Combo: x' + this.combo, w * 0.55, 40);
+    ctx.fillText('Kombo: x' + this.combo, w * 0.55, 40);
 
     ctx.textAlign = 'right';
     let lx = w - 12;
@@ -468,7 +468,7 @@ export class WhackawortComponent implements OnInit, OnDestroy {
     ctx.font = 'bold 15px sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('\uD83D\uDD0D Find: ' + this.currentTargetCategory, w / 2, y + h / 2);
+    ctx.fillText('\uD83D\uDD0D Pronađi: ' + this.currentTargetCategory, w / 2, y + h / 2);
     ctx.restore();
   }
 

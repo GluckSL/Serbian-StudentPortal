@@ -1,46 +1,46 @@
 <div class="audit-page">
   <div class="page-header">
     <div>
-      <h1><i class="fas fa-clipboard-list"></i> Account Audit Log</h1>
-      <p>Track who created, updated, deleted, or reset passwords for any portal account.</p>
+      <h1><i class="fas fa-clipboard-list"></i> Revizorski dnevnik naloga</h1>
+      <p>Pratite ko je kreirao, ažurirao, obrisao ili resetovao lozinke za bilo koji nalog portala.</p>
     </div>
-    <div class="total-badge">{{ total }} events</div>
+    <div class="total-badge">{{ total }} događaja</div>
   </div>
 
   <div class="filters card-panel">
     <div class="filter-grid">
       <label>
-        Search
-        <input type="text" [(ngModel)]="filters.q" placeholder="Name, email, reg no, actor..." />
+        Pretraga
+        <input type="text" [(ngModel)]="filters.q" placeholder="Ime, e-mail, reg. br., izvršilac..." />
       </label>
       <label>
-        Action
+        Radnja
         <select [(ngModel)]="filters.action">
-          <option *ngFor="let a of actions" [value]="a">{{ a || 'All actions' }}</option>
+          <option *ngFor="let a of actions" [value]="a">{{ a || 'Sve radnje' }}</option>
         </select>
       </label>
       <label>
-        Target role
+        Ciljna uloga
         <select [(ngModel)]="filters.targetUserRole">
-          <option *ngFor="let r of roles" [value]="r">{{ r || 'All roles' }}</option>
+          <option *ngFor="let r of roles" [value]="r">{{ r || 'Sve uloge' }}</option>
         </select>
       </label>
       <label>
-        From
+        Od
         <input type="date" [(ngModel)]="filters.from" />
       </label>
       <label>
-        To
+        Do
         <input type="date" [(ngModel)]="filters.to" />
       </label>
     </div>
     <div class="filter-actions">
-      <button type="button" class="btn-primary" (click)="applyFilters()">Apply</button>
-      <button type="button" class="btn-secondary" (click)="clearFilters()">Clear</button>
+      <button type="button" class="btn-primary" (click)="applyFilters()">Primeni</button>
+      <button type="button" class="btn-secondary" (click)="clearFilters()">Obriši</button>
     </div>
   </div>
 
-  <div *ngIf="loading" class="state-msg">Loading audit logs...</div>
+  <div *ngIf="loading" class="state-msg">Učitavanje revizorskih zapisa...</div>
   <div *ngIf="error" class="state-msg error">{{ error }}</div>
 
   <div class="card-panel" *ngIf="!loading && !error">
@@ -48,11 +48,11 @@
       <table>
         <thead>
           <tr>
-            <th>When</th>
-            <th>Action</th>
-            <th>Target account</th>
-            <th>Performed by</th>
-            <th>Source</th>
+            <th>Kada</th>
+            <th>Radnja</th>
+            <th>Ciljni nalog</th>
+            <th>Izvršio</th>
+            <th>Izvor</th>
             <th></th>
           </tr>
         </thead>
@@ -72,20 +72,20 @@
               <td>{{ row.source || '—' }}</td>
               <td>
                 <button type="button" class="btn-link" (click)="toggleExpand(row._id)">
-                  {{ expandedId === row._id ? 'Hide' : 'Details' }}
+                  {{ expandedId === row._id ? 'Sakrij' : 'Detalji' }}
                 </button>
               </td>
             </tr>
             <tr *ngIf="expandedId === row._id" class="detail-row">
               <td colspan="6">
                 <div class="detail-block" *ngIf="row.changedFields?.length">
-                  <h4>Field changes</h4>
+                  <h4>Promene polja</h4>
                   <table class="inner-table">
                     <thead>
                       <tr>
-                        <th>Field</th>
-                        <th>Old</th>
-                        <th>New</th>
+                        <th>Polje</th>
+                        <th>Staro</th>
+                        <th>Novo</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -99,12 +99,12 @@
                 </div>
 
                 <div class="detail-block" *ngIf="row.metadata">
-                  <h4>Metadata</h4>
+                  <h4>Metapodaci</h4>
                   <pre>{{ formatValue(row.metadata) }}</pre>
                 </div>
 
                 <div class="detail-block" *ngIf="row.userSnapshot">
-                  <h4>Account snapshot</h4>
+                  <h4>Snimak naloga</h4>
                   <pre>{{ formatValue(row.userSnapshot) }}</pre>
                 </div>
               </td>
@@ -115,9 +115,9 @@
     </div>
 
     <div class="pager" *ngIf="pages > 1">
-      <button type="button" [disabled]="page <= 1" (click)="fetchLogs(page - 1)">Previous</button>
-      <span>Page {{ page }} of {{ pages }}</span>
-      <button type="button" [disabled]="page >= pages" (click)="fetchLogs(page + 1)">Next</button>
+      <button type="button" [disabled]="page <= 1" (click)="fetchLogs(page - 1)">Prethodna</button>
+      <span>Stranica {{ page }} od {{ pages }}</span>
+      <button type="button" [disabled]="page >= pages" (click)="fetchLogs(page + 1)">Sledeća</button>
     </div>
   </div>
 </div>

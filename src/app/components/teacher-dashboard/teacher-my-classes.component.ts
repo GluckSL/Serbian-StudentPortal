@@ -1,4 +1,4 @@
-import { ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
+﻿import { ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
@@ -191,7 +191,7 @@ export class TeacherMyClassesComponent implements OnInit, OnDestroy {
   }
 
   formatCurrency(amount: number): string {
-    return `₹${Math.round(amount || 0).toLocaleString('en-IN')}`;
+    return `₹${Math.round(amount || 0).toLocaleString('sr-Latn-RS')}`;
   }
 
   formatAttendance(pct: number | null): string {
@@ -371,7 +371,7 @@ export class TeacherMyClassesComponent implements OnInit, OnDestroy {
 
   formatStart(m: any): string {
     if (!m?.startTime) return '—';
-    return new Date(m.startTime).toLocaleString('en-LK', {
+    return new Date(m.startTime).toLocaleString('sr-Latn-RS', {
       timeZone: 'Asia/Colombo', weekday: 'short', year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
     });
   }
@@ -541,7 +541,7 @@ export class TeacherMyClassesComponent implements OnInit, OnDestroy {
 
   formatDate(d: string | Date | null): string {
     if (!d) return '—';
-    return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    return new Date(d).toLocaleDateString('sr-Latn-RS', { month: 'short', day: 'numeric', year: 'numeric' });
   }
 
   // ── Doubts Modal ──
@@ -603,7 +603,7 @@ export class TeacherMyClassesComponent implements OnInit, OnDestroy {
 
   formatDateFull(d: string | Date | null): string {
     if (!d) return '';
-    return new Date(d).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    return new Date(d).toLocaleString('sr-Latn-RS', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
   }
 
   // ── Submissions Modal ──

@@ -147,7 +147,7 @@ export class TeacherMonthlyHoursComponent implements OnInit {
   }
 
   formatCurrency(amount: number): string {
-    return `₹${Math.round(amount || 0).toLocaleString('en-IN')}`;
+    return `₹${Math.round(amount || 0).toLocaleString('sr-Latn-RS')}`;
   }
 
   getRateForLevel(level: string): number {

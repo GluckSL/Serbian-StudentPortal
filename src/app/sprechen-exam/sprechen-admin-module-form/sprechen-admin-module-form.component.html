@@ -16,25 +16,25 @@
 
     <div class="text-center py-5" *ngIf="loading">
       <div class="spinner-border text-primary" role="status"></div>
-      <p class="mt-3 text-muted small">Loading…</p>
+      <p class="mt-3 text-muted small">Učitavanje…</p>
     </div>
 
     <div class="card dg-adm-rp-card" *ngIf="!loading && selected">
       <div class="card-header d-flex flex-wrap justify-content-between align-items-start gap-2">
         <div>
-          <h4 class="mb-0">🎤 {{ isCreateMode ? 'Create' : 'Edit' }} Sprechen Exam Module</h4>
-          <small class="text-muted d-block mt-1">Same workflow as DG Bot — exam content for Olly Tutor (Goethe A1)</small>
+          <h4 class="mb-0">🎤 {{ isCreateMode ? 'Kreiraj' : 'Izmeni' }} Sprechen Exam Modul</h4>
+          <small class="text-muted d-block mt-1">Isti tok rada kao DG Bot — sadržaj ispita za Olly Tutor (Goethe A1)</small>
         </div>
         <button type="button" class="btn btn-secondary" (click)="goBack()">
-          <i class="fas fa-arrow-left"></i> Back
+          <i class="fas fa-arrow-left"></i> Nazad
         </button>
       </div>
 
       <div class="card-body">
         <div class="row mb-4">
-          <div class="col-12"><h5 class="border-bottom pb-2">📝 Basic Information</h5></div>
+          <div class="col-12"><h5 class="border-bottom pb-2">📝 Osnovne informacije</h5></div>
           <div class="col-md-8 mb-3">
-            <label class="form-label">Module Title *</label>
+            <label class="form-label">Naslov modula *</label>
             <input
               type="text"
               class="form-control"
@@ -46,7 +46,7 @@
             />
           </div>
           <div class="col-md-4 mb-3">
-            <label class="form-label">Level *</label>
+            <label class="form-label">Nivo *</label>
             <select
               class="form-select"
               [(ngModel)]="editLevel"
@@ -57,7 +57,7 @@
             </select>
           </div>
           <div class="col-12 mb-3">
-            <label class="form-label">Description *</label>
+            <label class="form-label">Opis *</label>
             <textarea
               class="form-control"
               rows="2"
@@ -67,30 +67,30 @@
             ></textarea>
           </div>
           <div class="col-md-3 mb-3">
-            <label class="form-label">Pass threshold (/15)</label>
+            <label class="form-label">Prag prolaza (/15)</label>
             <input type="number" class="form-control" min="0" max="15" [(ngModel)]="editPassThreshold" name="passThreshold" />
           </div>
           <div class="col-md-3 mb-3">
-            <label class="form-label">Journey day</label>
-            <input type="number" class="form-control" min="1" max="200" [(ngModel)]="editCourseDay" name="courseDay" placeholder="e.g. 12" />
-            <small class="text-muted">Empty = any day</small>
+            <label class="form-label">Dan putovanja</label>
+            <input type="number" class="form-control" min="1" max="200" [(ngModel)]="editCourseDay" name="courseDay" placeholder="npr. 12" />
+            <small class="text-muted">Prazno = bilo koji dan</small>
           </div>
           <div class="col-md-4 mb-3">
-            <label class="form-label">Tutor character *</label>
+            <label class="form-label">Karakter tutora *</label>
             <select class="form-select" [(ngModel)]="editCharacterId" name="characterId" [class.is-invalid]="isInvalid('characterId')">
-              <option value="">Select character</option>
-              <option *ngFor="let c of characters" [value]="c._id">{{ c.name }}{{ c.isDefault ? ' (default)' : '' }}</option>
+              <option value="">Izaberite karakter</option>
+              <option *ngFor="let c of characters" [value]="c._id">{{ c.name }}{{ c.isDefault ? ' (podrazumevano)' : '' }}</option>
             </select>
-            <small class="text-muted">Use <strong>Olly Tutor</strong> for exam modules.</small>
+            <small class="text-muted">Koristite <strong>Olly Tutor</strong> za module ispita.</small>
           </div>
           <div class="col-md-2 mb-3 d-flex align-items-end">
             <div class="form-check">
               <input class="form-check-input" type="checkbox" [(ngModel)]="editVisible" id="spVisible" />
-              <label class="form-check-label" for="spVisible">Live for students</label>
+              <label class="form-check-label" for="spVisible">Vidljivo učenicima</label>
             </div>
           </div>
           <div class="col-12 mb-2">
-            <label class="form-label">Gluck Exam bucket</label>
+            <label class="form-label">Gluck Exam kategorija</label>
             <div class="d-flex flex-wrap gap-4 align-items-center">
               <div class="form-check form-switch">
                 <input
@@ -101,7 +101,7 @@
                   (ngModelChange)="onWeeklyTestToggle($event)"
                   name="weeklyTestEnabled"
                 />
-                <label class="form-check-label" for="spWeeklyTest">Weekly Test</label>
+                <label class="form-check-label" for="spWeeklyTest">Nedeljni test</label>
               </div>
               <div class="form-check form-switch">
                 <input
@@ -112,89 +112,89 @@
                   (ngModelChange)="onExamToggle($event)"
                   name="examEnabled"
                 />
-                <label class="form-check-label" for="spExam">Exam</label>
+                <label class="form-check-label" for="spExam">Ispit</label>
               </div>
             </div>
-            <small class="text-muted">Only one can be ON. Default is both OFF (not shown under Gluck Exam tab).</small>
+            <small class="text-muted">Samo jedno može biti UKLJUČENO. Podrazumevano su oba ISKLJUČENA (ne prikazuje se pod karticom Gluck Exam).</small>
           </div>
         </div>
 
         <div class="row mb-4">
-          <div class="col-12"><h5 class="border-bottom pb-2">🎯 Batch targeting</h5></div>
+          <div class="col-12"><h5 class="border-bottom pb-2">🎯 Ciljanje grupe</h5></div>
           <div class="col-md-6 mb-2">
             <select class="form-select" [(ngModel)]="batchToAdd" (change)="onBatchDropdownChange()">
-              <option value="">Add batch…</option>
+              <option value="">Dodaj grupu…</option>
               <option *ngFor="let b of batches" [value]="b.batchName">{{ b.batchName }}</option>
             </select>
           </div>
           <div class="col-12">
             <span *ngFor="let b of targetBatches" class="badge bg-primary me-1 mb-1" style="cursor:pointer" (click)="toggleBatch(b)">{{ b }} ×</span>
-            <span class="text-muted small" *ngIf="!targetBatches.length">All batches (when empty)</span>
+            <span class="text-muted small" *ngIf="!targetBatches.length">Sve grupe (kada je prazno)</span>
           </div>
         </div>
 
         <div class="row mb-4">
-          <div class="col-12"><h5 class="border-bottom pb-2">1️⃣ Teil 1 — Self introduction</h5></div>
+          <div class="col-12"><h5 class="border-bottom pb-2">1️⃣ Teil 1 — Predstavljanje</h5></div>
           <div class="col-12 mb-3">
-            <label class="form-label">Intro card image (above Olly in Teil 1)</label>
-            <p class="text-muted small mb-2">Upload the visual prompt card. Students tap it in the exam to view full screen.</p>
+            <label class="form-label">Slika uvodne kartice (iznad Olly u Teil 1)</label>
+            <p class="text-muted small mb-2">Otpremite vizuelnu karticu. Učenici je tapkaju tokom ispita za prikaz na celom ekranu.</p>
             <div class="d-flex flex-wrap align-items-start gap-3">
               <div *ngIf="introCardImageUrl" class="border rounded p-2 bg-light">
                 <img [src]="getIntroCardPreviewUrl()" alt="Intro card preview" style="max-height:120px;max-width:200px;object-fit:contain" />
               </div>
               <div>
                 <input type="file" class="form-control" accept="image/*" (change)="onIntroCardFile($event)" [disabled]="introCardUploading" />
-                <small class="text-muted d-block mt-1" *ngIf="introCardUploading">Uploading…</small>
-                <button type="button" class="btn btn-sm btn-outline-danger mt-1" *ngIf="introCardImageUrl" (click)="clearIntroCardImage()">Remove image</button>
+                <small class="text-muted d-block mt-1" *ngIf="introCardUploading">Otpremanje…</small>
+                <button type="button" class="btn btn-sm btn-outline-danger mt-1" *ngIf="introCardImageUrl" (click)="clearIntroCardImage()">Ukloni sliku</button>
               </div>
             </div>
           </div>
           <div class="col-12 mb-3">
-            <label class="form-label">Keywords fallback (comma-separated, if no image)</label>
+            <label class="form-label">Ključne reči — rezervna opcija (razdvojene zarezom, ako nema slike)</label>
             <input class="form-control" [(ngModel)]="keywordsText" (input)="markExamContentDirty()" name="keywords" placeholder="Name, Alter, Land, …" />
           </div>
           <div class="col-md-6 mb-3">
-            <label class="form-label">Spell prompts (one per line)</label>
+            <label class="form-label">Prompts za sricanje (jedan po liniji)</label>
             <textarea class="form-control" rows="3" [(ngModel)]="spellPromptsText" (input)="markExamContentDirty()" name="spellPrompts"></textarea>
           </div>
           <div class="col-md-6 mb-3">
-            <label class="form-label">Number prompts (one per line)</label>
+            <label class="form-label">Prompts za brojeve (jedan po liniji)</label>
             <textarea class="form-control" rows="3" [(ngModel)]="numberPromptsText" (input)="markExamContentDirty()" name="numberPrompts"></textarea>
           </div>
         </div>
 
         <div class="row mb-4">
           <div class="col-12 d-flex justify-content-between align-items-center border-bottom pb-2 mb-2">
-            <h5 class="mb-0">2️⃣ Teil 2 — Questions</h5>
-            <button type="button" class="btn btn-sm btn-outline-primary" (click)="addTheme()">+ Theme</button>
+            <h5 class="mb-0">2️⃣ Teil 2 — Pitanja</h5>
+            <button type="button" class="btn btn-sm btn-outline-primary" (click)="addTheme()">+ Tema</button>
           </div>
           <div class="col-12 mb-3" *ngFor="let t of themes; let i = index">
             <div class="card p-3 bg-light">
               <div class="row g-2">
                 <div class="col-md-4">
-                  <label class="form-label small">Theme name</label>
+                  <label class="form-label small">Naziv teme</label>
                   <input class="form-control form-control-sm" [(ngModel)]="t.name" (input)="markExamContentDirty()" [name]="'themeName' + i" />
                 </div>
                 <div class="col-md-3">
-                  <label class="form-label small">Student keyword</label>
+                  <label class="form-label small">Ključna reč učenika</label>
                   <input class="form-control form-control-sm" [(ngModel)]="t.studentKeyword" (input)="markExamContentDirty()" [name]="'sk' + i" />
                 </div>
                 <div class="col-md-3">
-                  <label class="form-label small">Bot keyword</label>
+                  <label class="form-label small">Ključna reč bota</label>
                   <input class="form-control form-control-sm" [(ngModel)]="t.botKeyword" (input)="markExamContentDirty()" [name]="'bk' + i" />
                 </div>
                 <div class="col-md-6">
-                  <label class="form-label small">Student card image</label>
+                  <label class="form-label small">Slika kartice učenika</label>
                   <input type="file" class="form-control form-control-sm" accept="image/*" (change)="onThemeImageFile($event, t, 'studentCardImageUrl')" />
                   <img *ngIf="t.studentCardImageUrl" [src]="getCardPreviewUrl(t.studentCardImageUrl)" alt="" class="mt-1" style="max-height:48px" />
                 </div>
                 <div class="col-md-6">
-                  <label class="form-label small">Bot card image</label>
+                  <label class="form-label small">Slika kartice bota</label>
                   <input type="file" class="form-control form-control-sm" accept="image/*" (change)="onThemeImageFile($event, t, 'botCardImageUrl')" />
                   <img *ngIf="t.botCardImageUrl" [src]="getCardPreviewUrl(t.botCardImageUrl)" alt="" class="mt-1" style="max-height:48px" />
                 </div>
                 <div class="col-md-2 d-flex align-items-end">
-                  <button type="button" class="btn btn-sm btn-outline-danger w-100" (click)="removeTheme(i)">Remove</button>
+                  <button type="button" class="btn btn-sm btn-outline-danger w-100" (click)="removeTheme(i)">Ukloni</button>
                 </div>
               </div>
             </div>
@@ -203,49 +203,49 @@
 
         <div class="row mb-4">
           <div class="col-12 d-flex justify-content-between align-items-center border-bottom pb-2 mb-2">
-            <h5 class="mb-0">3️⃣ Teil 3 — Requests</h5>
-            <button type="button" class="btn btn-sm btn-outline-primary" (click)="addRound()">+ Round</button>
+            <h5 class="mb-0">3️⃣ Teil 3 — Zahtevi</h5>
+            <button type="button" class="btn btn-sm btn-outline-primary" (click)="addRound()">+ Runda</button>
           </div>
           <div class="col-12 mb-3" *ngFor="let r of rounds; let i = index">
             <div class="card p-3">
-              <p class="small fw-bold mb-2">Round {{ i + 1 }}</p>
+              <p class="small fw-bold mb-2">Runda {{ i + 1 }}</p>
               <div class="row g-2">
                 <div class="col-md-6">
-                  <label class="form-label small">Student card label</label>
+                  <label class="form-label small">Oznaka kartice učenika</label>
                   <input class="form-control form-control-sm" [(ngModel)]="r.studentCard.label" (input)="markExamContentDirty()" />
-                  <label class="form-label small mt-1">Object (German)</label>
+                  <label class="form-label small mt-1">Objekat (nemački)</label>
                   <input class="form-control form-control-sm" [(ngModel)]="r.studentCard.objectDe" (input)="markExamContentDirty()" placeholder="einen Stift" />
-                  <label class="form-label small mt-1">Student card image</label>
+                  <label class="form-label small mt-1">Slika kartice učenika</label>
                   <input type="file" class="form-control form-control-sm" accept="image/*" (change)="onRoundImageFile($event, r, 'student')" />
                   <img *ngIf="r.studentCard.imageUrl" [src]="getCardPreviewUrl(r.studentCard.imageUrl)" alt="" class="mt-1" style="max-height:48px" />
                 </div>
                 <div class="col-md-6">
-                  <label class="form-label small">Bot card label</label>
+                  <label class="form-label small">Oznaka kartice bota</label>
                   <input class="form-control form-control-sm" [(ngModel)]="r.botCard.label" (input)="markExamContentDirty()" />
-                  <label class="form-label small mt-1">Object (German)</label>
+                  <label class="form-label small mt-1">Objekat (nemački)</label>
                   <input class="form-control form-control-sm" [(ngModel)]="r.botCard.objectDe" (input)="markExamContentDirty()" placeholder="ein Glas Wasser" />
-                  <label class="form-label small mt-1">Bot card image</label>
+                  <label class="form-label small mt-1">Slika kartice bota</label>
                   <input type="file" class="form-control form-control-sm" accept="image/*" (change)="onRoundImageFile($event, r, 'bot')" />
                   <img *ngIf="r.botCard.imageUrl" [src]="getCardPreviewUrl(r.botCard.imageUrl)" alt="" class="mt-1" style="max-height:48px" />
                 </div>
               </div>
-              <button type="button" class="btn btn-sm btn-outline-danger mt-2" (click)="removeRound(i)">Remove round</button>
+              <button type="button" class="btn btn-sm btn-outline-danger mt-2" (click)="removeRound(i)">Ukloni rundu</button>
             </div>
           </div>
         </div>
 
         <p class="text-muted small">
-          Scoring rubric uses the default A1 template on create. Advanced rubric editing will come with the curriculum document import.
+          Rubrika bodovanja koristi podrazumevani A1 predložak pri kreiranju. Napredno uređivanje rubrike doći će uz uvoz dokumenta nastavnog plana.
         </p>
 
         <div class="d-flex flex-wrap gap-2 mt-4">
           <button type="button" class="btn btn-primary" [disabled]="saving" (click)="save()">
-            <i class="fas fa-save"></i> {{ saving ? 'Saving…' : 'Save module' }}
+            <i class="fas fa-save"></i> {{ saving ? 'Čuvanje…' : 'Sačuvaj modul' }}
           </button>
           <button type="button" class="btn btn-outline-success" *ngIf="!isCreateMode" (click)="preview()">
-            <i class="fas fa-play"></i> Preview exam
+            <i class="fas fa-play"></i> Pregled ispita
           </button>
-          <button type="button" class="btn btn-secondary" (click)="goBack()">Cancel</button>
+          <button type="button" class="btn btn-secondary" (click)="goBack()">Otkaži</button>
         </div>
       </div>
     </div>

@@ -1,4 +1,4 @@
-import {
+﻿import {
   Component,
   Input,
   Output,
@@ -46,12 +46,12 @@ interface DisplayPair {
             <mat-icon>star</mat-icon>
             <span>{{ score }}</span>
           </div>
-          <div class="im-play__progress">Page {{ currentPageIndex + 1 }} / {{ totalPages }}</div>
+          <div class="im-play__progress">Stranica {{ currentPageIndex + 1 }} / {{ totalPages }}</div>
           <div class="im-play__timer">
             <mat-icon>timer</mat-icon>
             <span>{{ formatElapsed(sessionElapsedSeconds) }}</span>
           </div>
-          <button mat-icon-button type="button" (click)="onPause()" aria-label="Pause"><mat-icon>pause</mat-icon></button>
+          <button mat-icon-button type="button" (click)="onPause()" aria-label="Pauza"><mat-icon>pause</mat-icon></button>
         </header>
 
         <div
@@ -60,9 +60,9 @@ interface DisplayPair {
           [class.im-board--word-selected]="selectedWordIndex !== null"
           *ngIf="phase === 'playing' && currentPairs.length">
           <div class="im-board__prompt">
-            <p>Drag or tap a word, then tap its matching image. Correct matches turn <span class="im-hint__green">green</span>!</p>
+            <p>Prevucite ili dodirnite reč, zatim dodirnite odgovarajuću sliku. Tačni parovi postaju <span class="im-hint__green">zeleni</span>!</p>
             <div class="im-progress-chips">
-              <span class="im-progress-chips__label">{{ matchedCount }} / {{ currentPairs.length }} matched</span>
+              <span class="im-progress-chips__label">{{ matchedCount }} / {{ currentPairs.length }} upareno</span>
             </div>
           </div>
 
@@ -106,7 +106,7 @@ interface DisplayPair {
 
         <div class="im-complete" *ngIf="phase === 'complete'">
           <mat-icon class="im-complete__spinner">hourglass_top</mat-icon>
-          <span class="im-complete__calc">Calculating results…</span>
+          <span class="im-complete__calc">Računanje rezultata…</span>
         </div>
       </main>
 

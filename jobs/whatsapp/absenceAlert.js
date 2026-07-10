@@ -70,7 +70,7 @@ async function processEarlyJoinReminder(batchSettings = {}) {
     if (!notJoined.length) continue;
 
     // ── WhatsApp (short nudge) ──────────────────────────────────────────────
-    const portalUrl = (process.env.FRONTEND_URL || 'https://gluckstudentsportal.com').replace(/\/$/, '');
+    const portalUrl = (process.env.PORTAL_URL || process.env.FRONTEND_URL || 'https://portal.gluckglobal.rs').replace(/\/$/, '');
     for (const attendee of notJoined) {
       const user = await User.findById(attendee.studentId)
         .select('whatsappNumber phoneNumber')
@@ -80,7 +80,7 @@ async function processEarlyJoinReminder(batchSettings = {}) {
         phone,
         name: attendee.name,
         type: NOTIFICATION_TYPES.ABSENT_DURING_CLASS,
-        message: `Hi ${attendee.name}, "${topic}" started 5 min ago — please join now: ${portalUrl}/login`,
+        message: `Zdravo ${attendee.name}, "${topic}" je počeo pre 5 min — molimo pridružite se sada: ${portalUrl}/login`,
         data: {
           meetingId: m._id,
           topic,
@@ -145,7 +145,7 @@ async function processAfterClassAbsence(batchSettings = {}) {
         phone,
         name: entry.name,
         type: NOTIFICATION_TYPES.ABSENT_AFTER_CLASS,
-        message: `Hi ${entry.name}, you were absent from "${topic}" on ${meeting.startTime?.toLocaleDateString()}. Log in or contact your teacher if you need help.`,
+        message: `Zdravo ${entry.name}, bili ste odsutni sa "${topic}" dana ${meeting.startTime?.toLocaleDateString()}. Prijavite se ili kontaktirajte vašeg nastavnika ako vam treba pomoć.`,
         data: {
           meetingId: meeting._id,
           topic,

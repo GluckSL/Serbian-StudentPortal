@@ -35,12 +35,12 @@ const REPORT_RECIPIENTS = ['aiswarya@gluckglobal.com', 'sourav@gluckglobal.com']
 
 /** YYYY-MM-DD string for a Date in IST. */
 function toDateStrIST(date = new Date()) {
-  return date.toLocaleDateString('en-CA', { timeZone: TZ });
+  return date.toLocaleDateString('sr-Latn-RS', { timeZone: TZ });
 }
 
 /** Human-readable date label e.g. "Mon, 30 Jun 2026". */
 function shortDateLabel(date) {
-  return new Date(date).toLocaleDateString('en-GB', {
+  return new Date(date).toLocaleDateString('sr-Latn-RS', {
     weekday: 'short', day: '2-digit', month: 'short', year: 'numeric',
     timeZone: TZ,
   });
@@ -48,7 +48,7 @@ function shortDateLabel(date) {
 
 /** Human-readable full date e.g. "Monday, 30 June 2026". */
 function fullDateLabel(date) {
-  return new Date(date).toLocaleDateString('en-IN', {
+  return new Date(date).toLocaleDateString('sr-Latn-RS', {
     weekday: 'long', day: '2-digit', month: 'long', year: 'numeric',
     timeZone: 'Asia/Kolkata',
   });
@@ -228,7 +228,7 @@ async function processWeeklyAbsenceSummary() {
 
   // Week range label
   const fmt = (d) =>
-    d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: TZ });
+    d.toLocaleDateString('sr-Latn-RS', { day: '2-digit', month: 'short', year: 'numeric', timeZone: TZ });
   const weekRange = `${fmt(weekAgo)} – ${fmt(now)}`;
 
   const reportDate = fullDateLabel(now);

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * utils/emailTemplates.js
  *
  * Branded HTML email templates for the Glück Global portal.
@@ -14,14 +14,14 @@
  */
 function buildPasswordResetOtpEmail({ name, otp, expiresMinutes = 15 }) {
   return {
-    subject: 'Your Glück Global Password Reset Code',
+    subject: 'Vaš kod za resetovanje lozinke - Glück Global',
     html: `
 <!DOCTYPE html>
-<html lang="en">
+<html lang="sr-Latn">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Password Reset</title>
+  <title>Resetovanje lozinke</title>
 </head>
 <body style="margin:0;padding:0;background:#f4f6fb;font-family:Arial,sans-serif;">
   <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
@@ -37,7 +37,7 @@ function buildPasswordResetOtpEmail({ name, otp, expiresMinutes = 15 }) {
                 Glück Global
               </h1>
               <p style="margin:4px 0 0;color:rgba(255,255,255,0.85);font-size:14px;">
-                German Study Buddy
+                Vaš partner za učenje nemačkog
               </p>
             </td>
           </tr>
@@ -46,12 +46,12 @@ function buildPasswordResetOtpEmail({ name, otp, expiresMinutes = 15 }) {
           <tr>
             <td style="padding:36px 40px;">
               <p style="margin:0 0 16px;color:#1a1a2e;font-size:16px;line-height:1.6;">
-                Hello <strong>${escapeHtml(name)}</strong>,
+                Zdravo <strong>${escapeHtml(name)}</strong>,
               </p>
               <p style="margin:0 0 24px;color:#444;font-size:15px;line-height:1.6;">
-                We received a request to reset the password for your Glück Global account.
-                Use the one-time code below to proceed. It is valid for
-                <strong>${expiresMinutes} minutes</strong>.
+                Primili smo zahtev za resetovanje lozinke za vaš Glück Global nalog.
+                Koristite jednokratni kod ispod da nastavite. Važi
+                <strong>${expiresMinutes} minuta</strong>.
               </p>
 
               <!-- OTP Box -->
@@ -62,7 +62,7 @@ function buildPasswordResetOtpEmail({ name, otp, expiresMinutes = 15 }) {
                                 border-radius:12px;padding:20px 40px;">
                       <p style="margin:0 0 6px;color:#6c3fc5;font-size:12px;
                                  font-weight:700;letter-spacing:2px;text-transform:uppercase;">
-                        Your Reset Code
+                        Vaš kod za resetovanje
                       </p>
                       <p style="margin:0;color:#1a1a2e;font-size:36px;
                                  font-weight:800;letter-spacing:8px;font-family:'Courier New',monospace;">
@@ -74,7 +74,7 @@ function buildPasswordResetOtpEmail({ name, otp, expiresMinutes = 15 }) {
               </table>
 
               <p style="margin:0 0 16px;color:#444;font-size:14px;line-height:1.6;">
-                Enter this code on the password reset page together with your new password.
+                Unesite ovaj kod na stranici za resetovanje lozinke zajedno sa novom lozinkom.
               </p>
 
               <!-- Security warning -->
@@ -83,9 +83,9 @@ function buildPasswordResetOtpEmail({ name, otp, expiresMinutes = 15 }) {
                   <td style="background:#fff8f0;border-left:4px solid #f59e0b;
                               border-radius:4px;padding:14px 18px;margin-bottom:24px;">
                     <p style="margin:0;color:#92400e;font-size:13px;line-height:1.5;">
-                      <strong>Did not request this?</strong> You can safely ignore this email.
-                      Your password will not change unless you complete the reset process.
-                      Never share this code with anyone.
+                      <strong>Niste tražili ovo?</strong> Slobodno ignorišite ovaj e-mail.
+                      Vaša lozinka neće biti promenjena ukoliko ne završite proces resetovanja.
+                      Nikada ne delite ovaj kod ni sa kim.
                     </p>
                   </td>
                 </tr>
@@ -98,11 +98,11 @@ function buildPasswordResetOtpEmail({ name, otp, expiresMinutes = 15 }) {
             <td style="background:#f9fafb;padding:20px 40px;border-top:1px solid #e5e7eb;">
               <p style="margin:0;color:#9ca3af;font-size:12px;text-align:center;line-height:1.6;">
                 Glück Global Pvt Ltd &nbsp;·&nbsp;
-                <a href="https://gluckstudentsportal.com" style="color:#8b5cf6;text-decoration:none;">
-                  gluckstudentsportal.com
+                <a href="${process.env.PORTAL_URL || 'https://portal.gluckglobal.rs'}" style="color:#8b5cf6;text-decoration:none;">
+                  ${(process.env.PORTAL_URL || 'https://portal.gluckglobal.rs').replace(/^https?:\/\//, '')}
                 </a>
                 <br />
-                This is an automated message. Please do not reply to this email.
+                Ovo je automatska poruka. Molimo vas da ne odgovarate na ovaj e-mail.
               </p>
             </td>
           </tr>
@@ -130,15 +130,15 @@ const { formatSubscriptionLabel } = require('./studentSubscriptionPlans');
 /** OTP sent to current email when student requests an email change during setup. */
 function buildEmailChangeOtpEmail({ name, otp, newEmail, expiresMinutes = 15 }) {
   return {
-    subject: 'Confirm your Glück Global email change',
+    subject: 'Potvrdite promenu e-mail adrese - Glück Global',
     html: `
 <div style="font-family:Arial,sans-serif;color:#000;line-height:1.6;max-width:560px;margin:0 auto;">
-  <p>Hello <strong>${escapeHtml(name)}</strong>,</p>
-  <p>You requested to change your portal email to <strong>${escapeHtml(newEmail)}</strong>.</p>
-  <p>Your verification code is:</p>
+  <p>Zdravo <strong>${escapeHtml(name)}</strong>,</p>
+  <p>Zatražili ste promenu e-mail adrese portala na <strong>${escapeHtml(newEmail)}</strong>.</p>
+  <p>Vaš verifikacioni kod je:</p>
   <p style="font-size:32px;font-weight:800;letter-spacing:8px;color:#6c3fc5;font-family:monospace;">${escapeHtml(otp)}</p>
-  <p>This code expires in <strong>${expiresMinutes} minutes</strong>. If you did not request this, ignore this email.</p>
-  <p>Best regards,<br><strong>Glück Global Pvt Ltd</strong></p>
+  <p>Ovaj kod ističe za <strong>${expiresMinutes} minuta</strong>. Ako niste tražili ovo, ignorišite ovaj e-mail.</p>
+  <p>S poštovanjem,<br><strong>Glück Global Pvt Ltd</strong></p>
 </div>`.trim(),
   };
 }
@@ -146,24 +146,24 @@ function buildEmailChangeOtpEmail({ name, otp, newEmail, expiresMinutes = 15 }) 
 /** Credentials email after student completes first-login password setup. */
 function buildPortalCredentialsEmail({ name, regNo, email, password, isOneTimeNote = false }) {
   const oneTimeNote = isOneTimeNote
-    ? '<p style="color:#92400e;background:#fff8f0;padding:12px;border-left:4px solid #f59e0b;"><strong>Note:</strong> Your initial password was one-time only. Use the password below that you set during setup.</p>'
+    ? '<p style="color:#92400e;background:#fff8f0;padding:12px;border-left:4px solid #f59e0b;"><strong>Napomena:</strong> Vaša početna lozinka je bila jednokratna. Koristite lozinku ispod koju ste postavili tokom podešavanja.</p>'
     : '';
   return {
-    subject: 'Your Glück Global Portal Login Details',
+    subject: 'Vaši podaci za prijavu na Glück Global portal',
     html: `
 <div style="font-family:Arial,sans-serif;color:#000;line-height:1.6;max-width:560px;margin:0 auto;">
-  <p>Hello <strong>${escapeHtml(name)}</strong>,</p>
-  <p>Your <strong>Glück Global Student Portal</strong> account is ready. Here are your login details:</p>
+  <p>Zdravo <strong>${escapeHtml(name)}</strong>,</p>
+  <p>Vaš nalog na <strong>Glück Global Studentski portal</strong> je spreman. Evo vaših podataka za prijavu:</p>
   ${oneTimeNote}
   <ul>
     <li><strong>Web App ID:</strong> ${escapeHtml(regNo)}</li>
-    <li><strong>Email:</strong> ${escapeHtml(email)}</li>
-    <li><strong>Password:</strong> ${escapeHtml(password)}</li>
+    <li><strong>E-mail:</strong> ${escapeHtml(email)}</li>
+    <li><strong>Lozinka:</strong> ${escapeHtml(password)}</li>
   </ul>
-  <p>You can sign in with your <strong>email</strong> or <strong>Web App ID</strong> and the password above.</p>
-  <p>Portal: <a href="https://gluckstudentsportal.com">https://gluckstudentsportal.com</a></p>
-  <p>Please keep this information safe and do not share it with anyone.</p>
-  <p>Best regards,<br><strong>Glück Global Pvt Ltd</strong></p>
+  <p>Možete se prijaviti svojom <strong>e-mail adresom</strong> ili <strong>Web App ID</strong> i lozinkom iznad.</p>
+  <p>Portal: <a href="${process.env.PORTAL_URL || 'https://portal.gluckglobal.rs'}">${process.env.PORTAL_URL || 'https://portal.gluckglobal.rs'}</a></p>
+  <p>Molimo vas da čuvate ove podatke i ne delite ih ni sa kim.</p>
+  <p>S poštovanjem,<br><strong>Glück Global Pvt Ltd</strong></p>
 </div>`.trim(),
   };
 }
@@ -171,22 +171,22 @@ function buildPortalCredentialsEmail({ name, regNo, email, password, isOneTimeNo
 /** Welcome email for new students — one-time password; must change on first login. */
 function buildWelcomeOneTimePasswordEmail({ name, regNo, email, password }) {
   return {
-    subject: 'Welcome to Glück Global Student Portal',
+    subject: 'Dobrodošli u Glück Global Studentski portal',
     html: `
 <div style="font-family:Arial,sans-serif;color:#000;line-height:1.6;max-width:560px;margin:0 auto;">
-  <p>Hello <strong>${escapeHtml(name)}</strong>,</p>
-  <p>Welcome to the <strong>Glück Global Student Portal</strong>. Your account has been created.</p>
+  <p>Zdravo <strong>${escapeHtml(name)}</strong>,</p>
+  <p>Dobrodošli u <strong>Glück Global Studentski portal</strong>. Vaš nalog je kreiran.</p>
   <ul>
     <li><strong>Web App ID:</strong> ${escapeHtml(regNo)}</li>
-    <li><strong>Email:</strong> ${escapeHtml(email)}</li>
-    <li><strong>One-time password:</strong> ${escapeHtml(password)}</li>
+    <li><strong>E-mail:</strong> ${escapeHtml(email)}</li>
+    <li><strong>Jednokratna lozinka:</strong> ${escapeHtml(password)}</li>
   </ul>
   <p style="color:#92400e;background:#fff8f0;padding:12px;border-left:4px solid #f59e0b;">
-    <strong>Important:</strong> The password above is for your <strong>first login only</strong>.
-    You will be asked to set your own permanent password before you can use the portal.
+    <strong>Važno:</strong> Lozinka iznad je samo za <strong>prvu prijavu</strong>.
+    Bićete zamoljeni da postavite sopstvenu trajnu lozinku pre nego što možete koristiti portal.
   </p>
-  <p>Portal: <a href="https://gluckstudentsportal.com">https://gluckstudentsportal.com</a></p>
-  <p>Best regards,<br><strong>Glück Global Pvt Ltd</strong></p>
+  <p>Portal: <a href="${process.env.PORTAL_URL || 'https://portal.gluckglobal.rs'}">${process.env.PORTAL_URL || 'https://portal.gluckglobal.rs'}</a></p>
+  <p>S poštovanjem,<br><strong>Glück Global Pvt Ltd</strong></p>
 </div>`.trim(),
   };
 }
@@ -195,7 +195,7 @@ function buildWelcomeOneTimePasswordEmail({ name, regNo, email, password }) {
 
 function emailHeader(title = '') {
   return `<!DOCTYPE html>
-<html lang="en">
+<html lang="sr-Latn">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -209,7 +209,7 @@ function emailHeader(title = '') {
       <tr>
         <td style="background:linear-gradient(135deg,#6c3fc5 0%,#8b5cf6 100%);padding:28px 40px;text-align:center;">
           <h1 style="margin:0;color:#fff;font-size:22px;font-weight:700;">Glück Global</h1>
-          <p style="margin:4px 0 0;color:rgba(255,255,255,0.85);font-size:13px;">German Study Buddy</p>
+          <p style="margin:4px 0 0;color:rgba(255,255,255,0.85);font-size:13px;">Vaš partner za učenje nemačkog</p>
         </td>
       </tr>
       <tr><td style="padding:32px 40px;">`;
@@ -220,7 +220,7 @@ function emailFooter() {
       </td></tr>
       <tr>
         <td style="background:#f8fafc;padding:16px 40px;text-align:center;">
-          <p style="margin:0;color:#94a3b8;font-size:12px;">© Glück Global Pvt Ltd · <a href="https://gluckstudentsportal.com" style="color:#6c3fc5;">gluckstudentsportal.com</a></p>
+          <p style="margin:0;color:#94a3b8;font-size:12px;">© Glück Global Pvt Ltd · <a href="${process.env.PORTAL_URL || 'https://portal.gluckglobal.rs'}" style="color:#6c3fc5;">${(process.env.PORTAL_URL || 'https://portal.gluckglobal.rs').replace(/^https?:\/\//, '')}</a></p>
         </td>
       </tr>
     </table>
@@ -239,23 +239,23 @@ function emailFooter() {
  */
 function buildSignupLinkEmail({ name, signupUrl }) {
   return {
-    subject: 'Your Glück Global Signup Link',
-    html: emailHeader('Signup Link') + `
-      <p style="margin:0 0 16px;color:#1a1a2e;font-size:16px;line-height:1.6;">Hello <strong>${escapeHtml(name || 'there')}</strong>,</p>
+    subject: 'Vaš link za registraciju - Glück Global',
+    html: emailHeader('Link za registraciju') + `
+      <p style="margin:0 0 16px;color:#1a1a2e;font-size:16px;line-height:1.6;">Zdravo <strong>${escapeHtml(name || 'tu')}</strong>,</p>
       <p style="margin:0 0 20px;color:#444;font-size:15px;line-height:1.6;">
-        You've been invited to join the <strong>Glück Global Student Portal</strong>.
-        Click the button below to complete your registration in just a few steps.
+        Pozvani ste da se pridružite <strong>Glück Global Studentskom portalu</strong>.
+        Kliknite dugme ispod da završite registraciju u nekoliko koraka.
       </p>
       <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
         <tr><td align="center" style="padding:8px 0 28px;">
           <a href="${signupUrl}" style="display:inline-block;background:linear-gradient(135deg,#6c3fc5,#8b5cf6);color:#fff;font-size:15px;font-weight:700;text-decoration:none;padding:14px 36px;border-radius:8px;">
-            Complete Registration →
+            Završi registraciju →
           </a>
         </td></tr>
       </table>
-      <p style="margin:0 0 8px;color:#64748b;font-size:13px;">Or copy this link into your browser:</p>
+      <p style="margin:0 0 8px;color:#64748b;font-size:13px;">Ili kopirajte ovaj link u vaš pregledač:</p>
       <p style="margin:0 0 24px;word-break:break-all;font-size:12px;color:#6c3fc5;">${escapeHtml(signupUrl)}</p>
-      <p style="margin:0;color:#9ca3af;font-size:12px;">This link expires in 30 days. If you did not request this, please ignore this email.</p>
+      <p style="margin:0;color:#9ca3af;font-size:12px;">Ovaj link ističe za 30 dana. Ako niste tražili ovo, slobodno ignorišite ovaj e-mail.</p>
     ` + emailFooter(),
   };
 }
@@ -268,23 +268,23 @@ function buildSignupLinkEmail({ name, signupUrl }) {
  */
 function buildRegisterInviteEmail({ name, registerUrl }) {
   return {
-    subject: 'You\'re invited to register for Glück Global',
-    html: emailHeader('Registration Invite') + `
-      <p style="margin:0 0 16px;color:#1a1a2e;font-size:16px;line-height:1.6;">Hello <strong>${escapeHtml(name || 'there')}</strong>,</p>
+    subject: 'Pozvani ste da se registrujete za Glück Global',
+    html: emailHeader('Pozivnica za registraciju') + `
+      <p style="margin:0 0 16px;color:#1a1a2e;font-size:16px;line-height:1.6;">Zdravo <strong>${escapeHtml(name || 'tu')}</strong>,</p>
       <p style="margin:0 0 20px;color:#444;font-size:15px;line-height:1.6;">
-        You have been invited to register for <strong>Glück Global</strong>.
-        Click the button below to enroll and complete your registration on our student portal.
+        Pozvani ste da se registrujete za <strong>Glück Global</strong>.
+        Kliknite dugme ispod da se upišete i završite registraciju na našem studentskom portalu.
       </p>
       <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
         <tr><td align="center" style="padding:8px 0 28px;">
           <a href="${registerUrl}" style="display:inline-block;background:linear-gradient(135deg,#6c3fc5,#8b5cf6);color:#fff;font-size:15px;font-weight:700;text-decoration:none;padding:14px 36px;border-radius:8px;">
-            Enroll
+            Upiši se
           </a>
         </td></tr>
       </table>
-      <p style="margin:0 0 8px;color:#64748b;font-size:13px;">Or copy this link into your browser:</p>
+      <p style="margin:0 0 8px;color:#64748b;font-size:13px;">Ili kopirajte ovaj link u vaš pregledač:</p>
       <p style="margin:0 0 24px;word-break:break-all;font-size:12px;color:#6c3fc5;">${escapeHtml(registerUrl)}</p>
-      <p style="margin:0;color:#9ca3af;font-size:12px;">If you did not expect this invitation, you can safely ignore this email.</p>
+      <p style="margin:0;color:#9ca3af;font-size:12px;">Ako niste očekivali ovu pozivnicu, slobodno ignorišite ovaj e-mail.</p>
     ` + emailFooter(),
   };
 }
@@ -299,12 +299,12 @@ function buildRegisterInviteEmail({ name, registerUrl }) {
  */
 function buildSignupEmailOtpEmail({ name, otp, expiresMinutes = 10 }) {
   return {
-    subject: 'Verify Your Email — Glück Global',
-    html: emailHeader('Email Verification') + `
-      <p style="margin:0 0 16px;color:#1a1a2e;font-size:16px;line-height:1.6;">Hello <strong>${escapeHtml(name || 'there')}</strong>,</p>
+    subject: 'Verifikujte vaš e-mail — Glück Global',
+    html: emailHeader('Verifikacija e-maila') + `
+      <p style="margin:0 0 16px;color:#1a1a2e;font-size:16px;line-height:1.6;">Zdravo <strong>${escapeHtml(name || 'tu')}</strong>,</p>
       <p style="margin:0 0 24px;color:#444;font-size:15px;line-height:1.6;">
-        Use the one-time code below to verify your email address during signup.
-        It is valid for <strong>${expiresMinutes} minutes</strong>.
+        Koristite jednokratni kod ispod da verifikujete vašu e-mail adresu tokom registracije.
+        Važi <strong>${expiresMinutes} minuta</strong>.
       </p>
       <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
         <tr><td align="center" style="padding:8px 0 28px;">
@@ -313,7 +313,7 @@ function buildSignupEmailOtpEmail({ name, otp, expiresMinutes = 10 }) {
           </div>
         </td></tr>
       </table>
-      <p style="margin:0;color:#9ca3af;font-size:12px;">Do not share this code. If you didn't request it, you can ignore this email.</p>
+      <p style="margin:0;color:#9ca3af;font-size:12px;">Ne delite ovaj kod. Ako ga niste tražili, slobodno ignorišite ovaj e-mail.</p>
     ` + emailFooter(),
   };
 }
@@ -372,26 +372,26 @@ function buildSignupProofReceivedAdminEmail({
       : '';
 
   const detailRows = [
-    proofDetailRow('Student Name', studentName),
-    proofDetailRow('Email', studentEmail),
+    proofDetailRow('Ime studenta', studentName),
+    proofDetailRow('E-mail', studentEmail),
     proofDetailRow('Web App ID', regNo),
-    proofDetailRow('Phone', phoneNumber),
+    proofDetailRow('Telefon', phoneNumber),
     proofDetailRow('WhatsApp', whatsappNumber),
-    proofDetailRow('Nationality', nationality),
-    proofDetailRow('Address', address),
-    proofDetailRow('Learn-from language', learnFromLanguage),
-    proofDetailRow('German Level', level),
+    proofDetailRow('Nacionalnost', nationality),
+    proofDetailRow('Adresa', address),
+    proofDetailRow('Jezik učenja', learnFromLanguage),
+    proofDetailRow('Nivo nemačkog', level),
     proofDetailRow('Plan', formatSubscriptionLabel(subscription)),
-    proofDetailRow('Amount', amountStr),
-    proofDetailRow('Payment method', paymentMethod || 'Bank transfer (manual proof)'),
-    proofDetailRow('Proof file', proofFileName),
+    proofDetailRow('Iznos', amountStr),
+    proofDetailRow('Način plaćanja', paymentMethod || 'Bankarski transfer (ručni dokaz)'),
+    proofDetailRow('Fajl dokaza', proofFileName),
   ].join('');
 
   return {
-    subject: `New Signup Payment Proof — ${escapeHtml(studentName)}`,
-    html: emailHeader('New Signup Payment Proof') + `
+    subject: `Novi dokaz o uplati za registraciju — ${escapeHtml(studentName)}`,
+    html: emailHeader('Novi dokaz o uplati za registraciju') + `
       <p style="margin:0 0 16px;color:#1a1a2e;font-size:16px;line-height:1.6;">
-        A student submitted a <strong>manual payment proof</strong> during self-signup. Please review the attached screenshot and approve in the admin panel.
+        Student je dostavio <strong>ručni dokaz o uplati</strong> tokom samostalne registracije. Pregledajte priloženi snimak ekrana i odobrite u admin panelu.
       </p>
       <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:0 0 20px;border:1px solid #e2e8f0;border-radius:10px;">
         ${detailRows}
@@ -400,7 +400,7 @@ function buildSignupProofReceivedAdminEmail({
       <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
         <tr><td align="center" style="padding:4px 0 24px;">
           <a href="${adminUrl}" style="display:inline-block;background:linear-gradient(135deg,#6c3fc5,#8b5cf6);color:#fff;font-size:14px;font-weight:700;text-decoration:none;padding:12px 30px;border-radius:8px;">
-            Review in Admin Panel →
+            Pregledaj u admin panelu →
           </a>
         </td></tr>
       </table>
@@ -459,35 +459,35 @@ function buildJobApplicationReceivedAdminEmail({
 
   const detailRows = [
     proofDetailRow('Student', studentName),
-    proofDetailRow('Email', studentEmail),
+    proofDetailRow('E-mail', studentEmail),
     proofDetailRow('Web App ID', studentRegNo),
-    proofDetailRow('Batch', studentBatch),
-    proofDetailRow('Phone', phone),
+    proofDetailRow('Grupa', studentBatch),
+    proofDetailRow('Telefon', phone),
     proofDetailRow('LinkedIn', linkedIn),
-    proofDetailRow('Company', companyName),
-    proofDetailRow('Job title', jobTitle),
-    proofDetailRow('Job type', jobType),
-    proofDetailRow('Location', locationStr),
-    proofDetailRow('Salary', salary),
-    proofDetailRow('Resume file', resumeFileName),
-    proofDetailRow('Applied at', appliedAt),
+    proofDetailRow('Kompanija', companyName),
+    proofDetailRow('Naziv pozicije', jobTitle),
+    proofDetailRow('Vrsta posla', jobType),
+    proofDetailRow('Lokacija', locationStr),
+    proofDetailRow('Plata', salary),
+    proofDetailRow('Fajl CV-a', resumeFileName),
+    proofDetailRow('Datum prijave', appliedAt),
   ].join('');
 
   return {
-    subject: `New Job Application — ${escapeHtml(studentName)} · ${escapeHtml(jobTitle || 'Opening')}`,
+    subject: `Nova prijava za posao — ${escapeHtml(studentName)} · ${escapeHtml(jobTitle || 'Pozicija')}`,
     html:
-      emailHeader('New Job Application') +
+      emailHeader('Nova prijava za posao') +
       `
       <p style="margin:0 0 16px;color:#1a1a2e;font-size:16px;line-height:1.6;">
-        A student submitted an application for <strong>${escapeHtml(jobTitle || 'a job opening')}</strong>
-        at <strong>${escapeHtml(companyName || '—')}</strong>. Review the details below.
+        Student je podneo prijavu za <strong>${escapeHtml(jobTitle || 'poziciju')}</strong>
+        u kompaniji <strong>${escapeHtml(companyName || '—')}</strong>. Pregledajte detalje ispod.
       </p>
       <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin:0 0 20px;border:1px solid #e2e8f0;border-radius:10px;">
         ${detailRows}
       </table>
       ${
         coverHtml
-          ? `<p style="margin:0 0 8px;color:#64748b;font-size:13px;font-weight:700;">Cover letter</p>
+          ? `<p style="margin:0 0 8px;color:#64748b;font-size:13px;font-weight:700;">Propratno pismo</p>
       <div style="margin:0 0 20px;padding:14px 16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;color:#1e293b;font-size:14px;line-height:1.6;">${coverHtml}</div>`
           : ''
       }
@@ -495,7 +495,7 @@ function buildJobApplicationReceivedAdminEmail({
       <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
         <tr><td align="center" style="padding:4px 0 24px;">
           <a href="${adminUrl}" style="display:inline-block;background:linear-gradient(135deg,#6c3fc5,#8b5cf6);color:#fff;font-size:14px;font-weight:700;text-decoration:none;padding:12px 30px;border-radius:8px;">
-            View applications in Admin →
+            Pogledaj prijave u adminu →
           </a>
         </td></tr>
       </table>
@@ -516,51 +516,51 @@ function buildJobApplicationReceivedAdminEmail({
  * @param {string} params.signupUrl — link to resume signup and re-upload proof
  */
 function buildSignupRejectedEmail({ name, email, amount, currency, rejectionReason, signupUrl }) {
-  signupUrl = signupUrl || 'https://gluckstudentsportal.com/signup/apply';
+  signupUrl = signupUrl || `${process.env.PORTAL_URL || process.env.FRONTEND_URL || 'https://portal.serbia.gluckglobal.com'}/signup/apply`;
   const curr = String(currency || 'INR').toUpperCase();
   const amt = Number(amount);
   const amountLine =
     Number.isFinite(amt) && amt > 0
       ? `<tr style="background:#f8fafc;">
-          <td style="padding:10px 16px;font-weight:700;color:#64748b;font-size:13px;border-top:1px solid #e2e8f0;">Declared amount</td>
+          <td style="padding:10px 16px;font-weight:700;color:#64748b;font-size:13px;border-top:1px solid #e2e8f0;">Navedeni iznos</td>
           <td style="padding:10px 16px;color:#1e293b;font-size:15px;border-top:1px solid #e2e8f0;">${escapeHtml(curr)} ${amt.toLocaleString('en-IN')}</td>
         </tr>`
       : '';
   const reasonBlock = rejectionReason?.trim()
     ? `<div style="background:#fff5f5;border-left:4px solid #dc2626;border-radius:8px;padding:14px 18px;margin:0 0 20px;">
-        <p style="margin:0 0 6px;font-weight:700;color:#991b1b;font-size:14px;">Reason from our finance team</p>
+        <p style="margin:0 0 6px;font-weight:700;color:#991b1b;font-size:14px;">Razlog od našeg finansijskog tima</p>
         <p style="margin:0;color:#444;font-size:15px;line-height:1.55;">${escapeHtml(rejectionReason.trim())}</p>
       </div>`
     : `<p style="margin:0 0 20px;color:#444;font-size:15px;line-height:1.6;">
-        Please review your payment details and upload a corrected screenshot using the link below.
+        Molimo pregledajte podatke o uplati i pošaljite ispravljen snimak ekrana koristeći link ispod.
       </p>`;
 
   return {
-    subject: 'Signup Payment Update — Glück Global',
-    html: emailHeader('Payment Not Approved') + `
+    subject: 'Ažuriranje uplate za registraciju — Glück Global',
+    html: emailHeader('Uplata nije odobrena') + `
       <p style="margin:0 0 16px;color:#1a1a2e;font-size:16px;line-height:1.6;">
-        Hello <strong>${escapeHtml(name)}</strong>,
+        Zdravo <strong>${escapeHtml(name)}</strong>,
       </p>
       <p style="margin:0 0 20px;color:#444;font-size:15px;line-height:1.6;">
-        Thank you for registering with Glück Global. After reviewing your payment proof, we were unable to approve your signup at this time.
+        Hvala vam što ste se registrovali u Glück Global. Nakon pregleda vašeg dokaza o uplati, nismo mogli da odobrimo vašu registraciju u ovom trenutku.
       </p>
       <table role="presentation" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;margin:0 0 20px;border-radius:8px;overflow:hidden;border:1px solid #e2e8f0;">
         <tr style="background:#f8fafc;">
-          <td style="padding:10px 16px;font-weight:700;color:#64748b;font-size:13px;width:140px;">Email</td>
+          <td style="padding:10px 16px;font-weight:700;color:#64748b;font-size:13px;width:140px;">E-mail</td>
           <td style="padding:10px 16px;color:#1e293b;font-size:15px;">${escapeHtml(email)}</td>
         </tr>
         ${amountLine}
       </table>
       ${reasonBlock}
-      <p style="margin:0 0 8px;color:#444;font-size:14px;">You can return to the signup page, correct your payment details, and submit a new proof:</p>
+      <p style="margin:0 0 8px;color:#444;font-size:14px;">Možete se vratiti na stranicu za registraciju, ispraviti podatke o uplati i poslati novi dokaz:</p>
       <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
         <tr><td align="center" style="padding:12px 0 28px;">
           <a href="${signupUrl}" style="display:inline-block;background:linear-gradient(135deg,#b91c1c,#dc2626);color:#fff;font-size:15px;font-weight:700;text-decoration:none;padding:14px 36px;border-radius:8px;">
-            Re-submit payment proof →
+            Ponovo pošalji dokaz o uplati →
           </a>
         </td></tr>
       </table>
-      <p style="margin:0;color:#9ca3af;font-size:12px;">If you believe this is a mistake, contact us at info@gluckglobal.com.</p>
+      <p style="margin:0;color:#9ca3af;font-size:12px;">Ako smatrate da je ovo greška, kontaktirajte nas na info@gluckglobal.com.</p>
     ` + emailFooter(),
   };
 }
@@ -576,16 +576,16 @@ function buildSignupRejectedEmail({ name, email, amount, currency, rejectionReas
  * @param {string} params.loginUrl
  */
 function buildSignupApprovedWelcomeEmail({ name, regNo, email, password, loginUrl }) {
-  loginUrl = loginUrl || 'https://gluckstudentsportal.com/login';
+  loginUrl = loginUrl || `${process.env.PORTAL_URL || process.env.FRONTEND_URL || 'https://portal.serbia.gluckglobal.com'}/login`;
   return {
-    subject: 'Welcome to Glück Global — Your Account is Ready!',
-    html: emailHeader('Account Approved') + `
+    subject: 'Dobrodošli u Glück Global — Vaš nalog je spreman!',
+    html: emailHeader('Nalog odobren') + `
       <p style="margin:0 0 16px;color:#1a1a2e;font-size:16px;line-height:1.6;">
-        Hello <strong>${escapeHtml(name)}</strong>,
+        Zdravo <strong>${escapeHtml(name)}</strong>,
       </p>
       <p style="margin:0 0 20px;color:#444;font-size:15px;line-height:1.6;">
-        Your registration and payment have been <strong style="color:#16a34a;">approved</strong>!
-        Your documents and details have been reviewed. Welcome to the Glück Global Student Portal — here are your login credentials:
+        Vaša registracija i uplata su <strong style="color:#16a34a;">odobreni</strong>!
+        Vaši dokumenti i podaci su pregledani. Dobrodošli u Glück Global Studentski portal — evo vaših podataka za prijavu:
       </p>
       <table role="presentation" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;margin:0 0 24px;border-radius:8px;overflow:hidden;border:1px solid #e2e8f0;">
         <tr style="background:#f8fafc;">
@@ -593,23 +593,23 @@ function buildSignupApprovedWelcomeEmail({ name, regNo, email, password, loginUr
           <td style="padding:10px 16px;color:#1e293b;font-size:15px;font-weight:700;">${escapeHtml(regNo)}</td>
         </tr>
         <tr>
-          <td style="padding:10px 16px;font-weight:700;color:#64748b;font-size:13px;border-top:1px solid #e2e8f0;">Email</td>
+          <td style="padding:10px 16px;font-weight:700;color:#64748b;font-size:13px;border-top:1px solid #e2e8f0;">E-mail</td>
           <td style="padding:10px 16px;color:#1e293b;font-size:15px;border-top:1px solid #e2e8f0;">${escapeHtml(email)}</td>
         </tr>
         <tr style="background:#f8fafc;">
-          <td style="padding:10px 16px;font-weight:700;color:#64748b;font-size:13px;border-top:1px solid #e2e8f0;">Password</td>
+          <td style="padding:10px 16px;font-weight:700;color:#64748b;font-size:13px;border-top:1px solid #e2e8f0;">Lozinka</td>
           <td style="padding:10px 16px;color:#1e293b;font-size:15px;border-top:1px solid #e2e8f0;">${escapeHtml(password)}</td>
         </tr>
       </table>
-      <p style="margin:0 0 8px;color:#444;font-size:14px;">You can sign in with your <strong>email</strong> or <strong>Web App ID</strong> and the password above.</p>
+      <p style="margin:0 0 8px;color:#444;font-size:14px;">Možete se prijaviti svojom <strong>e-mail adresom</strong> ili <strong>Web App ID</strong> i lozinkom iznad.</p>
       <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
         <tr><td align="center" style="padding:12px 0 28px;">
           <a href="${loginUrl}" style="display:inline-block;background:linear-gradient(135deg,#6c3fc5,#8b5cf6);color:#fff;font-size:15px;font-weight:700;text-decoration:none;padding:14px 36px;border-radius:8px;">
-            Login to Portal →
+            Prijava na portal →
           </a>
         </td></tr>
       </table>
-      <p style="margin:0;color:#9ca3af;font-size:12px;">Please keep your credentials safe. If you have any questions, contact our support team.</p>
+      <p style="margin:0;color:#9ca3af;font-size:12px;">Molimo čuvajte vaše podatke. Ako imate pitanja, kontaktirajte naš tim za podršku.</p>
     ` + emailFooter(),
   };
 }
@@ -637,7 +637,7 @@ function buildJourneyDayReminderEmail({
 
   const listHtml = tasks
     .map((t, i) => {
-      const title = escapeHtml(t.title || 'Task');
+      const title = escapeHtml(t.title || 'Zadatak');
       return `
         <tr>
           <td style="padding:10px 16px;border-top:1px solid #e2e8f0;vertical-align:top;width:28px;color:#6c3fc5;font-weight:700;">${i + 1}.</td>
@@ -648,28 +648,28 @@ function buildJourneyDayReminderEmail({
 
   const progressNote =
     Number.isFinite(totalTasks) && totalTasks > 0
-      ? `<p style="margin:0 0 20px;color:#64748b;font-size:14px;">You have completed <strong>${doneTasks}</strong> of <strong>${totalTasks}</strong> tasks for Day ${reminderDay}.</p>`
+      ? `<p style="margin:0 0 20px;color:#64748b;font-size:14px;">Završili ste <strong>${doneTasks}</strong> od <strong>${totalTasks}</strong> zadataka za Dan ${reminderDay}.</p>`
       : '';
 
   const introParagraph = isPastDayReminder
     ? `<p style="margin:0 0 12px;color:#334155;font-size:15px;line-height:1.6;">
-        You are on <strong>Day ${studentDay}</strong> of your course, but you have not completed your <strong>Day ${reminderDay}</strong> tasks yet. Please complete the following items:
+        Nalazite se na <strong>Danu ${studentDay}</strong> kursa, ali još niste završili zadatke za <strong>Dan ${reminderDay}</strong>. Molimo završite sledeće stavke:
       </p>`
     : `<p style="margin:0 0 12px;color:#334155;font-size:15px;line-height:1.6;">
-        You are on <strong>Day ${reminderDay}</strong> of your course. The following items are still incomplete and need your attention:
+        Nalazite se na <strong>Danu ${reminderDay}</strong> kursa. Sledeće stavke su još uvek nedovršene i zahtevaju vašu pažnju:
       </p>`;
 
   const subject = isPastDayReminder
-    ? `Reminder: Complete your Day ${reminderDay} tasks (you are on Day ${studentDay})`
-    : `Reminder: Complete your Day ${reminderDay} tasks before tonight`;
+    ? `Podsetnik: Završite zadatke za Dan ${reminderDay} (nalazite se na Danu ${studentDay})`
+    : `Podsetnik: Završite zadatke za Dan ${reminderDay} pre večeras`;
 
   return {
     subject,
     html:
-      emailHeader('Day Progress Reminder') +
+      emailHeader('Podsetnik o napretku') +
       `
       <p style="margin:0 0 16px;color:#1a1a2e;font-size:16px;line-height:1.6;">
-        Hello <strong>${escapeHtml(name)}</strong>,
+        Zdravo <strong>${escapeHtml(name)}</strong>,
       </p>
       ${introParagraph}
       ${progressNote}
@@ -678,17 +678,17 @@ function buildJourneyDayReminderEmail({
         ${listHtml}
       </table>
       <p style="margin:0 0 20px;color:#334155;font-size:15px;line-height:1.6;">
-        Please complete the exercise(s) and module(s) listed above <strong>before tonight</strong> so you stay on track with your batch.
+        Molimo završite vežbe i module navedene iznad <strong>pre večeras</strong> kako biste ostali na pravom putu sa vašom grupom.
       </p>
       <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
         <tr><td align="center" style="padding:8px 0 20px;">
           <a href="${escapeHtml(loginUrl)}" style="display:inline-block;background:linear-gradient(135deg,#6c3fc5,#8b5cf6);color:#fff;font-size:15px;font-weight:700;text-decoration:none;padding:14px 36px;border-radius:8px;">
-            Open Student Portal →
+            Otvori studentski portal →
           </a>
         </td></tr>
       </table>
       <p style="margin:0;color:#64748b;font-size:13px;line-height:1.5;">
-        If you have already finished these, you can ignore this email. For help, reply to this message or contact your coordinator.
+        Ako ste već završili ove zadatke, slobodno ignorišite ovaj e-mail. Za pomoć, odgovorite na ovu poruku ili kontaktirajte vašeg koordinatora.
       </p>
     ` +
       emailFooter(),
@@ -721,14 +721,14 @@ function buildJourneyWeekReminderEmail({
           (t, i) => `
         <tr>
           <td style="padding:8px 12px;border-top:1px solid #e2e8f0;vertical-align:top;width:24px;color:#6c3fc5;font-weight:700;">${i + 1}.</td>
-          <td style="padding:8px 12px;border-top:1px solid #e2e8f0;color:#1e293b;font-size:14px;font-weight:600;">${escapeHtml(t.title || 'Task')}</td>
+          <td style="padding:8px 12px;border-top:1px solid #e2e8f0;color:#1e293b;font-size:14px;font-weight:600;">${escapeHtml(t.title || 'Zadatak')}</td>
         </tr>`,
         )
         .join('');
       return `
       <tr>
         <td colspan="2" style="padding:14px 16px 6px;background:#f8fafc;color:#475569;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;">
-          Day ${d.day}
+          Dan ${d.day}
         </td>
       </tr>
       ${taskRows}`;
@@ -737,38 +737,38 @@ function buildJourneyWeekReminderEmail({
 
   const rangeLabel =
     Number.isFinite(weekStartDay) && Number.isFinite(weekEndDay)
-      ? `Days ${weekStartDay}–${weekEndDay}`
-      : `Week ${weekNum}`;
+      ? `Dani ${weekStartDay}–${weekEndDay}`
+      : `Nedelja ${weekNum}`;
 
   return {
-    subject: `Reminder: Complete your Week ${weekNum} pending tasks (${totalIncomplete} remaining)`,
+    subject: `Podsetnik: Završite zadatke iz Nedelje ${weekNum} (${totalIncomplete} preostalo)`,
     html:
-      emailHeader('Weekly Progress Reminder') +
+      emailHeader('Nedeljni podsetnik o napretku') +
       `
       <p style="margin:0 0 16px;color:#1a1a2e;font-size:16px;line-height:1.6;">
-        Hello <strong>${escapeHtml(name)}</strong>,
+        Zdravo <strong>${escapeHtml(name)}</strong>,
       </p>
       <p style="margin:0 0 12px;color:#334155;font-size:15px;line-height:1.6;">
-        You are on <strong>Day ${studentDay}</strong> of your course. You still have
-        <strong>${totalIncomplete}</strong> incomplete task${totalIncomplete === 1 ? '' : 's'} from
-        <strong>Week ${weekNum}</strong> (${rangeLabel}) that need your attention:
+        Nalazite se na <strong>Danu ${studentDay}</strong> kursa. Još uvek imate
+        <strong>${totalIncomplete}</strong> nedovršen${totalIncomplete === 1 ? '' : 'ih'} zadatak${totalIncomplete === 1 ? '' : 'a'} iz
+        <strong>Nedelje ${weekNum}</strong> (${rangeLabel}) koji zahtevaju vašu pažnju:
       </p>
       <table role="presentation" width="100%" cellspacing="0" cellpadding="0"
              style="margin:0 0 24px;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;">
         ${daysHtml}
       </table>
       <p style="margin:0 0 20px;color:#334155;font-size:15px;line-height:1.6;">
-        Please complete the exercise(s) and module(s) listed above so you stay on track with your batch.
+        Molimo završite vežbe i module navedene iznad kako biste ostali na pravom putu sa vašom grupom.
       </p>
       <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
         <tr><td align="center" style="padding:8px 0 20px;">
           <a href="${escapeHtml(loginUrl)}" style="display:inline-block;background:linear-gradient(135deg,#6c3fc5,#8b5cf6);color:#fff;font-size:15px;font-weight:700;text-decoration:none;padding:14px 36px;border-radius:8px;">
-            Open Student Portal →
+            Otvori studentski portal →
           </a>
         </td></tr>
       </table>
       <p style="margin:0;color:#64748b;font-size:13px;line-height:1.5;">
-        If you have already finished these, you can ignore this email. For help, reply to this message or contact your coordinator.
+        Ako ste već završili ove zadatke, slobodno ignorišite ovaj e-mail. Za pomoć, odgovorite na ovu poruku ili kontaktirajte vašeg koordinatora.
       </p>
     ` +
       emailFooter(),
@@ -780,10 +780,10 @@ function buildJourneyWeekReminderEmail({
  */
 function buildForcePasswordResetEmail({ name, regNo, otp, loginUrl, expiresMinutes = 15 }) {
   return {
-    subject: 'Action required: set a new Glück Global portal password',
+    subject: 'Potrebna akcija: postavite novu lozinku za Glück Global portal',
     html: `
 <!DOCTYPE html>
-<html lang="en">
+<html lang="sr-Latn">
 <head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /></head>
 <body style="margin:0;padding:0;background:#f4f6fb;font-family:Arial,sans-serif;">
   <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
@@ -793,38 +793,38 @@ function buildForcePasswordResetEmail({ name, regNo, otp, loginUrl, expiresMinut
         <tr>
           <td style="background:linear-gradient(135deg,#6c3fc5 0%,#8b5cf6 100%);padding:28px 40px;text-align:center;">
             <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;">Glück Global</h1>
-            <p style="margin:4px 0 0;color:rgba(255,255,255,0.85);font-size:13px;">Student Portal</p>
+            <p style="margin:4px 0 0;color:rgba(255,255,255,0.85);font-size:13px;">Studentski portal</p>
           </td>
         </tr>
         <tr>
           <td style="padding:32px 40px;">
             <p style="margin:0 0 16px;color:#1a1a2e;font-size:16px;line-height:1.6;">
-              Hello <strong>${escapeHtml(name)}</strong>,
+              Zdravo <strong>${escapeHtml(name)}</strong>,
             </p>
             <p style="margin:0 0 16px;color:#444;font-size:15px;line-height:1.6;">
-              Your administrator has requested a password update. Your current session has been signed out.
-              Please sign in at the portal using your <strong>App ID</strong> and your <strong>current password</strong>,
-              then enter the verification code below and choose a new password.
+              Vaš administrator je zatražio ažuriranje lozinke. Vaša trenutna sesija je odjavljena.
+              Molimo prijavite se na portal koristeći vaš <strong>App ID</strong> i vašu <strong>trenutnu lozinku</strong>,
+              zatim unesite verifikacioni kod ispod i izaberite novu lozinku.
             </p>
             <p style="margin:0 0 8px;color:#444;font-size:14px;"><strong>App ID:</strong> ${escapeHtml(regNo)}</p>
             <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
               <tr><td align="center" style="padding:16px 0 24px;">
                 <div style="display:inline-block;background:#f0ebff;border:2px solid #8b5cf6;border-radius:12px;padding:18px 36px;">
-                  <p style="margin:0 0 6px;color:#6c3fc5;font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase;">Verification code</p>
+                  <p style="margin:0 0 6px;color:#6c3fc5;font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase;">Verifikacioni kod</p>
                   <p style="margin:0;color:#1a1a2e;font-size:32px;font-weight:800;letter-spacing:6px;font-family:'Courier New',monospace;">${escapeHtml(otp)}</p>
                 </div>
               </td></tr>
             </table>
-            <p style="margin:0 0 20px;color:#64748b;font-size:13px;">This code expires in <strong>${expiresMinutes} minutes</strong>.</p>
+            <p style="margin:0 0 20px;color:#64748b;font-size:13px;">Ovaj kod ističe za <strong>${expiresMinutes} minuta</strong>.</p>
             <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
               <tr><td align="center" style="padding:4px 0 20px;">
                 <a href="${escapeHtml(loginUrl)}" style="display:inline-block;background:linear-gradient(135deg,#6c3fc5,#8b5cf6);color:#fff;font-size:15px;font-weight:700;text-decoration:none;padding:14px 36px;border-radius:8px;">
-                  Go to login →
+                  Idi na prijavu →
                 </a>
               </td></tr>
             </table>
             <p style="margin:0;color:#64748b;font-size:12px;line-height:1.5;">
-              If you did not expect this email, contact your coordinator. Do not share this code with anyone.
+              Ako niste očekivali ovaj e-mail, kontaktirajte vašeg koordinatora. Ne delite ovaj kod ni sa kim.
             </p>
           </td>
         </tr>
@@ -846,34 +846,34 @@ function buildForcePasswordResetEmail({ name, regNo, otp, loginUrl, expiresMinut
 function buildPortalAbsenceReminderEmail({ name, daysSince, loginUrl, reminderNumber = 1 }) {
   const messages = [
     {
-      headline: 'You\'re one step away from your dream! 🌟',
-      body: `German fluency doesn't come by waiting — it comes by showing up, one day at a time. You were doing so well, and we don't want you to lose that momentum. Log in today and pick up right where you left off!`,
+      headline: 'Jedan korak vas deli od sna! 🌟',
+      body: `Tečnost nemačkog ne dolazi čekanjem — dolazi dolaskom, dan za danom. Radili ste odlično, i ne želimo da izgubite taj zamah. Prijavite se danas i nastavite tamo gde ste stali!`,
     },
     {
-      headline: 'We miss you in class! 💙',
-      body: `Your German journey is waiting for you. Every session you attend brings you closer to the life you've been working toward. Even 15 minutes today can make a huge difference — come back and keep going!`,
+      headline: 'Nedostajete nam na času! 💙',
+      body: `Vaše nemačko putovanje čeka na vas. Svaki čas koji pohađate vas vodi bliže životu za koji radite. Čak i 15 minuta danas može napraviti ogromnu razliku — vratite se i nastavite!`,
     },
     {
-      headline: 'Don\'t let your hard work fade! 🔥',
-      body: `You've already put so much effort into learning German. Missing a few days is completely normal — but the key is getting back on track quickly. Log in now and let's continue building toward your goal together.`,
+      headline: 'Ne dozvolite da vaš trud izblijedi! 🔥',
+      body: `Već ste uložili toliko truda u učenje nemačkog. Propuštanje nekoliko dana je sasvim normalno — ali ključ je brzo vraćanje na pravi put. Prijavite se sada i nastavimo zajedno graditi ka vašem cilju.`,
     },
     {
-      headline: 'Your German dream is still within reach! 🎯',
-      body: `Every great language learner faces moments of pause — but the ones who succeed are the ones who choose to come back. We believe in you. Log in today, even for a short session, and feel that progress reignite!`,
+      headline: 'Vaš nemački san je još uvek na dohvat ruke! 🎯',
+      body: `Svaki odličan učenik jezika prolazi kroz trenutke pauze — ali oni koji uspevaju su oni koji se odluče da se vrate. Verujemo u vas. Prijavite se danas, makar i za kratku sesiju, i osetite kako napredak ponovo plamti!`,
     },
   ];
 
   const pick = messages[(Math.max(1, reminderNumber) - 1) % messages.length];
 
   return {
-    subject: `We miss you, ${name}! Come back to your German journey 💙`,
+    subject: `Nedostajete nam, ${name}! Vratite se na vaše nemačko putovanje 💙`,
     html: `
 <!DOCTYPE html>
-<html lang="en">
+<html lang="sr-Latn">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>We miss you!</title>
+  <title>Nedostajete nam!</title>
 </head>
 <body style="margin:0;padding:0;background:#f4f6fb;font-family:Arial,sans-serif;">
   <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
@@ -889,7 +889,7 @@ function buildPortalAbsenceReminderEmail({ name, daysSince, loginUrl, reminderNu
                 Glück Global
               </h1>
               <p style="margin:4px 0 0;color:rgba(255,255,255,0.85);font-size:14px;">
-                German Study Buddy
+                Vaš partner za učenje nemačkog
               </p>
             </td>
           </tr>
@@ -908,7 +908,7 @@ function buildPortalAbsenceReminderEmail({ name, daysSince, loginUrl, reminderNu
           <tr>
             <td style="padding:32px 40px;">
               <p style="margin:0 0 16px;color:#1a1a2e;font-size:16px;line-height:1.6;">
-                Hello <strong>${escapeHtml(name)}</strong>,
+                Zdravo <strong>${escapeHtml(name)}</strong>,
               </p>
               <p style="margin:0 0 20px;color:#444;font-size:15px;line-height:1.7;">
                 ${escapeHtml(pick.body)}
@@ -919,7 +919,7 @@ function buildPortalAbsenceReminderEmail({ name, daysSince, loginUrl, reminderNu
                 <tr>
                   <td align="center" style="padding:0 0 28px;">
                     <span style="display:inline-block;background:#fef3c7;color:#92400e;font-size:13px;font-weight:600;padding:8px 20px;border-radius:20px;border:1px solid #fcd34d;">
-                      You haven't visited the portal in <strong>${daysSince} day${daysSince !== 1 ? 's' : ''}</strong>
+                      Niste posetili portal <strong>${daysSince} dan${daysSince !== 1 ? 'a' : ''}</strong>
                     </span>
                   </td>
                 </tr>
@@ -931,14 +931,14 @@ function buildPortalAbsenceReminderEmail({ name, daysSince, loginUrl, reminderNu
                   <td align="center" style="padding:0 0 28px;">
                     <a href="${escapeHtml(loginUrl)}"
                        style="display:inline-block;background:linear-gradient(135deg,#6c3fc5,#8b5cf6);color:#fff;font-size:16px;font-weight:700;text-decoration:none;padding:16px 44px;border-radius:10px;letter-spacing:0.3px;">
-                      Log In &amp; Continue Learning →
+                      Prijavite se i nastavite učenje →
                     </a>
                   </td>
                 </tr>
               </table>
 
               <p style="margin:0 0 8px;color:#64748b;font-size:13px;line-height:1.6;text-align:center;">
-                Your team at Glück Global is rooting for you every step of the way. 🙌
+                Vaš tim u Glück Global navija za vas na svakom koraku. 🙌
               </p>
             </td>
           </tr>
@@ -975,8 +975,8 @@ function buildConsecutiveAbsenceLanguageTeamEmail({ absentStudents = [], reportD
       const rowBg = idx % 2 === 0 ? '#ffffff' : '#f8f5ff';
       const streakColor = s.streak >= 5 ? '#dc2626' : s.streak >= 3 ? '#d97706' : '#6c3fc5';
       const lastAttendedLabel = s.lastAttended
-        ? escapeHtml(new Date(s.lastAttended).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }))
-        : '<span style="color:#9ca3af;font-style:italic;">Never recorded</span>';
+        ? escapeHtml(new Date(s.lastAttended).toLocaleDateString('sr-Latn-RS', { day: '2-digit', month: 'short', year: 'numeric' }))
+        : '<span style="color:#9ca3af;font-style:italic;">Nije zabeleženo</span>';
       return `
       <tr style="background:${rowBg};">
         <td style="padding:11px 14px;font-size:13px;color:#1e293b;border-bottom:1px solid #ede9fe;">${escapeHtml(s.name)}</td>
@@ -988,7 +988,7 @@ function buildConsecutiveAbsenceLanguageTeamEmail({ absentStudents = [], reportD
         </td>
         <td style="padding:11px 14px;font-size:13px;border-bottom:1px solid #ede9fe;text-align:center;">
           <span style="display:inline-block;background:#fff1f2;color:${streakColor};font-weight:800;font-size:13px;padding:3px 12px;border-radius:20px;border:1px solid ${streakColor}33;">
-            ${s.streak} class${s.streak !== 1 ? 'es' : ''}
+            ${s.streak} čas${s.streak !== 1 ? 'ova' : ''}
           </span>
         </td>
         <td style="padding:11px 14px;font-size:13px;color:#374151;border-bottom:1px solid #ede9fe;text-align:center;">${lastAttendedLabel}</td>
@@ -1001,14 +1001,14 @@ function buildConsecutiveAbsenceLanguageTeamEmail({ absentStudents = [], reportD
   const highRisk = absentStudents.filter((s) => s.streak >= 4).length;
 
   return {
-    subject: `[Action Required] ${totalCount} Student${totalCount !== 1 ? 's' : ''} with 2+ Consecutive Absences — ${dateLabel}`,
+    subject: `[Potrebna akcija] ${totalCount} Student${totalCount !== 1 ? 'a' : ''} sa 2+ uzastopnih odsustva — ${dateLabel}`,
     html: `
 <!DOCTYPE html>
-<html lang="en">
+<html lang="sr-Latn">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Consecutive Absence Report</title>
+  <title>Izveštaj o uzastopnim odsustvima</title>
 </head>
 <body style="margin:0;padding:0;background:#f4f6fb;font-family:Arial,sans-serif;">
   <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
@@ -1021,10 +1021,10 @@ function buildConsecutiveAbsenceLanguageTeamEmail({ absentStudents = [], reportD
           <tr>
             <td style="background:linear-gradient(135deg,#6c3fc5 0%,#8b5cf6 100%);padding:28px 40px;text-align:center;">
               <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;letter-spacing:-0.5px;">
-                Glück Global — Language Team
+                Glück Global — Jezički tim
               </h1>
               <p style="margin:6px 0 0;color:rgba(255,255,255,0.88);font-size:14px;">
-                Consecutive Absence Report &nbsp;·&nbsp; ${dateLabel}
+                Izveštaj o uzastopnim odsustvima &nbsp;·&nbsp; ${dateLabel}
               </p>
             </td>
           </tr>
@@ -1036,12 +1036,12 @@ function buildConsecutiveAbsenceLanguageTeamEmail({ absentStudents = [], reportD
                 <tr>
                   <td align="center">
                     <span style="display:inline-block;background:#6c3fc5;color:#fff;font-size:13px;font-weight:700;padding:8px 22px;border-radius:20px;margin:0 6px;">
-                      ${totalCount} student${totalCount !== 1 ? 's' : ''} flagged
+                      ${totalCount} student${totalCount !== 1 ? 'a' : ''} označeno
                     </span>
                     ${
                       highRisk > 0
                         ? `<span style="display:inline-block;background:#dc2626;color:#fff;font-size:13px;font-weight:700;padding:8px 22px;border-radius:20px;margin:0 6px;">
-                        ${highRisk} high-risk (4+ absences)
+                        ${highRisk} visoki rizik (4+ odsustva)
                       </span>`
                         : ''
                     }
@@ -1050,8 +1050,8 @@ function buildConsecutiveAbsenceLanguageTeamEmail({ absentStudents = [], reportD
                 <tr>
                   <td style="padding:10px 0 0;text-align:center;">
                     <p style="margin:0;color:#6c3fc5;font-size:13px;line-height:1.5;">
-                      The following students have been absent from <strong>2 or more consecutive</strong> live classes.<br/>
-                      Please follow up with them at the earliest.
+                      Sledeći studenti su bili odsutni sa <strong>2 ili više uzastopnih</strong> živih časova.<br/>
+                      Molimo pratite ih što pre.
                     </p>
                   </td>
                 </tr>
@@ -1067,19 +1067,19 @@ function buildConsecutiveAbsenceLanguageTeamEmail({ absentStudents = [], reportD
                 <!-- Table header -->
                 <thead>
                   <tr style="background:#6c3fc5;">
-                    <th style="padding:11px 14px;font-size:12px;font-weight:700;color:#ffffff;text-align:left;letter-spacing:0.5px;text-transform:uppercase;">Student Name</th>
-                    <th style="padding:11px 14px;font-size:12px;font-weight:700;color:#ffffff;text-align:left;letter-spacing:0.5px;text-transform:uppercase;">Email</th>
-                    <th style="padding:11px 14px;font-size:12px;font-weight:700;color:#ffffff;text-align:center;letter-spacing:0.5px;text-transform:uppercase;">Batch</th>
-                    <th style="padding:11px 14px;font-size:12px;font-weight:700;color:#ffffff;text-align:center;letter-spacing:0.5px;text-transform:uppercase;">Consecutive Absences</th>
-                    <th style="padding:11px 14px;font-size:12px;font-weight:700;color:#ffffff;text-align:center;letter-spacing:0.5px;text-transform:uppercase;">Last Attended</th>
-                    <th style="padding:11px 14px;font-size:12px;font-weight:700;color:#ffffff;text-align:left;letter-spacing:0.5px;text-transform:uppercase;">Assigned Teacher</th>
+                    <th style="padding:11px 14px;font-size:12px;font-weight:700;color:#ffffff;text-align:left;letter-spacing:0.5px;text-transform:uppercase;">Ime studenta</th>
+                    <th style="padding:11px 14px;font-size:12px;font-weight:700;color:#ffffff;text-align:left;letter-spacing:0.5px;text-transform:uppercase;">E-mail</th>
+                    <th style="padding:11px 14px;font-size:12px;font-weight:700;color:#ffffff;text-align:center;letter-spacing:0.5px;text-transform:uppercase;">Grupa</th>
+                    <th style="padding:11px 14px;font-size:12px;font-weight:700;color:#ffffff;text-align:center;letter-spacing:0.5px;text-transform:uppercase;">Uzastopna odsustva</th>
+                    <th style="padding:11px 14px;font-size:12px;font-weight:700;color:#ffffff;text-align:center;letter-spacing:0.5px;text-transform:uppercase;">Poslednji pohađan</th>
+                    <th style="padding:11px 14px;font-size:12px;font-weight:700;color:#ffffff;text-align:left;letter-spacing:0.5px;text-transform:uppercase;">Dodeljeni nastavnik</th>
                   </tr>
                 </thead>
                 <tbody>
                   ${tableRows || `
                   <tr>
                     <td colspan="6" style="padding:24px;text-align:center;color:#9ca3af;font-size:14px;">
-                      No students with consecutive absences today. 🎉
+                      Nema studenata sa uzastopnim odsustvima danas. 🎉
                     </td>
                   </tr>`}
                 </tbody>
@@ -1091,8 +1091,8 @@ function buildConsecutiveAbsenceLanguageTeamEmail({ absentStudents = [], reportD
           <tr>
             <td style="padding:0 32px 28px;">
               <p style="margin:0;color:#64748b;font-size:12px;line-height:1.6;border-top:1px solid #e2e8f0;padding-top:16px;">
-                This report is auto-generated every night at 12:00 AM IST by the Glück Global Student Portal.<br/>
-                Students are included if they missed their last 2 or more consecutive live classes.
+                Ovaj izveštaj se automatski generiše svake noći u ponoć (IST) od strane Glück Global studentskog portala.<br/>
+                Studenti su uključeni ako su propustili poslednja 2 ili više uzastopnih živih časova.
               </p>
             </td>
           </tr>
@@ -1100,7 +1100,7 @@ function buildConsecutiveAbsenceLanguageTeamEmail({ absentStudents = [], reportD
           <!-- Brand footer -->
           <tr>
             <td style="background:#f8fafc;padding:16px 40px;text-align:center;">
-              <p style="margin:0;color:#94a3b8;font-size:12px;">© Glück Global Pvt Ltd · <a href="https://gluckstudentsportal.com" style="color:#6c3fc5;">gluckstudentsportal.com</a></p>
+              <p style="margin:0;color:#94a3b8;font-size:12px;">© Glück Global Pvt Ltd · <a href="${process.env.PORTAL_URL || 'https://portal.gluckglobal.rs'}" style="color:#6c3fc5;">${(process.env.PORTAL_URL || 'https://portal.gluckglobal.rs').replace(/^https?:\/\//, '')}</a></p>
             </td>
           </tr>
 
@@ -1137,7 +1137,7 @@ function buildMissedLiveClassMorningReportEmail({
       const lastTwoMissed = (s.missedDates || [])
         .slice(0, 2)
         .map((d) =>
-          new Date(d).toLocaleDateString('en-GB', {
+          new Date(d).toLocaleDateString('sr-Latn-RS', {
             day: '2-digit',
             month: 'short',
             timeZone: 'Asia/Colombo',
@@ -1173,10 +1173,10 @@ function buildMissedLiveClassMorningReportEmail({
             <td style="padding:0 32px 28px;">
               <div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;padding:16px 18px;">
                 <p style="margin:0 0 10px;color:#92400e;font-size:13px;font-weight:700;">
-                  ⚠️ ${unscheduledStudents.length} active student${unscheduledStudents.length !== 1 ? 's' : ''} not on any class roster
+                  ⚠️ ${unscheduledStudents.length} aktivan student${unscheduledStudents.length !== 1 ? 'a' : ''} nije na nijednom rasporedu časova
                 </p>
                 <p style="margin:0 0 12px;color:#92400e;font-size:12px;line-height:1.5;">
-                  These students' batches held live classes in the last ${lookbackDays} days, but they were not scheduled into any of them — please check their class assignments.
+                  Grupe ovih studenata su imale žive časove u poslednjih ${lookbackDays} dana, ali nisu bili raspoređeni ni u jedan od njih — molimo proverite njihove rasporede časova.
                 </p>
                 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;">
                   ${unscheduledStudents
@@ -1184,8 +1184,8 @@ function buildMissedLiveClassMorningReportEmail({
                       (s) => `
                   <tr>
                     <td style="padding:6px 8px;font-size:13px;color:#78350f;border-bottom:1px solid #fde68a;font-weight:600;">${escapeHtml(s.name)}</td>
-                    <td style="padding:6px 8px;font-size:12px;color:#92400e;border-bottom:1px solid #fde68a;text-align:center;">Batch ${escapeHtml(String(s.batch || '—'))}</td>
-                    <td style="padding:6px 8px;font-size:12px;color:#92400e;border-bottom:1px solid #fde68a;text-align:right;">${s.batchClassDays} class day${s.batchClassDays !== 1 ? 's' : ''} held</td>
+                    <td style="padding:6px 8px;font-size:12px;color:#92400e;border-bottom:1px solid #fde68a;text-align:center;">Grupa ${escapeHtml(String(s.batch || '—'))}</td>
+                    <td style="padding:6px 8px;font-size:12px;color:#92400e;border-bottom:1px solid #fde68a;text-align:right;">${s.batchClassDays} dan${s.batchClassDays !== 1 ? 'a' : ''} nastave</td>
                   </tr>`
                     )
                     .join('')}
@@ -1196,14 +1196,14 @@ function buildMissedLiveClassMorningReportEmail({
     : '';
 
   return {
-    subject: `[Morning Report] ${totalCount} Student${totalCount !== 1 ? 's' : ''} with 2+ Missed Live Classes (Last ${lookbackDays} Days) — ${dateLabel}`,
+    subject: `[Jutarnji izveštaj] ${totalCount} Student${totalCount !== 1 ? 'a' : ''} sa 2+ propuštenih živih časova (poslednjih ${lookbackDays} dana) — ${dateLabel}`,
     html: `
 <!DOCTYPE html>
-<html lang="en">
+<html lang="sr-Latn">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Missed Live Class Report</title>
+  <title>Izveštaj o propuštenim živim časovima</title>
 </head>
 <body style="margin:0;padding:0;background:#f4f6fb;font-family:Arial,sans-serif;">
   <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
@@ -1215,10 +1215,10 @@ function buildMissedLiveClassMorningReportEmail({
           <tr>
             <td style="background:linear-gradient(135deg,#6c3fc5 0%,#8b5cf6 100%);padding:28px 40px;text-align:center;">
               <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;letter-spacing:-0.5px;">
-                Glück Global — Missed Live Class Report
+                Glück Global — Izveštaj o propuštenim živim časovima
               </h1>
               <p style="margin:6px 0 0;color:rgba(255,255,255,0.88);font-size:14px;">
-                Morning digest &nbsp;·&nbsp; ${dateLabel}
+                Jutarnji pregled &nbsp;·&nbsp; ${dateLabel}
               </p>
             </td>
           </tr>
@@ -1226,11 +1226,11 @@ function buildMissedLiveClassMorningReportEmail({
           <tr>
             <td style="background:#f3eeff;padding:20px 40px;text-align:center;">
               <span style="display:inline-block;background:#6c3fc5;color:#fff;font-size:13px;font-weight:700;padding:8px 22px;border-radius:20px;">
-                ${totalCount} student${totalCount !== 1 ? 's' : ''} flagged
+                ${totalCount} student${totalCount !== 1 ? 'a' : ''} označeno
               </span>
               <p style="margin:12px 0 0;color:#6c3fc5;font-size:13px;line-height:1.5;">
-                Students listed below have missed <strong>2 or more live classes</strong> in the <strong>last ${lookbackDays} days</strong> (fully absent, 0% attendance).<br/>
-                Please follow up with them at the earliest.
+                Studenti navedeni ispod su propustili <strong>2 ili više živih časova</strong> u <strong>poslednjih ${lookbackDays} dana</strong> (potpuno odsutni, 0% prisustvo).<br/>
+                Molimo pratite ih što pre.
               </p>
             </td>
           </tr>
@@ -1241,17 +1241,17 @@ function buildMissedLiveClassMorningReportEmail({
                      style="border-collapse:collapse;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;">
                 <thead>
                   <tr style="background:#6c3fc5;">
-                    <th style="padding:11px 14px;font-size:12px;font-weight:700;color:#ffffff;text-align:left;letter-spacing:0.5px;text-transform:uppercase;">Student Name</th>
-                    <th style="padding:11px 14px;font-size:12px;font-weight:700;color:#ffffff;text-align:center;letter-spacing:0.5px;text-transform:uppercase;">Batch</th>
-                    <th style="padding:11px 14px;font-size:12px;font-weight:700;color:#ffffff;text-align:center;letter-spacing:0.5px;text-transform:uppercase;">Classes Missed</th>
-                    <th style="padding:11px 14px;font-size:12px;font-weight:700;color:#ffffff;text-align:center;letter-spacing:0.5px;text-transform:uppercase;">Last Missed Classes</th>
+                    <th style="padding:11px 14px;font-size:12px;font-weight:700;color:#ffffff;text-align:left;letter-spacing:0.5px;text-transform:uppercase;">Ime studenta</th>
+                    <th style="padding:11px 14px;font-size:12px;font-weight:700;color:#ffffff;text-align:center;letter-spacing:0.5px;text-transform:uppercase;">Grupa</th>
+                    <th style="padding:11px 14px;font-size:12px;font-weight:700;color:#ffffff;text-align:center;letter-spacing:0.5px;text-transform:uppercase;">Propušteni časovi</th>
+                    <th style="padding:11px 14px;font-size:12px;font-weight:700;color:#ffffff;text-align:center;letter-spacing:0.5px;text-transform:uppercase;">Poslednji propušteni</th>
                   </tr>
                 </thead>
                 <tbody>
                   ${tableRows || `
                   <tr>
                     <td colspan="4" style="padding:24px;text-align:center;color:#9ca3af;font-size:14px;">
-                      No students with 2+ missed live classes in the last ${lookbackDays} days today. 🎉
+                      Nema studenata sa 2+ propuštenih živih časova u poslednjih ${lookbackDays} dana danas. 🎉
                     </td>
                   </tr>`}
                 </tbody>
@@ -1262,15 +1262,15 @@ ${unscheduledSection}
           <tr>
             <td style="padding:0 32px 28px;">
               <p style="margin:0;color:#64748b;font-size:12px;line-height:1.6;border-top:1px solid #e2e8f0;padding-top:16px;">
-                This report is auto-generated every morning at 10:00 AM IST by the Glück Global Student Portal.<br/>
-                Only live classes from the last ${lookbackDays} days are counted. A class counts as missed when the student was scheduled for it, attendance was recorded, and the student was fully absent (0% participation). At most one missed class is counted per day.
+                Ovaj izveštaj se automatski generiše svako jutro u 10:00 (IST) od strane Glück Global studentskog portala.<br/>
+                Računaju se samo živi časovi iz poslednjih ${lookbackDays} dana. Čas se smatra propuštenim kada je student bio raspoređen za njega, prisustvo je zabeleženo i student je bio potpuno odsutan (0% učešće). Maksimalno jedan propušteni čas se računa po danu.
               </p>
             </td>
           </tr>
 
           <tr>
             <td style="background:#f8fafc;padding:16px 40px;text-align:center;">
-              <p style="margin:0;color:#94a3b8;font-size:12px;">© Glück Global Pvt Ltd · <a href="https://gluckstudentsportal.com" style="color:#6c3fc5;">gluckstudentsportal.com</a></p>
+              <p style="margin:0;color:#94a3b8;font-size:12px;">© Glück Global Pvt Ltd · <a href="${process.env.PORTAL_URL || 'https://portal.gluckglobal.rs'}" style="color:#6c3fc5;">${(process.env.PORTAL_URL || 'https://portal.gluckglobal.rs').replace(/^https?:\/\//, '')}</a></p>
             </td>
           </tr>
 
@@ -1301,7 +1301,7 @@ function buildMilestoneAbsenceAlertEmail({ groups, reportDate }) {
       <tr>
         <td colspan="2" style="padding:14px 0 6px;">
           <p style="margin:0;font-size:13px;font-weight:700;color:#6c3fc5;text-transform:uppercase;letter-spacing:0.5px;">
-            ${escapeHtml(g.batchName)} &nbsp;·&nbsp; Day ${escapeHtml(String(g.courseDay))}
+            ${escapeHtml(g.batchName)} &nbsp;·&nbsp; Dan ${escapeHtml(String(g.courseDay))}
             &nbsp;<span style="font-weight:400;color:#94a3b8;">(${escapeHtml(g.dateLabel)})</span>
           </p>
         </td>
@@ -1323,14 +1323,14 @@ function buildMilestoneAbsenceAlertEmail({ groups, reportDate }) {
     .join('');
 
   return {
-    subject: `⚠️ Day ${groups.map((g) => g.courseDay).join('/')} Absence Alert – ${totalAbsent} student${totalAbsent !== 1 ? 's' : ''} missed class`,
+    subject: `⚠️ Dan ${groups.map((g) => g.courseDay).join('/')} Upozorenje o odsustvu – ${totalAbsent} student${totalAbsent !== 1 ? 'a' : ''} propustilo čas`,
     html: `
 <!DOCTYPE html>
-<html lang="en">
+<html lang="sr-Latn">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Milestone Absence Alert</title>
+  <title>Upozorenje o ključnom odsustvu</title>
 </head>
 <body style="margin:0;padding:0;background:#f4f6fb;font-family:Arial,sans-serif;">
   <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
@@ -1342,8 +1342,8 @@ function buildMilestoneAbsenceAlertEmail({ groups, reportDate }) {
           <!-- Header -->
           <tr>
             <td style="background:linear-gradient(135deg,#6c3fc5 0%,#8b5cf6 100%);padding:28px 40px;text-align:center;">
-              <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;">Glück Global · Language Team</h1>
-              <p style="margin:6px 0 0;color:rgba(255,255,255,0.85);font-size:13px;">Milestone Absence Alert</p>
+              <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;">Glück Global · Jezički tim</h1>
+              <p style="margin:6px 0 0;color:rgba(255,255,255,0.85);font-size:13px;">Upozorenje o ključnom odsustvu</p>
             </td>
           </tr>
 
@@ -1351,10 +1351,10 @@ function buildMilestoneAbsenceAlertEmail({ groups, reportDate }) {
           <tr>
             <td style="background:#fff7ed;padding:18px 40px;border-bottom:2px solid #fed7aa;">
               <p style="margin:0;font-size:15px;color:#9a3412;font-weight:600;">
-                ⚠️ ${totalAbsent} student${totalAbsent !== 1 ? 's' : ''} missed a milestone live class on ${escapeHtml(reportDate)}
+                ⚠️ ${totalAbsent} student${totalAbsent !== 1 ? 'a' : ''} propustilo ključni živi čas dana ${escapeHtml(reportDate)}
               </p>
               <p style="margin:4px 0 0;font-size:13px;color:#c2410c;">
-                Milestone days tracked: Day 1, Day 3, Day 6
+                Praćeni ključni dani: Dan 1, Dan 3, Dan 6
               </p>
             </td>
           </tr>
@@ -1366,12 +1366,12 @@ function buildMilestoneAbsenceAlertEmail({ groups, reportDate }) {
                      style="border-radius:8px;overflow:hidden;border:1px solid #e2e8f0;">
                 <thead>
                   <tr style="background:linear-gradient(135deg,#6c3fc5 0%,#8b5cf6 100%);">
-                    <th style="padding:11px 12px;font-size:12px;font-weight:700;color:#fff;text-align:left;letter-spacing:0.5px;text-transform:uppercase;">Student Name</th>
-                    <th style="padding:11px 12px;font-size:12px;font-weight:700;color:#fff;text-align:left;letter-spacing:0.5px;text-transform:uppercase;">Email</th>
+                    <th style="padding:11px 12px;font-size:12px;font-weight:700;color:#fff;text-align:left;letter-spacing:0.5px;text-transform:uppercase;">Ime studenta</th>
+                    <th style="padding:11px 12px;font-size:12px;font-weight:700;color:#fff;text-align:left;letter-spacing:0.5px;text-transform:uppercase;">E-mail</th>
                   </tr>
                 </thead>
                 <tbody>
-                  ${groupRows || `<tr><td colspan="2" style="padding:20px;text-align:center;color:#9ca3af;font-size:14px;">No absences recorded.</td></tr>`}
+                  ${groupRows || `<tr><td colspan="2" style="padding:20px;text-align:center;color:#9ca3af;font-size:14px;">Nema zabeleženih odsustva.</td></tr>`}
                 </tbody>
               </table>
             </td>
@@ -1381,9 +1381,9 @@ function buildMilestoneAbsenceAlertEmail({ groups, reportDate }) {
           <tr>
             <td style="background:#f8fafc;padding:16px 40px;border-top:1px solid #e2e8f0;text-align:center;">
               <p style="margin:0;color:#94a3b8;font-size:12px;">
-                Auto-generated by the Glück Global Portal · ${escapeHtml(reportDate)}<br/>
+                Automatski generisano od strane Glück Global portala · ${escapeHtml(reportDate)}<br/>
                 © Glück Global Pvt Ltd ·
-                <a href="https://gluckstudentsportal.com" style="color:#6c3fc5;">gluckstudentsportal.com</a>
+                <a href="${process.env.PORTAL_URL || 'https://portal.gluckglobal.rs'}" style="color:#6c3fc5;">${(process.env.PORTAL_URL || 'https://portal.gluckglobal.rs').replace(/^https?:\/\//, '')}</a>
               </p>
             </td>
           </tr>
@@ -1412,7 +1412,7 @@ function buildWeeklyMissedClassesEmail({ weekRange, students, reportDate }) {
         .map(
           (d) =>
             `<span style="display:inline-block;background:#fef3c7;color:#92400e;font-size:11px;font-weight:600;padding:3px 8px;border-radius:10px;margin:2px 2px 2px 0;border:1px solid #fcd34d;">
-              Day ${escapeHtml(String(d.courseDay))} · ${escapeHtml(d.dateLabel)}
+              Dan ${escapeHtml(String(d.courseDay))} · ${escapeHtml(d.dateLabel)}
             </span>`,
         )
         .join('');
@@ -1438,14 +1438,14 @@ function buildWeeklyMissedClassesEmail({ weekRange, students, reportDate }) {
     .join('');
 
   return {
-    subject: `📊 Weekly Absence Summary – ${weekRange} – ${students.length} student${students.length !== 1 ? 's' : ''} with missed classes`,
+    subject: `📊 Nedeljni pregled odsustva – ${weekRange} – ${students.length} student${students.length !== 1 ? 'a' : ''} sa propuštenim časovima`,
     html: `
 <!DOCTYPE html>
-<html lang="en">
+<html lang="sr-Latn">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Weekly Absence Summary</title>
+  <title>Nedeljni pregled odsustva</title>
 </head>
 <body style="margin:0;padding:0;background:#f4f6fb;font-family:Arial,sans-serif;">
   <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
@@ -1457,8 +1457,8 @@ function buildWeeklyMissedClassesEmail({ weekRange, students, reportDate }) {
           <!-- Header -->
           <tr>
             <td style="background:linear-gradient(135deg,#6c3fc5 0%,#8b5cf6 100%);padding:28px 40px;text-align:center;">
-              <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;">Glück Global · Language Team</h1>
-              <p style="margin:6px 0 0;color:rgba(255,255,255,0.85);font-size:13px;">Weekly Absence Summary</p>
+              <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;">Glück Global · Jezički tim</h1>
+              <p style="margin:6px 0 0;color:rgba(255,255,255,0.85);font-size:13px;">Nedeljni pregled odsustva</p>
             </td>
           </tr>
 
@@ -1466,10 +1466,10 @@ function buildWeeklyMissedClassesEmail({ weekRange, students, reportDate }) {
           <tr>
             <td style="background:#eff6ff;padding:16px 40px;border-bottom:2px solid #bfdbfe;">
               <p style="margin:0;font-size:15px;color:#1e40af;font-weight:600;">
-                📅 Week: ${escapeHtml(weekRange)}
+                📅 Nedelja: ${escapeHtml(weekRange)}
               </p>
               <p style="margin:4px 0 0;font-size:13px;color:#3b82f6;">
-                ${students.length} student${students.length !== 1 ? 's' : ''} missed at least one live class this week
+                ${students.length} student${students.length !== 1 ? 'a' : ''} propustilo najmanje jedan živi čas ove nedelje
               </p>
             </td>
           </tr>
@@ -1482,13 +1482,13 @@ function buildWeeklyMissedClassesEmail({ weekRange, students, reportDate }) {
                 <thead>
                   <tr style="background:linear-gradient(135deg,#6c3fc5 0%,#8b5cf6 100%);">
                     <th style="padding:11px 12px;font-size:12px;font-weight:700;color:#fff;text-align:left;letter-spacing:0.5px;text-transform:uppercase;width:25%;">Student</th>
-                    <th style="padding:11px 12px;font-size:12px;font-weight:700;color:#fff;text-align:left;letter-spacing:0.5px;text-transform:uppercase;width:18%;">Batch</th>
-                    <th style="padding:11px 12px;font-size:12px;font-weight:700;color:#fff;text-align:center;letter-spacing:0.5px;text-transform:uppercase;width:10%;">Missed</th>
-                    <th style="padding:11px 12px;font-size:12px;font-weight:700;color:#fff;text-align:left;letter-spacing:0.5px;text-transform:uppercase;">Classes Missed</th>
+                    <th style="padding:11px 12px;font-size:12px;font-weight:700;color:#fff;text-align:left;letter-spacing:0.5px;text-transform:uppercase;width:18%;">Grupa</th>
+                    <th style="padding:11px 12px;font-size:12px;font-weight:700;color:#fff;text-align:center;letter-spacing:0.5px;text-transform:uppercase;width:10%;">Propušteno</th>
+                    <th style="padding:11px 12px;font-size:12px;font-weight:700;color:#fff;text-align:left;letter-spacing:0.5px;text-transform:uppercase;">Propušteni časovi</th>
                   </tr>
                 </thead>
                 <tbody>
-                  ${tableRows || `<tr><td colspan="4" style="padding:24px;text-align:center;color:#9ca3af;font-size:14px;">No missed classes this week. 🎉</td></tr>`}
+                  ${tableRows || `<tr><td colspan="4" style="padding:24px;text-align:center;color:#9ca3af;font-size:14px;">Nema propuštenih časova ove nedelje. 🎉</td></tr>`}
                 </tbody>
               </table>
             </td>
@@ -1498,9 +1498,9 @@ function buildWeeklyMissedClassesEmail({ weekRange, students, reportDate }) {
           <tr>
             <td style="background:#f8fafc;padding:16px 40px;border-top:1px solid #e2e8f0;text-align:center;">
               <p style="margin:0;color:#94a3b8;font-size:12px;">
-                Auto-generated every Monday · Report for ${escapeHtml(weekRange)}<br/>
+                Automatski generisano svakog ponedeljka · Izveštaj za ${escapeHtml(weekRange)}<br/>
                 © Glück Global Pvt Ltd ·
-                <a href="https://gluckstudentsportal.com" style="color:#6c3fc5;">gluckstudentsportal.com</a>
+                <a href="${process.env.PORTAL_URL || 'https://portal.gluckglobal.rs'}" style="color:#6c3fc5;">${(process.env.PORTAL_URL || 'https://portal.gluckglobal.rs').replace(/^https?:\/\//, '')}</a>
               </p>
             </td>
           </tr>
@@ -1547,14 +1547,14 @@ function buildWeeklyTestLowScoreEmail({ students, reportDate }) {
     .join('');
 
   return {
-    subject: `⚠️ Day 6 Weekly Test – ${students.length} student${students.length !== 1 ? 's' : ''} scored below 60%`,
+    subject: `⚠️ Nedeljni test Dana 6 – ${students.length} student${students.length !== 1 ? 'a' : ''} postiglo manje od 60%`,
     html: `
 <!DOCTYPE html>
-<html lang="en">
+<html lang="sr-Latn">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Weekly Test Low Score Alert</title>
+  <title>Upozorenje o niskom rezultatu nedeljnog testa</title>
 </head>
 <body style="margin:0;padding:0;background:#f4f6fb;font-family:Arial,sans-serif;">
   <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
@@ -1566,8 +1566,8 @@ function buildWeeklyTestLowScoreEmail({ students, reportDate }) {
           <!-- Header -->
           <tr>
             <td style="background:linear-gradient(135deg,#6c3fc5 0%,#8b5cf6 100%);padding:28px 40px;text-align:center;">
-              <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;">Glück Global · Language Team</h1>
-              <p style="margin:6px 0 0;color:rgba(255,255,255,0.85);font-size:13px;">Day 6 Weekly Test · Low Score Alert</p>
+              <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;">Glück Global · Jezički tim</h1>
+              <p style="margin:6px 0 0;color:rgba(255,255,255,0.85);font-size:13px;">Nedeljni test Dana 6 · Upozorenje o niskom rezultatu</p>
             </td>
           </tr>
 
@@ -1575,10 +1575,10 @@ function buildWeeklyTestLowScoreEmail({ students, reportDate }) {
           <tr>
             <td style="background:#fff7ed;padding:16px 40px;border-bottom:2px solid #fed7aa;">
               <p style="margin:0;font-size:15px;color:#9a3412;font-weight:600;">
-                ⚠️ ${students.length} student${students.length !== 1 ? 's' : ''} scored below 60% on the Day 6 Weekly Test
+                ⚠️ ${students.length} student${students.length !== 1 ? 'a' : ''} postiglo manje od 60% na nedeljnom testu Dana 6
               </p>
               <p style="margin:4px 0 0;font-size:13px;color:#c2410c;">
-                These students may need additional support before progressing.
+                Ovi studenti možda trebaju dodatnu podršku pre napredovanja.
               </p>
             </td>
           </tr>
@@ -1591,13 +1591,13 @@ function buildWeeklyTestLowScoreEmail({ students, reportDate }) {
                 <thead>
                   <tr style="background:linear-gradient(135deg,#6c3fc5 0%,#8b5cf6 100%);">
                     <th style="padding:11px 12px;font-size:12px;font-weight:700;color:#fff;text-align:left;letter-spacing:0.5px;text-transform:uppercase;">Student</th>
-                    <th style="padding:11px 12px;font-size:12px;font-weight:700;color:#fff;text-align:left;letter-spacing:0.5px;text-transform:uppercase;">Batch</th>
-                    <th style="padding:11px 12px;font-size:12px;font-weight:700;color:#fff;text-align:left;letter-spacing:0.5px;text-transform:uppercase;">Email</th>
-                    <th style="padding:11px 12px;font-size:12px;font-weight:700;color:#fff;text-align:center;letter-spacing:0.5px;text-transform:uppercase;">Score</th>
+                    <th style="padding:11px 12px;font-size:12px;font-weight:700;color:#fff;text-align:left;letter-spacing:0.5px;text-transform:uppercase;">Grupa</th>
+                    <th style="padding:11px 12px;font-size:12px;font-weight:700;color:#fff;text-align:left;letter-spacing:0.5px;text-transform:uppercase;">E-mail</th>
+                    <th style="padding:11px 12px;font-size:12px;font-weight:700;color:#fff;text-align:center;letter-spacing:0.5px;text-transform:uppercase;">Rezultat</th>
                   </tr>
                 </thead>
                 <tbody>
-                  ${tableRows || `<tr><td colspan="4" style="padding:20px;text-align:center;color:#9ca3af;">No data.</td></tr>`}
+                  ${tableRows || `<tr><td colspan="4" style="padding:20px;text-align:center;color:#9ca3af;">Nema podataka.</td></tr>`}
                 </tbody>
               </table>
             </td>
@@ -1607,8 +1607,8 @@ function buildWeeklyTestLowScoreEmail({ students, reportDate }) {
           <tr>
             <td style="background:#f8fafc;padding:16px 40px;border-top:1px solid #e2e8f0;text-align:center;">
               <p style="margin:0;color:#94a3b8;font-size:12px;">
-                Pass threshold: 60% · Auto-generated on ${escapeHtml(reportDate)}<br/>
-                © Glück Global Pvt Ltd · <a href="https://gluckstudentsportal.com" style="color:#6c3fc5;">gluckstudentsportal.com</a>
+                Prag prolaza: 60% · Automatski generisano ${escapeHtml(reportDate)}<br/>
+                © Glück Global Pvt Ltd · <a href="${process.env.PORTAL_URL || 'https://portal.gluckglobal.rs'}" style="color:#6c3fc5;">${(process.env.PORTAL_URL || 'https://portal.gluckglobal.rs').replace(/^https?:\/\//, '')}</a>
               </p>
             </td>
           </tr>
@@ -1659,14 +1659,14 @@ function buildDay6CompletionCheckEmail({ students, reportDate }) {
     .join('');
 
   return {
-    subject: `📋 Day 6 Completion Alert – ${students.length} student${students.length !== 1 ? 's' : ''} haven't finished Day 6 activities`,
+    subject: `📋 Upozorenje o završetku Dana 6 – ${students.length} student${students.length !== 1 ? 'a' : ''} nije završilo aktivnosti Dana 6`,
     html: `
 <!DOCTYPE html>
-<html lang="en">
+<html lang="sr-Latn">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Day 6 Completion Alert</title>
+  <title>Upozorenje o završetku Dana 6</title>
 </head>
 <body style="margin:0;padding:0;background:#f4f6fb;font-family:Arial,sans-serif;">
   <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
@@ -1678,8 +1678,8 @@ function buildDay6CompletionCheckEmail({ students, reportDate }) {
           <!-- Header -->
           <tr>
             <td style="background:linear-gradient(135deg,#6c3fc5 0%,#8b5cf6 100%);padding:28px 40px;text-align:center;">
-              <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;">Glück Global · Language Team</h1>
-              <p style="margin:6px 0 0;color:rgba(255,255,255,0.85);font-size:13px;">Day 6 Activity Completion · End-of-Week-1 Check</p>
+              <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;">Glück Global · Jezički tim</h1>
+              <p style="margin:6px 0 0;color:rgba(255,255,255,0.85);font-size:13px;">Završetak aktivnosti Dana 6 · Provera kraja 1. nedelje</p>
             </td>
           </tr>
 
@@ -1687,10 +1687,10 @@ function buildDay6CompletionCheckEmail({ students, reportDate }) {
           <tr>
             <td style="background:#fef9c3;padding:16px 40px;border-bottom:2px solid #fde047;">
               <p style="margin:0;font-size:15px;color:#713f12;font-weight:600;">
-                📋 ${students.length} student${students.length !== 1 ? 's' : ''} moved to Day 8 without completing all Day 6 activities
+                📋 ${students.length} student${students.length !== 1 ? 'a' : ''} prešlo na Dan 8 bez završavanja svih aktivnosti Dana 6
               </p>
               <p style="margin:4px 0 0;font-size:13px;color:#92400e;">
-                Deadline: End of Day 7 · Activities include exercises and DG Bot modules on journey Day 6.
+                Rok: Kraj Dana 7 · Aktivnosti uključuju vežbe i DG Bot module na putovanju Dana 6.
               </p>
             </td>
           </tr>
@@ -1703,14 +1703,14 @@ function buildDay6CompletionCheckEmail({ students, reportDate }) {
                 <thead>
                   <tr style="background:linear-gradient(135deg,#6c3fc5 0%,#8b5cf6 100%);">
                     <th style="padding:11px 12px;font-size:12px;font-weight:700;color:#fff;text-align:left;letter-spacing:0.5px;text-transform:uppercase;">Student</th>
-                    <th style="padding:11px 12px;font-size:12px;font-weight:700;color:#fff;text-align:left;letter-spacing:0.5px;text-transform:uppercase;">Batch</th>
-                    <th style="padding:11px 12px;font-size:12px;font-weight:700;color:#fff;text-align:left;letter-spacing:0.5px;text-transform:uppercase;">Email</th>
-                    <th style="padding:11px 12px;font-size:12px;font-weight:700;color:#fff;text-align:center;letter-spacing:0.5px;text-transform:uppercase;">Done</th>
-                    <th style="padding:11px 12px;font-size:12px;font-weight:700;color:#fff;text-align:left;letter-spacing:0.5px;text-transform:uppercase;min-width:140px;">Completion</th>
+                    <th style="padding:11px 12px;font-size:12px;font-weight:700;color:#fff;text-align:left;letter-spacing:0.5px;text-transform:uppercase;">Grupa</th>
+                    <th style="padding:11px 12px;font-size:12px;font-weight:700;color:#fff;text-align:left;letter-spacing:0.5px;text-transform:uppercase;">E-mail</th>
+                    <th style="padding:11px 12px;font-size:12px;font-weight:700;color:#fff;text-align:center;letter-spacing:0.5px;text-transform:uppercase;">Završeno</th>
+                    <th style="padding:11px 12px;font-size:12px;font-weight:700;color:#fff;text-align:left;letter-spacing:0.5px;text-transform:uppercase;min-width:140px;">Napredak</th>
                   </tr>
                 </thead>
                 <tbody>
-                  ${tableRows || `<tr><td colspan="5" style="padding:20px;text-align:center;color:#9ca3af;">No data.</td></tr>`}
+                  ${tableRows || `<tr><td colspan="5" style="padding:20px;text-align:center;color:#9ca3af;">Nema podataka.</td></tr>`}
                 </tbody>
               </table>
             </td>
@@ -1720,8 +1720,8 @@ function buildDay6CompletionCheckEmail({ students, reportDate }) {
           <tr>
             <td style="background:#f8fafc;padding:16px 40px;border-top:1px solid #e2e8f0;text-align:center;">
               <p style="margin:0;color:#94a3b8;font-size:12px;">
-                Counts exercises + DG Bot modules on journey Day 6 · Auto-generated on ${escapeHtml(reportDate)}<br/>
-                © Glück Global Pvt Ltd · <a href="https://gluckstudentsportal.com" style="color:#6c3fc5;">gluckstudentsportal.com</a>
+                Broji vežbe + DG Bot module na putovanju Dana 6 · Automatski generisano ${escapeHtml(reportDate)}<br/>
+                © Glück Global Pvt Ltd · <a href="${process.env.PORTAL_URL || 'https://portal.gluckglobal.rs'}" style="color:#6c3fc5;">${(process.env.PORTAL_URL || 'https://portal.gluckglobal.rs').replace(/^https?:\/\//, '')}</a>
               </p>
             </td>
           </tr>
@@ -1747,40 +1747,42 @@ function buildBatchDay1ReminderEmail({ name, batchName, type, startDate }) {
   const isEve = type === 'eve';
 
   const subject = isEve
-    ? `🎉 Tomorrow is your Day 1 – Are you ready, ${name.split(' ')[0]}?`
-    : `🚀 Today is Day 1 – Your German journey begins NOW!`;
+    ? `🎉 Sutra je vaš Dan 1 – Da li ste spremni, ${name.split(' ')[0]}?`
+    : `🚀 Danas je Dan 1 – Vaše nemačko putovanje počinje SADA!`;
 
   const headline = isEve
-    ? 'Your live classes start tomorrow! 🎉'
-    : 'Today is Day 1 – Let\'s go! 🚀';
+    ? 'Vaši živi časovi počinju sutra! 🎉'
+    : 'Danas je Dan 1 – Idemo! 🚀';
 
   const emoji = isEve ? '🗓️' : '🎯';
 
   const bodyText = isEve
-    ? `Get a good night's sleep and come ready to learn — tomorrow, <strong>${escapeHtml(startDate)}</strong>, is your very first Day 1 of live German classes! Your teacher and classmates are all set and waiting for you. We are so excited to have you on this journey.`
-    : `This is it — <strong>${escapeHtml(startDate)}</strong> is your official Day 1! Your live German classes start today. Log in to the portal, check your timetable, and join your first class. You've been waiting for this moment — now go make it count!`;
+    ? `Dobro se naspavajte i budite spremni za učenje — sutra, <strong>${escapeHtml(startDate)}</strong>, je vaš prvi Dan 1 živih časova nemačkog! Vaš nastavnik i kolege su sve pripremili i čekaju vas. Toliko smo uzbuđeni što ste na ovom putovanju.`
+    : `Evo ga — <strong>${escapeHtml(startDate)}</strong> je vaš zvanični Dan 1! Vaši živi časovi nemačkog počinju danas. Prijavite se na portal, proverite raspored i pridružite se prvom času. Čekali ste ovaj trenutak — idite i iskoristite ga!`;
 
   const pillText = isEve
-    ? `Live classes begin tomorrow · ${escapeHtml(startDate)}`
-    : `Day 1 is TODAY · ${escapeHtml(startDate)}`;
+    ? `Živi časovi počinju sutra · ${escapeHtml(startDate)}`
+    : `Dan 1 je DANAS · ${escapeHtml(startDate)}`;
 
   const pillColor = isEve ? '#ecfdf5' : '#eff6ff';
   const pillBorder = isEve ? '#6ee7b7' : '#93c5fd';
   const pillTextColor = isEve ? '#065f46' : '#1e40af';
 
-  const loginUrl = process.env.FRONTEND_URL
+  const loginUrl = process.env.PORTAL_URL
+    ? `${process.env.PORTAL_URL}/login`
+    : process.env.FRONTEND_URL
     ? `${process.env.FRONTEND_URL}/login`
-    : 'https://gluckstudentsportal.com/login';
+    : 'https://portal.serbia.gluckglobal.com/login';
 
   return {
     subject,
     html: `
 <!DOCTYPE html>
-<html lang="en">
+<html lang="sr-Latn">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>${isEve ? 'Day 1 Tomorrow!' : 'Day 1 Today!'}</title>
+  <title>${isEve ? 'Dan 1 sutra!' : 'Dan 1 danas!'}</title>
 </head>
 <body style="margin:0;padding:0;background:#f4f6fb;font-family:Arial,sans-serif;">
   <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
@@ -1796,7 +1798,7 @@ function buildBatchDay1ReminderEmail({ name, batchName, type, startDate }) {
                 Glück Global
               </h1>
               <p style="margin:4px 0 0;color:rgba(255,255,255,0.85);font-size:14px;">
-                German Study Buddy
+                Vaš partner za učenje nemačkog
               </p>
             </td>
           </tr>
@@ -1815,7 +1817,7 @@ function buildBatchDay1ReminderEmail({ name, batchName, type, startDate }) {
           <tr>
             <td style="padding:32px 40px;">
               <p style="margin:0 0 16px;color:#1a1a2e;font-size:16px;line-height:1.6;">
-                Hello <strong>${escapeHtml(name)}</strong>,
+                Zdravo <strong>${escapeHtml(name)}</strong>,
               </p>
               <p style="margin:0 0 24px;color:#444;font-size:15px;line-height:1.7;">
                 ${bodyText}
@@ -1838,7 +1840,7 @@ function buildBatchDay1ReminderEmail({ name, batchName, type, startDate }) {
                   <td align="center" style="padding:0 0 8px;">
                     <a href="${loginUrl}"
                        style="display:inline-block;background:linear-gradient(135deg,#6c3fc5 0%,#8b5cf6 100%);color:#ffffff;font-size:15px;font-weight:700;text-decoration:none;padding:14px 36px;border-radius:8px;letter-spacing:0.3px;">
-                      ${isEve ? 'Check Your Timetable' : 'Go to Portal Now'}
+                      ${isEve ? 'Proveri raspored' : 'Idi na portal sada'}
                     </a>
                   </td>
                 </tr>
@@ -1850,11 +1852,11 @@ function buildBatchDay1ReminderEmail({ name, batchName, type, startDate }) {
           <tr>
             <td style="background:#f8fafc;padding:20px 40px;text-align:center;border-top:1px solid #e2e8f0;">
               <p style="margin:0 0 4px;color:#94a3b8;font-size:12px;">
-                Batch: <strong style="color:#6c3fc5;">${escapeHtml(batchName)}</strong>
+                Grupa: <strong style="color:#6c3fc5;">${escapeHtml(batchName)}</strong>
               </p>
               <p style="margin:0;color:#94a3b8;font-size:12px;">
                 © Glück Global Pvt Ltd ·
-                <a href="https://gluckstudentsportal.com" style="color:#6c3fc5;">gluckstudentsportal.com</a>
+                <a href="${process.env.PORTAL_URL || 'https://portal.gluckglobal.rs'}" style="color:#6c3fc5;">${(process.env.PORTAL_URL || 'https://portal.gluckglobal.rs').replace(/^https?:\/\//, '')}</a>
               </p>
             </td>
           </tr>
@@ -1878,18 +1880,18 @@ function buildBatchDay1ReminderEmail({ name, batchName, type, startDate }) {
  * @param {string} params.portalUrl       - Portal base URL
  */
 function buildDailyTaskReminderEmail({ name, day, incompleteTasks = [], portalUrl }) {
-  const loginUrl = `${(portalUrl || 'https://gluckstudentsportal.com').replace(/\/$/, '')}/login`;
+  const loginUrl = `${(portalUrl || process.env.PORTAL_URL || process.env.FRONTEND_URL || 'https://portal.serbia.gluckglobal.com').replace(/\/$/, '')}/login`;
   const shown = (incompleteTasks || []).slice(0, 3);
   const taskListHtml = shown.length
     ? `<ul style="margin:12px 0 20px;padding-left:22px;color:#374151;font-size:15px;line-height:1.8;">
-        ${shown.map((t) => `<li>${escapeHtml(t.title || 'Task')}</li>`).join('')}
+        ${shown.map((t) => `<li>${escapeHtml(t.title || 'Zadatak')}</li>`).join('')}
        </ul>`
     : '';
 
   return {
-    subject: `Complete today's Day ${day} tasks — Glück Global`,
+    subject: `Završite zadatke Dana ${day} — Glück Global`,
     html: `<!DOCTYPE html>
-<html lang="en">
+<html lang="sr-Latn">
 <head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/></head>
 <body style="margin:0;padding:0;background:#f4f6fb;font-family:Arial,sans-serif;">
   <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
@@ -1900,16 +1902,16 @@ function buildDailyTaskReminderEmail({ name, day, incompleteTasks = [], portalUr
           <tr>
             <td style="background:linear-gradient(135deg,#000e89 0%,#6c3fc5 100%);padding:28px 40px;text-align:center;">
               <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;">Glück Global</h1>
-              <p style="margin:4px 0 0;color:rgba(255,255,255,0.85);font-size:13px;">Daily Task Reminder</p>
+              <p style="margin:4px 0 0;color:rgba(255,255,255,0.85);font-size:13px;">Dnevni podsetnik za zadatke</p>
             </td>
           </tr>
           <tr>
             <td style="padding:32px 40px;">
               <p style="margin:0 0 16px;color:#1a1a2e;font-size:16px;line-height:1.6;">
-                Hi <strong>${escapeHtml(name)}</strong>,
+                Zdravo <strong>${escapeHtml(name)}</strong>,
               </p>
               <p style="margin:0 0 16px;color:#374151;font-size:15px;line-height:1.6;">
-                You still have tasks left to complete for <strong>Day ${day}</strong>. Finish them before the day ends to keep your streak and progress on track!
+                Još uvek imate zadatke za završiti za <strong>Dan ${day}</strong>. Završite ih pre kraja dana da bi vaš niz i napredak ostali na pravom putu!
               </p>
               ${taskListHtml}
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
@@ -1917,20 +1919,20 @@ function buildDailyTaskReminderEmail({ name, day, incompleteTasks = [], portalUr
                   <td align="center" style="padding:8px 0 24px;">
                     <a href="${loginUrl}"
                        style="display:inline-block;background:#000e89;color:#ffffff;text-decoration:none;font-size:15px;font-weight:700;padding:14px 36px;border-radius:8px;">
-                      Open Portal &amp; Complete Tasks
+                      Otvori portal i završi zadatke
                     </a>
                   </td>
                 </tr>
               </table>
               <p style="margin:0;color:#64748b;font-size:13px;line-height:1.5;">
-                Consistency is key — every task you complete brings you closer to fluency. See you in the portal!
+                Doslednost je ključ — svaki zadatak koji završite vas vodi bliže tečnosti. Vidimo se na portalu!
               </p>
             </td>
           </tr>
           <tr>
             <td style="background:#f8f9ff;padding:18px 40px;text-align:center;border-top:1px solid #e5e7eb;">
               <p style="margin:0;color:#94a3b8;font-size:12px;">
-                © Glück Global Pvt Ltd · <a href="https://gluckstudentsportal.com" style="color:#6c3fc5;">gluckstudentsportal.com</a>
+                © Glück Global Pvt Ltd · <a href="${process.env.PORTAL_URL || 'https://portal.gluckglobal.rs'}" style="color:#6c3fc5;">${(process.env.PORTAL_URL || 'https://portal.gluckglobal.rs').replace(/^https?:\/\//, '')}</a>
               </p>
             </td>
           </tr>
@@ -1940,7 +1942,7 @@ function buildDailyTaskReminderEmail({ name, day, incompleteTasks = [], portalUr
   </table>
 </body>
 </html>`,
-    text: `Hi ${name},\n\nYou still have tasks left to complete for Day ${day}. Log in to the portal and finish them today:\n${loginUrl}\n\nKeep up the great work!\n\n— Glück Global`,
+    text: `Zdravo ${name},\n\nJoš uvek imate zadatke za završiti za Dan ${day}. Prijavite se na portal i završite ih danas:\n${loginUrl}\n\nNastavite sjajnim radom!\n\n— Glück Global`,
   };
 }
 
@@ -1957,7 +1959,7 @@ function buildDailyTaskReminderEmail({ name, day, incompleteTasks = [], portalUr
  * @param {string} params.portalUrl    - Portal base URL
  */
 function buildWeeklyTestIncompleteReminderEmail({ name, testDay, currentDay, missingItems = [], portalUrl }) {
-  const loginUrl = `${(portalUrl || 'https://gluckstudentsportal.com').replace(/\/$/, '')}/login`;
+  const loginUrl = `${(portalUrl || process.env.PORTAL_URL || process.env.FRONTEND_URL || 'https://portal.serbia.gluckglobal.com').replace(/\/$/, '')}/login`;
   const week = Math.ceil(currentDay / 7);
   const itemListHtml = missingItems.length
     ? `<ul style="margin:12px 0 20px;padding-left:22px;color:#374151;font-size:15px;line-height:1.8;">
@@ -1966,9 +1968,9 @@ function buildWeeklyTestIncompleteReminderEmail({ name, testDay, currentDay, mis
     : '';
 
   return {
-    subject: `⏰ Don't forget your Week ${week} Test — complete it to unlock Day ${currentDay} modules!`,
+    subject: `⏰ Ne zaboravite test Nedelje ${week} — završite ga da otključate module Dana ${currentDay}!`,
     html: `<!DOCTYPE html>
-<html lang="en">
+<html lang="sr-Latn">
 <head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/></head>
 <body style="margin:0;padding:0;background:#f4f6fb;font-family:Arial,sans-serif;">
   <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
@@ -1979,22 +1981,22 @@ function buildWeeklyTestIncompleteReminderEmail({ name, testDay, currentDay, mis
           <tr>
             <td style="background:linear-gradient(135deg,#000e89 0%,#6c3fc5 100%);padding:28px 40px;text-align:center;">
               <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;">Glück Global</h1>
-              <p style="margin:4px 0 0;color:rgba(255,255,255,0.85);font-size:13px;">Weekly Test Reminder</p>
+              <p style="margin:4px 0 0;color:rgba(255,255,255,0.85);font-size:13px;">Podsetnik za nedeljni test</p>
             </td>
           </tr>
           <tr>
             <td style="padding:32px 40px;">
               <p style="margin:0 0 16px;color:#1a1a2e;font-size:16px;line-height:1.6;">
-                Hi <strong>${escapeHtml(name)}</strong>,
+                Zdravo <strong>${escapeHtml(name)}</strong>,
               </p>
               <p style="margin:0 0 16px;color:#374151;font-size:15px;line-height:1.6;">
-                It looks like you haven't completed your <strong>Week ${week} Weekly Test</strong> from Day ${testDay} yet.
-                Please complete it to fully unlock your Day ${currentDay} modules and keep your learning journey on track!
+                Čini se da još niste završili <strong>Nedeljni test Nedelje ${week}</strong> od Dana ${testDay}.
+                Molimo završite ga da u potpunosti otključate module Dana ${currentDay} i ostanete na pravom putu učenja!
               </p>
               ${itemListHtml}
               <div style="background:#fff8e1;border-left:4px solid #f59e0b;border-radius:6px;padding:14px 18px;margin:0 0 24px;">
                 <p style="margin:0;color:#92400e;font-size:14px;line-height:1.6;">
-                  ⚠️ <strong>Don't wait!</strong> Completing your weekly test helps you consolidate everything you've learned and prepares you for the next week's content.
+                  ⚠️ <strong>Ne čekajte!</strong> Završavanje nedeljnog testa vam pomaže da konsolidujete sve što ste naučili i priprema vas za sadržaj sledeće nedelje.
                 </p>
               </div>
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
@@ -2002,20 +2004,20 @@ function buildWeeklyTestIncompleteReminderEmail({ name, testDay, currentDay, mis
                   <td align="center" style="padding:4px 0 24px;">
                     <a href="${loginUrl}"
                        style="display:inline-block;background:#000e89;color:#ffffff;text-decoration:none;font-size:15px;font-weight:700;padding:14px 36px;border-radius:8px;">
-                      Complete Weekly Test Now
+                      Završi nedeljni test sada
                     </a>
                   </td>
                 </tr>
               </table>
               <p style="margin:0;color:#64748b;font-size:13px;line-height:1.5;">
-                Consistency is the key to fluency — every test you complete brings you one step closer to your goal!
+                Doslednost je ključ tečnosti — svaki test koji završite vas vodi jedan korak bliže cilju!
               </p>
             </td>
           </tr>
           <tr>
             <td style="background:#f8f9ff;padding:18px 40px;text-align:center;border-top:1px solid #e5e7eb;">
               <p style="margin:0;color:#94a3b8;font-size:12px;">
-                © Glück Global Pvt Ltd · <a href="https://gluckstudentsportal.com" style="color:#6c3fc5;">gluckstudentsportal.com</a>
+                © Glück Global Pvt Ltd · <a href="${process.env.PORTAL_URL || 'https://portal.gluckglobal.rs'}" style="color:#6c3fc5;">${(process.env.PORTAL_URL || 'https://portal.gluckglobal.rs').replace(/^https?:\/\//, '')}</a>
               </p>
             </td>
           </tr>
@@ -2025,7 +2027,7 @@ function buildWeeklyTestIncompleteReminderEmail({ name, testDay, currentDay, mis
   </table>
 </body>
 </html>`,
-    text: `Hi ${name},\n\nYou haven't completed your Week ${week} Weekly Test from Day ${testDay} yet. Please complete it to unlock your Day ${currentDay} modules!\n\nLog in here: ${loginUrl}\n\n— Glück Global`,
+    text: `Zdravo ${name},\n\nJoš niste završili Nedeljni test Nedelje ${week} od Dana ${testDay}. Molimo završite ga da otključate module Dana ${currentDay}!\n\nPrijavite se ovde: ${loginUrl}\n\n— Glück Global`,
   };
 }
 
@@ -2088,7 +2090,7 @@ function buildLateJoinEarlyExitEmail({
         </td>
         <td style="padding:10px 12px;text-align:center;border-bottom:1px solid #e2e8f0;">
           <span style="display:inline-block;background:#fee2e2;color:#991b1b;font-size:12px;font-weight:700;padding:4px 12px;border-radius:12px;">
-            +${s.lateByMinutes} min late
+            +${s.lateByMinutes} min kasno
           </span>
         </td>
       </tr>`)
@@ -2111,7 +2113,7 @@ function buildLateJoinEarlyExitEmail({
         </td>
         <td style="padding:10px 12px;border-bottom:1px solid #e2e8f0;text-align:center;">
           <span style="display:inline-block;background:#fef3c7;color:#92400e;font-size:12px;font-weight:700;padding:4px 12px;border-radius:12px;">
-            left ${s.leftEarlyByMinutes} min early
+            otišlo ${s.leftEarlyByMinutes} min ranije
           </span>
         </td>
         <td style="padding:10px 14px;border-bottom:1px solid #e2e8f0;min-width:120px;">
@@ -2125,17 +2127,17 @@ function buildLateJoinEarlyExitEmail({
     .join('');
 
   const totalFlags = lateJoiners.length + earlyExiters.length;
-  const dayLabel = `Day ${courseDay}`;
+  const dayLabel = `Dan ${courseDay}`;
 
   return {
-    subject: `🕐 ${dayLabel} Class Alert – ${lateJoiners.length} late join${lateJoiners.length !== 1 ? 's' : ''}, ${earlyExiters.length} early exit${earlyExiters.length !== 1 ? 's' : ''} · ${escapeHtml(batchName)}`,
+    subject: `🕐 Upozorenje za čas ${dayLabel} – ${lateJoiners.length} kasno pridružen${lateJoiners.length !== 1 ? 'ih' : 'ih'}, ${earlyExiters.length} rano otiš${earlyExiters.length !== 1 ? 'lo' : 'lo'} · ${escapeHtml(batchName)}`,
     html: `
 <!DOCTYPE html>
-<html lang="en">
+<html lang="sr-Latn">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>${dayLabel} Class Attendance Alert</title>
+  <title>Upozorenje o prisustvu na času ${dayLabel}</title>
 </head>
 <body style="margin:0;padding:0;background:#f4f6fb;font-family:Arial,sans-serif;">
   <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
@@ -2147,8 +2149,8 @@ function buildLateJoinEarlyExitEmail({
           <!-- Header -->
           <tr>
             <td style="background:linear-gradient(135deg,#6c3fc5 0%,#8b5cf6 100%);padding:28px 40px;text-align:center;">
-              <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;">Glück Global · Language Team</h1>
-              <p style="margin:6px 0 0;color:rgba(255,255,255,0.85);font-size:13px;">${dayLabel} Class · Late Join &amp; Early Exit Report</p>
+              <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;">Glück Global · Jezički tim</h1>
+              <p style="margin:6px 0 0;color:rgba(255,255,255,0.85);font-size:13px;">${dayLabel} čas · Izveštaj o kasnom dolasku i ranom odlasku</p>
             </td>
           </tr>
 
@@ -2159,8 +2161,8 @@ function buildLateJoinEarlyExitEmail({
                 📅 ${escapeHtml(batchName)} · ${dayLabel} &nbsp;|&nbsp; ${escapeHtml(classDate)}
               </p>
               <p style="margin:4px 0 0;font-size:13px;color:#6d28d9;">
-                ${escapeHtml(classTopic || 'Live Class')} &nbsp;·&nbsp; Duration: ${escapeHtml(classDuration)}
-                &nbsp;·&nbsp; <strong>${totalFlags}</strong> student${totalFlags !== 1 ? 's' : ''} flagged
+                ${escapeHtml(classTopic || 'Živi čas')} &nbsp;·&nbsp; Trajanje: ${escapeHtml(classDuration)}
+                &nbsp;·&nbsp; <strong>${totalFlags}</strong> student${totalFlags !== 1 ? 'a' : ''} označeno
               </p>
             </td>
           </tr>
@@ -2170,15 +2172,15 @@ function buildLateJoinEarlyExitEmail({
           ${hasLate ? `
           <!-- Late Joiners -->
           <p style="margin:24px 0 10px;font-size:14px;font-weight:700;color:#991b1b;text-transform:uppercase;letter-spacing:0.5px;">
-            🕐 Late Joiners (${lateJoiners.length})
+            🕐 Kasni dolasci (${lateJoiners.length})
           </p>
           <table role="presentation" width="100%" cellspacing="0" cellpadding="0"
                  style="border-radius:8px;overflow:hidden;border:1px solid #fecaca;">
             <thead>
               <tr style="background:#fef2f2;">
                 <th style="padding:10px 12px;font-size:12px;font-weight:700;color:#991b1b;text-align:left;text-transform:uppercase;letter-spacing:0.4px;">Student</th>
-                <th style="padding:10px 12px;font-size:12px;font-weight:700;color:#991b1b;text-align:left;text-transform:uppercase;letter-spacing:0.4px;">Email</th>
-                <th style="padding:10px 12px;font-size:12px;font-weight:700;color:#991b1b;text-align:center;text-transform:uppercase;letter-spacing:0.4px;">Arrived</th>
+                <th style="padding:10px 12px;font-size:12px;font-weight:700;color:#991b1b;text-align:left;text-transform:uppercase;letter-spacing:0.4px;">E-mail</th>
+                <th style="padding:10px 12px;font-size:12px;font-weight:700;color:#991b1b;text-align:center;text-transform:uppercase;letter-spacing:0.4px;">Pristigao</th>
               </tr>
             </thead>
             <tbody>${lateRows}</tbody>
@@ -2187,17 +2189,17 @@ function buildLateJoinEarlyExitEmail({
           ${hasEarly ? `
           <!-- Early Exits -->
           <p style="margin:24px 0 10px;font-size:14px;font-weight:700;color:#92400e;text-transform:uppercase;letter-spacing:0.5px;">
-            🚪 Early Exits (${earlyExiters.length})
+            🚪 Rani odlasci (${earlyExiters.length})
           </p>
           <table role="presentation" width="100%" cellspacing="0" cellpadding="0"
                  style="border-radius:8px;overflow:hidden;border:1px solid #fed7aa;">
             <thead>
               <tr style="background:#fff7ed;">
                 <th style="padding:10px 12px;font-size:12px;font-weight:700;color:#92400e;text-align:left;text-transform:uppercase;letter-spacing:0.4px;">Student</th>
-                <th style="padding:10px 12px;font-size:12px;font-weight:700;color:#92400e;text-align:left;text-transform:uppercase;letter-spacing:0.4px;">Email</th>
-                <th style="padding:10px 12px;font-size:12px;font-weight:700;color:#92400e;text-align:center;text-transform:uppercase;letter-spacing:0.4px;">Time In</th>
-                <th style="padding:10px 12px;font-size:12px;font-weight:700;color:#92400e;text-align:center;text-transform:uppercase;letter-spacing:0.4px;">Left Early</th>
-                <th style="padding:10px 14px;font-size:12px;font-weight:700;color:#92400e;text-align:left;text-transform:uppercase;letter-spacing:0.4px;min-width:120px;">Attended</th>
+                <th style="padding:10px 12px;font-size:12px;font-weight:700;color:#92400e;text-align:left;text-transform:uppercase;letter-spacing:0.4px;">E-mail</th>
+                <th style="padding:10px 12px;font-size:12px;font-weight:700;color:#92400e;text-align:center;text-transform:uppercase;letter-spacing:0.4px;">Vreme ulaska</th>
+                <th style="padding:10px 12px;font-size:12px;font-weight:700;color:#92400e;text-align:center;text-transform:uppercase;letter-spacing:0.4px;">Rano otišlo</th>
+                <th style="padding:10px 14px;font-size:12px;font-weight:700;color:#92400e;text-align:left;text-transform:uppercase;letter-spacing:0.4px;min-width:120px;">Prisustvovalo</th>
               </tr>
             </thead>
             <tbody>${earlyRows}</tbody>
@@ -2209,9 +2211,9 @@ function buildLateJoinEarlyExitEmail({
           <tr>
             <td style="background:#f8fafc;padding:16px 40px;border-top:1px solid #e2e8f0;text-align:center;margin-top:8px;">
               <p style="margin:0;color:#94a3b8;font-size:12px;">
-                Late threshold: 10 min after class start · Early exit: left before 75% of class<br/>
-                Auto-generated after ${dayLabel} class ends · ${escapeHtml(reportDate)}<br/>
-                © Glück Global Pvt Ltd · <a href="https://gluckstudentsportal.com" style="color:#6c3fc5;">gluckstudentsportal.com</a>
+                Prag kasnog dolaska: 10 min nakon početka časa · Rani odlazak: otišlo pre 75% časa<br/>
+                Automatski generisano nakon završetka časa ${dayLabel} · ${escapeHtml(reportDate)}<br/>
+                © Glück Global Pvt Ltd · <a href="${process.env.PORTAL_URL || 'https://portal.gluckglobal.rs'}" style="color:#6c3fc5;">${(process.env.PORTAL_URL || 'https://portal.gluckglobal.rs').replace(/^https?:\/\//, '')}</a>
               </p>
             </td>
           </tr>

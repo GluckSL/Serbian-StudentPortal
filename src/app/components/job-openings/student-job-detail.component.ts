@@ -68,7 +68,7 @@ export class StudentJobDetailComponent implements OnInit {
   formatApplyBefore(dateStr: string): string {
     const d = new Date(dateStr);
     if (Number.isNaN(d.getTime())) return '';
-    return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+    return d.toLocaleDateString('sr-Latn-RS', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
   }
 
   apply(): void {

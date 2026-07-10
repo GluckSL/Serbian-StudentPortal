@@ -20,15 +20,15 @@ exports.uploadMiddleware = upload.single('file');
 exports.uploadContextImage = async (req, res) => {
   try {
     if (!req.file) {
-      return res.status(400).json({ message: 'No file received.' });
+      return res.status(400).json({ message: 'Nijedna datoteka nije primljena.' });
     }
     if (!req.file.buffer?.length) {
-      return res.status(400).json({ message: 'Empty image upload.' });
+      return res.status(400).json({ message: 'Prazno otpremanje slike.' });
     }
     if (!isExerciseR2Configured()) {
       return res.status(503).json({
         message:
-          'Image uploads require Cloudflare R2. Set CF_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET, and R2_PUBLIC_BASE_URL.',
+          'Otpremanje slika zahteva Cloudflare R2. Postavite CF_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET i R2_PUBLIC_BASE_URL.',
       });
     }
 
@@ -43,6 +43,6 @@ exports.uploadContextImage = async (req, res) => {
     res.json({ url: publicUrl });
   } catch (e) {
     console.error('[dg-context-image] R2 upload failed:', e.message);
-    res.status(500).json({ message: e.message || 'Upload failed' });
+    res.status(500).json({ message: e.message || 'Otpremanje nije uspelo' });
   }
 };

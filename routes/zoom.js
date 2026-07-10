@@ -2215,7 +2215,7 @@ router.put('/meeting/:id', verifyToken, async (req, res) => {
         const newMeetingDate = new Date(startTime);
         
         // Get new day of week
-        const newDayOfWeek = newMeetingDate.toLocaleDateString('en-US', { 
+        const newDayOfWeek = newMeetingDate.toLocaleDateString('sr-Latn-RS', { 
           weekday: 'long', 
           timeZone: 'Asia/Kolkata' 
         }).toLowerCase();
@@ -2487,7 +2487,7 @@ router.post('/meetings/bulk-update', verifyToken, async (req, res) => {
             try {
               const TimeTable = require('../models/TimeTable');
               const refDate = effectiveStartTime ? new Date(effectiveStartTime) : new Date(meeting.startTime);
-              const dayOfWeek = refDate.toLocaleDateString('en-US', { weekday: 'long', timeZone: 'Asia/Kolkata' }).toLowerCase();
+              const dayOfWeek = refDate.toLocaleDateString('sr-Latn-RS', { weekday: 'long', timeZone: 'Asia/Kolkata' }).toLowerCase();
               const slotStart = refDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Kolkata' });
               const endDate = new Date(refDate.getTime() + (duration || meeting.duration) * 60000);
               const slotEnd = endDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Kolkata' });
@@ -2614,7 +2614,7 @@ router.delete('/meeting/:id', verifyToken, async (req, res) => {
       const meetingDate = new Date(meeting.startTime);
       
       // Get day of week
-      const dayOfWeek = meetingDate.toLocaleDateString('en-US', { 
+      const dayOfWeek = meetingDate.toLocaleDateString('sr-Latn-RS', { 
         weekday: 'long', 
         timeZone: 'Asia/Kolkata' 
       }).toLowerCase();
@@ -2697,7 +2697,7 @@ router.delete('/meeting/:id', verifyToken, async (req, res) => {
 
                     <div style="background:#f5f5f5; padding:15px; border-radius:8px; margin:20px 0; border-left:4px solid #dc3545;">
                       <h3 style="color:#dc3545; margin:0 0 10px 0;">${meeting.topic}</h3>
-                      <p style="margin:5px 0;"><strong>📅 Date:</strong> ${new Date(meeting.startTime).toLocaleDateString('en-US', { 
+                      <p style="margin:5px 0;"><strong>📅 Date:</strong> ${new Date(meeting.startTime).toLocaleDateString('sr-Latn-RS', { 
                         weekday: 'long', 
                         year: 'numeric', 
                         month: 'long', 

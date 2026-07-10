@@ -17,8 +17,8 @@ const {
 
 const NOTIFICATION_TYPE = 'WEEKLY_TIMETABLE';
 const PORTAL_URL =
-  process.env.PORTAL_URL || process.env.FRONTEND_URL || 'https://gluckstudentsportal.com';
-const FROM_EMAIL = process.env.EMAIL_FROM || process.env.EMAIL_USER || 'noreply@gluckstudentsportal.com';
+  process.env.PORTAL_URL || process.env.FRONTEND_URL || 'https://portal.gluckglobal.rs';
+const FROM_EMAIL = process.env.EMAIL_FROM || process.env.EMAIL_USER || `noreply@${(process.env.PORTAL_URL || 'https://portal.gluckglobal.rs').replace(/^https?:\/\//, '').replace(/\/$/, '')}`;
 const FROM_NAME = process.env.EMAIL_FROM_NAME || 'Glück Global';
 
 const DATE_FORMAT_OPTS_LONG = {
@@ -43,8 +43,8 @@ const TIME_FORMAT_OPTS = {
   hour12: true,
 };
 
-function fmtDateLong(d)  { return d.toLocaleDateString('en-IN', DATE_FORMAT_OPTS_LONG); }
-function fmtDateShort(d) { return d.toLocaleDateString('en-IN', DATE_FORMAT_OPTS_SHORT); }
+function fmtDateLong(d)  { return d.toLocaleDateString('sr-Latn-RS', DATE_FORMAT_OPTS_LONG); }
+function fmtDateShort(d) { return d.toLocaleDateString('sr-Latn-RS', DATE_FORMAT_OPTS_SHORT); }
 function fmtTime(d)      { return d.toLocaleTimeString('en-IN', TIME_FORMAT_OPTS); }
 function weekLabel(s, e) { return `${fmtDateShort(s)} – ${fmtDateShort(e)}`; }
 
@@ -96,7 +96,7 @@ function groupMeetingsByBatch(meetings) {
 const DAY_ORDER = { mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6, sun: 7 };
 
 function fmtWeekdayShort(d) {
-  const raw = new Date(d).toLocaleDateString('en-US', { timeZone: 'Asia/Colombo', weekday: 'short' }).toLowerCase();
+  const raw = new Date(d).toLocaleDateString('sr-Latn-RS', { timeZone: 'Asia/Colombo', weekday: 'short' }).toLowerCase();
   return raw.slice(0, 3); // mon, tue, wed …
 }
 

@@ -561,13 +561,13 @@ export class GluckRoomCreateComponent implements OnInit {
   rowWeekday(row: { startTime: string }): string {
     const ms = this.slotMs(row.startTime);
     if (!Number.isFinite(ms)) return '\u2014';
-    return new Date(ms).toLocaleDateString('en-US', { weekday: 'long', timeZone: 'Asia/Kolkata' });
+    return new Date(ms).toLocaleDateString('sr-Latn-RS', { weekday: 'long', timeZone: 'Asia/Kolkata' });
   }
 
   rowDate(row: { startTime: string }): string {
     const ms = this.slotMs(row.startTime);
     if (!Number.isFinite(ms)) return '\u2014';
-    return new Date(ms).toLocaleDateString('en-GB', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric' });
+    return new Date(ms).toLocaleDateString('sr-Latn-RS', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric' });
   }
 
   rowStartTime(row: { startTime: string }): string {

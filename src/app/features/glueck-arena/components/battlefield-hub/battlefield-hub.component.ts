@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
+﻿import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
@@ -17,38 +17,38 @@ import { Subscription } from 'rxjs';
         <div class="bfhub__brand">
           <mat-icon>sports_kabaddi</mat-icon>
           <div>
-            <h1>Battlefield</h1>
-            <p>Create or join real-time multiplayer game rooms</p>
+            <h1>Bojno polje</h1>
+            <p>Kreirajte ili se pridružite sobama za igru u realnom vremenu</p>
           </div>
         </div>
         <div class="bfhub__top-actions">
           <a class="bfhub__top-btn" routerLink="/glueck-arena/battlefield/leaderboard">
-            <mat-icon>leaderboard</mat-icon> <span>Leaderboard</span>
+            <mat-icon>leaderboard</mat-icon> <span>Rang lista</span>
           </a>
           <div class="bfhub__top-btn" role="button" tabindex="0" (click)="openJoinDialog()" (keydown.enter)="openJoinDialog()">
-            <mat-icon>vpn_key</mat-icon> <span>Join by Code</span>
+            <mat-icon>vpn_key</mat-icon> <span>Pridruži se kodom</span>
           </div>
           <div class="bfhub__top-btn" role="button" tabindex="0" (click)="openCreateDialog()" (keydown.enter)="openCreateDialog()">
-            <mat-icon>add</mat-icon> <span>Create Room</span>
+            <mat-icon>add</mat-icon> <span>Kreiraj sobu</span>
           </div>
         </div>
         </div>
 
       <div class="bfhub__toolbar">
-        <div class="bfhub__toolbar-btn" role="button" tabindex="0" (click)="refresh()" [class.bfhub__toolbar-btn--disabled]="loading" aria-label="Refresh" (keydown.enter)="refresh()">
+        <div class="bfhub__toolbar-btn" role="button" tabindex="0" (click)="refresh()" [class.bfhub__toolbar-btn--disabled]="loading" aria-label="Osveži" (keydown.enter)="refresh()">
           <span class="material-icons">refresh</span>
         </div>
         <div class="bfhub__search-input">
           <mat-icon>search</mat-icon>
-          <input type="search" [(ngModel)]="searchQuery" (ngModelChange)="onSearch()" placeholder="Search rooms…" aria-label="Search rooms">
+          <input type="search" [(ngModel)]="searchQuery" (ngModelChange)="onSearch()" placeholder="Pretraži sobe…" aria-label="Pretraži sobe">
         </div>
         <div class="bfhub__dropdown-wrap">
           <div class="bfhub__dropdown" (click)="typeOpen = !typeOpen">
-            <span>{{ gameTypeFilter ? formatGameType(gameTypeFilter) : 'All Games' }}</span>
+            <span>{{ gameTypeFilter ? formatGameType(gameTypeFilter) : 'Sve igre' }}</span>
             <mat-icon>expand_more</mat-icon>
           </div>
           <div class="bfhub__dropdown-menu" *ngIf="typeOpen">
-            <div class="bfhub__dropdown-item" (click)="setGameType('')">All Games</div>
+            <div class="bfhub__dropdown-item" (click)="setGameType('')">Sve igre</div>
             <div class="bfhub__dropdown-item" *ngFor="let gt of gameTypes" (click)="setGameType(gt)">{{ formatGameType(gt) }}</div>
           </div>
         </div>
@@ -59,9 +59,9 @@ import { Subscription } from 'rxjs';
           [class.bfhub__room-card--playing]="room.status === 'playing'">
           <div class="bfhub__room-top">
             <span class="bfhub__room-game">{{ formatGameType(room.gameType) }}</span>
-            <span class="bfhub__room-badge bfhub__room-badge--team" *ngIf="room.teamMode">Team Battle</span>
+            <span class="bfhub__room-badge bfhub__room-badge--team" *ngIf="room.teamMode">Timska bitka</span>
             <span class="bfhub__room-status" [class.bfhub__room-status--live]="room.status === 'playing'">
-              {{ room.status === 'playing' ? 'LIVE' : 'Waiting' }}
+              {{ room.status === 'playing' ? 'UŽIVO' : 'Čeka' }}
             </span>
           </div>
           <div class="bfhub__room-name">{{ room.roomName }}</div>
@@ -73,70 +73,70 @@ import { Subscription } from 'rxjs';
               <mat-icon>people</mat-icon> {{ room.playerCount }}/{{ room.maxPlayers }}
             </span>
             <span class="bfhub__room-privacy" *ngIf="!room.isPublic">
-              <mat-icon>lock</mat-icon> Private
+              <mat-icon>lock</mat-icon> Privatno
             </span>
-            <div class="bfhub__btn bfhub__btn--primary bfhub__room-join" role="button" tabindex="0">Join</div>
+            <div class="bfhub__btn bfhub__btn--primary bfhub__room-join" role="button" tabindex="0">Pridruži se</div>
           </div>
         </div>
       </div>
 
       <div class="bfhub__empty" *ngIf="!loading && rooms.length === 0">
         <mat-icon>meeting_room</mat-icon>
-        <h3>No rooms available</h3>
-        <p>Create the first room or check back later</p>
+        <h3>Nema dostupnih soba</h3>
+        <p>Kreirajte prvu sobu ili se vratite kasnije</p>
       </div>
 
       <div class="bfhub__loading" *ngIf="loading">
         <mat-spinner diameter="40"></mat-spinner>
-        <span>Loading rooms…</span>
+        <span>Učitavanje soba…</span>
       </div>
     </div>
 
     <!-- Create Room Dialog (inline) -->
     <div class="bfhub-overlay" *ngIf="showCreateDialog" (click)="showCreateDialog = false">
       <div class="bfhub-dialog" (click)="$event.stopPropagation()">
-        <h2><mat-icon>add</mat-icon> Create Battlefield Room</h2>
+        <h2><mat-icon>add</mat-icon> Kreiraj sobu bojnog polja</h2>
 
         <div class="bfhub-dialog__field">
-          <label>Room Name</label>
-          <input matInput [(ngModel)]="newRoom.name" placeholder="My Awesome Room" maxlength="60">
+          <label>Naziv sobe</label>
+          <input matInput [(ngModel)]="newRoom.name" placeholder="Moja soba" maxlength="60">
         </div>
 
         <div class="bfhub-dialog__field">
-          <label>Game Type</label>
+          <label>Tip igre</label>
           <select [(ngModel)]="newRoom.gameSetId" class="bfhub-dialog__select">
-            <option value="" disabled>Select a game</option>
+            <option value="" disabled>Izaberi igru</option>
             <option *ngFor="let set of availableSets" [value]="set._id">{{ set.title }} ({{ formatGameType(set.gameType) }})</option>
           </select>
         </div>
 
         <div class="bfhub-dialog__field">
-          <label>Visibility</label>
+          <label>Vidljivost</label>
           <div class="bfhub-dialog__radio-group">
             <label class="bfhub-dialog__radio">
               <input type="radio" name="visibility" [value]="true" [(ngModel)]="newRoom.isPublic">
-              <mat-icon>public</mat-icon> Public
+              <mat-icon>public</mat-icon> Javno
             </label>
             <label class="bfhub-dialog__radio">
               <input type="radio" name="visibility" [value]="false" [(ngModel)]="newRoom.isPublic">
-              <mat-icon>lock</mat-icon> Private (invite only)
+              <mat-icon>lock</mat-icon> Privatno (samo pozivom)
             </label>
           </div>
         </div>
 
         <div class="bfhub-dialog__field">
-          <label>Max Players</label>
+          <label>Maks. igrača</label>
           <select [(ngModel)]="newRoom.maxPlayers" class="bfhub-dialog__select">
             <option *ngFor="let n of [2,3,4,5,6,7,8]" [value]="n">{{ n }}</option>
           </select>
         </div>
 
         <div class="bfhub-dialog__actions">
-          <div class="bfhub__btn" role="button" tabindex="0" (click)="showCreateDialog = false" (keydown.enter)="showCreateDialog = false">Cancel</div>
+          <div class="bfhub__btn" role="button" tabindex="0" (click)="showCreateDialog = false" (keydown.enter)="showCreateDialog = false">Otkaži</div>
           <div class="bfhub__btn bfhub__btn--primary" role="button" tabindex="0" (click)="createRoom()" [class.bfhub__btn--disabled]="!newRoom.name || !newRoom.gameSetId || creating" (keydown.enter)="createRoom()">
             <mat-icon *ngIf="!creating">add</mat-icon>
             <mat-spinner *ngIf="creating" diameter="20"></mat-spinner>
-            Create Room
+            Kreiraj sobu
           </div>
         </div>
       </div>
@@ -145,16 +145,16 @@ import { Subscription } from 'rxjs';
     <!-- Join by Code Dialog -->
     <div class="bfhub-overlay" *ngIf="showJoinDialog" (click)="showJoinDialog = false">
       <div class="bfhub-dialog bfhub-dialog--small" (click)="$event.stopPropagation()">
-        <h2><mat-icon>vpn_key</mat-icon> Join Room</h2>
-        <p class="bfhub-dialog__hint">Enter the room code to join</p>
+        <h2><mat-icon>vpn_key</mat-icon> Pridruži se sobi</h2>
+        <p class="bfhub-dialog__hint">Unesite kod sobe za pridruživanje</p>
         <div class="bfhub-dialog__field">
-          <input matInput [(ngModel)]="joinCode" placeholder="Room code (e.g. AB12CD34)"
+          <input matInput [(ngModel)]="joinCode" placeholder="Kod sobe (npr. AB12CD34)"
             (keydown.enter)="joinByCode()" style="text-transform:uppercase;font-family:monospace;text-align:center;font-size:20px;letter-spacing:4px;font-weight:700;">
         </div>
         <div class="bfhub-dialog__actions">
-          <div class="bfhub__btn" role="button" tabindex="0" (click)="showJoinDialog = false" (keydown.enter)="showJoinDialog = false">Cancel</div>
+          <div class="bfhub__btn" role="button" tabindex="0" (click)="showJoinDialog = false" (keydown.enter)="showJoinDialog = false">Otkaži</div>
           <div class="bfhub__btn bfhub__btn--primary" role="button" tabindex="0" (click)="joinByCode()" [class.bfhub__btn--disabled]="!joinCode.trim()" (keydown.enter)="joinByCode()">
-            <mat-icon>login</mat-icon> Join
+            <mat-icon>login</mat-icon> Pridruži se
           </div>
         </div>
       </div>

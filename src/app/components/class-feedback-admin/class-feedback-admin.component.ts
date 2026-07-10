@@ -208,14 +208,14 @@ export class ClassFeedbackAdminComponent implements OnInit {
   // ── Display helpers ───────────────────────────────────────────
   formatDate(dateStr: string): string {
     if (!dateStr) return '-';
-    return new Date(dateStr).toLocaleDateString('en-GB', {
+    return new Date(dateStr).toLocaleDateString('sr-Latn-RS', {
       day: '2-digit', month: 'short', year: 'numeric'
     });
   }
 
   formatDateTime(dateStr: string): string {
     if (!dateStr) return '-';
-    return new Date(dateStr).toLocaleString('en-GB', {
+    return new Date(dateStr).toLocaleString('sr-Latn-RS', {
       day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'
     });
   }

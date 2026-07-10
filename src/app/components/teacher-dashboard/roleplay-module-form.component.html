@@ -41,9 +41,9 @@
     <div class="card rp-card" *ngIf="!pageLoading">
       <!-- Card header -->
       <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
-        <h4 class="mb-0">🎭 {{ isEditMode ? 'Edit' : 'Create' }} Role-Play Module</h4>
+        <h4 class="mb-0">🎭 {{ isEditMode ? 'Uredi' : 'Kreiraj' }} modul igranja uloga</h4>
         <button type="button" class="btn btn-secondary rp-back-btn" (click)="goBack()">
-          <i class="fas fa-arrow-left"></i> Back
+          <i class="fas fa-arrow-left"></i> Nazad
         </button>
       </div>
 
@@ -52,10 +52,10 @@
         <!-- ── 1. Basic Information ─────────────────────────────────────── -->
         <div class="row mb-4">
           <div class="col-12">
-            <h5 class="section-heading border-bottom pb-2">📝 Basic Information</h5>
+            <h5 class="section-heading border-bottom pb-2">📝 Osnovne informacije</h5>
           </div>
           <div class="col-md-6 mb-3">
-            <label class="form-label">Module Title *</label>
+            <label class="form-label">Naslov modula *</label>
             <input
               type="text"
               class="form-control"
@@ -65,10 +65,10 @@
               name="title"
               placeholder="e.g., Restaurant Conversation"
             />
-            <div class="invalid-feedback" *ngIf="isInvalid('title')">Module title is required.</div>
+            <div class="invalid-feedback" *ngIf="isInvalid('title')">Naslov modula je obavezan.</div>
           </div>
           <div class="col-12 mb-3">
-            <label class="form-label">Description *</label>
+            <label class="form-label">Opis *</label>
             <textarea
               class="form-control"
               [class.is-invalid]="isInvalid('description')"
@@ -76,19 +76,19 @@
               [(ngModel)]="editDescription"
               (ngModelChange)="onFieldInput('description')"
               name="description"
-              placeholder="Brief description of the role-play scenario"
+              placeholder="Kratak opis scenarija igranja uloga"
             ></textarea>
-            <div class="invalid-feedback" *ngIf="isInvalid('description')">Description is required.</div>
+            <div class="invalid-feedback" *ngIf="isInvalid('description')">Opis je obavezan.</div>
           </div>
         </div>
 
         <!-- ── 2. Language & Level ─────────────────────────────────────── -->
         <div class="row mb-4">
           <div class="col-12">
-            <h5 class="section-heading border-bottom pb-2">🌍 Language &amp; Level</h5>
+            <h5 class="section-heading border-bottom pb-2">🌍 Jezik i nivo</h5>
           </div>
           <div class="col-md-4 mb-3">
-            <label class="form-label">Target Language *</label>
+            <label class="form-label">Ciljni jezik *</label>
             <select
               class="form-select"
               [class.is-invalid]="isInvalid('targetLang')"
@@ -96,13 +96,13 @@
               (ngModelChange)="onFieldInput('targetLang')"
               name="targetLang"
             >
-              <option value="">Select language</option>
+              <option value="">Izaberite jezik</option>
               <option *ngFor="let lang of targetLanguages" [value]="lang">{{ lang }}</option>
             </select>
-            <div class="invalid-feedback" *ngIf="isInvalid('targetLang')">Target language is required.</div>
+            <div class="invalid-feedback" *ngIf="isInvalid('targetLang')">Ciljni jezik je obavezan.</div>
           </div>
           <div class="col-md-4 mb-3">
-            <label class="form-label">Native Language *</label>
+            <label class="form-label">Maternji jezik *</label>
             <select
               class="form-select"
               [class.is-invalid]="isInvalid('nativeLang')"
@@ -110,13 +110,13 @@
               (ngModelChange)="onFieldInput('nativeLang')"
               name="nativeLang"
             >
-              <option value="">Select language</option>
+              <option value="">Izaberite jezik</option>
               <option *ngFor="let lang of nativeLanguages" [value]="lang">{{ lang }}</option>
             </select>
-            <div class="invalid-feedback" *ngIf="isInvalid('nativeLang')">Native language is required.</div>
+            <div class="invalid-feedback" *ngIf="isInvalid('nativeLang')">Maternji jezik je obavezan.</div>
           </div>
           <div class="col-md-4 mb-3">
-            <label class="form-label">Level *</label>
+            <label class="form-label">Nivo *</label>
             <select
               class="form-select"
               [class.is-invalid]="isInvalid('cefrLevel')"
@@ -124,16 +124,16 @@
               (ngModelChange)="onFieldInput('cefrLevel')"
               name="cefrLevel"
             >
-              <option value="">Select Level</option>
+              <option value="">Izaberite nivo</option>
               <option *ngFor="let lv of cefrLevels" [value]="lv">{{ lv }}</option>
             </select>
-            <div class="invalid-feedback" *ngIf="isInvalid('cefrLevel')">Please select a CEFR level.</div>
+            <div class="invalid-feedback" *ngIf="isInvalid('cefrLevel')">Molimo izaberite CEFR nivo.</div>
             <small class="form-text text-muted" *ngIf="!isInvalid('cefrLevel')">
-              CEFR proficiency level - determines content complexity and student access
+              CEFR nivo znanja — određuje složenost sadržaja i pristup učenika
             </small>
           </div>
           <div class="col-md-6 mb-3">
-            <label class="form-label">Minimum Completion Time (minutes) *</label>
+            <label class="form-label">Minimalno vreme završetka (minuta) *</label>
             <input
               type="number"
               class="form-control"
@@ -146,15 +146,15 @@
               placeholder="10"
             />
             <div class="invalid-feedback" *ngIf="isInvalid('minComplete')">
-              Enter a value between 5 and 60 minutes.
+              Unesite vrednost između 5 i 60 minuta.
             </div>
             <small class="form-text text-muted" *ngIf="!isInvalid('minComplete')">
-              ⏱️ Minimum time required to complete this module (5-60 min)<br />
-              <strong>Suggestions:</strong> Quick (5-8 min) | Standard (10-15 min) | Complex (15-20 min)
+              ⏱️ Minimalno vreme potrebno za završetak ovog modula (5–60 min)<br />
+              <strong>Predlozi:</strong> Kratko (5–8 min) | Standardno (10–15 min) | Složeno (15–20 min)
             </small>
           </div>
           <div class="col-md-6 mb-3">
-            <label class="form-label">Course Day (Optional)</label>
+            <label class="form-label">Dan kursa (opciono)</label>
             <input
               type="text"
               class="form-control"
@@ -167,10 +167,10 @@
               placeholder="e.g., 45"
             />
             <div class="invalid-feedback" *ngIf="isInvalid('courseDay')">
-              Enter a number between 1 and 200, or leave empty.
+              Unesite broj između 1 i 200, ili ostavite prazno.
             </div>
             <small class="form-text text-muted" *ngIf="!isInvalid('courseDay')">
-              📅 Day in the 200-day course journey (1–200). Leave empty for general pool.
+              📅 Dan u putovanju kursa od 200 dana (1–200). Ostavite prazno za opšti fond.
             </small>
           </div>
         </div>
@@ -178,10 +178,10 @@
         <!-- ── 3. Role-Play Scenario ───────────────────────────────────── -->
         <div class="row mb-4">
           <div class="col-12">
-            <h5 class="section-heading border-bottom pb-2">🎭 Role-Play Scenario</h5>
+            <h5 class="section-heading border-bottom pb-2">🎭 Scenario igranja uloga</h5>
           </div>
           <div class="col-md-6 mb-3">
-            <label class="form-label">Situation *</label>
+            <label class="form-label">Situacija *</label>
             <input
               type="text"
               class="form-control"
@@ -191,13 +191,13 @@
               name="rpsSit"
               placeholder="e.g., At a restaurant, Job interview, Shopping"
             />
-            <div class="invalid-feedback" *ngIf="isInvalid('rpsSit')">Situation is required.</div>
+            <div class="invalid-feedback" *ngIf="isInvalid('rpsSit')">Situacija je obavezna.</div>
             <small class="form-text text-muted" *ngIf="!isInvalid('rpsSit')">
-              The context/location of the role-play
+              Kontekst/lokacija igranja uloga
             </small>
           </div>
           <div class="col-md-6 mb-3">
-            <label class="form-label">Setting</label>
+            <label class="form-label">Okruženje</label>
             <input
               type="text"
               class="form-control"
@@ -205,10 +205,10 @@
               name="rpsSet"
               placeholder="e.g., A busy restaurant in Berlin"
             />
-            <small class="form-text text-muted">Detailed description of the environment</small>
+            <small class="form-text text-muted">Detaljan opis okruženja</small>
           </div>
           <div class="col-md-6 mb-3">
-            <label class="form-label">Student Role *</label>
+            <label class="form-label">Uloga učenika *</label>
             <input
               type="text"
               class="form-control"
@@ -218,11 +218,11 @@
               name="rpsSr"
               placeholder="e.g., Customer, Tourist, Job applicant"
             />
-            <div class="invalid-feedback" *ngIf="isInvalid('rpsSr')">Student role is required.</div>
-            <small class="form-text text-muted" *ngIf="!isInvalid('rpsSr')">What role the student plays</small>
+            <div class="invalid-feedback" *ngIf="isInvalid('rpsSr')">Uloga učenika je obavezna.</div>
+            <small class="form-text text-muted" *ngIf="!isInvalid('rpsSr')">Koju ulogu igra učenik</small>
           </div>
           <div class="col-md-6 mb-3">
-            <label class="form-label">AI Role *</label>
+            <label class="form-label">AI uloga *</label>
             <input
               type="text"
               class="form-control"
@@ -232,11 +232,11 @@
               name="rpsAr"
               placeholder="e.g., Waiter, Shop assistant, Interviewer"
             />
-            <div class="invalid-feedback" *ngIf="isInvalid('rpsAr')">AI role is required.</div>
-            <small class="form-text text-muted" *ngIf="!isInvalid('rpsAr')">What role the AI plays</small>
+            <div class="invalid-feedback" *ngIf="isInvalid('rpsAr')">AI uloga je obavezna.</div>
+            <small class="form-text text-muted" *ngIf="!isInvalid('rpsAr')">Koju ulogu igra AI</small>
           </div>
           <div class="col-12 mb-3">
-            <label class="form-label">Objective</label>
+            <label class="form-label">Cilj</label>
             <textarea
               class="form-control"
               rows="2"
@@ -244,18 +244,18 @@
               name="rpsObj"
               placeholder="e.g., Order a meal, ask about prices, and request the bill"
             ></textarea>
-            <small class="form-text text-muted">What the student should accomplish in this role-play</small>
+            <small class="form-text text-muted">Šta učenik treba da postigne u ovom igranju uloga</small>
           </div>
         </div>
 
         <!-- ── 4. Role Personalities & Introductions ───────────────────── -->
         <div class="row mb-4">
           <div class="col-12">
-            <h5 class="section-heading border-bottom pb-2">🎪 Role Personalities &amp; Introductions</h5>
-            <p class="text-muted small mb-3">Define how each role should behave and introduce themselves</p>
+            <h5 class="section-heading border-bottom pb-2">🎪 Karakteri uloga i uvodi</h5>
+            <p class="text-muted small mb-3">Definišite kako bi se svaka uloga trebala ponašati i predstaviti</p>
           </div>
           <div class="col-md-6 mb-3">
-            <label class="form-label">AI Role Personality</label>
+            <label class="form-label">Karakter AI uloge</label>
             <textarea
               class="form-control"
               rows="4"
@@ -263,10 +263,10 @@
               name="rppAi"
               placeholder="e.g., Friendly and helpful waiter, professional but approachable, speaks clearly and patiently"
             ></textarea>
-            <small class="form-text text-muted">How should the AI behave in this role?</small>
+            <small class="form-text text-muted">Kako bi AI trebalo da se ponaša u ovoj ulozi?</small>
           </div>
           <div class="col-md-6 mb-3">
-            <label class="form-label">Student Role Guidance</label>
+            <label class="form-label">Smernice za ulogu učenika</label>
             <textarea
               class="form-control"
               rows="4"
@@ -274,12 +274,12 @@
               name="rppStu"
               placeholder="e.g., You are a tourist visiting Germany for the first time. Be polite and ask questions if you don't understand something."
             ></textarea>
-            <small class="form-text text-muted">Instructions for the student about their role</small>
+            <small class="form-text text-muted">Uputstvo za učenika o njihovoj ulozi</small>
           </div>
 
           <!-- AI Opening Lines -->
           <div class="col-12 mb-3">
-            <label class="form-label">AI Opening Lines</label>
+            <label class="form-label">Uvodni redovi AI</label>
             <div class="row g-2 mb-2">
               <div class="col-md-10">
                 <input
@@ -309,12 +309,12 @@
                 </button>
               </div>
             </div>
-            <small class="form-text text-muted">Different ways the AI can start the conversation</small>
+            <small class="form-text text-muted">Različiti načini na koje AI može započeti razgovor</small>
           </div>
 
           <!-- Suggested Student Responses -->
           <div class="col-12 mb-3">
-            <label class="form-label">Suggested Student Responses</label>
+            <label class="form-label">Predloženi odgovori učenika</label>
             <div class="row g-2 mb-2">
               <div class="col-md-10">
                 <input
@@ -344,15 +344,15 @@
                 </button>
               </div>
             </div>
-            <small class="form-text text-muted">Example responses students can use to get started</small>
+            <small class="form-text text-muted">Primeri odgovora koje učenici mogu koristiti za početak</small>
           </div>
         </div>
 
         <!-- ── 5. Student Learning Vocabulary ─────────────────────────── -->
         <div class="row mb-4">
           <div class="col-12">
-            <h5 class="section-heading border-bottom pb-2">📚 Student Learning Vocabulary</h5>
-            <p class="text-muted small">Words that students should learn in this module (10-20 words)</p>
+            <h5 class="section-heading border-bottom pb-2">📚 Vokabular učenika za učenje</h5>
+            <p class="text-muted small">Reči koje učenici treba da nauče u ovom modulu (10–20 reči)</p>
           </div>
           <div class="col-12 mb-3">
             <div class="row g-2 mb-2">
@@ -392,11 +392,11 @@
             <div class="mb-2">
               <input type="file" class="d-none" accept=".csv" #studentVocabCsv
                 (change)="onStudentVocabCsvUpload($event)" />
-              <button type="button" class="btn btn-sm btn-outline-secondary" (click)="studentVocabCsv.click()">
-                <i class="fas fa-file-csv me-1"></i> Import from CSV
+                <button type="button" class="btn btn-sm btn-outline-secondary" (click)="studentVocabCsv.click()">
+                <i class="fas fa-file-csv me-1"></i> Uvezi iz CSV-a
               </button>
               <small class="text-muted ms-2">
-                Format: word, translation (optional), category (optional) — translations auto-generated if missing
+                Format: reč, prevod (opciono), kategorija (opciono) — prevodi se automatski generišu ako nedostaju
               </small>
               <span *ngIf="isTranslating" class="ms-2 text-primary small">
                 <span class="spinner-border spinner-border-sm me-1"></span>Auto-translating…
@@ -418,7 +418,7 @@
             </div>
             <small class="form-text text-muted">
               <i class="fas fa-info-circle me-1"></i>
-              These are the core words students will learn
+              Ovo su osnovne reči koje će učenici naučiti
             </small>
           </div>
         </div>
@@ -426,13 +426,13 @@
         <!-- ── 6. AI Tutor Vocabulary Control ─────────────────────────── -->
         <div class="row mb-4">
           <div class="col-12">
-            <h5 class="section-heading border-bottom pb-2">🤖 AI Tutor Vocabulary Control</h5>
+            <h5 class="section-heading border-bottom pb-2">🤖 Kontrola vokabulara AI tutora</h5>
             <p class="text-muted small mb-1">
-              <strong>Control what vocabulary the AI tutor can use during conversations (15-30 words)</strong>
+              <strong>Kontrolišite koji vokabular AI tutor može koristiti tokom razgovora (15–30 reči)</strong>
             </p>
             <p class="text-muted small mb-2">
               <i class="fas fa-lightbulb text-warning me-1"></i>
-              Include all student vocabulary PLUS additional support words the AI needs for natural conversation
+              Uključite sav vokabular učenika PLUS dodatne reči podrške koje AI treba za prirodan razgovor
             </p>
           </div>
           <div class="col-12 mb-3">
@@ -482,7 +482,7 @@
 
             <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
               <button type="button" class="btn btn-sm btn-outline-info" (click)="copyStudentVocabToAi()">
-                <i class="fas fa-copy me-1"></i> Copy Student Vocabulary to AI
+                <i class="fas fa-copy me-1"></i> Kopiraj vokabular učenika u AI
               </button>
               <input
                 #aiVocabDocFile
@@ -505,25 +505,25 @@
                   aria-hidden="true"
                 ></span>
                 <i class="fas fa-file-import me-1" *ngIf="!aiVocabDocImporting"></i>
-                {{ aiVocabDocImporting ? 'Reading…' : 'Import from PDF or Word' }}
+                {{ aiVocabDocImporting ? 'Čitanje…' : 'Uvezi iz PDF-a ili Word-a' }}
               </button>
               <input type="file" class="d-none" accept=".csv" #aiVocabCsv
                 (change)="onAiVocabCsvUpload($event)" />
               <button type="button" class="btn btn-sm btn-outline-secondary" (click)="aiVocabCsv.click()">
-                <i class="fas fa-file-csv me-1"></i> Import from CSV
+                <i class="fas fa-file-csv me-1"></i> Uvezi iz CSV-a
               </button>
             </div>
             <small class="text-muted d-block mb-2">
-              Quick start: Copy all student words, then add AI support words
+              Brzi početak: Kopirajte sve reči učenika, zatim dodajte reči podrške za AI
             </small>
             <small class="text-muted d-block mb-2">
-              Format: word, translation (optional), category, usage — translations auto-generated if missing
+              Format: reč, prevod (opciono), kategorija, upotreba — prevodi se automatski generišu ako nedostaju
             </small>
 
             <div class="vocab-list border rounded p-2 ai-vocab-box">
               <div *ngIf="aiTutorVocabulary.length === 0" class="text-center text-muted py-3">
                 <i class="fas fa-robot fa-2x mb-2 d-block"></i>
-                <p class="mb-0 small">No AI vocabulary defined yet. Add words the AI tutor can use.</p>
+                <p class="mb-0 small">Još nije definisan AI vokabular. Dodajte reči koje AI tutor može koristiti.</p>
               </div>
               <div
                 *ngFor="let vocab of aiTutorVocabulary; let i = index"
@@ -545,7 +545,7 @@
             </div>
             <small class="text-success d-block mt-1">
               <i class="fas fa-check-circle me-1"></i>
-              AI tutor will only use these {{ aiTutorVocabulary.length }} words during conversations
+              AI tutor će koristiti samo ovih {{ aiTutorVocabulary.length }} reči tokom razgovora
             </small>
           </div>
         </div>
@@ -553,8 +553,8 @@
         <!-- ── 7. Allowed Grammar ─────────────────────────────────────── -->
         <div class="row mb-4">
           <div class="col-12">
-            <h5 class="section-heading border-bottom pb-2">📖 Allowed Grammar</h5>
-            <p class="text-muted small">Define the grammar structures the AI should focus on</p>
+            <h5 class="section-heading border-bottom pb-2">📖 Dozvoljena gramatika</h5>
+            <p class="text-muted small">Definišite gramatičke strukture na kojima AI treba da se fokusira</p>
           </div>
           <div class="col-12 mb-3">
             <div class="row g-2 mb-2">
@@ -564,7 +564,7 @@
                   class="form-control"
                   [(ngModel)]="newGrammarStructure"
                   name="ngs"
-                  placeholder="Grammar structure (e.g., Present tense)"
+                  placeholder="Gramatička struktura (npr. Sadašnje vreme)"
                 />
               </div>
               <div class="col-md-5">
@@ -586,9 +586,9 @@
               <input type="file" class="d-none" accept=".csv" #grammarCsv
                 (change)="onGrammarCsvUpload($event)" />
               <button type="button" class="btn btn-sm btn-outline-secondary" (click)="grammarCsv.click()">
-                <i class="fas fa-file-csv me-1"></i> Import from CSV
+                <i class="fas fa-file-csv me-1"></i> Uvezi iz CSV-a
               </button>
-              <small class="text-muted ms-2">Format: structure, example1; example2; example3</small>
+              <small class="text-muted ms-2">Format: struktura, primer1; primer2; primer3</small>
             </div>
             <div class="grammar-list">
               <div
@@ -597,7 +597,7 @@
               >
                 <div class="flex-grow-1">
                   <strong>{{ grammar.structure }}</strong>
-                  <div class="text-muted small">Examples: {{ grammar.examples.join(', ') }}</div>
+                  <div class="text-muted small">Primeri: {{ grammar.examples.join(', ') }}</div>
                 </div>
                 <button type="button" class="btn btn-sm btn-outline-danger" (click)="removeGrammar(i)">
                   <i class="fas fa-trash"></i>
@@ -610,19 +610,19 @@
         <!-- ── 8. Conversation Flow ───────────────────────────────────── -->
         <div class="row mb-4">
           <div class="col-12">
-            <h5 class="section-heading border-bottom pb-2">💬 Conversation Flow (Optional)</h5>
-            <p class="text-muted small">Define the expected flow of the conversation</p>
+            <h5 class="section-heading border-bottom pb-2">💬 Tok razgovora (opciono)</h5>
+            <p class="text-muted small">Definišite očekivani tok razgovora</p>
             <div class="mb-2 d-flex flex-wrap gap-2 align-items-center">
               <input type="file" accept=".csv" #flowCsvInput class="d-none"
                 (change)="onConversationFlowCsvUpload($event)" />
               <button type="button" class="btn btn-sm btn-outline-secondary" (click)="flowCsvInput.click()">
-                <i class="fas fa-file-csv me-1"></i> Import from CSV
+                <i class="fas fa-file-csv me-1"></i> Uvezi iz CSV-a
               </button>
               <button type="button" class="btn btn-sm btn-outline-secondary" (click)="downloadConversationFlowTemplate()">
-                <i class="fas fa-download me-1"></i> CSV Template
+                <i class="fas fa-download me-1"></i> CSV šablon
               </button>
               <small class="text-muted">
-                Format: stage, aiPrompts, expectedResponses, helpfulPhrases (semicolon-separated within columns)
+                Format: faza, AI upiti, očekivani odgovori, korisne fraze (tačka-zarez unutar kolona)
               </small>
             </div>
           </div>
@@ -634,7 +634,7 @@
                   class="form-control"
                   [(ngModel)]="newFlowStage"
                   name="nfs"
-                  placeholder="Stage (e.g., greeting)"
+                  placeholder="Faza (npr. pozdrav)"
                 />
               </div>
               <div class="col-md-4">
@@ -643,7 +643,7 @@
                   class="form-control"
                   [(ngModel)]="newFlowAiPrompt"
                   name="nfai"
-                  placeholder="What AI might say"
+                  placeholder="Šta AI može reći"
                 />
               </div>
               <div class="col-md-4">
@@ -652,7 +652,7 @@
                   class="form-control"
                   [(ngModel)]="newFlowExpectedResponse"
                   name="nfer"
-                  placeholder="Expected student response"
+                  placeholder="Očekivani odgovor učenika"
                 />
               </div>
               <div class="col-md-1">
@@ -664,18 +664,18 @@
             <div class="flow-list">
               <div *ngFor="let flow of conversationFlow; let i = index" class="mb-3 p-3 border rounded">
                 <div class="d-flex justify-content-between align-items-center mb-2">
-                  <h6 class="mb-0">Stage: {{ flow.stage }}</h6>
+                  <h6 class="mb-0">Faza: {{ flow.stage }}</h6>
                   <button type="button" class="btn btn-sm btn-outline-danger" (click)="removeConversationFlow(i)">
                     <i class="fas fa-trash"></i>
                   </button>
                 </div>
                 <div class="row">
                   <div class="col-md-6">
-                    <small class="text-muted">AI might say:</small>
+                    <small class="text-muted">AI može reći:</small>
                     <div class="small">{{ flow.aiPrompts.join(', ') }}</div>
                   </div>
                   <div class="col-md-6">
-                    <small class="text-muted">Student should try:</small>
+                    <small class="text-muted">Učenik treba da pokuša:</small>
                     <div class="small">{{ flow.expectedResponses.join(', ') }}</div>
                   </div>
                 </div>
@@ -688,7 +688,7 @@
         <div class="row">
           <div class="col-12">
             <div class="rp-footer-actions d-flex gap-2 justify-content-end flex-wrap">
-              <button type="button" class="btn btn-secondary" (click)="goBack()">Cancel</button>
+              <button type="button" class="btn btn-secondary" (click)="goBack()">Otkaži</button>
               <button
                 type="button"
                 class="btn btn-primary rp-save-btn"
@@ -697,7 +697,7 @@
               >
                 <span *ngIf="saving" class="spinner-border spinner-border-sm me-2" role="status"></span>
                 <i class="fas fa-save" *ngIf="!saving"></i>
-                {{ saving ? 'Saving…' : (isEditMode ? 'Update' : 'Create') + ' Role-Play Module' }}
+                {{ saving ? 'Čuvanje…' : (isEditMode ? 'Ažuriraj' : 'Kreiraj') + ' modul igranja uloga' }}
               </button>
             </div>
           </div>

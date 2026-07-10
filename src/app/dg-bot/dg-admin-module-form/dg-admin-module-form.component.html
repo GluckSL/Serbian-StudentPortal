@@ -35,16 +35,16 @@
 
     <div class="loading-state text-center py-5" *ngIf="loading">
       <div class="spinner-border text-primary" role="status">
-        <span class="visually-hidden">Loading...</span>
+        <span class="visually-hidden">Učitavanje...</span>
       </div>
-      <p class="mt-3 mb-0 text-muted small">Loading…</p>
+      <p class="mt-3 mb-0 text-muted small">Učitavanje…</p>
     </div>
 
     <div class="card dg-adm-rp-card" *ngIf="!loading && selected">
       <div class="card-header d-flex flex-wrap justify-content-between align-items-start gap-2">
         <div>
-          <h4 class="mb-0">🎭 {{ isCreateMode ? 'Create' : 'Edit' }} Role-Play Module</h4>
-          <small class="text-muted mt-1 d-block">DG Bot — same inputs as Learning Modules role-play creator</small>
+          <h4 class="mb-0">🎭 {{ isCreateMode ? 'Kreiraj' : 'Uredi' }} modul igranja uloga</h4>
+          <small class="text-muted mt-1 d-block">DG Bot — isti unosi kao kreator igranja uloga u Modulima učenja</small>
         </div>
         <div class="d-flex flex-wrap gap-2 align-items-center dg-form-header-actions">
           <button
@@ -52,23 +52,23 @@
             class="btn btn-outline-primary btn-sm dg-beginner-mode-btn"
             (click)="openBeginnerMode()"
             [disabled]="saving"
-            title="Build short speaking steps with pictures — no role-play setup needed"
+            title="Izgradite kratke korake govora sa slikama — nije potrebno podešavanje igranja uloga"
           >
-            <i class="fas fa-seedling me-1"></i> Beginner Mode
+            <i class="fas fa-seedling me-1"></i> Početni mod
             <span *ngIf="beginnerQuestionCount > 0" class="badge bg-primary ms-1">{{ beginnerQuestionCount }}</span>
           </button>
           <button type="button" class="btn btn-secondary dg-form-back" (click)="goBack()">
-            <i class="fas fa-arrow-left"></i> Back
+            <i class="fas fa-arrow-left"></i> Nazad
           </button>
         </div>
       </div>
           <div class="card-body">
             <div class="row mb-4">
               <div class="col-12">
-                <h5 class="border-bottom pb-2">📝 Basic Information</h5>
+                <h5 class="border-bottom pb-2">📝 Osnovne informacije</h5>
               </div>
               <div class="col-md-6 mb-3">
-                <label class="form-label">Module Title *</label>
+                <label class="form-label">Naziv modula *</label>
                 <input
                   type="text"
                   class="form-control"
@@ -76,14 +76,14 @@
                   [(ngModel)]="editTitle"
                   (ngModelChange)="onFieldInput('title')"
                   name="title"
-                  placeholder="e.g., Restaurant Conversation"
+                  placeholder="npr. Razgovor u restoranu"
                 />
                 <div class="invalid-feedback" *ngIf="isInvalid('title')">
-                  Module title is required.
+                  Naziv modula je obavezan.
                 </div>
               </div>
               <div class="col-12 mb-3">
-                <label class="form-label">Description *</label>
+                <label class="form-label">Opis *</label>
                 <textarea
                   class="form-control"
                   [class.is-invalid]="isInvalid('description')"
@@ -91,20 +91,20 @@
                   [(ngModel)]="editDescription"
                   (ngModelChange)="onFieldInput('description')"
                   name="description"
-                  placeholder="Brief description of the role-play scenario"
+                  placeholder="Kratak opis scenarija igranja uloga"
                 ></textarea>
                 <div class="invalid-feedback" *ngIf="isInvalid('description')">
-                  Description is required.
+                  Opis je obavezan.
                 </div>
               </div>
             </div>
 
             <div class="row mb-4">
               <div class="col-12">
-                <h5 class="border-bottom pb-2">🌍 Language &amp; Level</h5>
+                <h5 class="border-bottom pb-2">🌍 Jezik i nivo</h5>
               </div>
               <div class="col-md-4 mb-3">
-                <label class="form-label">Target Language *</label>
+                <label class="form-label">Ciljni jezik *</label>
                 <select
                   class="form-select"
                   [class.is-invalid]="isInvalid('targetLang')"
@@ -115,11 +115,11 @@
                   <option *ngFor="let lang of targetLanguages" [value]="lang">{{ lang }}</option>
                 </select>
                 <div class="invalid-feedback" *ngIf="isInvalid('targetLang')">
-                  Target language is required.
+                  Ciljni jezik je obavezan.
                 </div>
               </div>
               <div class="col-md-4 mb-3">
-                <label class="form-label">Native Language *</label>
+                <label class="form-label">Maternji jezik *</label>
                 <select
                   class="form-select"
                   [class.is-invalid]="isInvalid('nativeLang')"
@@ -127,15 +127,15 @@
                   (ngModelChange)="onFieldInput('nativeLang')"
                   name="nativeLang"
                 >
-                  <option value="">Select language</option>
+                  <option value="">Izaberite jezik</option>
                   <option *ngFor="let lang of nativeLanguages" [value]="lang">{{ lang }}</option>
                 </select>
                 <div class="invalid-feedback" *ngIf="isInvalid('nativeLang')">
-                  Native language is required.
+                  Maternji jezik je obavezan.
                 </div>
               </div>
               <div class="col-md-4 mb-3">
-                <label class="form-label">Level *</label>
+                <label class="form-label">Nivo *</label>
                 <select
                   class="form-select"
                   [class.is-invalid]="isInvalid('cefrLevel')"
@@ -143,18 +143,18 @@
                   (ngModelChange)="onFieldInput('cefrLevel')"
                   name="cefrLevel"
                 >
-                  <option value="">Select Level</option>
+                  <option value="">Izaberite nivo</option>
                   <option *ngFor="let lv of cefrLevels" [value]="lv">{{ lv }}</option>
                 </select>
                 <div class="invalid-feedback" *ngIf="isInvalid('cefrLevel')">
-                  Please select a CEFR level.
+                  Molimo izaberite CEFR nivo.
                 </div>
                 <small class="form-text text-muted" *ngIf="!isInvalid('cefrLevel')">
-                  CEFR proficiency level — determines content complexity and student access
+                  CEFR nivo znanja — određuje složenost sadržaja i pristup studenata
                 </small>
               </div>
               <div class="col-md-6 mb-3">
-                <label class="form-label">Duration (minutes) *</label>
+                <label class="form-label">Trajanje (minuti) *</label>
                 <input
                   type="number"
                   class="form-control"
@@ -166,14 +166,14 @@
                   placeholder="5"
                 />
                 <div class="invalid-feedback" *ngIf="isInvalid('duration')">
-                  Enter a duration of at least 2 minutes.
+                  Unesite trajanje od najmanje 2 minuta.
                 </div>
                 <small class="form-text text-muted" *ngIf="!isInvalid('duration')">
-                  Time the student must spend on this exercise to complete it.
+                  Vreme koje student mora provesti na ovoj vežbi da bi je završio.
                 </small>
               </div>
               <div class="col-md-6 mb-3">
-                <label class="form-label">Maximum time (minutes)</label>
+                <label class="form-label">Maksimalno vreme (minuti)</label>
                 <input
                   type="number"
                   class="form-control"
@@ -183,17 +183,17 @@
                   name="maxTime"
                   min="5"
                   max="180"
-                  placeholder="Leave empty for no limit"
+                  placeholder="Ostavite prazno bez ograničenja"
                 />
                 <div class="invalid-feedback" *ngIf="isInvalid('maxTime')">
-                  Must be ≥ duration and between 5–180 minutes.
+                  Mora biti ≥ trajanje i između 5–180 minuta.
                 </div>
                 <small class="form-text text-muted" *ngIf="!isInvalid('maxTime')">
-                  Optional. Bot automatically ends the session as completed when this limit is reached.
+                  Opcionalno. Bot automatski završava sesiju kada se dostigne ovo ograničenje.
                 </small>
               </div>
               <div class="col-md-6 mb-3">
-                <label class="form-label">Course Day (Optional)</label>
+                <label class="form-label">Dan kursa (opcionalno)</label>
                 <input
                   type="text"
                   class="form-control"
@@ -203,17 +203,17 @@
                   name="courseDay"
                   inputmode="numeric"
                   autocomplete="off"
-                  placeholder="0 = Trial, or 1–200"
+                  placeholder="0 = Probni, ili 1–200"
                 />
                 <div class="invalid-feedback" *ngIf="isInvalid('courseDay')">
-                  Enter 0 (Trial), 1–200, or leave empty.
+                  Unesite 0 (Probni), 1–200, ili ostavite prazno.
                 </div>
                 <small class="form-text text-muted" *ngIf="!isInvalid('courseDay')">
-                  0 = Trial day. Leave empty for general pool.
+                  0 = Probni dan. Ostavite prazno za opšti fond.
                 </small>
               </div>
               <div class="col-md-6 mb-3">
-                <label class="form-label">Character *</label>
+                <label class="form-label">Karakter *</label>
                 <select
                   class="form-select"
                   [class.is-invalid]="isInvalid('char')"
@@ -222,13 +222,13 @@
                   name="char"
                   required
                 >
-                  <option value="">Select character…</option>
+                  <option value="">Izaberite karakter…</option>
                   <option *ngFor="let c of characters" [value]="c._id">{{ c.name }}</option>
                 </select>
                 <div class="invalid-feedback" *ngIf="isInvalid('char')">
-                  Please select a character (or create one below).
+                  Molimo izaberite karakter (ili kreirajte novi ispod).
                 </div>
-                <small class="form-text text-muted" *ngIf="!isInvalid('char')">Digital guide persona for this DG module.</small>
+                <small class="form-text text-muted" *ngIf="!isInvalid('char')">Digitalni vodič za ovaj DG modul.</small>
               </div>
               <div class="col-md-6 mb-3 d-flex align-items-end">
                 <div class="w-100">
@@ -240,13 +240,13 @@
                       [(ngModel)]="editVisible"
                       name="vis"
                     />
-                    <label class="form-check-label" for="dgVisibleStudents">Visible to students</label>
+                    <label class="form-check-label" for="dgVisibleStudents">Vidljivo studentima</label>
                   </div>
-                  <small class="form-text text-muted">When off, the module stays in draft for admins only.</small>
+                  <small class="form-text text-muted">Kada je isključeno, modul ostaje u nacrtu samo za administratore.</small>
                 </div>
               </div>
               <div class="col-12 mb-2">
-                <label class="form-label">Gluck Exam bucket</label>
+                <label class="form-label">Gluck Exam kategorija</label>
                 <div class="d-flex flex-wrap gap-4 align-items-center">
                   <div class="form-check form-switch">
                     <input
@@ -257,7 +257,7 @@
                       (ngModelChange)="onWeeklyTestToggle($event)"
                       name="weeklyTestEnabled"
                     />
-                    <label class="form-check-label" for="dgWeeklyTest">Weekly Test</label>
+                    <label class="form-check-label" for="dgWeeklyTest">Nedeljni test</label>
                   </div>
                   <div class="form-check form-switch">
                     <input
@@ -268,45 +268,45 @@
                       (ngModelChange)="onExamToggle($event)"
                       name="examEnabled"
                     />
-                    <label class="form-check-label" for="dgExam">Exam</label>
+                    <label class="form-check-label" for="dgExam">Ispit</label>
                   </div>
                 </div>
-                <small class="form-text text-muted">Only one can be ON. Default is both OFF (not shown under Gluck Exam tab).</small>
+                <small class="form-text text-muted">Samo jedno može biti UKLJUČENO. Podrazumevano su oba ISKLJUČENA (ne prikazuje se u kartici Gluck Exam).</small>
               </div>
             </div>
 
             <div class="row mb-4">
               <div class="col-12">
-                <h5 class="border-bottom pb-2">👥 Target batches (Pilot)</h5>
+                <h5 class="border-bottom pb-2">👥 Ciljne grupe (Pilot)</h5>
                 <p class="text-muted small mb-2">
-                  Leave empty to show this module to <strong>all</strong> batches (still gated by journey day + visibility).
+                  Ostavite prazno da biste prikazali ovaj modul <strong>svim</strong> grupama (još uvek ograničen danom putovanja + vidljivošću).
                 </p>
               </div>
               <div class="col-md-6 mb-3">
-                <label class="form-label">Add batch</label>
+                <label class="form-label">Dodaj grupu</label>
                 <select class="form-select" [(ngModel)]="batchToAdd" name="batchToAdd" (change)="onBatchDropdownChange()">
-                  <option value="">Select batch…</option>
+                  <option value="">Izaberite grupu…</option>
                   <option *ngFor="let b of batches" [value]="b.batchName">
                     {{ b.batchName }}
                   </option>
                 </select>
-                <small class="form-text text-muted">Batches are loaded from Journey (`/batch-journey`).</small>
+                <small class="form-text text-muted">Grupe se učitavaju iz Putovanja (`/batch-journey`).</small>
               </div>
               <div class="col-md-6 mb-3">
-                <label class="form-label">Selected batches</label>
+                <label class="form-label">Izabrane grupe</label>
                 <div class="border rounded p-2 bg-white" style="min-height: 44px;">
-                  <div *ngIf="targetBatches.length === 0" class="text-muted small">No batch selected (visible to all).</div>
+                  <div *ngIf="targetBatches.length === 0" class="text-muted small">Nijedna grupa nije izabrana (vidljivo svima).</div>
                   <div class="d-flex flex-wrap gap-2" *ngIf="targetBatches.length > 0">
                     <span *ngFor="let t of targetBatches" class="badge bg-primary d-inline-flex align-items-center gap-2">
                       {{ t }}
-                      <button type="button" class="btn btn-sm btn-light py-0 px-1" (click)="removeBatch(t)" aria-label="Remove batch">
+                        <button type="button" class="btn btn-sm btn-light py-0 px-1" (click)="removeBatch(t)" aria-label="Ukloni grupu">
                         <i class="fas fa-times"></i>
                       </button>
                     </span>
                   </div>
                 </div>
                 <button type="button" class="btn btn-sm btn-outline-secondary mt-2" (click)="clearBatches()" [disabled]="targetBatches.length === 0">
-                  Clear
+                  Obriši
                 </button>
               </div>
             </div>
@@ -314,10 +314,10 @@
             <!-- Role-play scenario (Learning Modules parity) -->
             <div class="row mb-4">
               <div class="col-12">
-                <h5 class="border-bottom pb-2">🎭 Role-Play Scenario</h5>
+                <h5 class="border-bottom pb-2">🎭 Scenario igranja uloga</h5>
               </div>
               <div class="col-md-6 mb-3">
-                <label class="form-label">Situation *</label>
+                <label class="form-label">Situacija *</label>
                 <input
                   type="text"
                   class="form-control"
@@ -325,26 +325,26 @@
                   [(ngModel)]="editRolePlay.situation"
                   (ngModelChange)="onFieldInput('rpsSit')"
                   name="rpsSit"
-                  placeholder="e.g., At a restaurant, Job interview, Shopping"
+                  placeholder="npr. U restoranu, Intervju za posao, Kupovina"
                 />
                 <div class="invalid-feedback" *ngIf="isInvalid('rpsSit')">
-                  Situation is required.
+                  Situacija je obavezna.
                 </div>
-                <small class="form-text text-muted" *ngIf="!isInvalid('rpsSit')">The context/location of the role-play</small>
+                <small class="form-text text-muted" *ngIf="!isInvalid('rpsSit')">Kontekst/lokacija igranja uloga</small>
               </div>
               <div class="col-md-6 mb-3">
-                <label class="form-label">Setting</label>
+                <label class="form-label">Okruženje</label>
                 <input
                   type="text"
                   class="form-control"
                   [(ngModel)]="editRolePlay.setting"
                   name="rpsSet"
-                  placeholder="e.g., A busy restaurant in Berlin"
+                  placeholder="npr. Prometni restoran u Berlinu"
                 />
-                <small class="form-text text-muted">Detailed description of the environment</small>
+                <small class="form-text text-muted">Detaljan opis okruženja</small>
               </div>
               <div class="col-md-6 mb-3">
-                <label class="form-label">Student Role *</label>
+                <label class="form-label">Uloga studenta *</label>
                 <input
                   type="text"
                   class="form-control"
@@ -352,15 +352,15 @@
                   [(ngModel)]="editRolePlay.studentRole"
                   (ngModelChange)="onFieldInput('rpsSr')"
                   name="rpsSr"
-                  placeholder="e.g., Customer, Tourist, Job applicant"
+                  placeholder="npr. Mušterija, Turista, Kandidat za posao"
                 />
                 <div class="invalid-feedback" *ngIf="isInvalid('rpsSr')">
-                  Student role is required.
+                  Uloga studenta je obavezna.
                 </div>
-                <small class="form-text text-muted" *ngIf="!isInvalid('rpsSr')">What role the student plays</small>
+                <small class="form-text text-muted" *ngIf="!isInvalid('rpsSr')">Koju ulogu student igra</small>
               </div>
               <div class="col-md-6 mb-3">
-                <label class="form-label">AI Role *</label>
+                <label class="form-label">Uloga AI *</label>
                 <input
                   type="text"
                   class="form-control"
@@ -368,55 +368,55 @@
                   [(ngModel)]="editRolePlay.aiRole"
                   (ngModelChange)="onFieldInput('rpsAr')"
                   name="rpsAr"
-                  placeholder="e.g., Waiter, Shop assistant, Interviewer"
+                  placeholder="npr. Konobar, Prodavac, Anketar"
                 />
                 <div class="invalid-feedback" *ngIf="isInvalid('rpsAr')">
-                  AI role is required.
+                  Uloga AI je obavezna.
                 </div>
-                <small class="form-text text-muted" *ngIf="!isInvalid('rpsAr')">What role the AI plays</small>
+                <small class="form-text text-muted" *ngIf="!isInvalid('rpsAr')">Koju ulogu AI igra</small>
               </div>
               <div class="col-12 mb-3">
-                <label class="form-label">Objective</label>
+                <label class="form-label">Cilj</label>
                 <textarea
                   class="form-control"
                   rows="2"
                   [(ngModel)]="editRolePlay.objective"
                   name="rpsObj"
-                  placeholder="e.g., Order a meal, ask about prices, and request the bill"
+                  placeholder="npr. Naručiti obrok, pitati o cenama i zatražiti račun"
                 ></textarea>
-                <small class="form-text text-muted">What the student should accomplish in this role-play</small>
+                <small class="form-text text-muted">Šta student treba da postigne u ovom igranju uloga</small>
               </div>
             </div>
 
             <div class="row mb-4">
               <div class="col-12">
-                <h5 class="border-bottom pb-2">🎪 Role Personalities &amp; Introductions</h5>
-                <p class="text-muted small mb-3">Define how each role should behave and introduce themselves</p>
+                <h5 class="border-bottom pb-2">🎪 Ličnosti uloga i uvodi</h5>
+                <p class="text-muted small mb-3">Definišite kako se svaka uloga treba ponašati i predstaviti</p>
               </div>
               <div class="col-md-6 mb-3">
-                <label class="form-label">AI Role Personality</label>
+                <label class="form-label">Ličnost AI uloge</label>
                 <textarea
                   class="form-control"
                   rows="4"
                   [(ngModel)]="editRolePlay.aiPersonality"
                   name="rppAi"
-                  placeholder="e.g., Friendly and helpful waiter, professional but approachable, speaks clearly and patiently"
+                  placeholder="npr. Prijatan i uslužan konobar, profesionalan ali pristupačan, govori jasno i strpljivo"
                 ></textarea>
-                <small class="form-text text-muted">How should the AI behave in this role?</small>
+                <small class="form-text text-muted">Kako se AI treba ponašati u ovoj ulozi?</small>
               </div>
               <div class="col-md-6 mb-3">
-                <label class="form-label">Student Role Guidance</label>
+                <label class="form-label">Uputstvo za studenta</label>
                 <textarea
                   class="form-control"
                   rows="4"
                   [(ngModel)]="editRolePlay.studentGuidance"
                   name="rppStu"
-                  placeholder="e.g., You are a tourist visiting Germany for the first time. Be polite and ask questions if you don't understand something."
+                  placeholder="npr. Vi ste turista koji prvi put posećuje Nemačku. Budite ljubazni i postavljajte pitanja ako nešto ne razumete."
                 ></textarea>
-                <small class="form-text text-muted">Instructions for the student about their role</small>
+                <small class="form-text text-muted">Uputstva za studenta o njihovoj ulozi</small>
               </div>
               <div class="col-12 mb-3">
-                <label class="form-label">AI Opening Lines</label>
+                <label class="form-label">Uvodni redovi AI</label>
                 <div class="row g-2 mb-2">
                   <div class="col-md-10">
                     <input
@@ -424,12 +424,12 @@
                       class="form-control"
                       [(ngModel)]="newAiOpeningLine"
                       name="newAiOp"
-                      placeholder="e.g., Guten Tag! Welcome to our restaurant. How can I help you today?"
+                      placeholder="npr. Guten Tag! Dobrodošli u naš restoran. Kako mogu da vam pomognem?"
                     />
                   </div>
                   <div class="col-md-2">
                     <button type="button" class="btn btn-outline-primary w-100" (click)="addAiOpeningLine()">
-                      <i class="fas fa-plus"></i> Add
+                      <i class="fas fa-plus"></i> Dodaj
                     </button>
                   </div>
                 </div>
@@ -444,10 +444,10 @@
                     </button>
                   </div>
                 </div>
-                <small class="form-text text-muted">Different ways the AI can start the conversation</small>
+                <small class="form-text text-muted">Različiti načini na koje AI može da započne razgovor</small>
               </div>
               <div class="col-12 mb-3">
-                <label class="form-label">Suggested Student Responses</label>
+                <label class="form-label">Predloženi odgovori studenta</label>
                 <div class="row g-2 mb-2">
                   <div class="col-md-10">
                     <input
@@ -455,12 +455,12 @@
                       class="form-control"
                       [(ngModel)]="newStudentResponse"
                       name="newStuResp"
-                      placeholder="e.g., Hallo! Ich hätte gern einen Tisch für zwei Personen."
+                      placeholder="npr. Hallo! Ich hätte gern einen Tisch für zwei Personen."
                     />
                   </div>
                   <div class="col-md-2">
                     <button type="button" class="btn btn-outline-success w-100" (click)="addStudentResponse()">
-                      <i class="fas fa-plus"></i> Add
+                      <i class="fas fa-plus"></i> Dodaj
                     </button>
                   </div>
                 </div>
@@ -475,14 +475,14 @@
                     </button>
                   </div>
                 </div>
-                <small class="form-text text-muted">Example responses students can use to get started</small>
+                <small class="form-text text-muted">Primeri odgovora koje studenti mogu koristiti za početak</small>
               </div>
             </div>
 
             <div class="row mb-4">
               <div class="col-12">
-                <h5 class="border-bottom pb-2">📚 Student Learning Vocabulary</h5>
-                <p class="text-muted small">Words that students should learn in this module (10–20 words)</p>
+                <h5 class="border-bottom pb-2">📚 Rečnik za učenje studenata</h5>
+                <p class="text-muted small">Reči koje studenti treba da nauče u ovom modulu (10–20 reči)</p>
               </div>
               <div class="col-12 mb-3">
                 <div class="row g-2 mb-2">
@@ -492,7 +492,7 @@
                       class="form-control"
                       [(ngModel)]="newVocabWord"
                       name="nvw"
-                      placeholder="Word/Phrase"
+                      placeholder="Reč/Fraza"
                     />
                   </div>
                   <div class="col-md-4">
@@ -501,7 +501,7 @@
                       class="form-control"
                       [(ngModel)]="newVocabTranslation"
                       name="nvt"
-                      placeholder="Translation"
+                      placeholder="Prevod"
                     />
                   </div>
                   <div class="col-md-3">
@@ -510,7 +510,7 @@
                       class="form-control"
                       [(ngModel)]="newVocabCategory"
                       name="nvc"
-                      placeholder="Category"
+                      placeholder="Kategorija"
                     />
                   </div>
                   <div class="col-md-1">
@@ -520,7 +520,7 @@
                   </div>
                 </div>
                 <small class="text-muted d-block mb-2">
-                  Format: word, translation (optional), category (optional) — translations auto-generated if missing
+                  Format: reč, prevod (opcionalno), kategorija (opcionalno) — prevodi se automatski generišu ako nedostaju
                 </small>
                 <div class="vocabulary-list">
                   <div
@@ -537,20 +537,20 @@
                   </div>
                 </div>
                 <small class="form-text text-muted"
-                  ><i class="fas fa-info-circle me-1"></i>These are the core words students will learn</small
+                  ><i class="fas fa-info-circle me-1"></i>Ovo su osnovne reči koje će studenti naučiti</small
                 >
               </div>
             </div>
 
             <div class="row mb-4">
               <div class="col-12">
-                <h5 class="border-bottom pb-2">🤖 AI Tutor Vocabulary Control</h5>
+                <h5 class="border-bottom pb-2">🤖 Kontrola rečnika AI tutora</h5>
                 <p class="text-muted small mb-1">
-                  <strong>Control what vocabulary the AI tutor can use during conversations (15–30 words)</strong>
+                  <strong>Kontrolišite koji rečnik AI tutor može da koristi tokom razgovora (15–30 reči)</strong>
                 </p>
                 <p class="text-muted small mb-2">
-                  <i class="fas fa-lightbulb text-warning me-1"></i>Include all student vocabulary PLUS additional support
-                  words the AI needs for natural conversation
+                  <i class="fas fa-lightbulb text-warning me-1"></i>Uključite sav rečnik studenta PLUS dodatne reči podrške
+                  koje AI treba za prirodan razgovor
                 </p>
               </div>
               <div class="col-12 mb-3">
@@ -561,7 +561,7 @@
                       class="form-control"
                       [(ngModel)]="newAiVocabWord"
                       name="navw"
-                      placeholder="Word/Phrase"
+                      placeholder="Reč/Fraza"
                     />
                   </div>
                   <div class="col-md-3">
@@ -570,7 +570,7 @@
                       class="form-control"
                       [(ngModel)]="newAiVocabTranslation"
                       name="navt"
-                      placeholder="Translation"
+                      placeholder="Prevod"
                     />
                   </div>
                   <div class="col-md-2">
@@ -579,7 +579,7 @@
                       class="form-control"
                       [(ngModel)]="newAiVocabCategory"
                       name="navc"
-                      placeholder="Category"
+                      placeholder="Kategorija"
                     />
                   </div>
                   <div class="col-md-3">
@@ -588,7 +588,7 @@
                       class="form-control"
                       [(ngModel)]="newAiVocabUsage"
                       name="navu"
-                      placeholder="Usage example"
+                      placeholder="Primer upotrebe"
                     />
                   </div>
                   <div class="col-md-1">
@@ -599,7 +599,7 @@
                 </div>
                 <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
                   <button type="button" class="btn btn-sm btn-outline-info" (click)="copyStudentVocabToAi()">
-                    <i class="fas fa-copy me-1"></i> Copy Student Vocabulary to AI
+                    <i class="fas fa-copy me-1"></i> Kopiraj rečnik studenta u AI
                   </button>
                   <input
                     #aiVocabDocFile
@@ -613,7 +613,7 @@
                     class="btn btn-sm btn-outline-secondary"
                     (click)="triggerAiVocabDocumentPicker(aiVocabDocFile)"
                     [disabled]="aiVocabDocImporting"
-                    title="Upload a PDF or Word (.docx) list; AI reads it and adds words to this section"
+                    title="Otpremite PDF ili Word (.docx) listu; AI je čita i dodaje reči u ovaj odeljak"
                   >
                     <span
                       *ngIf="aiVocabDocImporting"
@@ -622,19 +622,19 @@
                       aria-hidden="true"
                     ></span>
                     <i class="fas fa-file-import me-1" *ngIf="!aiVocabDocImporting"></i>
-                    {{ aiVocabDocImporting ? 'Reading…' : 'Import from PDF or Word' }}
+                    {{ aiVocabDocImporting ? 'Čitanje…' : 'Uvezi iz PDF-a ili Word-a' }}
                   </button>
                 </div>
                 <small class="text-muted d-block mb-2"
-                  >Quick start: Copy student words, import a teacher word list from a document, or add words manually</small
+                  >Brzi start: Kopirajte reči studenta, uvezite listu reči nastavnika iz dokumenta ili dodajte reči ručno</small
                 >
                 <small class="text-muted d-block mb-2">
-                  Format: word, translation (optional), category, usage — translations auto-generated if missing
+                  Format: reč, prevod (opcionalno), kategorija, upotreba — prevodi se automatski generišu ako nedostaju
                 </small>
                 <div class="vocabulary-list border rounded p-2 dg-adm__ai-vocab-box">
                   <div *ngIf="aiTutorVocabulary.length === 0" class="text-center text-muted py-3">
                     <i class="fas fa-robot fa-2x mb-2"></i>
-                    <p class="mb-0 small">No AI vocabulary defined yet. Add words the AI tutor can use.</p>
+                    <p class="mb-0 small">Još uvek nije definisan AI rečnik. Dodajte reči koje AI tutor može da koristi.</p>
                   </div>
                   <div
                     *ngFor="let vocab of aiTutorVocabulary; let i = index"
@@ -655,16 +655,16 @@
                   </div>
                 </div>
                 <small class="text-success d-block mt-1"
-                  ><i class="fas fa-check-circle me-1"></i>AI tutor will only use these
-                  {{ aiTutorVocabulary.length }} words during conversations</small
+                  ><i class="fas fa-check-circle me-1"></i>AI tutor će koristiti samo ovih
+                  {{ aiTutorVocabulary.length }} reči tokom razgovora</small
                 >
               </div>
             </div>
 
             <div class="row mb-4">
               <div class="col-12">
-                <h5 class="border-bottom pb-2">📖 Allowed Grammar</h5>
-                <p class="text-muted small">Define the grammar structures the AI should focus on</p>
+                <h5 class="border-bottom pb-2">📖 Dozvoljena gramatika</h5>
+                <p class="text-muted small">Definišite gramatičke strukture na koje AI treba da se fokusira</p>
               </div>
               <div class="col-12 mb-3">
                 <div class="row g-2 mb-2">
@@ -674,7 +674,7 @@
                       class="form-control"
                       [(ngModel)]="newGrammarStructure"
                       name="ngs"
-                      placeholder="Grammar structure (e.g., Present tense)"
+                      placeholder="Gramatička struktura (npr. Prezent)"
                     />
                   </div>
                   <div class="col-md-5">
@@ -683,7 +683,7 @@
                       class="form-control"
                       [(ngModel)]="newGrammarExample"
                       name="nge"
-                      placeholder="Example"
+                      placeholder="Primer"
                     />
                   </div>
                   <div class="col-md-1">
@@ -692,7 +692,7 @@
                     </button>
                   </div>
                 </div>
-                <small class="text-muted d-block mb-2">Format: structure, example1; example2; example3</small>
+                <small class="text-muted d-block mb-2">Format: struktura, primer1; primer2; primer3</small>
                 <div class="grammar-list">
                   <div
                     *ngFor="let grammar of allowedGrammar; let i = index"
@@ -700,7 +700,7 @@
                   >
                     <div class="flex-grow-1">
                       <strong>{{ grammar.structure }}</strong>
-                      <div class="text-muted small">Examples: {{ grammar.examples.join(', ') }}</div>
+                      <div class="text-muted small">Primeri: {{ grammar.examples.join(', ') }}</div>
                     </div>
                     <button type="button" class="btn btn-sm btn-outline-danger" (click)="removeGrammar(i)">
                       <i class="fas fa-trash"></i>
@@ -712,10 +712,10 @@
 
             <div class="row mb-4">
               <div class="col-12">
-                <h5 class="border-bottom pb-2">💬 Conversation Flow (Optional)</h5>
-                <p class="text-muted small">Define the expected flow of the conversation</p>
+                <h5 class="border-bottom pb-2">💬 Tok razgovora (opcionalno)</h5>
+                <p class="text-muted small">Definišite očekivani tok razgovora</p>
                 <small class="text-muted d-block mb-2">
-                  Format: stage, aiPrompts, expectedResponses, helpfulPhrases (semicolon-separated within columns)
+                  Format: faza, aiUpiti, očekivaniOdgovori, korisniIzrazi (odvojeni tačkazarezom unutar kolona)
                 </small>
               </div>
               <div class="col-12 mb-3">
@@ -726,7 +726,7 @@
                       class="form-control"
                       [(ngModel)]="newFlowStage"
                       name="nfs"
-                      placeholder="Stage (e.g., greeting)"
+                      placeholder="Faza (npr. pozdrav)"
                     />
                   </div>
                   <div class="col-md-3">
@@ -735,7 +735,7 @@
                       class="form-control"
                       [(ngModel)]="newFlowAiPrompt"
                       name="nfai"
-                      placeholder="What AI might say"
+                      placeholder="Šta AI može da kaže"
                     />
                   </div>
                   <div class="col-md-3">
@@ -744,7 +744,7 @@
                       class="form-control"
                       [(ngModel)]="newFlowExpectedResponse"
                       name="nfer"
-                      placeholder="Expected student response"
+                      placeholder="Očekivani odgovor studenta"
                     />
                   </div>
                   <div class="col-md-2">
@@ -753,7 +753,7 @@
                       class="form-control"
                       [(ngModel)]="newFlowHelpful"
                       name="nfh"
-                      placeholder="Helpful phrases (; sep)"
+                      placeholder="Korisni izrazi (odv. ;)"
                     />
                   </div>
                   <div class="col-md-1">
@@ -765,22 +765,22 @@
                 <div class="flow-list">
                   <div *ngFor="let flow of conversationFlow; let i = index" class="mb-3 p-3 border rounded">
                     <div class="d-flex justify-content-between align-items-center mb-2">
-                      <h6 class="mb-0">Stage: {{ flow.stage }}</h6>
+                      <h6 class="mb-0">Faza: {{ flow.stage }}</h6>
                       <button type="button" class="btn btn-sm btn-outline-danger" (click)="removeConversationFlow(i)">
                         <i class="fas fa-trash"></i>
                       </button>
                     </div>
                     <div class="row">
                       <div class="col-md-6">
-                        <small class="text-muted">AI might say:</small>
+                        <small class="text-muted">AI može da kaže:</small>
                         <div class="small">{{ flow.aiPrompts.join(', ') }}</div>
                       </div>
                       <div class="col-md-6">
-                        <small class="text-muted">Student should try:</small>
+                        <small class="text-muted">Student treba da pokuša:</small>
                         <div class="small">{{ flow.expectedResponses.join(', ') }}</div>
                       </div>
                       <div class="col-12 mt-2" *ngIf="flow.helpfulPhrases?.length">
-                        <small class="text-muted">Helpful phrases:</small>
+                        <small class="text-muted">Korisni izrazi:</small>
                         <div class="small">{{ flow.helpfulPhrases.join('; ') }}</div>
                       </div>
                     </div>
@@ -791,31 +791,31 @@
 
             <div class="row mb-4">
               <div class="col-12">
-                <h5 class="border-bottom pb-2">👤 New character</h5>
-                <p class="text-muted small mb-3">Optional — add a custom character; built-in avatars work without a URL.</p>
+                <h5 class="border-bottom pb-2">👤 Novi karakter</h5>
+                <p class="text-muted small mb-3">Opcionalno — dodajte prilagođeni karakter; ugrađeni avatari rade bez URL-a.</p>
               </div>
               <div class="col-md-3 mb-3">
-                <label class="form-label">Name</label>
-                <input type="text" class="form-control" [(ngModel)]="newCharName" name="ncn" placeholder="Display name" />
+                <label class="form-label">Ime</label>
+                <input type="text" class="form-control" [(ngModel)]="newCharName" name="ncn" placeholder="Prikazano ime" />
               </div>
               <div class="col-md-5 mb-3">
-                <label class="form-label">Avatar URL</label>
+                <label class="form-label">URL avatara</label>
                 <input type="text" class="form-control" [(ngModel)]="newCharAvatar" name="nca" placeholder="https://…" />
               </div>
               <div class="col-md-2 mb-3">
-                <label class="form-label">Voice</label>
+                <label class="form-label">Glas</label>
                 <input type="text" class="form-control" [(ngModel)]="newCharVoice" name="ncv" placeholder="alloy" />
               </div>
               <div class="col-md-2 mb-3 d-flex align-items-end">
                 <button class="btn btn-outline-primary w-100" type="button" (click)="createCharacterQuick()">
-                  <i class="fas fa-plus"></i> Add
+                  <i class="fas fa-plus"></i> Dodaj
                 </button>
               </div>
             </div>
 
             <div class="row mb-4">
               <div class="col-12">
-                <h5 class="border-bottom pb-2">🎬 Scenes <span class="fw-normal text-muted">(drag to reorder)</span></h5>
+                <h5 class="border-bottom pb-2">🎬 Scene <span class="fw-normal text-muted">(prevucite za promenu redosleda)</span></h5>
               </div>
               <div class="col-12 mb-3">
                 <div class="dg-adm__grading border rounded p-3 bg-white">
@@ -823,7 +823,7 @@
                     <div class="col-md-4">
                       <label class="form-label mb-1 fw-semibold">
                         <i class="fas fa-percentage text-primary me-1"></i>
-                        Answer grading threshold
+                        Prag ocenjivanja odgovora
                       </label>
                       <div class="input-group">
                         <input
@@ -840,10 +840,10 @@
                     </div>
                     <div class="col-md-8">
                       <p class="mb-0 small text-muted">
-                        During live practice, AI grades each student answer against the
-                        <strong>Expected answer</strong> on practice/teach scenes (0–100).
-                        The student must reach at least this score to move on.
-                        Default: <strong>75%</strong>.
+                        Tokom vežbanja uživo, AI ocenjuje svaki odgovor studenta u poređenju sa
+                        <strong>Očekivanim odgovorom</strong> na scenama vežbanja/podučavanja (0–100).
+                        Student mora dostići najmanje ovaj rezultat da bi prešao dalje.
+                        Podrazumevano: <strong>75%</strong>.
                       </p>
                     </div>
                   </div>
@@ -855,14 +855,14 @@
                     <div>
                       <div class="fw-semibold mb-1">
                         <i class="fas fa-magic text-primary me-1"></i>
-                        AI scene generator
+                        Generator scena pomoću AI
                       </div>
                       <small class="text-muted d-block">
-                        Uses your role-play, vocabulary, and grammar above to draft scenes automatically.
+                        Koristi vašu igranje uloga, rečnik i gramatiku iznad za automatsko kreiranje scena.
                       </small>
                     </div>
                     <div style="min-width: 130px;">
-                      <label class="form-label small mb-1">How many scenes?</label>
+                      <label class="form-label small mb-1">Koliko scena?</label>
                       <input
                         type="number"
                         class="form-control form-control-sm"
@@ -883,7 +883,7 @@
                         [disabled]="aiGenerating"
                       />
                       <label class="form-check-label small" for="aiSceneReplace">
-                        Replace existing scenes
+                        Zameni postojeće scene
                       </label>
                     </div>
                     <button
@@ -894,7 +894,7 @@
                     >
                       <span *ngIf="aiGenerating" class="spinner-border spinner-border-sm me-2" role="status"></span>
                       <i class="fas fa-magic me-1" *ngIf="!aiGenerating"></i>
-                      {{ aiGenerating ? 'Generating…' : 'Create scenes with AI' }}
+                      {{ aiGenerating ? 'Generisanje…' : 'Kreiraj scene pomoću AI' }}
                     </button>
                   </div>
                 </div>
@@ -907,17 +907,17 @@
                     </div>
                     <div class="row g-2">
                       <div class="col-md-3">
-                        <label class="form-label">Type</label>
+                        <label class="form-label">Tip</label>
                         <select class="form-select" [(ngModel)]="s.type" [name]="'type' + i">
                           <option *ngFor="let t of sceneTypes" [value]="t">{{ t }}</option>
                         </select>
                       </div>
                       <div class="col-12">
-                        <label class="form-label">Text / line</label>
+                        <label class="form-label">Tekst / linija</label>
                         <textarea class="form-control" rows="2" [(ngModel)]="s.text" [name]="'text' + i"></textarea>
                       </div>
                       <div class="col-12">
-                        <label class="form-label">Scene picture <span class="text-muted fw-normal">(optional)</span></label>
+                        <label class="form-label">Slika scene <span class="text-muted fw-normal">(opcionalno)</span></label>
                         <div class="dg-scene-image-row">
                           <div class="dg-scene-image-preview" *ngIf="s.imageUrl">
                             <img [src]="sceneImagePreviewUrl(s.imageUrl)" alt="Scene preview" />
@@ -928,7 +928,7 @@
                               class="form-control form-control-sm flex-grow-1"
                               [(ngModel)]="s.imageUrl"
                               [name]="'sceneImg' + i"
-                              placeholder="Paste image URL or upload"
+                              placeholder="Nalepite URL slike ili otpremite"
                             />
                             <input
                               #sceneImgFile
@@ -945,7 +945,7 @@
                             >
                               <span *ngIf="sceneImageUploadingIndex === i" class="spinner-border spinner-border-sm me-1"></span>
                               <i class="fas fa-upload me-1" *ngIf="sceneImageUploadingIndex !== i"></i>
-                              Upload
+                              Otpremi
                             </button>
                             <button
                               type="button"
@@ -953,31 +953,31 @@
                               *ngIf="s.imageUrl"
                               (click)="clearSceneImage(i)"
                             >
-                              Clear
+                              Obriši
                             </button>
                           </div>
-                          <small class="text-muted">Shown above Olly during this scene — e.g. alphabet chart, number picture.</small>
+                          <small class="text-muted">Prikazano iznad Olly-a tokom ove scene — npr. tabla azbuke, slika brojeva.</small>
                         </div>
                       </div>
                       <div class="col-md-4">
-                        <label class="form-label">Expected answer</label>
+                        <label class="form-label">Očekivani odgovor</label>
                         <input
                           type="text"
                           class="form-control"
                           [(ngModel)]="s.expectedAnswer"
                           [name]="'exp' + i"
-                          placeholder="Used for AI grading"
+                          placeholder="Koristi se za AI ocenjivanje"
                         />
                         <small class="text-muted" *ngIf="s.type === 'practice' || s.type === 'teach'">
-                          AI compares the student's speech to this phrase.
+                          AI poredi govor studenta sa ovom frazom.
                         </small>
                       </div>
                       <div class="col-md-4">
-                        <label class="form-label">Translation</label>
+                        <label class="form-label">Prevod</label>
                         <input type="text" class="form-control" [(ngModel)]="s.translation" [name]="'tr' + i" />
                       </div>
                       <div class="col-md-3">
-                        <label class="form-label">Hint</label>
+                        <label class="form-label">Nagoveštaj</label>
                         <input type="text" class="form-control" [(ngModel)]="s.hint" [name]="'hint' + i" />
                       </div>
                       <div class="col-auto d-flex align-items-end justify-content-end mb-1">
@@ -985,7 +985,7 @@
                           type="button"
                           class="btn btn-sm btn-outline-danger"
                           (click)="removeScene(i)"
-                          aria-label="Remove scene"
+                          aria-label="Ukloni scenu"
                         >
                           <i class="fas fa-trash"></i>
                         </button>
@@ -994,7 +994,7 @@
                   </div>
                 </div>
                 <button class="btn btn-outline-primary btn-sm" type="button" (click)="addScene()">
-                  <i class="fas fa-plus"></i> Add scene
+                  <i class="fas fa-plus"></i> Dodaj scenu
                 </button>
               </div>
             </div>
@@ -1003,16 +1003,16 @@
               <div class="col-12">
                 <div class="module-actions dg-adm__footer-actions d-flex gap-2 flex-wrap">
                   <button class="btn btn-outline-primary btn-sm" type="button" (click)="preview()" [disabled]="!selected._id">
-                    <i class="fas fa-play"></i> Preview
+                    <i class="fas fa-play"></i> Pregled
                   </button>
                   <button class="btn btn-outline-danger btn-sm" type="button" (click)="removeModule()" [disabled]="!selected._id">
-                    <i class="fas fa-archive"></i> Archive
+                    <i class="fas fa-archive"></i> Arhiviraj
                   </button>
                   <button class="btn btn-outline-success btn-sm" type="button" (click)="togglePublish(true)" [disabled]="!selected._id">
-                    <i class="fas fa-eye"></i> Publish
+                    <i class="fas fa-eye"></i> Objavi
                   </button>
                   <button class="btn btn-outline-warning btn-sm" type="button" (click)="togglePublish(false)" [disabled]="!selected._id">
-                    <i class="fas fa-eye-slash"></i> Unpublish
+                    <i class="fas fa-eye-slash"></i> Povuci objavu
                   </button>
                   <button
                     class="btn btn-primary btn-sm dg-adm__save-btn ms-auto"
@@ -1021,7 +1021,7 @@
                     [disabled]="saving"
                   >
                     <span *ngIf="saving" class="spinner-border spinner-border-sm me-2" role="status"></span>
-                    <i class="fas fa-save" *ngIf="!saving"></i> {{ saving ? 'Saving…' : 'Save' }}
+                    <i class="fas fa-save" *ngIf="!saving"></i> {{ saving ? 'Čuvanje…' : 'Sačuvaj' }}
                   </button>
                 </div>
               </div>

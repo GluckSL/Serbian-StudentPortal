@@ -108,7 +108,7 @@ interface PlayerQuestion {
   hasRecorded?: boolean;
   /** Rich state for the new audio-based flow: idle | recording | processing | result | error. */
   pronUiState?: 'idle' | 'recording' | 'processing' | 'result' | 'error';
-  /** Short human-readable hint shown under the speak buttons (e.g. "Processing…"). */
+  /** Short human-readable hint shown under the speak buttons (e.g. "Obrada…"). */
   pronMessage?: string;
   /** Which engine produced the last transcript (openai | fallback | client-transcript). */
   pronEngine?: string;
@@ -158,7 +158,7 @@ interface PlayerQuestion {
   /** Expected caption shown for comparison. */
   vpExpectedText?: string;
   vpAutoAdvanceTimer?: any;
-  /** Bumped to cancel in-flight praise/retry sequences (e.g. user hits Try again). */
+  /** Bumped to cancel in-flight praise/retry sequences (e.g. user hits Pokušaj ponovo). */
   vpAdvanceSeq?: number;
   /** Current playback time for caption switching (seconds). */
   vpCurrentTimeSec?: number;
@@ -320,8 +320,8 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
 
   confidenceNudge(conf?: PronunciationConfidence, score?: number): string {
     if (score != null && score >= 85) return '';
-    if (conf === 'medium') return 'Almost there, try again for a perfect score.';
-    if (conf === 'low') return 'We might have misheard you. Try speaking clearly.';
+    if (conf === 'medium') return 'Skoro ste uspeli, pokušajte ponovo za savršen rezultat.';
+    if (conf === 'low') return 'Možda vas nismo dobro čuli. Pokušajte govoriti jasnije.';
     return '';
   }
 
@@ -369,7 +369,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       pq.pronUiState = 'result';
       pq.pronunciationScore = Math.max(85, Number(pq.pronunciationScore || 0));
       this.markAttempted(pq);
-      if (this.isVideoOnlyExercise) this.pushVpChat('tutor', 'Marked as correct. You can continue.');
+      if (this.isVideoOnlyExercise) this.pushVpChat('tutor', 'Označeno kao tačno. Možete nastaviti.');
       return;
     }
     pq.pronAlmostCorrect = false;
@@ -405,7 +405,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   private activePronQuestion: PlayerQuestion | null = null;
   /** When recording a sub-question, its index within the active question. */
   private activeSubQuestionIndex: number | null = null;
-  /** True while the "Processing…" state has been up for >1.5s and we want to reassure the user. */
+  /** True while the "Obrada…" state has been up for >1.5s and we want to reassure the user. */
   pronProcessingSlow = false;
   private pronProcessingSlowTimer: ReturnType<typeof setTimeout> | null = null;
   /** Last silence-check result per pq index (for UI hints after auto-reject). */
@@ -473,7 +473,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   private vpRecognitionForceStopTimer: ReturnType<typeof setTimeout> | null = null;
   /** Fallback finalizer used when browser doesn't emit onend promptly after manual stop. */
   private vpManualStopFinalize: (() => void) | null = null;
-  /** Optional line from admin (e.g. “Try again”) shown under feedback while clip may play. */
+  /** Optional line from admin (e.g. “Pokušaj ponovo”) shown under feedback while clip may play. */
   vpFeedbackCaption: string | null = null;
 
   /** True while the video element is waiting for data (buffering / slow network). */
@@ -698,7 +698,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * In Watch Only Mode: mark the current clip as watched/completed and advance,
+   * In Samo gledanje Mode: mark the current clip as watched/completed and advance,
    * without requiring the student to speak.
    */
   skipWatchOnlyClip(): void {
@@ -727,8 +727,8 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
 
   /** Copy the user can read while a silent recording is being rejected. */
   silentRejectMessage(reason: SilenceCheckResult['reason']): string {
-    if (reason === 'too-short') return 'That was very quick — hold the button a little longer and speak clearly.';
-    return 'We couldn’t hear you — please speak a bit louder and try again.';
+    if (reason === 'too-short') return 'Bilo je prebrzo — držite dugme malo duže i govorite jasno.';
+    return 'Nismo vas čuli — govorite malo glasnije i pokušajte ponovo.';
   }
 
   private clearPronProcessingSlowTimer(): void {
@@ -775,9 +775,9 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   /** Label helper for confidence-tier UI messaging (low / medium / high). */
   confidenceHeadline(conf: PronunciationConfidence | undefined | null, score?: number): string | null {
     if (score != null && score >= 85) return null;
-    if (conf === 'high') return 'Great job!';
-    if (conf === 'medium') return 'Almost there — try once more';
-    if (conf === 'low') return "Let's try again";
+    if (conf === 'high') return 'Odličan posao!';
+    if (conf === 'medium') return 'Skoro ste uspeli — pokušajte još jednom';
+    if (conf === 'low') return "Pokušajmo ponovo";
     return null;
   }
 
@@ -852,7 +852,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       stream.getTracks().forEach((t: MediaStreamTrack) => t.stop());
       return true;
     } catch {
-      this.snackBar.open('Microphone access denied. Please allow microphone access.', 'Close', { duration: 5000 });
+      this.snackBar.open('Pristup mikrofonu je odbijen. Dozvolite pristup mikrofonu.', 'Zatvori', { duration: 5000 });
       return false;
     }
   }
@@ -872,8 +872,8 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     if (code === 'SEQUENCE_LOCKED') {
       const prev = err?.error?.previousLetter?.toUpperCase() || '';
       this.snackBar.open(
-        `Complete exercise ${prev} first before attempting this one.`,
-        'OK',
+        `Prvo završite vežbu ${prev} pre nego što pokušate ovu.`,
+        'U redu',
         { duration: 5000 },
       );
       this.router.navigate(['/student/my-course'], { queryParams: { tab: 'exercises' } });
@@ -881,15 +881,15 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     }
     if (code === 'COURSE_DAY_LOCKED') {
       this.snackBar.open(
-        err?.error?.error || 'This exercise is not unlocked on your current journey day yet.',
-        'OK',
+        err?.error?.error || 'Ova vežba još nije otključana na vašem trenutnom danu putovanja.',
+        'U redu',
         { duration: 5000 },
       );
       this.router.navigate(['/student/my-course'], { queryParams: { tab: 'exercises' } });
       return;
     }
     if (code === 'JOURNEY_NOT_ACTIVE' || code === 'LEARNING_CONTENT_DISABLED' || code === 'CONTENT_LEVEL_BLOCKED') {
-      this.snackBar.open(err?.error?.error || 'This exercise is not available for your account.', 'OK', {
+      this.snackBar.open(err?.error?.error || 'Ova vežba nije dostupna za vaš nalog.', 'U redu', {
         duration: 5000,
       });
       this.router.navigate(['/student/my-course'], { queryParams: { tab: 'exercises' } });
@@ -1308,10 +1308,10 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       const total = this.playerQuestions.length;
       this.pushVpChat(
         'tutor',
-        `Clip ${n} of ${total} — watch the video.`,
+        `Klip ${n} od ${total} — pogledajte video.`,
         { kind: 'clip-watch' }
       );
-      this.pushVpChat('tutor', `The video clip says: "${this.primaryCaptionForQuestion(pq.data)}"`, { kind: 'info' });
+      this.pushVpChat('tutor', `Video klip kaže: "${this.primaryCaptionForQuestion(pq.data)}"`, { kind: 'info' });
       this.maybeScheduleSecondaryCaptionPrompt(pq, this.currentIndex);
     }
   }
@@ -1324,7 +1324,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       pq.vpSecondaryCaptionTimer = undefined;
       if (this.state !== 'playing' || this.currentIndex !== clipIndex) return;
       pq.vpSecondaryCaptionShownInChat = true;
-      this.pushVpChat('tutor', `Now it says: "${secondary}"`, { kind: 'info' });
+      this.pushVpChat('tutor', `Sada kaže: "${secondary}"`, { kind: 'info' });
     }, delayMs);
   }
 
@@ -1340,7 +1340,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
 
   private primaryCaptionForQuestion(data: any): string {
     const primary = String(data?.caption || '').trim();
-    return primary || 'Speak now';
+    return primary || 'Govorite sada';
   }
 
   private secondaryCaptionForQuestion(data: any): string {
@@ -1357,12 +1357,12 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     if (this.watchOnlyMode) return;
     const line = String(caption || '').trim();
     if (!line) return;
-    this.pushVpChat('tutor', `Now your turn says: "${line}"`, { kind: 'your-turn' });
+    this.pushVpChat('tutor', `Sada je vaš red, recite: "${line}"`, { kind: 'your-turn' });
   }
 
   getTutorCaptionParts(text: string): { before: string; value: string; after: string } | null {
     const t = String(text || '');
-    const knownPrefixes = ['The video clip says:', 'Now it says:', 'Now your turn says:'];
+    const knownPrefixes = ['Video klip kaže:', 'Sada kaže:', 'Sada je vaš red, recite:'];
     const isTarget = knownPrefixes.some((p) => t.startsWith(p));
     if (!isTarget) return null;
 
@@ -1464,7 +1464,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
         a = new Audio(url);
         this.vpFeedbackAudioEl = a;
       } catch {
-        this.snackBar.open('Feedback audio could not be loaded.', 'Close', { duration: 3500 });
+        this.snackBar.open('Audio povratne informacije nije mogao biti učitan.', 'Zatvori', { duration: 3500 });
         finish();
         return;
       }
@@ -1473,7 +1473,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
         'error',
         () => {
           if (this.vpFeedbackAudioEl === a) {
-            this.snackBar.open('Feedback audio could not be loaded.', 'Close', { duration: 3500 });
+            this.snackBar.open('Audio povratne informacije nije mogao biti učitan.', 'Zatvori', { duration: 3500 });
           }
           finish();
         },
@@ -1595,7 +1595,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       },
       error: (e) => {
         this.finishingAll = false;
-        this.snackBar.open(e?.error?.error || 'Failed to submit.', 'Close', { duration: 5000 });
+        this.snackBar.open(e?.error?.error || 'Predaja nije uspela.', 'Zatvori', { duration: 5000 });
       }
     });
   }
@@ -1676,10 +1676,10 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
         this.preloadImagesAroundCurrentQuestion();
         if (this.isVideoOnlyExercise) {
           this.resetVpChat();
-          const title = this.exercise?.title || 'this lesson';
+          const title = this.exercise?.title || 'ovu lekciju';
           const intro = this.watchOnlyMode
-            ? `Let's go through "${title}" together. Watch each clip, then tap Next when you're ready.`
-            : `Hey! Let's practice "${title}" together. Watch each clip, then repeat the phrase when it's your turn.`;
+            ? `Hajde da prođemo kroz "${title}" zajedno. Pogledajte svaki klip, zatim dodirnite Sledeće kada budete spremni.`
+            : `Hej! Vežbajmo "${title}" zajedno. Pogledajte svaki klip, zatim ponovite frazu kada dođe vaš red.`;
           this.pushVpChat('tutor', intro, { kind: 'intro' });
           this.syncVpChatForCurrentQuestion();
           setTimeout(() => this.scrollVpChatToBottom(), 120);
@@ -1698,7 +1698,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
           this.handleExerciseLoadError(err);
           return;
         }
-        this.snackBar.open(err.error?.error || 'Failed to start exercise', 'Close', { duration: 4000 });
+        this.snackBar.open(err.error?.error || 'Pokretanje vežbe nije uspelo', 'Zatvori', { duration: 4000 });
         this.state = 'error';
       }
     });
@@ -2081,15 +2081,15 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
         draft.items.some((it) => this.draftItemHasUserInput(it));
       if (showRestoreToast) {
         this.snackBar.open(
-          'Your answers were restored from this browser (kept for 30 minutes after your last change).',
-          'Close',
+          'Vaši odgovori su vraćeni iz ovog pregledača (čuvaju se 30 minuta nakon poslednje izmene).',
+          'Zatvori',
           { duration: 5000 }
         );
       }
     } catch {
       this.snackBar.open(
-        'Saved answers were found but could not all be synced. Continue and submit as usual.',
-        'Close',
+        'Pronađeni su sačuvani odgovori, ali nisu svi sinhronizovani. Nastavite i predajte kao obično.',
+        'Zatvori',
         { duration: 6000 }
       );
     } finally {
@@ -2620,7 +2620,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     if (data.type === 'fill-blank' && countFillBlankRuns(data.sentence || '') > 0) {
       const count = countFillBlankRuns(data.sentence || '');
       const correctList = data._correctAnswers || data.answers || [];
-      const partLabel = hasSubQuestions ? 'Main question' : `Q ${this.getQuestionPartLabel(questionIndex, this.getParentPartNumber(data))}`;
+      const partLabel = hasSubQuestions ? 'Glavno pitanje' : `D ${this.getQuestionPartLabel(questionIndex, this.getParentPartNumber(data))}`;
       for (let bi = 0; bi < count; bi++) {
         blankNum++;
         const studentAnswer = String(pq.fillAnswers?.[bi] ?? '').trim();
@@ -2763,7 +2763,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
         ? rows.map((x: any, i: number) => {
             const alts = Array.isArray(x?.acceptedAnswers) ? x.acceptedAnswers.filter(Boolean) : [];
             const altStr = alts.length ? ` (also: ${alts.join(', ')})` : '';
-            return `${x?.prompt || `Item ${i + 1}`} -> ${x?.answer || '—'}${altStr}`;
+            return `${x?.prompt || `Stavka ${i + 1}`} -> ${x?.answer || '—'}${altStr}`;
           }).join('; ')
         : '—';
     }
@@ -2800,7 +2800,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     if (sq.type === 'video-pronunciation') {
       const first = String(sq.caption || '').trim();
       const second = String(sq.secondaryCaption || '').trim();
-      if (first && second) return `${first} / after ${sq.secondaryCaptionAtSeconds || 0}s: ${second}`;
+      if (first && second) return `${first} / posle ${sq.secondaryCaptionAtSeconds || 0}s: ${second}`;
       return first || '—';
     }
     return '—';
@@ -3032,7 +3032,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     if (typeof item === 'string') return item;
     if (item.prompt) return item.prompt;
     if (item.sentence) return item.sentence;
-    return `Blank ${index + 1}`;
+    return `Praznina ${index + 1}`;
   }
 
   fillSubQuestionWordBankBlank(pq: PlayerQuestion, subIndex: number, word: string): void {
@@ -3066,7 +3066,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     pq.subQuestionActiveBlankIndex[subIndex] = blankIndex;
   }
 
-  // ─── Sub-Question Jumble Word ─────────────────────────────────────────────────
+  // ─── Sub-Question Mešanje reči ─────────────────────────────────────────────────
   onSubQuestionJumbleResponseChange(pq: PlayerQuestion, subIndex: number, sq: any, answer: string): void {
     if (this.state === 'submitted') return;
     if (!pq.subQuestionJumbleUsedTokenIndices) {
@@ -3703,9 +3703,9 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       return;
     }
     if (!this.speechSupported) {
-      this.snackBar.open('Audio recording is not supported in this browser. Try Chrome, Edge, or Safari 14.3+.', 'Close', { duration: 6000 });
+      this.snackBar.open('Snimanje zvuka nije podržano u ovom pregledaču. Pokušajte Chrome, Edge ili Safari 14.3+.', 'Zatvori', { duration: 6000 });
       pq.pronUiState = 'error';
-      pq.pronMessage = 'Unsupported browser';
+      pq.pronMessage = 'Nepodržani pregledač';
       return;
     }
     this.startRecordingLegacy(pq);
@@ -3725,7 +3725,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
 
     pq.isRecording = true;
     pq.pronUiState = 'recording';
-    pq.pronMessage = '🎤 Listening…';
+    pq.pronMessage = '🎤 Slušam…';
     let bestTranscript = '';
     let bestScore = 0;
     let gotUsableResult = false;
@@ -3753,10 +3753,10 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       pq.isRecording = false;
       this.recognition = null;
       if (event.error === 'not-allowed') {
-        this.snackBar.open('Microphone access denied. Please allow microphone access.', 'Close', { duration: 5000 });
+        this.snackBar.open('Pristup mikrofonu je odbijen. Dozvolite pristup mikrofonu.', 'Zatvori', { duration: 5000 });
       }
       if (event.error === 'audio-capture') {
-        this.snackBar.open('No microphone was detected on this device/browser.', 'Close', { duration: 4000 });
+        this.snackBar.open('Mikrofon nije detektovan na ovom uređaju/pregledaču.', 'Zatvori', { duration: 4000 });
       }
     };
 
@@ -3765,8 +3765,8 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       this.recognition = null;
       if (!gotUsableResult) {
         pq.pronUiState = 'error';
-        pq.pronMessage = 'No speech detected, try again';
-        this.snackBar.open('No speech detected. Please try again.', 'Close', { duration: 3000 });
+        pq.pronMessage = 'Nije detektovan govor, pokušajte ponovo';
+        this.snackBar.open('Nije detektovan govor. Pokušajte ponovo.', 'Zatvori', { duration: 3000 });
         return;
       }
       const rawTranscript = bestTranscript || pq.spokenText || '';
@@ -3810,10 +3810,10 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       return;
     }
     if (!this.speechSupported) {
-      this.snackBar.open('Audio recording is not supported in this browser. Try Chrome, Edge, or Safari 14.3+.', 'Close', { duration: 6000 });
+      this.snackBar.open('Snimanje zvuka nije podržano u ovom pregledaču. Pokušajte Chrome, Edge ili Safari 14.3+.', 'Zatvori', { duration: 6000 });
       this.ensureSubQuestionState(pq, sqIndex);
       pq.subQuestionPronUiState![sqIndex] = 'error';
-      pq.subQuestionPronMessage![sqIndex] = 'Unsupported browser';
+      pq.subQuestionPronMessage![sqIndex] = 'Nepodržani pregledač';
       this.activeSubQuestionIndex = null;
       return;
     }
@@ -3844,7 +3844,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     this.ensureSubQuestionState(pq, sqIndex);
     pq.subQuestionIsRecording![sqIndex] = true;
     pq.subQuestionPronUiState![sqIndex] = 'recording';
-    pq.subQuestionPronMessage![sqIndex] = '🎤 Listening…';
+    pq.subQuestionPronMessage![sqIndex] = '🎤 Slušam…';
     let bestTranscript = '';
     let bestScore = 0;
     let gotUsableResult = false;
@@ -3872,10 +3872,10 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       this.recognition = null;
       this.activeSubQuestionIndex = null;
       if (event.error === 'not-allowed') {
-        this.snackBar.open('Microphone access denied. Please allow microphone access.', 'Close', { duration: 5000 });
+        this.snackBar.open('Pristup mikrofonu je odbijen. Dozvolite pristup mikrofonu.', 'Zatvori', { duration: 5000 });
       }
       if (event.error === 'audio-capture') {
-        this.snackBar.open('No microphone was detected on this device/browser.', 'Close', { duration: 4000 });
+        this.snackBar.open('Mikrofon nije detektovan na ovom uređaju/pregledaču.', 'Zatvori', { duration: 4000 });
       }
     };
     this.recognition.onend = () => {
@@ -3884,8 +3884,8 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       this.activeSubQuestionIndex = null;
       if (!gotUsableResult) {
         pq.subQuestionPronUiState![sqIndex] = 'error';
-        pq.subQuestionPronMessage![sqIndex] = 'No speech detected, try again';
-        this.snackBar.open('No speech detected. Please try again.', 'Close', { duration: 3000 });
+        pq.subQuestionPronMessage![sqIndex] = 'Nije detektovan govor, pokušajte ponovo';
+        this.snackBar.open('Nije detektovan govor. Pokušajte ponovo.', 'Zatvori', { duration: 3000 });
         return;
       }
       const rawTranscript = bestTranscript || pq.subQuestionSpokenText?.[sqIndex] || '';
@@ -3915,7 +3915,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   speakWordTTS(text: string): void {
     if (!text) return;
     if (!('speechSynthesis' in window)) {
-      this.snackBar.open('Text-to-speech is not supported in this browser.', 'Close', { duration: 3000 });
+      this.snackBar.open('Pretvaranje teksta u govor nije podržano u ovom pregledaču.', 'Zatvori', { duration: 3000 });
       return;
     }
     window.speechSynthesis.cancel();
@@ -3951,10 +3951,10 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   }
 
   getPronunciationFeedback(score: number): string {
-    if (score >= 90) return 'Excellent pronunciation!';
-    if (score >= 70) return 'Good job! Almost perfect.';
-    if (score >= 50) return 'Keep practicing.';
-    return 'Try again — listen to the correct pronunciation first.';
+    if (score >= 90) return 'Odličan izgovor!';
+    if (score >= 70) return 'Odlično! Skoro savršeno.';
+    if (score >= 50) return 'Nastavite vežbanje.';
+    return 'Pokušajte ponovo — prvo poslušajte tačan izgovor.';
   }
 
   private calculateStringSimilarity(a: string, b: string): number {
@@ -3987,7 +3987,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
 
     const pq = this.currentQuestion;
     if (!this.isQuestionAnswered(pq)) {
-      this.snackBar.open('Please answer the question before submitting.', 'Close', { duration: 3000 });
+      this.snackBar.open('Odgovorite na pitanje pre predaje.', 'Zatvori', { duration: 3000 });
       return;
     }
 
@@ -3997,7 +3997,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     const resp = this.buildQuestionResponseForIndex(this.currentIndex);
     if (!resp) {
       this.submitting = false;
-      this.snackBar.open('Please answer the question before submitting.', 'Close', { duration: 3000 });
+      this.snackBar.open('Odgovorite na pitanje pre predaje.', 'Zatvori', { duration: 3000 });
       return;
     }
 
@@ -4034,8 +4034,8 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
           }
           this.resumeVpTimer();
         }
-        const msg = err?.error?.error || err?.message || 'Failed to submit. Please try again.';
-        this.snackBar.open(msg, 'Close', { duration: 5000 });
+        const msg = err?.error?.error || err?.message || 'Predaja nije uspela. Pokušajte ponovo.';
+        this.snackBar.open(msg, 'Zatvori', { duration: 5000 });
         if (!hadOptimistic && (err?.status === 404 || err?.status === 500)) {
           this.fallbackToFullSubmit();
         }
@@ -4076,7 +4076,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       },
       error: (e) => {
         this.finishingAll = false;
-        this.snackBar.open(e?.error?.error || 'Failed to submit.', 'Close', { duration: 5000 });
+        this.snackBar.open(e?.error?.error || 'Predaja nije uspela.', 'Zatvori', { duration: 5000 });
       }
     });
   }
@@ -4133,7 +4133,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     if (!correctAnswer) return '';
     if (q.type === 'mcq' && correctAnswer.explanation) return correctAnswer.explanation;
     if (q.type === 'fill-blank' && correctAnswer.answers) {
-      return 'Correct answers: ' + correctAnswer.answers.join(', ');
+      return 'Tačni odgovori: ' + correctAnswer.answers.join(', ');
     }
     if ((q.type as string) === 'word_bank_fill' && Array.isArray(correctAnswer.items)) {
       const parts = correctAnswer.items.map((x: any) => {
@@ -4141,13 +4141,13 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
         if (!x?.answer) return '';
         return alts.length ? `${x.answer} (${alts.join(' / ')})` : x.answer;
       }).filter(Boolean);
-      return parts.length ? 'Correct answers: ' + parts.join(', ') : '';
+      return parts.length ? 'Tačni odgovori: ' + parts.join(', ') : '';
     }
     if (q.type === 'singular_plural' && Array.isArray(correctAnswer.plurals)) {
-      return 'Correct plurals: ' + correctAnswer.plurals.join(', ');
+      return 'Tačni oblici množine: ' + correctAnswer.plurals.join(', ');
     }
     if ((q.type as string) === 'jumble-word' && correctAnswer.expectedWord) {
-      return 'Correct word: ' + correctAnswer.expectedWord;
+      return 'Tačna reč: ' + correctAnswer.expectedWord;
     }
     if (correctAnswer.explanation) return correctAnswer.explanation;
     return '';
@@ -4211,7 +4211,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       },
       error: (e) => {
         this.submitting = false;
-        this.snackBar.open(e?.error?.error || 'Failed to submit.', 'Close', { duration: 5000 });
+        this.snackBar.open(e?.error?.error || 'Predaja nije uspela.', 'Zatvori', { duration: 5000 });
       }
     });
   }
@@ -4278,7 +4278,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     if (!correctAnswer) return '';
     if (q.type === 'mcq' && correctAnswer.explanation) return correctAnswer.explanation;
     if (q.type === 'fill-blank' && correctAnswer.answers) {
-      return 'Correct answers: ' + correctAnswer.answers.join(', ');
+      return 'Tačni odgovori: ' + correctAnswer.answers.join(', ');
     }
     if ((q.type as string) === 'word_bank_fill' && Array.isArray(correctAnswer.items)) {
       const parts = correctAnswer.items.map((x: any) => {
@@ -4286,13 +4286,13 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
         if (!x?.answer) return '';
         return alts.length ? `${x.answer} (${alts.join(' / ')})` : x.answer;
       }).filter(Boolean);
-      return parts.length ? 'Correct answers: ' + parts.join(', ') : '';
+      return parts.length ? 'Tačni odgovori: ' + parts.join(', ') : '';
     }
     if (q.type === 'singular_plural' && Array.isArray(correctAnswer.plurals)) {
-      return 'Correct plurals: ' + correctAnswer.plurals.join(', ');
+      return 'Tačni oblici množine: ' + correctAnswer.plurals.join(', ');
     }
     if ((q.type as string) === 'jumble-word' && correctAnswer.expectedWord) {
-      return 'Correct word: ' + correctAnswer.expectedWord;
+      return 'Tačna reč: ' + correctAnswer.expectedWord;
     }
     return '';
   }
@@ -4321,7 +4321,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     if (this.elapsedSeconds < this.vpSessionBudgetSeconds) return;
     if (this.submitting || this.finishingAll) return;
     this.vpTimeUpHandled = true;
-    this.snackBar.open("Time's up — submitting your exercise.", 'Close', { duration: 5000 });
+    this.snackBar.open("Vreme je isteklo — predajemo vašu vežbu.", 'Zatvori', { duration: 5000 });
     this.confirmFinishSubmit();
   }
 
@@ -4401,7 +4401,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       const answers = Array.isArray(pq.wordBankAnswers) ? pq.wordBankAnswers : [];
       if (!rows.length) return '—';
       return rows
-        .map((item: any, i: number) => `${item?.prompt || `Item ${i + 1}`} -> ${String(answers[i]?.value || '').trim() || '—'}`)
+        .map((item: any, i: number) => `${item?.prompt || `Stavka ${i + 1}`} -> ${String(answers[i]?.value || '').trim() || '—'}`)
         .join('; ');
     }
     if (pq.data.type === 'singular_plural') {
@@ -4473,7 +4473,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
             .map((x: any, i: number) => {
               const alts = Array.isArray(x?.acceptedAnswers) ? x.acceptedAnswers.filter(Boolean) : [];
               const altStr = alts.length ? ` (also: ${alts.join(', ')})` : '';
-              return `${x?.prompt || `Item ${i + 1}`} -> ${x?.answer || '—'}${altStr}`;
+              return `${x?.prompt || `Stavka ${i + 1}`} -> ${x?.answer || '—'}${altStr}`;
             })
             .join('; ')
         : '—';
@@ -4523,7 +4523,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       const second = String(pq.data.secondaryCaption || '').trim();
       if (first && second) {
         const after = this.secondaryCaptionDelaySecondsForQuestion(pq.data);
-        return `${first} / after ${after}s: ${second}`;
+        return `${first} / posle ${after}s: ${second}`;
       }
       return first || '—';
     }
@@ -4537,18 +4537,18 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     if (sq.type === 'fill-blank') {
       const blanks = pq.subQuestionFillBlankAnswers?.[sqIndex] || [];
       const filled = blanks.map((x) => String(x ?? '').trim()).filter(Boolean);
-      return filled.length ? filled.join(' / ') : 'Not answered';
+      return filled.length ? filled.join(' / ') : 'Bez odgovora';
     }
     if ((sq.type as string) === 'pronunciation') {
       const score = pq.subQuestionPronunciationScore?.[sqIndex];
       const text = pq.subQuestionSpokenText?.[sqIndex];
       if (text && score != null) return `Score: ${score}% | "${text}"`;
       if (text) return `"${text}"`;
-      return 'Not answered';
+      return 'Bez odgovora';
     }
     if (sq.type === 'mcq') {
       const ans = pq.subQuestionAnswers?.[sqIndex];
-      if (ans === undefined || ans === null) return 'Not answered';
+      if (ans === undefined || ans === null) return 'Bez odgovora';
       const idx = Number(ans);
       return (sq.options && idx >= 0 && idx < sq.options.length) ? sq.options[idx] : String(ans);
     }
@@ -4571,7 +4571,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       const answers = pq.subQuestionWordBankAnswers?.[sqIndex] || [];
       if (!items.length) return '—';
       return items
-        .map((item: any, i: number) => `${item?.prompt || `Item ${i + 1}`} -> ${String(answers[i] ?? '').trim() || '—'}`)
+        .map((item: any, i: number) => `${item?.prompt || `Stavka ${i + 1}`} -> ${String(answers[i] ?? '').trim() || '—'}`)
         .join('; ');
     }
     if (sq.type === 'singular_plural') {
@@ -4584,7 +4584,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     }
     if (sq.type === 'jumble-word') {
       const ans = pq.subQuestionAnswers?.[sqIndex];
-      return ans !== undefined && ans !== null ? String(ans) : 'Not answered';
+      return ans !== undefined && ans !== null ? String(ans) : 'Bez odgovora';
     }
     if ((sq.type as string) === 'rearrange') {
       const tokens = pq.subQuestionRearrangeTokens?.[sqIndex];
@@ -4606,15 +4606,15 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     }
     if (sq.type === 'video-pronunciation') {
       const text = pq.subQuestionSpokenText?.[sqIndex];
-      return text ? `"${text}"` : 'Not answered';
+      return text ? `"${text}"` : 'Bez odgovora';
     }
     if (sq.type === 'question-answer' && this.isTrueFalseQuestion(sq)) {
       const ans = pq.subQuestionAnswers?.[sqIndex];
       const parsed = this.parseTrueFalse(ans);
-      return parsed === true ? 'Richtig' : parsed === false ? 'Falsch' : 'Not answered';
+      return parsed === true ? 'Richtig' : parsed === false ? 'Falsch' : 'Bez odgovora';
     }
     const answer = pq.subQuestionAnswers?.[sqIndex];
-    return answer !== undefined && answer !== null ? String(answer) : 'Not answered';
+    return answer !== undefined && answer !== null ? String(answer) : 'Bez odgovora';
   }
 
   getJumbleTokens(data: any): string[] {
@@ -4709,13 +4709,13 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     const hasTrueFalse = this.batchQuestions.some(bq => bq.data.type === 'question-answer' && this.isTrueFalseQuestion(bq.data));
     
     if (hasFillBlank && hasTrueFalse) {
-      return 'Fill in the blanks & True/False';
+      return 'Popunite praznine i Tačno/Netačno';
     } else if (hasFillBlank) {
-      return 'Fill in the blanks';
+      return 'Popunite praznine';
     } else if (hasTrueFalse) {
-      return 'True/False';
+      return 'Tačno/Netačno';
     }
-    return 'Questions';
+    return 'Pitanja';
   }
 
   /** Get the batch question at a specific offset from current batch start */
@@ -4779,12 +4779,12 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   }
 
   getScoreMessage(score: number): string {
-    if (score >= 90) return 'Outstanding! 🎉';
-    if (score >= 80) return 'Excellent work! ⭐';
-    if (score >= 70) return 'Great job! 👍';
-    if (score >= 60) return 'Good effort! Keep going!';
-    if (score >= 40) return 'Keep practicing!';
-    return 'Don\'t give up — try again!';
+    if (score >= 90) return 'Izvanredno! 🎉';
+    if (score >= 80) return 'Odličan rad! ⭐';
+    if (score >= 70) return 'Odličan posao! 👍';
+    if (score >= 60) return 'Dobar trud! Nastavite!';
+    if (score >= 40) return 'Nastavite vežbanje!';
+    return 'Ne odustajte — pokušajte ponovo!';
   }
 
   getSentenceParts(sentence: string): string[] {
@@ -4800,7 +4800,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       return String(item.prompt || '');
     }
     const raw = String(item ?? '').trim();
-    if (!raw) return `Item ${index + 1}`;
+    if (!raw) return `Stavka ${index + 1}`;
 
     // Handle malformed serialized rows shown as text: {"prompt":"...","answer":"..."}
     try {
@@ -4888,17 +4888,17 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   getQuestionTypes(): Array<{ type: string; count: number; label: string; icon: string; indices: number[] }> {
     const byType: Record<string, number[]> = {};
     const labels: Record<string, string> = {
-      mcq: 'Multiple Choice',
-      matching: 'Matching',
-      'fill-blank': 'Fill Blanks',
-      word_bank_fill: 'Word Bank Fill',
-      singular_plural: 'Singular / Plural',
-      pronunciation: 'Pronunciation',
-      'question-answer': 'Question / Answer',
-      listening: 'Listening',
-      'video-pronunciation': 'Video Pronunciation',
-      'jumble-word': 'Jumble Word',
-      image_pin_match: 'Image Pin Match'
+      mcq: 'Više izbora',
+      matching: 'Uparivanje',
+      'fill-blank': 'Popuna praznina',
+      word_bank_fill: 'Popuna iz banke reči',
+      singular_plural: 'Jednina / Množina',
+      pronunciation: 'Izgovor',
+      'question-answer': 'Pitanje / Odgovor',
+      listening: 'Slušanje',
+      'video-pronunciation': 'Video izgovor',
+      'jumble-word': 'Mešanje reči',
+      image_pin_match: 'Uparivanje pinova na slici'
     };
     const icons: Record<string, string> = {
       mcq: 'quiz',
@@ -5086,19 +5086,19 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     if (!kind) return null;
     const map: Record<string, string> = {
       'true-false': 'Richtig / Falsch',
-      'sentence-transformation': 'Sentence Transformation',
-      'singular-plural': 'Singular → Plural',
-      'table-profile-fill': 'Table / Profile Fill-in',
-      'free-writing-own-sentences': 'Free Writing / Own Sentences',
-      'free-writing-profile': 'Free Writing – profile',
-      'error-correction': 'Error Correction'
+      'sentence-transformation': 'Transformacija rečenice',
+      'singular-plural': 'Jednina → Množina',
+      'table-profile-fill': 'Popunjavanje tabele / profila',
+      'free-writing-own-sentences': 'Slobodno pisanje / Sopstvene rečenice',
+      'free-writing-profile': 'Slobodno pisanje – profil',
+      'error-correction': 'Ispravljanje grešaka'
     };
     return map[kind] || null;
   }
 
   /**
    * Display label for the question header / navigator.
-   * For question-answer tasks, worksheetKind is shown instead of generic "Question / Answer".
+   * For question-answer tasks, worksheetKind is shown instead of generic "Pitanje / Odgovor".
    */
   getQuestionTypeLabelForDisplay(data: any): string {
     if (data?.type === 'question-answer') {
@@ -5165,10 +5165,10 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   ): string {
     const qPart = this.getQuestionPartLabel(questionIndex, partNumber);
     if (scope === 'sub') {
-      return `Sub-part Q ${qPart}`;
+      return `Poddeo P ${qPart}`;
     }
     if (hasSubQuestions) {
-      return 'Main question';
+      return 'Glavno pitanje';
     }
     return `Q ${qPart}`;
   }
@@ -5347,7 +5347,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     const cap = this.getAttachmentAudioCap(pq);
     const used = this.getAttachmentAudioPlaysUsed(pq);
     if (cap != null && used >= cap) {
-      this.snackBar.open('Play limit reached for this attempt.', 'Close', { duration: 2800 });
+      this.snackBar.open('Dostignut limit reprodukcija za ovaj pokušaj.', 'Zatvori', { duration: 2800 });
       return;
     }
     this.stopCurrentAudio();
@@ -5362,7 +5362,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
         pq.attachmentAudioPlaysUsed = Math.max(0, used);
       }
       this.currentlyPlayingAudio = null;
-      this.snackBar.open('Could not play audio.', 'Close', { duration: 2500 });
+      this.snackBar.open('Nije moguće pustiti audio.', 'Zatvori', { duration: 2500 });
     });
     audio.addEventListener('ended', () => {
       this.currentlyPlayingAudio = null;
@@ -5531,7 +5531,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     if (!this.exercise || this.mediaRefetchInProgress) return;
     const urls = this.collectExerciseMediaUrlsForRecovery();
     if (urls.length === 0) {
-      this.snackBar.open('No uploaded audio paths to recover in this exercise.', 'Close', { duration: 3500 });
+      this.snackBar.open('Nema otpremljenih audio putanja za oporavak u ovoj vežbi.', 'Zatvori', { duration: 3500 });
       return;
     }
     this.mediaRefetchInProgress = true;
@@ -5540,21 +5540,21 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
         this.mediaRefetchInProgress = false;
         const anyFound = resolutions.some((r) => r.found);
         if (!anyFound) {
-          this.snackBar.open('No matching files found in cloud storage.', 'Close', { duration: 4500 });
+          this.snackBar.open('Nisu pronađeni odgovarajući fajlovi u cloud skladištu.', 'Zatvori', { duration: 4500 });
           return;
         }
         const updated = this.applyFoundMediaResolutions(resolutions);
         this.mediaUrlCache.clear();
         this.snackBar.open(
-          updated > 0 ? `Restored ${updated} media link(s) from cloud storage.` : 'Checked cloud storage; links already current.',
-          'Close',
+          updated > 0 ? `Vraćeno ${updated} medijskih link(ova) iz cloud skladišta.` : 'Provereno cloud skladište; linkovi su već ažurni.',
+          'Zatvori',
           { duration: 4500 }
         );
       },
       error: (err) => {
         this.mediaRefetchInProgress = false;
-        const msg = err?.error?.error || err?.message || 'Could not recover media.';
-        this.snackBar.open(msg, 'Close', { duration: 5000 });
+        const msg = err?.error?.error || err?.message || 'Nije moguće oporaviti medij.';
+        this.snackBar.open(msg, 'Zatvori', { duration: 5000 });
       },
     });
   }
@@ -5562,7 +5562,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   startListeningSpeech(pq: PlayerQuestion): void {
     if (this.state === 'submitted') return;
     if (!this.speechSupported) {
-      this.snackBar.open('Speech recognition not supported in this browser', 'Close', { duration: 3000 });
+      this.snackBar.open('Prepoznavanje govora nije podržano u ovom pregledaču', 'Zatvori', { duration: 3000 });
       return;
     }
     const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
@@ -5590,7 +5590,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     pq.isRecording = false;
   }
 
-  // ─── Video Pronunciation Interaction ──────────────────────────────────────────
+  // ─── Video izgovor Interaction ──────────────────────────────────────────
 
   private videoPassThresholdForQuestion(pq: PlayerQuestion): number {
     const raw = Number(pq?.data?.similarityThreshold);
@@ -5827,7 +5827,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   startVideoPronunciation(pq: PlayerQuestion): void {
     if (this.state === 'submitted') return;
     if (pq.data?.type === 'video-pronunciation' && !pq.vpPlaybackEnded) {
-      this.snackBar.open('Finish watching the clip first, then tap Speak.', 'Close', { duration: 3000 });
+      this.snackBar.open('Prvo pogledajte klip do kraja, zatim dodirnite Govori.', 'Zatvori', { duration: 3000 });
       return;
     }
     if (pq.isRecording) return;
@@ -5837,9 +5837,9 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       return;
     }
     if (!this.speechSupported) {
-      this.snackBar.open('Audio recording is not supported in this browser. Try Chrome, Edge, or Safari 14.3+.', 'Close', { duration: 6000 });
+      this.snackBar.open('Snimanje zvuka nije podržano u ovom pregledaču. Pokušajte Chrome, Edge ili Safari 14.3+.', 'Zatvori', { duration: 6000 });
       pq.pronUiState = 'error';
-      pq.pronMessage = 'Unsupported browser';
+      pq.pronMessage = 'Nepodržani pregledač';
       return;
     }
     void this.startVideoPronunciationInternal(pq);
@@ -5848,19 +5848,19 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   private async startVideoPronunciationInternal(pq: PlayerQuestion): Promise<void> {
     if (this.state === 'submitted') return;
     if (pq.data?.type === 'video-pronunciation' && !pq.vpPlaybackEnded) {
-      this.snackBar.open('Finish watching the clip first, then tap Speak.', 'Close', { duration: 3000 });
+      this.snackBar.open('Prvo pogledajte klip do kraja, zatim dodirnite Govori.', 'Zatvori', { duration: 3000 });
       return;
     }
     if (pq.isRecording) return;
 
     if (!this.speechSupported) {
-      this.snackBar.open('Speech recognition not supported in this browser. Try Chrome or Edge.', 'Close', { duration: 5000 });
+      this.snackBar.open('Prepoznavanje govora nije podržano u ovom pregledaču. Pokušajte Chrome ili Edge.', 'Zatvori', { duration: 5000 });
       return;
     }
 
     const SpeechRecognition = this.speechRecognitionCtor;
     if (!SpeechRecognition) {
-      this.snackBar.open('Speech recognition not supported in this browser. Try Chrome or Edge.', 'Close', { duration: 5000 });
+      this.snackBar.open('Prepoznavanje govora nije podržano u ovom pregledaču. Pokušajte Chrome ili Edge.', 'Zatvori', { duration: 5000 });
       return;
     }
     const hasMicAccess = await this.ensureMicrophoneAccess();
@@ -5905,22 +5905,22 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       this.markAttempted(pq);
 
       if (reason === 'not-allowed') {
-        this.snackBar.open('Microphone access denied. Please allow microphone access.', 'Close', { duration: 5000 });
+        this.snackBar.open('Pristup mikrofonu je odbijen. Dozvolite pristup mikrofonu.', 'Zatvori', { duration: 5000 });
       } else if (reason === 'audio-capture') {
-        this.snackBar.open('No microphone was detected on this device/browser.', 'Close', { duration: 4000 });
+        this.snackBar.open('Mikrofon nije detektovan na ovom uređaju/pregledaču.', 'Zatvori', { duration: 4000 });
       } else if (reason === 'start-failed') {
-        this.snackBar.open('Microphone could not be started. Please try again.', 'Close', { duration: 4000 });
+        this.snackBar.open('Mikrofon nije mogao biti pokrenut. Pokušajte ponovo.', 'Zatvori', { duration: 4000 });
       } else {
-        this.snackBar.open('No speech detected. Please try again.', 'Close', { duration: 3000 });
+        this.snackBar.open('Nije detektovan govor. Pokušajte ponovo.', 'Zatvori', { duration: 3000 });
       }
       if (this.isVideoOnlyExercise) {
-        this.pushVpChat('tutor', 'I could not hear your full sentence. Please tap Speak and try again.');
+        this.pushVpChat('tutor', 'Nisam čuo vašu celu rečenicu. Dodirnite Govori i pokušajte ponovo.');
       }
 
       if ((pq.vpFailCount || 0) >= DigitalExercisePlayerComponent.VP_MAX_FAILED_ATTEMPTS_PER_CLIP) {
         this.pushVpChat(
           'tutor',
-          `I could not hear enough input after ${DigitalExercisePlayerComponent.VP_MAX_FAILED_ATTEMPTS_PER_CLIP} tries. You can retry or move to the next clip.`
+          `Nisam dobio dovoljno govora nakon ${DigitalExercisePlayerComponent.VP_MAX_FAILED_ATTEMPTS_PER_CLIP} pokušaja. Možete ponovo pokušati ili preći na sledeći klip.`
         );
       }
     };
@@ -5957,11 +5957,11 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       if (this.isVideoOnlyExercise) {
         this.pushVpChat('user', pq.vpSpokenText || '', { isCorrect, score: pq.pronunciationScore || 0 });
         if (isCorrect) {
-          this.pushVpChat('tutor', 'Great job!');
+          this.pushVpChat('tutor', 'Odličan posao!');
         } else if (isAlmostCorrect) {
-          this.pushVpChat('tutor', 'Almost there — try once more for a perfect score!');
+          this.pushVpChat('tutor', 'Skoro ste uspeli — pokušajte još jednom za savršen rezultat!');
         } else {
-          this.pushVpChat('tutor', `Not quite — target is ${passThreshold}%+. Choose retry or next clip.`);
+          this.pushVpChat('tutor', `Nije baš tačno — cilj je ${passThreshold}%+. Izaberite ponovni pokušaj ili sledeći klip.`);
         }
       }
 
@@ -6268,12 +6268,12 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   pronUiLabel(pq: PlayerQuestion | null | undefined): string {
     const state = pq?.pronUiState || 'idle';
     switch (state) {
-      case 'recording':   return pq?.pronMessage || '🎤 Listening…';
-      case 'processing':  return pq?.pronMessage || 'Processing…';
-      case 'error':       return pq?.pronMessage || 'No speech detected, try again';
+      case 'recording':   return pq?.pronMessage || '🎤 Slušam…';
+      case 'processing':  return pq?.pronMessage || 'Obrada…';
+      case 'error':       return pq?.pronMessage || 'Nije detektovan govor, pokušajte ponovo';
       case 'result':      return pq?.pronMessage || '';
       case 'idle':
-      default:            return pq?.pronMessage || 'Click to Speak';
+      default:            return pq?.pronMessage || 'Kliknite da govorite';
     }
   }
 
@@ -6311,11 +6311,11 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
         this.ensureSubQuestionState(pq, sqi);
         pq.subQuestionIsRecording![sqi] = true;
         pq.subQuestionPronUiState![sqi] = 'recording';
-        pq.subQuestionPronMessage![sqi] = '🎤 Listening…';
+        pq.subQuestionPronMessage![sqi] = '🎤 Slušam…';
       } else {
         pq.isRecording = true;
         pq.pronUiState = 'recording';
-        pq.pronMessage = '🎤 Listening…';
+        pq.pronMessage = '🎤 Slušam…';
       }
       return true;
     } catch (err: any) {
@@ -6326,16 +6326,16 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
         this.ensureSubQuestionState(pq, sqi);
         pq.subQuestionIsRecording![sqi] = false;
         pq.subQuestionPronUiState![sqi] = 'error';
-        pq.subQuestionPronMessage![sqi] = err?.message || 'Microphone unavailable';
+        pq.subQuestionPronMessage![sqi] = err?.message || 'Mikrofon nije dostupan';
       } else {
         pq.isRecording = false;
         pq.pronUiState = 'error';
-        pq.pronMessage = err?.message || 'Microphone unavailable';
+        pq.pronMessage = err?.message || 'Mikrofon nije dostupan';
       }
       this.activePronQuestion = null;
       this.activeSubQuestionIndex = null;
-      const msg = err?.message || 'Microphone could not be started. Please check your mic and try again.';
-      this.snackBar.open(msg, 'Close', { duration: 5000 });
+      const msg = err?.message || 'Mikrofon nije mogao biti pokrenut. Proverite mikrofon i pokušajte ponovo.';
+      this.snackBar.open(msg, 'Zatvori', { duration: 5000 });
       if (code === 'PERMISSION_DENIED') this.micPermission = 'denied';
       return false;
     }
@@ -6372,14 +6372,14 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       if (isSub) {
         pq.subQuestionIsRecording![sqi!] = false;
         pq.subQuestionPronUiState![sqi!] = 'error';
-        pq.subQuestionPronMessage![sqi!] = 'Recording failed, try again';
+        pq.subQuestionPronMessage![sqi!] = 'Snimanje nije uspelo, pokušajte ponovo';
       } else {
         pq.isRecording = false;
         pq.pronUiState = 'error';
-        pq.pronMessage = 'Recording failed, try again';
+        pq.pronMessage = 'Snimanje nije uspelo, pokušajte ponovo';
       }
       this.activeSubQuestionIndex = null;
-      this.snackBar.open('Could not capture audio. Please try again.', 'Close', { duration: 3500 });
+      this.snackBar.open('Nije moguće snimiti audio. Pokušajte ponovo.', 'Zatvori', { duration: 3500 });
       return;
     }
     if (isSub) {
@@ -6391,13 +6391,13 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     if (!recording || recording.blob.size === 0) {
       if (isSub) {
         pq.subQuestionPronUiState![sqi!] = 'error';
-        pq.subQuestionPronMessage![sqi!] = 'No audio captured, try again';
+        pq.subQuestionPronMessage![sqi!] = 'Zvuk nije snimljen, pokušajte ponovo';
       } else {
         pq.pronUiState = 'error';
-        pq.pronMessage = 'No audio captured, try again';
+        pq.pronMessage = 'Zvuk nije snimljen, pokušajte ponovo';
       }
       this.activeSubQuestionIndex = null;
-      this.snackBar.open('No speech detected. Please try again.', 'Close', { duration: 3000 });
+      this.snackBar.open('Nije detektovan govor. Pokušajte ponovo.', 'Zatvori', { duration: 3000 });
       this.pronunciation.releaseObjectUrl(recording?.objectUrl);
       return;
     }
@@ -6427,7 +6427,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
         pq.pronMessage = this.silentRejectMessage(silence.reason);
       }
       this.activeSubQuestionIndex = null;
-      this.snackBar.open(this.silentRejectMessage(silence.reason), 'Close', { duration: 4000 });
+      this.snackBar.open(this.silentRejectMessage(silence.reason), 'Zatvori', { duration: 4000 });
       this.pronAnalytics.sendTelemetry(
         {
           silenceRejected: true,
@@ -6458,10 +6458,10 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
 
     if (isSub) {
       pq.subQuestionPronUiState![sqi!] = 'processing';
-      pq.subQuestionPronMessage![sqi!] = 'Processing…';
+      pq.subQuestionPronMessage![sqi!] = 'Obrada…';
     } else {
       pq.pronUiState = 'processing';
-      pq.pronMessage = 'Processing…';
+      pq.pronMessage = 'Obrada…';
     }
     this.armPronProcessingSlowTimer();
 
@@ -6580,24 +6580,24 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       if (isSub) {
         pq.subQuestionPronUiState![sqi!] = 'error';
         if (this.isNetworkError(err)) {
-          pq.subQuestionPronMessage![sqi!] = 'Network issue. Please try again.';
-          this.snackBar.open('Network issue — could not reach the server. Please try again.', 'Close', { duration: 4500 });
+          pq.subQuestionPronMessage![sqi!] = 'Problem sa mrežom. Pokušajte ponovo.';
+          this.snackBar.open('Problem sa mrežom — server nije dostupan. Pokušajte ponovo.', 'Zatvori', { duration: 4500 });
         } else {
-          pq.subQuestionPronMessage![sqi!] = 'Scoring failed, try again';
-          this.snackBar.open('Could not reach the pronunciation grader. Please try again.', 'Close', { duration: 4000 });
+          pq.subQuestionPronMessage![sqi!] = 'Ocenjivanje nije uspelo, pokušajte ponovo';
+          this.snackBar.open('Nije moguće kontaktirati sistem za ocenjivanje izgovora. Pokušajte ponovo.', 'Zatvori', { duration: 4000 });
         }
       } else {
         pq.pronUiState = 'error';
         if (this.isNetworkError(err)) {
-          pq.pronMessage = 'Network issue. Please try again.';
-          this.snackBar.open('Network issue — could not reach the server. Please try again.', 'Close', { duration: 4500 });
+          pq.pronMessage = 'Problem sa mrežom. Pokušajte ponovo.';
+          this.snackBar.open('Problem sa mrežom — server nije dostupan. Pokušajte ponovo.', 'Zatvori', { duration: 4500 });
           this.pronAnalytics.sendTelemetry(
             { networkError: true, retryCount, language: lang, recordingDuration: recording.durationMs },
             device,
           );
         } else {
-          pq.pronMessage = 'Scoring failed, try again';
-          this.snackBar.open('Could not reach the pronunciation grader. Please try again.', 'Close', { duration: 4000 });
+          pq.pronMessage = 'Ocenjivanje nije uspelo, pokušajte ponovo';
+          this.snackBar.open('Nije moguće kontaktirati sistem za ocenjivanje izgovora. Pokušajte ponovo.', 'Zatvori', { duration: 4000 });
         }
       }
     } finally {
@@ -6615,7 +6615,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     }
     if (failCount === 2 && !this.autoReplayArmedFor[pq.index]) {
       this.autoReplayArmedFor[pq.index] = true;
-      this.snackBar.open('Try speaking a bit slower and more clearly.', 'Close', { duration: 4000 });
+      this.snackBar.open('Pokušajte govoriti malo sporije i jasnije.', 'Zatvori', { duration: 4000 });
       setTimeout(() => this.replayReferenceForRetry(pq), 300);
     }
   }
@@ -6708,7 +6708,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     }
 
     pq.pronUiState = 'processing';
-    pq.pronMessage = 'Processing…';
+    pq.pronMessage = 'Obrada…';
     this.armPronProcessingSlowTimer();
 
     const expected = this.speakTargetCaptionForQuestion(pq);
@@ -6800,7 +6800,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     }
     if (failCount === 2 && !this.autoReplayArmedFor[pq.index]) {
       this.autoReplayArmedFor[pq.index] = true;
-      this.snackBar.open('Try speaking a bit slower and more clearly.', 'Close', { duration: 4000 });
+      this.snackBar.open('Pokušajte govoriti malo sporije i jasnije.', 'Zatvori', { duration: 4000 });
       setTimeout(() => this.replayReferenceForRetry(pq), 300);
     }
   }
@@ -6839,7 +6839,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     // Keep vpResult = idle so the main mic button reappears rather than
     // going through the incorrect/retry flow.
     pq.vpResult = 'idle';
-    this.snackBar.open(pq.pronMessage, 'Close', { duration: 4000 });
+    this.snackBar.open(pq.pronMessage, 'Zatvori', { duration: 4000 });
     if (this.isVideoOnlyExercise) {
       this.pushVpChat('tutor', pq.pronMessage);
     }
@@ -6890,14 +6890,14 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     this.markAttempted(pq);
 
     if (this.isVideoOnlyExercise) {
-      this.pushVpChat('user', pq.vpSpokenText || '(no audio)', { isCorrect, score: pq.pronunciationScore || 0 });
+      this.pushVpChat('user', pq.vpSpokenText || '(nema audio)', { isCorrect, score: pq.pronunciationScore || 0 });
       if (isCorrect) {
-        this.pushVpChat('tutor', 'Great job!');
+        this.pushVpChat('tutor', 'Odličan posao!');
       } else if (isAlmostCorrect) {
-        this.pushVpChat('tutor', 'Almost there — try once more for a perfect score!');
+        this.pushVpChat('tutor', 'Skoro ste uspeli — pokušajte još jednom za savršen rezultat!');
       } else {
-        const headline = this.confidenceHeadline(res.confidence) || 'Not quite';
-        this.pushVpChat('tutor', `${headline} — target is ${threshold}%+. Choose retry or next clip.`);
+        const headline = this.confidenceHeadline(res.confidence) || 'Nije baš tačno';
+        this.pushVpChat('tutor', `${headline} — cilj je ${threshold}%+. Izaberite ponovni pokušaj ili sledeći klip.`);
       }
     }
 
@@ -6925,13 +6925,13 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     pq.vpSpokenText = '';
 
     // Network errors should NOT be counted as a wrong answer or graded as 0%.
-    // Leave the clip in idle so the student can simply tap Speak again.
+    // Leave the clip in idle so the student can simply tap Govori ponovo.
     if (reason === 'network-error') {
       pq.vpResult = 'idle';
-      pq.pronMessage = 'Network issue. Please try again.';
-      this.snackBar.open('Network issue — could not reach the server. Please try again.', 'Close', { duration: 4500 });
+      pq.pronMessage = 'Problem sa mrežom. Pokušajte ponovo.';
+      this.snackBar.open('Problem sa mrežom — server nije dostupan. Pokušajte ponovo.', 'Zatvori', { duration: 4500 });
       if (this.isVideoOnlyExercise) {
-        this.pushVpChat('tutor', 'Network issue — please tap Speak once your connection is stable.');
+        this.pushVpChat('tutor', 'Problem sa mrežom — dodirnite Govori kada veza bude stabilna.');
       }
       this.restoreVpVideoAfterPronunciation();
       return;
@@ -6944,19 +6944,19 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     this.markAttempted(pq);
 
     const reasonMessages: Record<'no-audio' | 'evaluate-failed' | 'recording-failed', string> = {
-      'no-audio':         'No speech detected. Please try again.',
-      'evaluate-failed':  'Could not reach the pronunciation grader. Please try again.',
-      'recording-failed': 'Could not capture audio. Please try again.',
+      'no-audio':         'Nije detektovan govor. Pokušajte ponovo.',
+      'evaluate-failed':  'Nije moguće kontaktirati sistem za ocenjivanje izgovora. Pokušajte ponovo.',
+      'recording-failed': 'Nije moguće snimiti audio. Pokušajte ponovo.',
     };
-    pq.pronMessage = reason === 'no-audio' ? 'No speech detected, try again' : 'Try again';
-    this.snackBar.open(reasonMessages[reason], 'Close', { duration: 4000 });
+    pq.pronMessage = reason === 'no-audio' ? 'Nije detektovan govor, pokušajte ponovo' : 'Pokušaj ponovo';
+    this.snackBar.open(reasonMessages[reason], 'Zatvori', { duration: 4000 });
 
     if (this.isVideoOnlyExercise) {
-      this.pushVpChat('tutor', 'I could not hear your full sentence. Please tap Speak and try again.');
+      this.pushVpChat('tutor', 'Nisam čuo vašu celu rečenicu. Dodirnite Govori i pokušajte ponovo.');
       if ((pq.vpFailCount || 0) >= DigitalExercisePlayerComponent.VP_MAX_FAILED_ATTEMPTS_PER_CLIP) {
         this.pushVpChat(
           'tutor',
-          `I could not hear enough input after ${DigitalExercisePlayerComponent.VP_MAX_FAILED_ATTEMPTS_PER_CLIP} tries. You can retry or move to the next clip.`,
+          `Nisam dobio dovoljno govora nakon ${DigitalExercisePlayerComponent.VP_MAX_FAILED_ATTEMPTS_PER_CLIP} pokušaja. Možete ponovo pokušati ili preći na sledeći klip.`,
         );
       }
     }
@@ -7011,7 +7011,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
   async runMicTest(): Promise<void> {
     if (this.micTestState === 'recording') return;
     if (!this.audioRecorderSupported) {
-      this.micTestError = 'Audio recording is not supported in this browser.';
+      this.micTestError = 'Snimanje zvuka nije podržano u ovom pregledaču.';
       this.micTestState = 'error';
       return;
     }
@@ -7039,7 +7039,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       this.micTestBlob = result.blob;
       this.micTestState = 'ready';
       this.micTestError = !quietCheck.ok && quietCheck.reason === 'too-quiet'
-        ? 'Your mic sounds very low. Try moving closer and increasing microphone input volume.'
+        ? 'Vaš mikrofon zvuči veoma tiho. Približite se i povećajte jačinu ulaza mikrofona.'
         : null;
       console.info('[pronunciation] mic test ok', {
         durationMs: result.durationMs,
@@ -7048,7 +7048,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
       });
     } catch (err: any) {
       console.error('[pronunciation] mic test failed', err);
-      this.micTestError = err?.message || 'Microphone test failed';
+      this.micTestError = err?.message || 'Test mikrofona nije uspeo';
       this.micTestState = 'error';
     } finally {
       if (this.micTestCountdownTimer) {
@@ -7080,7 +7080,7 @@ export class DigitalExercisePlayerComponent implements OnInit, OnDestroy {
     } catch (err) {
       console.warn('[pronunciation] boosted mic playback failed', err);
       this.stopBoostedMicPlayback();
-      this.snackBar.open('Could not play boosted audio. Use normal play below.', 'Close', { duration: 2500 });
+      this.snackBar.open('Nije moguće pustiti pojačani audio. Koristite normalno puštanje ispod.', 'Zatvori', { duration: 2500 });
     }
   }
 

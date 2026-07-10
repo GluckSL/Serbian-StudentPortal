@@ -72,7 +72,7 @@ export class DigitalExercisesComponent implements OnInit, OnChanges {
   difficulties = ['Beginner', 'Intermediate', 'Advanced'];
 
   /** Shorter on ≤640px so placeholder fits; full copy on larger viewports. */
-  searchInputPlaceholder = 'Search exercises by title or topic...';
+  searchInputPlaceholder = 'Pretražite vežbe po naslovu ili temi...';
 
   private searchTimer: any;
 
@@ -90,8 +90,8 @@ export class DigitalExercisesComponent implements OnInit, OnChanges {
       )
       .subscribe((compact) => {
         this.searchInputPlaceholder = compact
-          ? 'Search by title or topic'
-          : 'Search exercises by title or topic...';
+          ? 'Pretraži po naslovu ili temi'
+          : 'Pretražite vežbe po naslovu ili temi...';
       });
   }
 
@@ -372,9 +372,9 @@ export class DigitalExercisesComponent implements OnInit, OnChanges {
 
   attemptStatusLabel(att: ExerciseAttempt): string {
     const s = Number(att.scorePercentage);
-    if (s >= this.passScorePercent) return 'Passed';
-    if (s > 0) return 'Below pass';
-    return 'No score yet';
+    if (s >= this.passScorePercent) return 'Prošao';
+    if (s > 0) return 'Ispod prolaza';
+    return 'Još nema rezultata';
   }
 
   attemptStatusClass(att: ExerciseAttempt): string {
@@ -464,7 +464,7 @@ export class DigitalExercisesComponent implements OnInit, OnChanges {
       return `First complete ${previousLabel}`;
     }
     const cd = ex.courseDay;
-    return cd != null ? `Unlock on day ${cd}` : 'Locked';
+    return cd != null ? `Otključava se na dan ${cd}` : 'Zaključano';
   }
 
   get journeyWeekHint(): string {
@@ -507,8 +507,8 @@ export class DigitalExercisesComponent implements OnInit, OnChanges {
 
   tableActionLabel(ex: DigitalExercise): string {
     const att = ex.studentAttempt;
-    if (!att) return 'Start';
-    return this.isAttemptPassing(att) ? 'Again' : 'Retry';
+    if (!att) return 'Počni';
+    return this.isAttemptPassing(att) ? 'Ponovi' : 'Pokušaj ponovo';
   }
 
   getPageNumbers(): number[] {
@@ -556,9 +556,9 @@ export class DigitalExercisesComponent implements OnInit, OnChanges {
   }
 
   getPriorityLabel(ex: DigitalExercise): string {
-    if (ex.studentAttempt) return 'NORMAL Review';
-    if (this.activeTab === 'new') return 'PRIORITY New Addition';
-    return 'NORMAL Pending';
+    if (ex.studentAttempt) return 'Pregled';
+    if (this.activeTab === 'new') return 'NOVO';
+    return 'Na čekanju';
   }
 
   getPriorityClass(ex: DigitalExercise): string {

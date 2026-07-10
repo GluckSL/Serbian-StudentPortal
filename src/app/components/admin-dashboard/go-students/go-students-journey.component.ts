@@ -1563,6 +1563,6 @@ export class GoStudentsJourneyComponent implements OnInit {
 
   formatResourceDate(d: string | Date | null): string {
     if (!d) return '—';
-    return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    return new Date(d).toLocaleDateString('sr-Latn-RS', { month: 'short', day: 'numeric', year: 'numeric' });
   }
 }

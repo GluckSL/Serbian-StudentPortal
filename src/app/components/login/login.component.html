@@ -4,31 +4,31 @@
     <header class="wd-modal__header">
       <div class="wd-modal__header-icon" aria-hidden="true"><i class="fas fa-user-clock"></i></div>
       <div class="wd-modal__header-text">
-        <p class="wd-modal__header-tag">Gluck Global - Action Required</p>
-        <h2 class="wd-modal__header-title" id="wd-modal-title">Account Status Confirmation</h2>
+        <p class="wd-modal__header-tag">Gluck Global - Potrebna radnja</p>
+        <h2 class="wd-modal__header-title" id="wd-modal-title">Potvrda statusa naloga</h2>
       </div>
     </header>
     <div class="wd-modal__body">
       <p class="wd-modal__greeting">
-        Dear Candidate<ng-container *ngIf="withdrawalStudentInfo?.studentName">, <strong>{{ withdrawalStudentInfo?.studentName }}</strong></ng-container>,
+        Poštovani Kandidate<ng-container *ngIf="withdrawalStudentInfo?.studentName">, <strong>{{ withdrawalStudentInfo?.studentName }}</strong></ng-container>,
       </p>
       <p class="wd-modal__message">
-        Our records indicate that you are currently listed as
-        <span class="wd-modal__status-pill">Uncertain / Withdrawn</span>
-        from the Gluck Global program. Before we proceed, we would like to confirm your intention directly from you.
+        Naši podaci ukazuju da ste trenutno evidentirani kao
+        <span class="wd-modal__status-pill">Neizvesno / Povučeno</span>
+        iz programa Gluck Global. Pre nego što nastavimo, želeli bismo da direktno od vas potvrdimo vašu nameru.
       </p>
       <div class="wd-modal__question-box">
-        <p class="wd-modal__question-text">Do you wish to continue with Gluck Global?</p>
+        <p class="wd-modal__question-text">Da li želite da nastavite sa Gluck Global?</p>
       </div>
       <ul class="wd-modal__choices" aria-label="Your options">
         <li class="wd-modal__choice wd-modal__choice--yes">
-          <strong>YES</strong> - I want to remain active and continue my application/program.
+          <strong>DA</strong> - Želim da ostanem aktivan/na i nastavim svoju prijavu/program.
         </li>
         <li class="wd-modal__choice wd-modal__choice--no">
-          <strong>NO</strong> - I confirm my withdrawal and no longer wish to be part of Gluck Global.
+          <strong>NE</strong> - Potvrđujem povlačenje i više ne želim da budem deo Gluck Global.
         </li>
       </ul>
-      <p class="wd-modal__sign">- Gluck Global Team</p>
+      <p class="wd-modal__sign">- Tim Gluck Global</p>
       <div *ngIf="withdrawalDecisionError" class="wd-modal__error" role="alert">
         <i class="fas fa-exclamation-circle" aria-hidden="true"></i> {{ withdrawalDecisionError }}
       </div>
@@ -36,11 +36,11 @@
     <footer class="wd-modal__footer">
       <button type="button" class="wd-modal__btn wd-modal__btn--yes" [disabled]="!!confirmingDecision" (click)="confirmWithdrawal('YES')">
         <ng-container *ngIf="confirmingDecision !== 'YES'">YES</ng-container>
-        <ng-container *ngIf="confirmingDecision === 'YES'"><span class="wd-spinner"></span> Please wait...</ng-container>
+        <ng-container *ngIf="confirmingDecision === 'YES'"><span class="wd-spinner"></span> Molimo sačekajte...</ng-container>
       </button>
       <button type="button" class="wd-modal__btn wd-modal__btn--no" [disabled]="!!confirmingDecision" (click)="confirmWithdrawal('NO')">
         <ng-container *ngIf="confirmingDecision !== 'NO'">NO</ng-container>
-        <ng-container *ngIf="confirmingDecision === 'NO'"><span class="wd-spinner wd-spinner--dark"></span> Please wait...</ng-container>
+        <ng-container *ngIf="confirmingDecision === 'NO'"><span class="wd-spinner wd-spinner--dark"></span> Molimo sačekajte...</ng-container>
       </button>
     </footer>
   </div>
@@ -53,8 +53,8 @@
     <header class="wd-modal__header">
       <div class="wd-modal__header-icon" aria-hidden="true"><i class="fas fa-key"></i></div>
       <div class="wd-modal__header-text">
-        <p class="wd-modal__header-tag">Glück Global — Secure your account</p>
-        <h2 class="wd-modal__header-title" id="setup-modal-title">Set your password</h2>
+        <p class="wd-modal__header-tag">Glück Global — Zaštitite svoj nalog</p>
+        <h2 class="wd-modal__header-title" id="setup-modal-title">Postavite lozinku</h2>
       </div>
     </header>
     <div class="wd-modal__body">
@@ -63,45 +63,45 @@
       <!-- ── STEP: start — show email + two choices ── -->
       <ng-container *ngIf="setupStep === 'start'">
         <div class="setup-field">
-          <label class="setup-label">Email</label>
+          <label class="setup-label">E-mail</label>
           <div class="setup-email-row">
             <input type="email" class="setup-input setup-input--readonly" [value]="setupEmail" readonly tabindex="-1" />
-            <button type="button" class="setup-change-email-btn" (click)="startEmailChange()">Change email</button>
+            <button type="button" class="setup-change-email-btn" (click)="startEmailChange()">Promeni e-mail</button>
           </div>
-          <p class="setup-hint">Is this email correct? Click <strong>Next</strong> to receive a verification code and set your password.</p>
+          <p class="setup-hint">Da li je ovaj e-mail tačan? Kliknite <strong>Sledeće</strong> da biste primili kod za verifikaciju i postavili lozinku.</p>
         </div>
         <div *ngIf="setupError" class="wd-modal__error" role="alert"><i class="fas fa-exclamation-circle"></i> {{ setupError }}</div>
       </ng-container>
 
       <!-- ── STEP: otp-verify — OTP sent to current email ── -->
       <ng-container *ngIf="setupStep === 'otp-verify'">
-        <p class="setup-hint setup-hint--info"><i class="fas fa-envelope"></i> A 6-digit code was sent to <strong>{{ setupEmail }}</strong>. Enter it below to verify your email address.</p>
+        <p class="setup-hint setup-hint--info"><i class="fas fa-envelope"></i> Šestocifreni kod je poslat na <strong>{{ setupEmail }}</strong>. Unesite ga ispod da biste verifikovali svoju e-mail adresu.</p>
         <div class="setup-field">
-          <label class="setup-label" for="setup-otp">Verification code</label>
-          <input type="text" id="setup-otp" class="setup-input setup-input--otp" [(ngModel)]="setupOtp" name="setupOtp" maxlength="6" placeholder="6-digit code" inputmode="numeric" autocomplete="one-time-code" />
+          <label class="setup-label" for="setup-otp">Kod za verifikaciju</label>
+          <input type="text" id="setup-otp" class="setup-input setup-input--otp" [(ngModel)]="setupOtp" name="setupOtp" maxlength="6" placeholder="6-cifreni kod" inputmode="numeric" autocomplete="one-time-code" />
         </div>
         <div *ngIf="setupError" class="wd-modal__error" role="alert"><i class="fas fa-exclamation-circle"></i> {{ setupError }}</div>
         <div *ngIf="setupSuccess" class="setup-success" role="status"><i class="fas fa-check-circle"></i> {{ setupSuccess }}</div>
         <p class="setup-hint" style="margin-top: 0.75rem;">
-          Didn't get a code?
-          <button type="button" class="setup-change-email-btn" [disabled]="setupLoading" (click)="sendSetupOtp()">Send a new code</button>
+          Niste dobili kod?
+          <button type="button" class="setup-change-email-btn" [disabled]="setupLoading" (click)="sendSetupOtp()">Pošaljite novi kod</button>
         </p>
       </ng-container>
 
       <!-- ── STEP: password-set — set new password after OTP verified ── -->
       <ng-container *ngIf="setupStep === 'password-set'">
-        <p class="setup-hint setup-hint--info"><i class="fas fa-check-circle"></i> Code verified! Now set your new password.</p>
+        <p class="setup-hint setup-hint--info"><i class="fas fa-check-circle"></i> Kod verifikovan! Sada postavite novu lozinku.</p>
         <div class="setup-field">
-          <label class="setup-label" for="setup-new-pw">New password</label>
+          <label class="setup-label" for="setup-new-pw">Nova lozinka</label>
           <div class="setup-pw-row">
-            <input [type]="setupShowNew ? 'text' : 'password'" id="setup-new-pw" class="setup-input" [(ngModel)]="setupNewPassword" name="setupNewPassword" placeholder="Min. 8 characters" required />
+            <input [type]="setupShowNew ? 'text' : 'password'" id="setup-new-pw" class="setup-input" [(ngModel)]="setupNewPassword" name="setupNewPassword" placeholder="Min. 8 znakova" required />
             <button type="button" class="setup-pw-toggle" (click)="setupShowNew = !setupShowNew"><i [class]="setupShowNew ? 'fas fa-eye-slash' : 'fas fa-eye'"></i></button>
           </div>
         </div>
         <div class="setup-field">
-          <label class="setup-label" for="setup-confirm-pw">Confirm new password</label>
+          <label class="setup-label" for="setup-confirm-pw">Potvrdite novu lozinku</label>
           <div class="setup-pw-row">
-            <input [type]="setupShowConfirm ? 'text' : 'password'" id="setup-confirm-pw" class="setup-input" [(ngModel)]="setupConfirmPassword" name="setupConfirmPassword" placeholder="Re-enter password" required />
+            <input [type]="setupShowConfirm ? 'text' : 'password'" id="setup-confirm-pw" class="setup-input" [(ngModel)]="setupConfirmPassword" name="setupConfirmPassword" placeholder="Ponovo unesite lozinku" required />
             <button type="button" class="setup-pw-toggle" (click)="setupShowConfirm = !setupShowConfirm"><i [class]="setupShowConfirm ? 'fas fa-eye-slash' : 'fas fa-eye'"></i></button>
           </div>
         </div>
@@ -110,22 +110,22 @@
 
       <!-- ── STEP: change-email — student wants a different email ── -->
       <ng-container *ngIf="setupStep === 'change-email'">
-        <p class="setup-hint setup-hint--info">Enter your new email and choose a password. Our support team will review your request and update your account.</p>
+        <p class="setup-hint setup-hint--info">Unesite novu e-mail adresu i odaberite lozinku. Naš tim za podršku pregledaće vaš zahtev i ažurirati nalog.</p>
         <div class="setup-field">
-          <label class="setup-label" for="setup-change-email">New email address</label>
-          <input type="email" id="setup-change-email" class="setup-input" [(ngModel)]="setupChangeNewEmail" name="setupChangeNewEmail" placeholder="newemail@example.com" />
+          <label class="setup-label" for="setup-change-email">Nova e-mail adresa</label>
+          <input type="email" id="setup-change-email" class="setup-input" [(ngModel)]="setupChangeNewEmail" name="setupChangeNewEmail" placeholder="novimail@primer.com" />
         </div>
         <div class="setup-field">
-          <label class="setup-label" for="setup-change-pw">New password</label>
+          <label class="setup-label" for="setup-change-pw">Nova lozinka</label>
           <div class="setup-pw-row">
-            <input [type]="setupShowChangeNewPwd ? 'text' : 'password'" id="setup-change-pw" class="setup-input" [(ngModel)]="setupChangeNewPassword" name="setupChangeNewPassword" placeholder="Min. 8 characters" />
+            <input [type]="setupShowChangeNewPwd ? 'text' : 'password'" id="setup-change-pw" class="setup-input" [(ngModel)]="setupChangeNewPassword" name="setupChangeNewPassword" placeholder="Min. 8 znakova" />
             <button type="button" class="setup-pw-toggle" (click)="setupShowChangeNewPwd = !setupShowChangeNewPwd"><i [class]="setupShowChangeNewPwd ? 'fas fa-eye-slash' : 'fas fa-eye'"></i></button>
           </div>
         </div>
         <div class="setup-field">
-          <label class="setup-label" for="setup-change-confirm-pw">Confirm new password</label>
+          <label class="setup-label" for="setup-change-confirm-pw">Potvrdite novu lozinku</label>
           <div class="setup-pw-row">
-            <input [type]="setupShowChangeConfirmPwd ? 'text' : 'password'" id="setup-change-confirm-pw" class="setup-input" [(ngModel)]="setupChangeConfirmPassword" name="setupChangeConfirmPassword" placeholder="Re-enter password" />
+            <input [type]="setupShowChangeConfirmPwd ? 'text' : 'password'" id="setup-change-confirm-pw" class="setup-input" [(ngModel)]="setupChangeConfirmPassword" name="setupChangeConfirmPassword" placeholder="Ponovo unesite lozinku" />
             <button type="button" class="setup-pw-toggle" (click)="setupShowChangeConfirmPwd = !setupShowChangeConfirmPwd"><i [class]="setupShowChangeConfirmPwd ? 'fas fa-eye-slash' : 'fas fa-eye'"></i></button>
           </div>
         </div>
@@ -136,9 +136,9 @@
       <ng-container *ngIf="setupStep === 'change-email-sent'">
         <div class="setup-sent-banner">
           <i class="fas fa-paper-plane setup-sent-icon"></i>
-          <h3 class="setup-sent-title">Request Submitted!</h3>
-          <p class="setup-sent-body">Our support team will review your email change request and contact you soon. Your email will be updated once approved.</p>
-          <p class="setup-sent-note">You can close this window. We'll notify you at your current email when the change is applied.</p>
+          <h3 class="setup-sent-title">Zahtev podnet!</h3>
+          <p class="setup-sent-body">Naš tim za podršku pregledaće vaš zahtev za promenu e-mail adrese i uskoro će vas kontaktirati. E-mail će biti ažuriran nakon odobrenja.</p>
+          <p class="setup-sent-note">Možete zatvoriti ovaj prozor. Obavestićemo vas na vaš trenutni e-mail kada promena stupi na snagu.</p>
         </div>
       </ng-container>
 
@@ -149,37 +149,37 @@
       <!-- start step -->
       <ng-container *ngIf="setupStep === 'start'">
         <button type="button" class="wd-modal__btn wd-modal__btn--yes" [disabled]="setupLoading" (click)="sendSetupOtp()">
-          <ng-container *ngIf="!setupLoading">Next <i class="fas fa-arrow-right"></i></ng-container>
-          <ng-container *ngIf="setupLoading"><span class="wd-spinner"></span> Sending code…</ng-container>
+          <ng-container *ngIf="!setupLoading">Sledeće <i class="fas fa-arrow-right"></i></ng-container>
+          <ng-container *ngIf="setupLoading"><span class="wd-spinner"></span> Slanje koda...</ng-container>
         </button>
       </ng-container>
       <!-- otp-verify step -->
       <ng-container *ngIf="setupStep === 'otp-verify'">
-        <button type="button" class="wd-modal__btn wd-modal__btn--no" (click)="setupStep = 'start'; setupError = ''; setupSuccess = ''">Back</button>
+        <button type="button" class="wd-modal__btn wd-modal__btn--no" (click)="setupStep = 'start'; setupError = ''; setupSuccess = ''">Nazad</button>
         <button type="button" class="wd-modal__btn wd-modal__btn--yes" [disabled]="setupLoading" (click)="verifyOtp()">
-          <ng-container *ngIf="!setupLoading">Verify <i class="fas fa-check"></i></ng-container>
-          <ng-container *ngIf="setupLoading"><span class="wd-spinner"></span> Verifying…</ng-container>
+          <ng-container *ngIf="!setupLoading">Verifikuj <i class="fas fa-check"></i></ng-container>
+          <ng-container *ngIf="setupLoading"><span class="wd-spinner"></span> Verifikacija...</ng-container>
         </button>
       </ng-container>
       <!-- password-set step -->
       <ng-container *ngIf="setupStep === 'password-set'">
-        <button type="button" class="wd-modal__btn wd-modal__btn--no" (click)="setupStep = 'otp-verify'; setupError = ''; setupOtp = ''; setupVerificationCode = ''">Back</button>
+        <button type="button" class="wd-modal__btn wd-modal__btn--no" (click)="setupStep = 'otp-verify'; setupError = ''; setupOtp = ''; setupVerificationCode = ''">Nazad</button>
         <button type="button" class="wd-modal__btn wd-modal__btn--yes" [disabled]="setupLoading" (click)="setPassword()">
-          <ng-container *ngIf="!setupLoading">Save &amp; continue <i class="fas fa-arrow-right"></i></ng-container>
-          <ng-container *ngIf="setupLoading"><span class="wd-spinner"></span> Please wait…</ng-container>
+          <ng-container *ngIf="!setupLoading">Sačuvaj i nastavi <i class="fas fa-arrow-right"></i></ng-container>
+          <ng-container *ngIf="setupLoading"><span class="wd-spinner"></span> Molimo sačekajte...</ng-container>
         </button>
       </ng-container>
       <!-- change-email step -->
       <ng-container *ngIf="setupStep === 'change-email'">
-        <button type="button" class="wd-modal__btn wd-modal__btn--no" (click)="cancelEmailChange()">Back</button>
+        <button type="button" class="wd-modal__btn wd-modal__btn--no" (click)="cancelEmailChange()">Nazad</button>
         <button type="button" class="wd-modal__btn wd-modal__btn--yes" [disabled]="setupLoading" (click)="submitEmailChangeRequest()">
-          <ng-container *ngIf="!setupLoading">Send request <i class="fas fa-paper-plane"></i></ng-container>
-          <ng-container *ngIf="setupLoading"><span class="wd-spinner"></span> Sending…</ng-container>
+          <ng-container *ngIf="!setupLoading">Pošalji zahtev <i class="fas fa-paper-plane"></i></ng-container>
+          <ng-container *ngIf="setupLoading"><span class="wd-spinner"></span> Slanje...</ng-container>
         </button>
       </ng-container>
       <!-- change-email-sent step -->
       <ng-container *ngIf="setupStep === 'change-email-sent'">
-        <button type="button" class="wd-modal__btn wd-modal__btn--yes" (click)="showPasswordSetupModal = false">Close</button>
+        <button type="button" class="wd-modal__btn wd-modal__btn--yes" (click)="showPasswordSetupModal = false">Zatvori</button>
       </ng-container>
     </footer>
   </div>
@@ -199,26 +199,26 @@
 
       <div class="login-hero__main">
         <h1 class="login-hero__title">
-          Welcome to
-          <span class="login-hero__title-accent">Glück Global German Study Buddy</span>
+          Dobrodošli u
+          <span class="login-hero__title-accent">Glück Global Drugar za učenje nemačkog</span>
         </h1>
         <p class="login-hero__lead">
-          Master German with the power of AI. Personalized, interactive, and built for modern learners.
+          Savladajte nemački uz pomoć veštačke inteligencije. Personalizovano, interaktivno i napravljeno za moderne učenike.
         </p>
 
         <div class="login-hero__cards">
           <div class="glass-card">
             <div class="glass-card__icon"><i class="fas fa-graduation-cap"></i></div>
             <div class="glass-card__body">
-              <strong>For Students</strong>
-              <p>Interactive voice training and structured AI learning paths.</p>
+              <strong>Za učenike</strong>
+              <p>Interaktivni glasovni trening i strukturisane AI putanje učenja.</p>
             </div>
           </div>
           <div class="glass-card">
             <div class="glass-card__icon"><i class="fas fa-file-lines"></i></div>
             <div class="glass-card__body">
-              <strong>For Teachers</strong>
-              <p>Advanced progress monitoring and curriculum management.</p>
+              <strong>Za nastavnike</strong>
+              <p>Napredno praćenje napretka i upravljanje nastavnim planom.</p>
             </div>
           </div>
         </div>
@@ -258,8 +258,8 @@
           </div>
         </div>
         <div class="login-hero__social-copy">
-          <p class="login-hero__social-stat"><span class="login-hero__social-num">1,000+</span> Students</p>
-          <p class="login-hero__social-tagline">Join our global community</p>
+          <p class="login-hero__social-stat"><span class="login-hero__social-num">1.000+</span> Učenika</p>
+          <p class="login-hero__social-tagline">Pridružite se globalnoj zajednici</p>
         </div>
       </div>
     </div>
@@ -288,24 +288,24 @@
           </div>
         </div>
 
-        <h2 class="login-panel__title">Login to Study</h2>
-        <p class="login-panel__subtitle">Please enter your credentials to access your lessons.</p>
+        <h2 class="login-panel__title">Prijavite se za učenje</h2>
+        <p class="login-panel__subtitle">Unesite svoje podatke za pristup lekcijama.</p>
 
         <div *ngIf="checkingExistingSession" class="login-session-check" role="status" aria-live="polite">
           <span class="btn-study__spinner" aria-hidden="true"></span>
-          <span>Checking your session…</span>
+          <span>Proveravanje sesije...</span>
         </div>
 
         <form (ngSubmit)="onSubmit()" class="login-form" *ngIf="!checkingExistingSession">
           <div class="form-field">
-            <label class="form-label" for="regNo">Web App ID or email</label>
+            <label class="form-label" for="regNo">ID portala ili e-mail</label>
             <div class="form-input-row">
               <i class="fas fa-user form-input-row__icon" aria-hidden="true"></i>
               <input
                 type="text"
                 id="regNo"
                 class="form-input"
-                placeholder="Web App ID or email address"
+                placeholder="ID portala ili e-mail"
                 required
                 [(ngModel)]="regNo"
                 (focus)="onCredentialFocus()"
@@ -317,8 +317,8 @@
 
           <div class="form-field">
             <div class="form-label-row">
-              <label class="form-label" for="password">Password</label>
-              <a class="form-link" routerLink="/forgot-password">Forgot Password?</a>
+              <label class="form-label" for="password">Lozinka</label>
+              <a class="form-link" routerLink="/forgot-password">Zaboravili ste lozinku?</a>
             </div>
             <div class="form-input-row">
               <i class="fas fa-lock form-input-row__icon" aria-hidden="true"></i>
@@ -347,16 +347,16 @@
           <label class="form-remember">
             <input type="checkbox" [(ngModel)]="keepSessionActive" name="keepSession" />
             <span class="form-remember__ui"></span>
-            <span>Remember this device</span>
+            <span>Zapamti ovaj uređaj</span>
           </label>
 
           <div *ngIf="showSessionExpiredNotice" class="banner-session" role="status">
             <i class="fas fa-history" aria-hidden="true"></i>
             <div>
-              <strong>Session expired</strong>
-              <p>Please sign in again to continue.</p>
+              <strong>Sesija je istekla</strong>
+              <p>Molimo vas da se ponovo prijavite.</p>
             </div>
-            <button type="button" class="banner-session__close" (click)="dismissSessionExpiredNotice()" aria-label="Dismiss">
+            <button type="button" class="banner-session__close" (click)="dismissSessionExpiredNotice()" aria-label="Zatvori">
               <i class="fas fa-times"></i>
             </button>
           </div>
@@ -367,27 +367,27 @@
 
           <button type="submit" class="btn-study" [disabled]="loading">
             <ng-container *ngIf="!loading">
-              Let's Study! <i class="fas fa-arrow-right"></i>
+              Hajde da učimo! <i class="fas fa-arrow-right"></i>
             </ng-container>
             <ng-container *ngIf="loading">
-              <span class="btn-study__spinner"></span> Signing in…
+              <span class="btn-study__spinner"></span> Prijava u toku...
             </ng-container>
           </button>
         </form>
 
         <p class="login-panel__join">
-          Don't have an account?
-          <a routerLink="/register">Register here</a>
+          Nemate nalog?
+          <a routerLink="/register">Registrujte se ovde</a>
         </p>
 
         <div class="login-panel__legal" role="contentinfo">
-          <a routerLink="/home">Privacy policy</a>
+          <a routerLink="/home">Politika privatnosti</a>
           <span class="dot">·</span>
-          <a routerLink="/home">Terms of service</a>
+          <a routerLink="/home">Uslovi korišćenja</a>
           <span class="dot">·</span>
-          <a routerLink="/help"><i class="fas fa-headset"></i> Help &amp; Support</a>
+          <a routerLink="/help"><i class="fas fa-headset"></i> Pomoć i podrška</a>
         </div>
-        <p class="login-panel__copy">© {{ currentYear }} Glück Global German Study Buddy</p>
+        <p class="login-panel__copy">© {{ currentYear }} Glück Global</p>
       </ng-container>
 
 

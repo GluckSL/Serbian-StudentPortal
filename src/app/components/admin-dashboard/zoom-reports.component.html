@@ -4,25 +4,25 @@
   <!-- ── Page Header ── -->
   <div class="zr-header">
     <div>
-      <h2 class="zr-header__title">{{ isTeacherRole ? 'My Class Attendance' : 'Zoom Meeting Reports' }}</h2>
-      <p class="zr-header__sub">Completed class sessions &amp; attendance analytics</p>
+      <h2 class="zr-header__title">{{ isTeacherRole ? 'Prisustvo na mojim časovima' : 'Zoom izveštaji o sastancima' }}</h2>
+      <p class="zr-header__sub">Završene sesije časova i analitika prisustva</p>
     </div>
     <div class="zr-header__actions">
-      <button class="zr-btn zr-btn--portal-alert" (click)="openPortalJoinAlert()" title="Open portal join absences in a new tab — students who clicked Join but are still marked Absent">
-        <i class="fa fa-triangle-exclamation"></i> Portal Join Alert
+      <button class="zr-btn zr-btn--portal-alert" (click)="openPortalJoinAlert()" title="Otvori izostanke pri pristupu portalu u novoj kartici — učenici koji su kliknuli Pridruži se ali su i dalje označeni kao odsutni">
+        <i class="fa fa-triangle-exclamation"></i> Upozorenje o pristupu portalu
       </button>
-      <button class="zr-btn zr-btn--dashboard" (click)="openAttendanceDashboard()" title="Student attendance analytics — attended X of Y classes and average %">
-        <i class="fa fa-chart-pie"></i> Attendance Dashboard
+      <button class="zr-btn zr-btn--dashboard" (click)="openAttendanceDashboard()" title="Analitika prisustva učenika — prisustvovao X od Y časova i prosečan %">
+        <i class="fa fa-chart-pie"></i> Kontrolna tabla prisustva
       </button>
-      <button class="zr-btn zr-btn--analytics" (click)="generateAnalytics()" title="Select classes using checkboxes then click to export analytics">
-        <i class="fa fa-chart-line"></i> Generate Analytics
+      <button class="zr-btn zr-btn--analytics" (click)="generateAnalytics()" title="Izaberite časove pomoću polja za potvrdu, zatim kliknite za izvoz analitike">
+        <i class="fa fa-chart-line"></i> Generiši analitiku
         <span class="zr-sel-badge" *ngIf="selectedCount > 0">{{ selectedCount }}</span>
       </button>
       <button class="zr-btn zr-btn--primary" (click)="exportToCSV()">
-        <i class="fa fa-download"></i> Export CSV
+        <i class="fa fa-download"></i> Izvezi CSV
       </button>
       <button class="zr-btn zr-btn--secondary" (click)="exportTeacherReport()" *ngIf="!isTeacherRole">
-        <i class="fa fa-chart-bar"></i> Teacher Report
+        <i class="fa fa-chart-bar"></i> Izveštaj nastavnika
       </button>
     </div>
   </div>
@@ -31,38 +31,38 @@
   <div class="zr-stats">
     <div class="zr-stat zr-stat--blue">
       <div class="zr-stat__val">{{ stats.totalMeetings }}</div>
-      <div class="zr-stat__lbl">Total Classes</div>
+      <div class="zr-stat__lbl">Ukupno časova</div>
     </div>
     <div class="zr-stat zr-stat--green">
       <div class="zr-stat__val">{{ stats.totalStudents }}</div>
-      <div class="zr-stat__lbl">Total Students</div>
+      <div class="zr-stat__lbl">Ukupno učenika</div>
     </div>
     <div class="zr-stat"
          [class.zr-stat--red]="stats.avgAttendance < 75 && stats.totalMeetings > 0"
          [class.zr-stat--green]="stats.avgAttendance >= 75"
          [class.zr-stat--gray]="stats.totalMeetings === 0">
       <div class="zr-stat__val">{{ stats.avgAttendance }}%</div>
-      <div class="zr-stat__lbl">Avg Attendance</div>
+      <div class="zr-stat__lbl">Prosečno prisustvo</div>
     </div>
     <div class="zr-stat zr-stat--purple">
       <div class="zr-stat__val">{{ formatDuration(stats.totalDuration) }}</div>
-      <div class="zr-stat__lbl">Total Duration</div>
+      <div class="zr-stat__lbl">Ukupno trajanje</div>
     </div>
   </div>
 
   <!-- ── Filters ── -->
   <div class="zr-filters-wrap">
     <div class="zr-filters-head">
-      <span class="zr-filters-title">Filters</span>
-      <button class="zr-btn-clear" (click)="clearFilters()">Clear</button>
+      <span class="zr-filters-title">Filteri</span>
+      <button class="zr-btn-clear" (click)="clearFilters()">Poništi</button>
     </div>
     <div class="zr-filters">
       <input class="zr-input zr-input--search" type="text"
-             placeholder="Search topic, teacher, batch…"
+             placeholder="Pretraži temu, nastavnika, grupu…"
              [(ngModel)]="searchQuery" (ngModelChange)="onSearchChange()">
 
       <select class="zr-select" [(ngModel)]="teacherFilter" (ngModelChange)="onFilterChange()" *ngIf="!isTeacherRole">
-        <option value="all">All Teachers</option>
+        <option value="all">Svi nastavnici</option>
         <option *ngFor="let t of teacherOptions" [value]="t">{{ t }}</option>
       </select>
 
@@ -79,7 +79,7 @@
             <input type="checkbox"
                    [checked]="allBatchesSelected"
                    (change)="selectAllBatches($event)">
-            <span>All Batches</span>
+            <span>Sve grupe</span>
           </label>
           <div class="zr-multi-select__divider"></div>
           <label class="zr-multi-select__item" *ngFor="let b of journeyBatchNames">
@@ -92,11 +92,11 @@
       </div>
 
       <select class="zr-select" [(ngModel)]="dateFilter" (ngModelChange)="onFilterChange()">
-        <option value="all">All Time</option>
-        <option value="today">Today</option>
-        <option value="week">Last 7 Days</option>
-        <option value="month">Last 30 Days</option>
-        <option value="custom">Custom Range</option>
+        <option value="all">Sve vreme</option>
+        <option value="today">Danas</option>
+        <option value="week">Poslejednjih 7 dana</option>
+        <option value="month">Poslejednjih 30 dana</option>
+        <option value="custom">Prilagođeni period</option>
       </select>
 
       <ng-container *ngIf="dateFilter === 'custom'">
@@ -111,7 +111,7 @@
     <i class="fa fa-circle-exclamation zr-error__icon"></i>
     <p>{{ error }}</p>
     <button class="zr-btn zr-btn--primary" (click)="loadCompletedMeetings()">
-      <i class="fa fa-rotate-right"></i> Retry
+      <i class="fa fa-rotate-right"></i> Pokušaj ponovo
     </button>
   </div>
 
@@ -120,27 +120,27 @@
 
     <div *ngIf="!loadingPage && meetingsPage.length === 0" class="zr-empty">
       <i class="fa fa-calendar-xmark zr-empty__icon"></i>
-      <h3>No completed meetings found</h3>
-      <p>Try adjusting your filters</p>
+      <h3>Nisu pronađeni završeni sastanci</h3>
+      <p>Pokušajte da prilagodite filtere</p>
     </div>
 
     <table *ngIf="loadingPage || meetingsPage.length > 0" class="zr-table">
       <thead>
         <tr>
           <th class="zr-th-check">
-            <input type="checkbox" class="zr-checkbox"
+              <input type="checkbox" class="zr-checkbox"
                    [checked]="allPageSelected"
                    [indeterminate]="somePageSelected && !allPageSelected"
                    (change)="toggleSelectAll()"
-                   title="Select all on this page">
+                   title="Izaberi sve na ovoj stranici">
           </th>
-          <th>Date &amp; Time</th>
-          <th>Topic</th>
-          <th *ngIf="!isTeacherRole">Teacher</th>
-          <th>Batch</th>
-          <th>Duration</th>
-          <th>Attendance</th>
-          <th>Rate</th>
+          <th>Datum i vreme</th>
+          <th>Tema</th>
+          <th *ngIf="!isTeacherRole">Nastavnik</th>
+          <th>Grupa</th>
+          <th>Trajanje</th>
+          <th>Prisustvo</th>
+          <th>Stopa</th>
           <th *ngIf="!isTeacherRole"></th>
         </tr>
       </thead>
@@ -225,19 +225,19 @@
           <!-- Actions -->
           <td *ngIf="!isTeacherRole">
             <div class="zr-actions">
-              <button class="zr-icon-btn zr-icon-btn--blue" (click)="viewMeetingDetails(m._id)" title="View Details">
+              <button class="zr-icon-btn zr-icon-btn--blue" (click)="viewMeetingDetails(m._id)" title="Prikaži detalje">
                 <i class="fa fa-eye"></i>
               </button>
               <button class="zr-icon-btn zr-icon-btn--amber"
                       (click)="refetchAttendance(m._id)"
                       [disabled]="refetchingMeetingIds.has(m._id)"
-                      title="Refetch Attendance">
+                      title="Ponovo preuzmi prisustvo">
                 <i class="fa fa-rotate-right"></i>
               </button>
-              <button class="zr-icon-btn zr-icon-btn--green" (click)="viewAttendance(m._id)" title="Attendance">
+              <button class="zr-icon-btn zr-icon-btn--green" (click)="viewAttendance(m._id)" title="Prisustvo">
                 <i class="fa fa-users"></i>
               </button>
-              <button class="zr-icon-btn zr-icon-btn--red" (click)="deleteMeeting(m._id, m.topic)" title="Delete">
+              <button class="zr-icon-btn zr-icon-btn--red" (click)="deleteMeeting(m._id, m.topic)" title="Obriši">
                 <i class="fa fa-trash"></i>
               </button>
             </div>
@@ -249,23 +249,23 @@
 
     <div *ngIf="totalItems > 0" class="zr-footer">
       <div class="zr-footer__left">
-        Showing <strong>{{ pageStartIndex }}</strong>-<strong>{{ pageEndIndex }}</strong>
-        of <strong>{{ totalItems }}</strong> class{{ totalItems !== 1 ? 'es' : '' }}
+        Prikazano <strong>{{ pageStartIndex }}</strong>–<strong>{{ pageEndIndex }}</strong>
+        od <strong>{{ totalItems }}</strong> čas{{ totalItems !== 1 ? 'ova' : '' }}
         <button type="button"
                 class="zr-link-btn"
                 *ngIf="canSelectAllFiltered"
                 (click)="selectAllFiltered()">
-          Select all {{ totalItems }} for analytics
+          Izaberi svih {{ totalItems }} za analitiku
         </button>
       </div>
       <div class="zr-pagination">
-        <label class="zr-pagination__label" for="zr-page-size">Rows</label>
+        <label class="zr-pagination__label" for="zr-page-size">Redova</label>
         <select id="zr-page-size" class="zr-pagination__select" [(ngModel)]="pageSize" (ngModelChange)="onPageSizeChange()">
           <option *ngFor="let s of pageSizeOptions" [ngValue]="s">{{ s }}</option>
         </select>
-        <button class="zr-page-btn" (click)="goToPrevPage()" [disabled]="currentPage === 1">Prev</button>
-        <span class="zr-page-info">Page {{ currentPage }} / {{ totalPages }}</span>
-        <button class="zr-page-btn" (click)="goToNextPage()" [disabled]="currentPage === totalPages">Next</button>
+        <button class="zr-page-btn" (click)="goToPrevPage()" [disabled]="currentPage === 1">Preth.</button>
+        <span class="zr-page-info">Stranica {{ currentPage }} / {{ totalPages }}</span>
+        <button class="zr-page-btn" (click)="goToNextPage()" [disabled]="currentPage === totalPages">Sledeća</button>
       </div>
     </div>
   </div>

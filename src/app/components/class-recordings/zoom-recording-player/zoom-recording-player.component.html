@@ -3,21 +3,21 @@
   <!-- Loading state -->
   <div *ngIf="loading" class="player-state player-loading">
     <div class="spinner"></div>
-    <p>Loading recording&hellip;</p>
+    <p>Učitavanje snimka&hellip;</p>
   </div>
 
   <!-- Processing state (auto-polling) -->
   <div *ngIf="!loading && processingStatus === 'processing'" class="player-state player-processing">
     <div class="pulse-icon">&#9654;</div>
-    <h3>Recording in Progress</h3>
-    <p>Your class recording is being processed and will be available shortly.</p>
-    <p class="hint">This page will check automatically every 10 seconds.</p>
+    <h3>Snimanje u toku</h3>
+    <p>Vaš snimak časa se obrađuje i uskoro će biti dostupan.</p>
+    <p class="hint">Ova stranica će se automatski proveravati svakih 10 sekundi.</p>
   </div>
 
   <!-- Failed state -->
   <div *ngIf="!loading && processingStatus === 'failed'" class="player-state player-error">
     <div class="error-icon">&#9888;</div>
-    <h3>Recording Unavailable</h3>
+    <h3>Snimak nedostupan</h3>
     <p>{{ error }}</p>
   </div>
 
@@ -36,10 +36,6 @@
     </div>
 
     <div class="video-wrap">
-      <!--
-        [attr.src] is null for HLS mode (hls.js manages the src via loadSource).
-        For MP4 legacy mode, [attr.src] is the presigned URL.
-      -->
       <video
         #videoPlayer
         class="video-element"
@@ -52,7 +48,7 @@
         (waiting)="onVideoWaiting()"
         (playing)="onVideoPlaying()"
         (error)="onVideoError()">
-        Your browser does not support the HTML5 video player.
+        Vaš pregledač ne podržava HTML5 video plejer.
       </video>
 
       <!-- Buffering overlay -->
@@ -64,12 +60,12 @@
         aria-busy="true">
         <div class="zrp-vload-simple">
           <div class="spinner zrp-vload-spinner" aria-hidden="true"></div>
-          <p class="zrp-vload-text">Loading video...</p>
+          <p class="zrp-vload-text">Učitavanje videa...</p>
         </div>
       </div>
     </div>
 
-    <p class="access-notice">&#128274; Secure HLS stream &mdash; segments expire in 15 minutes.</p>
+    <p class="access-notice">&#128274; Bezbedni HLS strim &mdash; segmenti ističu za 15 minuta.</p>
   </div>
 
 </div>

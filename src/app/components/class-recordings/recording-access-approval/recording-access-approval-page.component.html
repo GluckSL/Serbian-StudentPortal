@@ -3,41 +3,41 @@
     <div class="rar-header__main">
       <a class="rar-back" routerLink="/class-recordings">
         <mat-icon>arrow_back</mat-icon>
-        Class Recordings
+        Snimci časova
       </a>
-      <h1 class="rar-header__title">Recording Access Requests</h1>
+      <h1 class="rar-header__title">Zahtevi za pristup snimku</h1>
       <p class="rar-header__sub">
-        Review Platinum student requests. Approved and declined requests are kept in History — nothing is deleted.
+        Pregledajte zahteve Platinum učenika. Odobreni i odbijeni zahtevi čuvaju se u Istoriji — ništa se ne briše.
       </p>
     </div>
     <div class="rar-header__actions">
       <button type="button" class="rar-btn rar-btn--ghost" (click)="refreshActiveTab()" [disabled]="loading || historyLoading">
         <mat-icon>refresh</mat-icon>
-        Refresh
+        Osveži
       </button>
     </div>
   </header>
 
   <div class="rar-tabs-bar">
-    <nav class="rar-tabs" aria-label="Request queues">
+    <nav class="rar-tabs" aria-label="Redovi zahteva">
       <button type="button" class="rar-tab" [class.rar-tab--active]="activeTab === 'pending'" (click)="setTab('pending')">
-        Pending
+        Na čekanju
         <span class="rar-tab__badge" *ngIf="requests.length">{{ requests.length }}</span>
       </button>
       <button type="button" class="rar-tab" [class.rar-tab--active]="activeTab === 'history'" (click)="setTab('history')">
-        History
+        Istorija
         <span class="rar-tab__badge rar-tab__badge--muted" *ngIf="historyCounts?.reviewed">{{ historyCounts?.reviewed }}</span>
       </button>
       <button type="button" class="rar-tab" [class.rar-tab--active]="activeTab === 'ready'" (click)="setTab('ready')">
-        Ready
+        Spreman
         <span class="rar-tab__badge rar-tab__badge--ready" *ngIf="readyRecordingCount">{{ readyRecordingCount }}</span>
       </button>
     </nav>
     <mat-form-field appearance="outline" class="rar-batch-filter" subscriptSizing="dynamic" *ngIf="activeTab === 'pending' || activeTab === 'ready'">
-      <mat-label>Batch</mat-label>
+      <mat-label>Grupa</mat-label>
       <mat-select [(ngModel)]="batchFilter">
-        <mat-option value="">All batches</mat-option>
-        <mat-option *ngFor="let b of batchOptions" [value]="b">Batch {{ b }}</mat-option>
+        <mat-option value="">Sve grupe</mat-option>
+        <mat-option *ngFor="let b of batchOptions" [value]="b">Grupa {{ b }}</mat-option>
       </mat-select>
     </mat-form-field>
   </div>
@@ -45,72 +45,72 @@
   <div class="rar-stats" *ngIf="activeTab === 'pending'">
     <div class="rar-stat rar-stat--purple">
       <span class="rar-stat__val">{{ loading ? '…' : requests.length }}</span>
-      <span class="rar-stat__lbl">Pending</span>
+      <span class="rar-stat__lbl">Na čekanju</span>
     </div>
     <div class="rar-stat rar-stat--green">
       <span class="rar-stat__val">{{ loading ? '…' : readyRecordingCount }}</span>
-      <span class="rar-stat__lbl">Recording ready</span>
+      <span class="rar-stat__lbl">Snimak spreman</span>
     </div>
     <div class="rar-stat rar-stat--amber">
       <span class="rar-stat__val">{{ loading ? '…' : requests.length - readyRecordingCount }}</span>
-      <span class="rar-stat__lbl">Awaiting upload</span>
+      <span class="rar-stat__lbl">Čeka otpremanje</span>
     </div>
   </div>
 
   <div class="rar-stats" *ngIf="activeTab === 'ready'">
     <div class="rar-stat rar-stat--green">
       <span class="rar-stat__val">{{ loading ? '…' : displayedReadyCount }}</span>
-      <span class="rar-stat__lbl">Recording ready</span>
+      <span class="rar-stat__lbl">Snimak spreman</span>
     </div>
     <div class="rar-stat rar-stat--purple" *ngIf="batchFilter">
       <span class="rar-stat__val">{{ loading ? '…' : readyRecordingCount }}</span>
-      <span class="rar-stat__lbl">Ready (all batches)</span>
+      <span class="rar-stat__lbl">Spreman (sve grupe)</span>
     </div>
     <div class="rar-stat rar-stat--amber">
       <span class="rar-stat__val">{{ loading ? '…' : requests.length - readyRecordingCount }}</span>
-      <span class="rar-stat__lbl">Still awaiting upload</span>
+      <span class="rar-stat__lbl">Još uvek čeka otpremanje</span>
     </div>
   </div>
 
   <div class="rar-stats" *ngIf="activeTab === 'history' && historyCounts">
     <div class="rar-stat rar-stat--purple">
       <span class="rar-stat__val">{{ historyCounts.pending }}</span>
-      <span class="rar-stat__lbl">Still pending</span>
+      <span class="rar-stat__lbl">Još uvek na čekanju</span>
     </div>
     <div class="rar-stat rar-stat--green">
       <span class="rar-stat__val">{{ historyCounts.approved }}</span>
-      <span class="rar-stat__lbl">Approved (all time)</span>
+      <span class="rar-stat__lbl">Odobreno (sve vreme)</span>
     </div>
     <div class="rar-stat rar-stat--amber">
       <span class="rar-stat__val">{{ historyCounts.declined }}</span>
-      <span class="rar-stat__lbl">Declined (all time)</span>
+      <span class="rar-stat__lbl">Odbijeno (sve vreme)</span>
     </div>
   </div>
 
   <div class="rar-banner rar-banner--error" *ngIf="(activeTab === 'pending' || activeTab === 'ready') && error && !loading">
     <mat-icon>error_outline</mat-icon>
     {{ error }}
-    <button type="button" class="rar-banner__retry" (click)="loadRequests()">Try again</button>
+    <button type="button" class="rar-banner__retry" (click)="loadRequests()">Pokušajte ponovo</button>
   </div>
 
   <div class="rar-banner rar-banner--error" *ngIf="activeTab === 'history' && historyError && !historyLoading">
     <mat-icon>error_outline</mat-icon>
     {{ historyError }}
-    <button type="button" class="rar-banner__retry" (click)="loadHistory()">Try again</button>
+    <button type="button" class="rar-banner__retry" (click)="loadHistory()">Pokušajte ponovo</button>
   </div>
 
   <div class="rar-card" *ngIf="(activeTab === 'pending' || activeTab === 'ready') && loading">
     <table class="rar-table rar-table--skeleton">
       <thead>
         <tr>
-          <th>Student</th>
-          <th>Batch / Level</th>
-          <th>Class</th>
-          <th>Meeting ID</th>
-          <th>Recording</th>
-          <th>Quota</th>
-          <th>Requested</th>
-          <th class="rar-col-actions">Actions</th>
+          <th>Učenik</th>
+          <th>Grupa / Nivo</th>
+          <th>Čas</th>
+          <th>ID sastanka</th>
+          <th>Snimak</th>
+          <th>Kvota</th>
+          <th>Zahtevano</th>
+          <th class="rar-col-actions">Akcije</th>
         </tr>
       </thead>
       <tbody>
@@ -123,48 +123,48 @@
 
   <div class="rar-card rar-card--empty" *ngIf="activeTab === 'pending' && !loading && !error && !requests.length">
     <mat-icon class="rar-empty__icon">check_circle</mat-icon>
-    <h2>All caught up</h2>
-    <p>No pending recording access requests right now.</p>
-    <button type="button" class="rar-btn rar-btn--primary" (click)="goToRecordings()">Back to Class Recordings</button>
+    <h2>Sve je završeno</h2>
+    <p>Trenutno nema zahteva za pristup snimku na čekanju.</p>
+    <button type="button" class="rar-btn rar-btn--primary" (click)="goToRecordings()">Nazad na snimke časova</button>
   </div>
 
   <div class="rar-card rar-card--empty" *ngIf="activeTab === 'ready' && !loading && !error && !readyRecordingCount">
     <mat-icon class="rar-empty__icon">videocam_off</mat-icon>
-    <h2>No recordings ready yet</h2>
-    <p>Pending requests will appear here once the class recording is in the portal.</p>
+    <h2>Nema gotovih snimaka</h2>
+    <p>Zahtevi na čekanju pojaviće se ovde kada snimak časa bude u portalu.</p>
   </div>
 
   <div class="rar-card rar-card--empty" *ngIf="activeTab === 'ready' && !loading && !error && readyRecordingCount && !displayedPendingRequests.length">
     <mat-icon class="rar-empty__icon">filter_alt_off</mat-icon>
-    <h2>No matches for this batch</h2>
-    <p>Try another batch or clear the filter to see all ready requests.</p>
+    <h2>Nema podudaranja za ovu grupu</h2>
+    <p>Pokušajte drugu grupu ili obrišite filter da vidite sve gotove zahteve.</p>
   </div>
 
   <div class="rar-card rar-card--empty" *ngIf="activeTab === 'pending' && !loading && !error && requests.length && !displayedPendingRequests.length">
     <mat-icon class="rar-empty__icon">filter_alt_off</mat-icon>
-    <h2>No matches for this batch</h2>
-    <p>Try another batch or clear the filter to see all pending requests.</p>
+    <h2>Nema podudaranja za ovu grupu</h2>
+    <p>Pokušajte drugu grupu ili obrišite filter da vidite sve zahteve na čekanju.</p>
   </div>
 
   <div class="rar-card" *ngIf="(activeTab === 'pending' || activeTab === 'ready') && !loading && displayedPendingRequests.length">
     <div class="rar-card__toolbar">
       <span class="rar-card__count">
-        <ng-container *ngIf="activeTab === 'pending'">{{ displayedPendingRequests.length }} request{{ displayedPendingRequests.length !== 1 ? 's' : '' }} waiting</ng-container>
-        <ng-container *ngIf="activeTab === 'ready'">{{ displayedReadyCount }} ready to approve</ng-container>
+        <ng-container *ngIf="activeTab === 'pending'">{{ displayedPendingRequests.length }} zahtev{{ displayedPendingRequests.length !== 1 ? 'a' : '' }} na čekanju</ng-container>
+        <ng-container *ngIf="activeTab === 'ready'">{{ displayedReadyCount }} spreman za odobrenje</ng-container>
       </span>
     </div>
     <div class="rar-table-wrap">
       <table class="rar-table">
         <thead>
           <tr>
-            <th>Student</th>
-            <th>Batch / Level</th>
-            <th>Class</th>
-            <th>Meeting ID</th>
-            <th>Recording</th>
-            <th>Quota left</th>
-            <th>Requested</th>
-            <th class="rar-col-actions">Actions</th>
+            <th>Učenik</th>
+            <th>Grupa / Nivo</th>
+            <th>Čas</th>
+            <th>ID sastanka</th>
+            <th>Snimak</th>
+            <th>Preostala kvota</th>
+            <th>Zahtevano</th>
+            <th class="rar-col-actions">Akcije</th>
           </tr>
         </thead>
         <tbody>
@@ -184,10 +184,10 @@
             <td><code class="rar-mid">{{ meetingId(req) }}</code></td>
             <td>
               <span class="rar-badge rar-badge--ok" *ngIf="req.hasRecording">
-                <mat-icon>check_circle</mat-icon> Ready
+                <mat-icon>check_circle</mat-icon> Spreman
               </span>
               <span class="rar-badge rar-badge--no" *ngIf="!req.hasRecording">
-                <mat-icon>cancel</mat-icon> Missing
+                <mat-icon>cancel</mat-icon> Nedostaje
               </span>
             </td>
             <td>
@@ -202,7 +202,7 @@
                   type="button"
                   class="rar-icon-btn rar-icon-btn--approve"
                   [disabled]="isRowBusy(req)"
-                  title="Approve access"
+                  title="Odobri pristup"
                   (click)="approve(req)"
                 >
                   <mat-icon *ngIf="!isRowBusy(req)">check</mat-icon>
@@ -214,7 +214,7 @@
                   [disabled]="isRowBusy(req)"
                   (click)="openDecline(req)"
                 >
-                  Decline
+                  Odbij
                 </button>
               </div>
 
@@ -225,22 +225,22 @@
                     class="rar-action-btn rar-action-btn--backfill"
                     [disabled]="!!busyId"
                     (click)="runBackfill(req, false)"
-                    title="Fetch recording from Zoom for meeting {{ meetingId(req) }}"
+                    title="Preuzmi snimak iz Zoom-a za sastanak {{ meetingId(req) }}"
                   >
                     <mat-icon class="rar-spin" *ngIf="isBackfillMode(req, 'backfill')">autorenew</mat-icon>
                     <mat-icon *ngIf="!isBackfillMode(req, 'backfill')">cloud_download</mat-icon>
-                    Backfill
+                    Popuni
                   </button>
                   <button
                     type="button"
                     class="rar-action-btn rar-action-btn--grant"
                     [disabled]="!!busyId"
                     (click)="runBackfill(req, true)"
-                    title="Backfill from Zoom, then approve student access"
+                    title="Popuni iz Zoom-a, zatim odobri pristup učeniku"
                   >
                     <mat-icon class="rar-spin" *ngIf="isBackfillMode(req, 'backfill-approve')">autorenew</mat-icon>
                     <mat-icon *ngIf="!isBackfillMode(req, 'backfill-approve')">playlist_add_check</mat-icon>
-                    Backfill &amp; approve
+                    Popuni &amp; odobri
                   </button>
                 </ng-container>
                 <button
@@ -250,7 +250,7 @@
                   [disabled]="isRowBusy(req)"
                   (click)="openDecline(req)"
                 >
-                  Decline
+                  Odbij
                 </button>
               </div>
             </td>
@@ -265,11 +265,11 @@
     <table class="rar-table rar-table--skeleton">
       <thead>
         <tr>
-          <th>Student</th>
-          <th>Class</th>
+          <th>Učenik</th>
+          <th>Čas</th>
           <th>Status</th>
-          <th>Reviewed</th>
-          <th>Reviewer</th>
+          <th>Pregledano</th>
+          <th>Pregledač</th>
         </tr>
       </thead>
       <tbody>
@@ -282,36 +282,36 @@
 
   <div class="rar-card" *ngIf="activeTab === 'history' && !historyLoading">
     <div class="rar-card__toolbar rar-card__toolbar--history">
-      <span class="rar-card__count">{{ historyTotal }} reviewed request{{ historyTotal !== 1 ? 's' : '' }}</span>
+      <span class="rar-card__count">{{ historyTotal }} pregledani zahtev{{ historyTotal !== 1 ? 'i' : '' }}</span>
       <mat-form-field appearance="outline" class="rar-history-filter" subscriptSizing="dynamic">
         <mat-label>Status</mat-label>
         <mat-select [(ngModel)]="historyStatusFilter" (ngModelChange)="onHistoryFilterChange()">
-          <mat-option value="">All reviewed</mat-option>
-          <mat-option value="APPROVED">Approved only</mat-option>
-          <mat-option value="DECLINED">Declined only</mat-option>
+          <mat-option value="">Svi pregledani</mat-option>
+          <mat-option value="APPROVED">Samo odobreni</mat-option>
+          <mat-option value="DECLINED">Samo odbijeni</mat-option>
         </mat-select>
       </mat-form-field>
     </div>
 
     <div class="rar-card rar-card--empty rar-card--nested" *ngIf="!historyRequests.length">
       <mat-icon class="rar-empty__icon">history</mat-icon>
-      <h2>No reviewed requests yet</h2>
-      <p>Approved and declined requests will appear here permanently.</p>
+      <h2>Još nema pregledanih zahteva</h2>
+      <p>Odobreni i odbijeni zahtevi pojaviće se ovde trajno.</p>
     </div>
 
     <div class="rar-table-wrap" *ngIf="historyRequests.length">
       <table class="rar-table">
         <thead>
           <tr>
-            <th>Student</th>
-            <th>Batch / Level</th>
-            <th>Class</th>
-            <th>Meeting ID</th>
+            <th>Učenik</th>
+            <th>Grupa / Nivo</th>
+            <th>Čas</th>
+            <th>ID sastanka</th>
             <th>Status</th>
-            <th>Requested</th>
-            <th>Reviewed</th>
-            <th>Reviewer</th>
-            <th>Notes</th>
+            <th>Zahtevano</th>
+            <th>Pregledano</th>
+            <th>Pregledač</th>
+            <th>Napomene</th>
           </tr>
         </thead>
         <tbody>
@@ -341,9 +341,9 @@
         </tbody>
       </table>
       <div class="rar-history-pager" *ngIf="historyTotal > historyPageSize">
-        <button type="button" class="rar-btn rar-btn--ghost" (click)="historyPrevPage()" [disabled]="historyPage <= 1">Previous</button>
+        <button type="button" class="rar-btn rar-btn--ghost" (click)="historyPrevPage()" [disabled]="historyPage <= 1">Prethodno</button>
         <span>{{ historyPageLabel }}</span>
-        <button type="button" class="rar-btn rar-btn--ghost" (click)="historyNextPage()" [disabled]="historyPage * historyPageSize >= historyTotal">Next</button>
+        <button type="button" class="rar-btn rar-btn--ghost" (click)="historyNextPage()" [disabled]="historyPage * historyPageSize >= historyTotal">Sledeće</button>
       </div>
     </div>
   </div>
@@ -355,36 +355,36 @@
   (click)="closeDecline()"
   role="dialog"
   aria-modal="true"
-  aria-label="Confirm decline recording request"
+  aria-label="Potvrdi odbijanje zahteva za snimak"
 >
   <div class="rar-modal rar-modal--confirm" (click)="$event.stopPropagation()">
     <div class="rar-modal__head">
       <mat-icon class="rar-modal__warn-icon">warning_amber</mat-icon>
       <div>
-        <h3>Confirm decline</h3>
-        <p class="rar-modal__head-sub">This cannot be undone. The student will see the request as declined.</p>
+        <h3>Potvrdi odbijanje</h3>
+        <p class="rar-modal__head-sub">Ovo se ne može poništiti. Učenik će videti zahtev kao odbijen.</p>
       </div>
-      <button type="button" class="rar-modal__close" (click)="closeDecline()" aria-label="Close">
+      <button type="button" class="rar-modal__close" (click)="closeDecline()" aria-label="Zatvori">
         <mat-icon>close</mat-icon>
       </button>
     </div>
     <div class="rar-modal__body">
       <div class="rar-modal__summary">
-        <p><strong>Student:</strong> {{ declineTarget.studentName }}</p>
-        <p><strong>Class:</strong> {{ declineTarget.classTopic }} ({{ formatDate(declineTarget.classDate) }})</p>
-        <p><strong>Level:</strong> {{ declineTarget.studentLevel }} · <strong>Batch:</strong> {{ declineTarget.studentBatch }}</p>
+        <p><strong>Učenik:</strong> {{ declineTarget.studentName }}</p>
+        <p><strong>Čas:</strong> {{ declineTarget.classTopic }} ({{ formatDate(declineTarget.classDate) }})</p>
+        <p><strong>Nivo:</strong> {{ declineTarget.studentLevel }} · <strong>Grupa:</strong> {{ declineTarget.studentBatch }}</p>
       </div>
-      <p class="rar-modal__note">An email will be sent to the student. They will see <strong>Declined</strong> in Recorded classes.</p>
-      <label class="rar-label">Reason (optional)</label>
+      <p class="rar-modal__note">Učeniku će biti poslata e-pošta. Videće <strong>Odbijeno</strong> u Snimljenim časovima.</p>
+      <label class="rar-label">Razlog (opciono)</label>
       <textarea
         class="rar-textarea"
         [(ngModel)]="declineReason"
         rows="3"
-        placeholder="E.g. Recording not available for this class…"
+        placeholder="Npr. Snimak nije dostupan za ovaj čas…"
       ></textarea>
     </div>
     <div class="rar-modal__foot">
-      <button type="button" class="rar-btn rar-btn--ghost" (click)="closeDecline()">Cancel</button>
+      <button type="button" class="rar-btn rar-btn--ghost" (click)="closeDecline()">Otkaži</button>
       <button
         type="button"
         class="rar-btn rar-btn--danger"
@@ -392,7 +392,7 @@
         (click)="confirmDecline()"
       >
         <mat-icon class="rar-spin" *ngIf="busyId === declineTarget._id">autorenew</mat-icon>
-        {{ busyId === declineTarget._id ? 'Declining…' : 'Yes, decline' }}
+        {{ busyId === declineTarget._id ? 'Odbijanje…' : 'Da, odbij' }}
       </button>
     </div>
   </div>

@@ -149,7 +149,7 @@ export class MeetingDetailsComponent implements OnInit {
   }
 
   formatDate(date: string | Date): string {
-    return new Date(date).toLocaleString('en-US', {
+    return new Date(date).toLocaleString('sr-Latn-RS', {
       weekday: 'short',
       year: 'numeric',
       month: 'short',

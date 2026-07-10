@@ -40,7 +40,7 @@ function batchRegex(batchKey) {
 function formatDate(d) {
   if (!d) return null;
   try {
-    return new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+    return new Date(d).toLocaleDateString('sr-Latn-RS', { day: 'numeric', month: 'short', year: 'numeric' });
   } catch {
     return String(d);
   }

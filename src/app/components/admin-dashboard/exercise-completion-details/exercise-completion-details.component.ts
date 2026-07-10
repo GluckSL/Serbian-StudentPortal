@@ -346,7 +346,7 @@ export class ExerciseCompletionDetailsComponent implements OnInit {
 
   formatDate(d: string): string {
     if (!d) return '—';
-    return new Date(d).toLocaleDateString('en-US', {
+    return new Date(d).toLocaleDateString('sr-Latn-RS', {
       month: 'short', day: 'numeric', year: 'numeric',
       hour: '2-digit', minute: '2-digit'
     });

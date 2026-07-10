@@ -16,7 +16,7 @@
       (click)="toggleSidebar()"
       [attr.aria-expanded]="sidebarOpen"
       aria-controls="app-sidebar"
-      [attr.aria-label]="sidebarOpen ? 'Close navigation menu' : 'Open navigation menu'">
+      [attr.aria-label]="sidebarOpen ? 'Zatvori meni za navigaciju' : 'Otvori meni za navigaciju'">
       <span class="material-icons menu-icon" aria-hidden="true">{{ sidebarOpen ? 'close' : 'menu' }}</span>
       <span class="menu-brand">Glück Global</span>
     </button>
@@ -60,7 +60,7 @@
   <div style="display:flex;align-items:center;justify-content:center;min-height:100vh;">
     <div style="text-align:center;">
       <div style="width:40px;height:40px;border:3px solid #e5e7eb;border-top-color:#005b96;border-radius:50%;animation:spin 0.7s linear infinite;margin:0 auto 14px;"></div>
-      <p style="color:#6b7280;font-size:13px;">Loading...</p>
+      <p style="color:#6b7280;font-size:13px;">Učitavanje...</p>
     </div>
   </div>
 </ng-template>

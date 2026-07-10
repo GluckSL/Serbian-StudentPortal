@@ -1,16 +1,16 @@
 <div class="ps-root">
   <header class="ps-header">
     <div class="ps-header-inner">
-      <a mat-icon-button routerLink="/admin/payment-hub" class="ps-back-btn" matTooltip="Back to Payment Hub">
+      <a mat-icon-button routerLink="/admin/payment-hub" class="ps-back-btn" matTooltip="Nazad na Centar plaćanja">
         <mat-icon>arrow_back</mat-icon>
       </a>
       <div class="ps-header-text">
-        <h1 class="ps-title">Payment Settings</h1>
-        <p class="ps-subtitle">Program pricing catalog and reference amounts</p>
+        <h1 class="ps-title">Podešavanja plaćanja</h1>
+        <p class="ps-subtitle">Katalog cena programa i referentni iznosi</p>
       </div>
     </div>
     <div class="ps-last-updated" *ngIf="lastUpdated">
-      Last saved: {{ fmtDate(lastUpdated) }}
+      Poslednje sačuvano: {{ fmtDate(lastUpdated) }}
     </div>
   </header>
 
@@ -25,8 +25,8 @@
       <div class="ps-section-head">
         <mat-icon class="ps-section-icon">school</mat-icon>
         <div>
-          <h2 class="ps-section-title">CEFR level pricing</h2>
-          <p class="ps-section-sub">Per-level costs — students see the row for their current level only (e.g. A1 sees the A1 amounts)</p>
+          <h2 class="ps-section-title">CEFR cene po nivou</h2>
+          <p class="ps-section-sub">Troškovi po nivou — učenici vide red za svoj trenutni nivo (npr. A1 vidi iznose za A1)</p>
         </div>
       </div>
 
@@ -34,7 +34,7 @@
         <table class="ps-table">
           <thead>
             <tr>
-              <th class="ps-col-level">Level</th>
+              <th class="ps-col-level">Nivo</th>
               <th class="ps-col-currency">LKR</th>
               <th class="ps-col-currency">INR</th>
             </tr>
@@ -65,10 +65,10 @@
       <div class="ps-section-head">
         <mat-icon class="ps-section-icon">workspace_premium</mat-icon>
         <div>
-          <h2 class="ps-section-title">Plan-specific pricing</h2>
+          <h2 class="ps-section-title">Cene specifične za plan</h2>
           <p class="ps-section-sub">
-            Flat per-level fee for each plan. Overrides CEFR rows above for matching students.
-            Leave <strong>0</strong> to use the default CEFR pricing above.
+            Paušalna naknada po nivou za svaki plan. Zamenjuje CEFR redove iznad za odgovarajuće učenike.
+            Ostavite <strong>0</strong> da biste koristili podrazumevane CEFR cene iznad.
           </p>
         </div>
       </div>
@@ -78,8 +78,8 @@
           <thead>
             <tr>
               <th class="ps-col-level">Plan</th>
-              <th class="ps-col-currency">LKR / level</th>
-              <th class="ps-col-currency">INR / level</th>
+              <th class="ps-col-currency">LKR / nivo</th>
+              <th class="ps-col-currency">INR / nivo</th>
             </tr>
           </thead>
           <tbody>
@@ -89,12 +89,12 @@
               </td>
               <td>
                 <mat-form-field appearance="outline" class="ps-num-field">
-                  <input matInput type="number" min="0" [(ngModel)]="row.lkr" [placeholder]="'0 = use CEFR default'" />
+                  <input matInput type="number" min="0" [(ngModel)]="row.lkr" [placeholder]="'0 = koristi CEFR podrazumevano'" />
                 </mat-form-field>
               </td>
               <td>
                 <mat-form-field appearance="outline" class="ps-num-field">
-                  <input matInput type="number" min="0" [(ngModel)]="row.inr" [placeholder]="'0 = use CEFR default'" />
+                  <input matInput type="number" min="0" [(ngModel)]="row.inr" [placeholder]="'0 = koristi CEFR podrazumevano'" />
                 </mat-form-field>
               </td>
             </tr>
@@ -103,8 +103,8 @@
       </div>
       <p class="ps-plan-hint">
         <mat-icon>info_outline</mat-icon>
-        Example: set Silver to LKR 30,000 / INR 1,180 to use plan-specific fees for Silver students.
-        Platinum uses the CEFR level rows above by default (set to 0 to inherit).
+        Primer: postavite Silver na LKR 30.000 / INR 1.180 da biste koristili cene specifične za plan za Silver učenike.
+        Platinum podrazumevano koristi CEFR redove iznad (postavite na 0 da nasledi).
       </p>
     </section>
 
@@ -113,11 +113,11 @@
       <div class="ps-section-head">
         <mat-icon class="ps-section-icon">receipt_long</mat-icon>
         <div>
-          <h2 class="ps-section-title">Reference rows (admin only)</h2>
-          <p class="ps-section-sub">Doc, Visa, Relocation, package totals — not shown to students</p>
+          <h2 class="ps-section-title">Referentni redovi (samo za admin)</h2>
+          <p class="ps-section-sub">Dokument, Viza, Relokacija, ukupno paketa — nije prikazano učenicima</p>
         </div>
         <button mat-flat-button color="primary" type="button" class="ps-add-btn" (click)="addReferenceRow()">
-          <mat-icon>add</mat-icon> Add row
+          <mat-icon>add</mat-icon> Dodaj red
         </button>
       </div>
 
@@ -125,7 +125,7 @@
         <table class="ps-table" *ngIf="referenceRows.length > 0; else noRefRows">
           <thead>
             <tr>
-              <th class="ps-col-label">Label</th>
+              <th class="ps-col-label">Oznaka</th>
               <th class="ps-col-currency">LKR</th>
               <th class="ps-col-currency">INR</th>
               <th class="ps-col-action"></th>
@@ -135,7 +135,7 @@
             <tr *ngFor="let row of referenceRows; let i = index">
               <td>
                 <mat-form-field appearance="outline" class="ps-label-field">
-                  <input matInput [(ngModel)]="row.label" placeholder="e.g. Visa" />
+                  <input matInput [(ngModel)]="row.label" placeholder="npr. Viza" />
                 </mat-form-field>
               </td>
               <td>
@@ -149,7 +149,7 @@
                 </mat-form-field>
               </td>
               <td class="ps-col-action">
-                <button mat-icon-button color="warn" type="button" (click)="removeReferenceRow(i)" matTooltip="Remove">
+                <button mat-icon-button color="warn" type="button" (click)="removeReferenceRow(i)" matTooltip="Ukloni">
                   <mat-icon>delete_outline</mat-icon>
                 </button>
               </td>
@@ -157,18 +157,18 @@
           </tbody>
         </table>
         <ng-template #noRefRows>
-          <p class="ps-empty-hint">No reference rows yet. Click "Add row" to add one.</p>
+          <p class="ps-empty-hint">Nema referentnih redova. Kliknite "Dodaj red" da biste dodali.</p>
         </ng-template>
       </div>
     </section>
 
     <!-- ── Save bar ───────────────────────────────────────────────────────── -->
     <div class="ps-save-bar">
-      <a mat-stroked-button routerLink="/admin/payment-hub" class="ps-save-back">Back to hub</a>
+      <a mat-stroked-button routerLink="/admin/payment-hub" class="ps-save-back">Nazad na centar</a>
       <button mat-flat-button color="primary" type="button" class="ps-save-primary" (click)="save()" [disabled]="saving">
         <mat-spinner *ngIf="saving" diameter="18" class="ps-save-spinner"></mat-spinner>
         <mat-icon *ngIf="!saving">save</mat-icon>
-        {{ saving ? 'Saving…' : 'Save settings' }}
+        {{ saving ? 'Čuvanje…' : 'Sačuvaj podešavanja' }}
       </button>
     </div>
 

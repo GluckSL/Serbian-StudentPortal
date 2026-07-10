@@ -3,14 +3,14 @@
 <div class="student-meetings-container" [class.student-meetings--embedded]="embedded">
   <!-- Header -->
   <div class="header" *ngIf="!embedded">
-    <h1>My Zoom Classes</h1>
-    <p class="subtitle">View and join your scheduled German language classes</p>
+    <h1>Moji Zoom časovi</h1>
+    <p class="subtitle">Pregledajte i pridružite se zakazanim časovima nemačkog jezika</p>
   </div>
 
   <!-- Loading State (standalone page only; embedded uses table skeleton rows) -->
   <div *ngIf="loading && !embedded" class="loading-container">
     <mat-spinner></mat-spinner>
-    <p>Loading your classes...</p>
+    <p>Učitavanje vaših časova...</p>
   </div>
 
   <!-- Error State -->
@@ -19,27 +19,27 @@
     <p>{{ error }}</p>
     <button mat-raised-button color="primary" (click)="loadMeetings()">
       <mat-icon>refresh</mat-icon>
-      Retry
+      Pokušaj ponovo
     </button>
   </mat-card>
 
   <!-- Meetings Content -->
   <div *ngIf="(!loading || embedded) && !error">
     <div class="sm-embedded-section-head" *ngIf="embedded">
-      <h2 class="sm-embedded-section-head__title">My Classes</h2>
+      <h2 class="sm-embedded-section-head__title">Moji časovi</h2>
     </div>
 
     <!-- Tabs must show even when every list is empty (e.g. My Course → Resources) -->
     <div class="table-wrap" *ngIf="embedded || upcomingTotal + liveTotal + attemptedTotal > 0 || loading || tabLoading">
       <div class="tab-row">
         <button type="button" class="tab-btn" [class.active]="activeTab === 'upcoming'" (click)="setTab('upcoming')">
-          Upcoming Classes ({{ upcomingTotal }})
+          Predstojeći časovi ({{ upcomingTotal }})
         </button>
         <button type="button" class="tab-btn" [class.active]="activeTab === 'live'" (click)="setTab('live')">
-          Live Classes ({{ liveTotal }})
+          Časovi uživo ({{ liveTotal }})
         </button>
         <button type="button" class="tab-btn" [class.active]="activeTab === 'attempted'" (click)="setTab('attempted')">
-          Attempted Classes ({{ attemptedTotal }})
+          Pohađani časovi ({{ attemptedTotal }})
         </button>
       </div>
 
@@ -47,13 +47,13 @@
       <table class="classes-table classes-table--7" *ngIf="activeTab === 'upcoming'">
         <thead>
           <tr>
-            <th>Class Title</th>
-            <th>Teacher</th>
-            <th>Date &amp; time</th>
-            <th>Duration</th>
+            <th>Naziv časa</th>
+            <th>Nastavnik</th>
+            <th>Datum i vreme</th>
+            <th>Trajanje</th>
             <th>Status</th>
-            <th>Action</th>
-            <th class="th-center th-nowrap">Resources / Doubts</th>
+            <th>Akcija</th>
+            <th class="th-center th-nowrap">Resursi / Pitanja</th>
           </tr>
         </thead>
         <tbody>
@@ -92,20 +92,20 @@
             </td>
             <td>
               <div class="sm-btn-group">
-                <button type="button" class="sm-pill sm-pill--res" (click)="openResources(meeting)" title="Resources"><i class="fas fa-folder-open"></i></button>
-                <button type="button" class="sm-pill sm-pill--doubt" [disabled]="!isClassEnded(meeting)" (click)="openDoubts(meeting)" title="Doubts"><i class="fas fa-question-circle"></i></button>
+                <button type="button" class="sm-pill sm-pill--res" (click)="openResources(meeting)" title="Resursi"><i class="fas fa-folder-open"></i></button>
+                <button type="button" class="sm-pill sm-pill--doubt" [disabled]="!isClassEnded(meeting)" (click)="openDoubts(meeting)" title="Pitanja"><i class="fas fa-question-circle"></i></button>
               </div>
             </td>
           </tr>
           </ng-container>
-          <tr *ngIf="!tabLoading && upcomingTotal === 0"><td colspan="7" class="empty-row">No upcoming classes</td></tr>
-          <tr *ngIf="!tabLoading && upcomingTotal > 0 && paginatedUpcomingMeetings.length === 0"><td colspan="7" class="empty-row">No upcoming classes on this page</td></tr>
+          <tr *ngIf="!tabLoading && upcomingTotal === 0"><td colspan="7" class="empty-row">Nema predstojecih casova</td></tr>
+          <tr *ngIf="!tabLoading && upcomingTotal > 0 && paginatedUpcomingMeetings.length === 0"><td colspan="7" class="empty-row">Nema predstojecih casova na ovoj stranici</td></tr>
         </tbody>
       </table>
       <div class="sm-pagination" *ngIf="activeTab === 'upcoming' && upcomingTotal > classesPageSize">
         <span class="sm-pagination__label">{{ classPageRangeLabel(upcomingPage, upcomingTotal) }}</span>
         <div class="sm-pagination__controls">
-          <button type="button" class="sm-pagination__btn" [disabled]="upcomingPage === 1" (click)="changeUpcomingPage(upcomingPage - 1)" aria-label="Previous page">
+          <button type="button" class="sm-pagination__btn" [disabled]="upcomingPage === 1" (click)="changeUpcomingPage(upcomingPage - 1)" aria-label="Prethodna stranica">
             <mat-icon>chevron_left</mat-icon>
           </button>
           <button
@@ -115,7 +115,7 @@
             [class.sm-pagination__num--active]="p === upcomingPage"
             (click)="changeUpcomingPage(p)"
           >{{ p }}</button>
-          <button type="button" class="sm-pagination__btn" [disabled]="upcomingPage === upcomingTotalPages" (click)="changeUpcomingPage(upcomingPage + 1)" aria-label="Next page">
+          <button type="button" class="sm-pagination__btn" [disabled]="upcomingPage === upcomingTotalPages" (click)="changeUpcomingPage(upcomingPage + 1)" aria-label="Sledeća stranica">
             <mat-icon>chevron_right</mat-icon>
           </button>
         </div>
@@ -125,13 +125,13 @@
       <table class="classes-table classes-table--7" *ngIf="activeTab === 'live'">
         <thead>
           <tr>
-            <th>Class Title</th>
-            <th>Teacher</th>
-            <th>Date &amp; time</th>
-            <th>Duration</th>
+            <th>Naziv časa</th>
+            <th>Nastavnik</th>
+            <th>Datum i vreme</th>
+            <th>Trajanje</th>
             <th>Status</th>
-            <th>Action</th>
-            <th class="th-center th-nowrap">Resources / Doubts</th>
+            <th>Akcija</th>
+            <th class="th-center th-nowrap">Resursi / Pitanja</th>
           </tr>
         </thead>
         <tbody>
@@ -159,39 +159,39 @@
             </td>
             <td class="col-datetime"><span class="dt-date">{{ formatDate(meeting.startTime) }}</span><span class="dt-dot" aria-hidden="true"> · </span><span class="dt-time">{{ formatTime(meeting.startTime) }}</span></td>
             <td>{{ formatDuration(meeting.duration) }}</td>
-            <td><span class="status-pill status-live">Live</span></td>
+            <td><span class="status-pill status-live">Uživo</span></td>
             <td>
               <button type="button" class="sm-action sm-action--live-cta"
                 [class.sm-action--locked]="meeting.journeyLocked"
                 [disabled]="meeting.journeyLocked || !meeting.joinUrl" (click)="joinMeeting(meeting)">
-                {{ meeting.journeyLocked && meeting.courseDay != null ? ('Only day ' + meeting.courseDay) : 'Join now' }}
+                {{ meeting.journeyLocked && meeting.courseDay != null ? ('Samo dan ' + meeting.courseDay) : 'Pridruži se odmah' }}
               </button>
             </td>
             <td>
               <div class="sm-btn-group">
-                <button type="button" class="sm-pill sm-pill--res" (click)="openResources(meeting)" title="Resources"><i class="fas fa-folder-open"></i></button>
-                <button type="button" class="sm-pill sm-pill--doubt" [disabled]="!isClassEnded(meeting)" (click)="openDoubts(meeting)" title="Doubts"><i class="fas fa-question-circle"></i></button>
-                <button type="button" class="sm-pill sm-pill--upload" (click)="openSubmissions(meeting)" title="Upload Answer"><i class="fas fa-upload"></i></button>
+                <button type="button" class="sm-pill sm-pill--res" (click)="openResources(meeting)" title="Resursi"><i class="fas fa-folder-open"></i></button>
+                <button type="button" class="sm-pill sm-pill--doubt" [disabled]="!isClassEnded(meeting)" (click)="openDoubts(meeting)" title="Pitanja"><i class="fas fa-question-circle"></i></button>
+                <button type="button" class="sm-pill sm-pill--upload" (click)="openSubmissions(meeting)" title="Otpremi odgovor"><i class="fas fa-upload"></i></button>
                 <button
                   type="button"
                   class="sm-pill sm-pill--feedback"
                   *ngIf="hasFeedbackEnabled(meeting)"
                   [class.sm-pill--feedback-done]="submittedFeedbackIds.has(meeting._id)"
                   (click)="openFeedback(meeting)"
-                  title="{{ submittedFeedbackIds.has(meeting._id) ? 'Feedback submitted' : 'Give Feedback' }}">
+                  title="{{ submittedFeedbackIds.has(meeting._id) ? 'Povratna informacija poslata' : 'Daj povratnu informaciju' }}">
                   🦊
                 </button>
               </div>
             </td>
           </tr>
           </ng-container>
-          <tr *ngIf="!tabLoading && liveTotal === 0"><td colspan="7" class="empty-row">No live class right now</td></tr>
+          <tr *ngIf="!tabLoading && liveTotal === 0"><td colspan="7" class="empty-row">Nema casova uzivo trenutno</td></tr>
         </tbody>
       </table>
       <div class="sm-pagination" *ngIf="activeTab === 'live' && liveTotal > classesPageSize">
         <span class="sm-pagination__label">{{ classPageRangeLabel(livePage, liveTotal) }}</span>
         <div class="sm-pagination__controls">
-          <button type="button" class="sm-pagination__btn" [disabled]="livePage === 1" (click)="changeLivePage(livePage - 1)" aria-label="Previous page">
+          <button type="button" class="sm-pagination__btn" [disabled]="livePage === 1" (click)="changeLivePage(livePage - 1)" aria-label="Prethodna stranica">
             <mat-icon>chevron_left</mat-icon>
           </button>
           <button
@@ -201,7 +201,7 @@
             [class.sm-pagination__num--active]="p === livePage"
             (click)="changeLivePage(p)"
           >{{ p }}</button>
-          <button type="button" class="sm-pagination__btn" [disabled]="livePage === liveTotalPages" (click)="changeLivePage(livePage + 1)" aria-label="Next page">
+          <button type="button" class="sm-pagination__btn" [disabled]="livePage === liveTotalPages" (click)="changeLivePage(livePage + 1)" aria-label="Sledeća stranica">
             <mat-icon>chevron_right</mat-icon>
           </button>
         </div>
@@ -211,11 +211,11 @@
       <table class="classes-table classes-table--attempted" *ngIf="activeTab === 'attempted'">
         <thead>
           <tr>
-            <th>Class Title</th>
-            <th>Teacher</th>
-            <th>Date &amp; time</th>
-            <th>Attendance &amp; progress</th>
-            <th class="th-center th-nowrap">Resources / Doubts</th>
+            <th>Naziv časa</th>
+            <th>Nastavnik</th>
+            <th>Datum i vreme</th>
+            <th>Prisustvo i napredak</th>
+            <th class="th-center th-nowrap">Resursi / Pitanja</th>
           </tr>
         </thead>
         <tbody>
@@ -245,7 +245,7 @@
             <td class="col-attend-prog">
               <span class="status-pill sm-card-header-status" [ngClass]="getAttendanceBadgeClass(meeting)">{{ getAttendanceStatus(meeting) }}</span>
               <div class="sm-card-attend-only">
-                <div class="attend-progress attend-progress--compact" [attr.title]="'Minutes in class: ' + getProgressMinutesLabel(meeting)">
+                <div class="attend-progress attend-progress--compact" [attr.title]="'Minuta u času: ' + getProgressMinutesLabel(meeting)">
                   <div class="attend-progress__track">
                     <div class="attend-progress__fill" [style.width.%]="getAttendancePercent(meeting)"></div>
                     <span class="attend-progress__label">{{ getProgressMinutesLabel(meeting) }}</span>
@@ -255,29 +255,29 @@
             </td>
             <td>
               <div class="sm-btn-group">
-                <button type="button" class="sm-pill sm-pill--res" (click)="openResources(meeting)" title="Resources"><i class="fas fa-folder-open"></i></button>
-                <button type="button" class="sm-pill sm-pill--doubt" (click)="openDoubts(meeting)" title="Doubts"><i class="fas fa-question-circle"></i></button>
-                <button type="button" class="sm-pill sm-pill--upload" (click)="openSubmissions(meeting)" title="Upload Answer"><i class="fas fa-upload"></i></button>
+                <button type="button" class="sm-pill sm-pill--res" (click)="openResources(meeting)" title="Resursi"><i class="fas fa-folder-open"></i></button>
+                <button type="button" class="sm-pill sm-pill--doubt" (click)="openDoubts(meeting)" title="Pitanja"><i class="fas fa-question-circle"></i></button>
+                <button type="button" class="sm-pill sm-pill--upload" (click)="openSubmissions(meeting)" title="Otpremi odgovor"><i class="fas fa-upload"></i></button>
                 <button
                   type="button"
                   class="sm-pill sm-pill--feedback"
                   *ngIf="hasFeedbackEnabled(meeting)"
                   [class.sm-pill--feedback-done]="submittedFeedbackIds.has(meeting._id)"
                   (click)="openFeedback(meeting)"
-                  title="{{ submittedFeedbackIds.has(meeting._id) ? 'Feedback submitted' : 'Give Feedback' }}">
+                  title="{{ submittedFeedbackIds.has(meeting._id) ? 'Povratna informacija poslata' : 'Daj povratnu informaciju' }}">
                   🦊
                 </button>
               </div>
             </td>
           </tr>
           </ng-container>
-          <tr *ngIf="!tabLoading && attemptedTotal === 0"><td colspan="5" class="empty-row">No attempted classes yet</td></tr>
+          <tr *ngIf="!tabLoading && attemptedTotal === 0"><td colspan="5" class="empty-row">Nema pohađanih časova još</td></tr>
         </tbody>
       </table>
       <div class="sm-pagination" *ngIf="activeTab === 'attempted' && attemptedTotal > classesPageSize">
         <span class="sm-pagination__label">{{ classPageRangeLabel(attemptedPage, attemptedTotal) }}</span>
         <div class="sm-pagination__controls">
-          <button type="button" class="sm-pagination__btn" [disabled]="attemptedPage === 1" (click)="changeAttemptedPage(attemptedPage - 1)" aria-label="Previous page">
+          <button type="button" class="sm-pagination__btn" [disabled]="attemptedPage === 1" (click)="changeAttemptedPage(attemptedPage - 1)" aria-label="Prethodna stranica">
             <mat-icon>chevron_left</mat-icon>
           </button>
           <button
@@ -287,7 +287,7 @@
             [class.sm-pagination__num--active]="p === attemptedPage"
             (click)="changeAttemptedPage(p)"
           >{{ p }}</button>
-          <button type="button" class="sm-pagination__btn" [disabled]="attemptedPage === attemptedTotalPages" (click)="changeAttemptedPage(attemptedPage + 1)" aria-label="Next page">
+          <button type="button" class="sm-pagination__btn" [disabled]="attemptedPage === attemptedTotalPages" (click)="changeAttemptedPage(attemptedPage + 1)" aria-label="Sledeća stranica">
             <mat-icon>chevron_right</mat-icon>
           </button>
         </div>
@@ -297,9 +297,9 @@
     <!-- Full-page empty state only when not embedded (embedded always has tabs + per-tab empty rows) -->
     <div *ngIf="upcomingTotal + liveTotal + attemptedTotal === 0 && !loading && !tabLoading && !embedded" class="empty-state">
       <mat-icon>event_busy</mat-icon>
-      <h3>No Classes Scheduled</h3>
-      <p>You don't have any Zoom classes scheduled yet.</p>
-      <p class="help-text">Your teacher will schedule classes; you'll get a short reminder email before each class with instructions to join here in the portal.</p>
+      <h3>Nema zakazanih časova</h3>
+      <p>Nemate zakazanih Zoom časova još uvek.</p>
+      <p class="help-text">Vaš nastavnik će zakazati časove; dobićete kratak podsetnik e-mailom pre svakog časa sa uputstvima za pridruživanje ovde u portalu.</p>
     </div>
   </div>
 </div>
@@ -308,14 +308,14 @@
 <div class="sm-modal-overlay" *ngIf="showResourceModal" (click)="closeResourceModal()">
   <div class="sm-modal sm-modal--md" (click)="$event.stopPropagation()">
     <div class="sm-modal__head">
-      <h3><i class="fas fa-folder-open"></i> Resources</h3>
+      <h3><i class="fas fa-folder-open"></i> Resursi</h3>
       <span class="sm-modal__sub" *ngIf="resourceMeeting">{{ resourceMeeting.topic }}</span>
       <button type="button" class="sm-modal__close" (click)="closeResourceModal()">&times;</button>
     </div>
     <div class="sm-modal__body">
-      <div class="text-center text-muted py-3" *ngIf="loadingResources" style="font-size:12px;">Loading…</div>
+      <div class="text-center text-muted py-3" *ngIf="loadingResources" style="font-size:12px;">Učitavanje…</div>
       <div *ngIf="!loadingResources">
-        <div class="sm-modal__empty" *ngIf="resources.length === 0">No resources shared for this class yet.</div>
+        <div class="sm-modal__empty" *ngIf="resources.length === 0">Još uvek nisu deljeni resursi za ovaj čas.</div>
         <div class="res-row" *ngFor="let r of resources">
           <div class="res-info">
             <i class="fas fa-file"></i>
@@ -325,7 +325,7 @@
             </div>
           </div>
           <div class="res-actions">
-            <button type="button" class="sm-pill sm-pill--view" (click)="viewResource(r)" title="View">View</button>
+            <button type="button" class="sm-pill sm-pill--view" (click)="viewResource(r)" title="Prikaži">Prikaži</button>
           </div>
         </div>
       </div>
@@ -339,45 +339,45 @@
     <!-- List view header -->
     <div class="sm-modal__head sm-modal__head--list" *ngIf="!showAskForm">
       <div class="sm-modal__head-row">
-        <h3><i class="fas fa-question-circle"></i> Doubts</h3>
-        <button type="button" class="sm-modal__close" (click)="closeDoubtModal()" aria-label="Close">&times;</button>
+      <h3><i class="fas fa-question-circle"></i> Pitanja</h3>
+      <button type="button" class="sm-modal__close" (click)="closeDoubtModal()" aria-label="Zatvori">&times;</button>
       </div>
       <p class="sm-modal__sub sm-modal__sub--below" *ngIf="doubtMeeting">{{ doubtMeeting.topic }}</p>
     </div>
     <!-- Full-screen ask form header -->
     <div class="sm-modal__head sm-modal__head--ask" *ngIf="showAskForm">
-      <button type="button" class="ask-back-btn" (click)="toggleAskForm()" aria-label="Back to doubts">
+      <button type="button" class="ask-back-btn" (click)="toggleAskForm()" aria-label="Nazad na pitanja">
         <i class="fas fa-arrow-left"></i>
       </button>
       <div class="sm-modal__head-ask-text">
-        <h3>Ask a Doubt</h3>
+        <h3>Postavi pitanje</h3>
         <span class="sm-modal__sub" *ngIf="doubtMeeting">{{ doubtMeeting.topic }}</span>
       </div>
-      <button type="button" class="sm-modal__close" (click)="closeDoubtModal()" aria-label="Close">&times;</button>
+      <button type="button" class="sm-modal__close" (click)="closeDoubtModal()" aria-label="Zatvori">&times;</button>
     </div>
 
     <!-- List of doubts (full width) -->
     <div class="sm-modal__body doubts-list-body" *ngIf="!showAskForm">
       <div class="doubts-toolbar">
         <button type="button" class="ask-btn ask-btn--toolbar" (click)="toggleAskForm()">
-          <i class="fas fa-plus"></i> Ask Doubt
+          <i class="fas fa-plus"></i> Postavi pitanje
         </button>
       </div>
-      <div class="text-center text-muted py-3" *ngIf="loadingDoubts" style="font-size:12px;">Loading…</div>
+      <div class="text-center text-muted py-3" *ngIf="loadingDoubts" style="font-size:12px;">Učitavanje…</div>
       <div *ngIf="!loadingDoubts">
-        <div class="sm-modal__empty" *ngIf="doubts.length === 0">No doubts yet. Be the first to ask!</div>
+        <div class="sm-modal__empty" *ngIf="doubts.length === 0">Još nema pitanja. Budite prvi koji pita!</div>
         <div class="dbt-card" *ngFor="let d of doubts">
           <div class="dbt-top">
             <span class="dbt-title">{{ d.title }}</span>
             <span class="dbt-vis" [class.dbt-vis--private]="d.visibility === 'private'">
-              <i class="fas" [ngClass]="d.visibility==='private' ? 'fa-lock' : 'fa-globe'"></i> {{ d.visibility }}
+              <i class="fas" [ngClass]="d.visibility==='private' ? 'fa-lock' : 'fa-globe'"></i> {{ d.visibility === 'private' ? 'Privatno' : 'Javno' }}
             </span>
           </div>
-          <span class="dbt-author">{{ d.askedBy?.name || 'Student' }} · {{ formatDateFull(d.createdAt) }}</span>
+          <span class="dbt-author">{{ d.askedBy?.name || 'Učenik' }} · {{ formatDateFull(d.createdAt) }}</span>
           <p class="dbt-explain" *ngIf="d.explanation">{{ d.explanation }}</p>
           <div class="dbt-replies" *ngIf="d.replies?.length">
             <div class="dbt-reply" *ngFor="let rp of d.replies">
-              <span class="dbt-reply-author">{{ rp.repliedBy?.name || 'Teacher' }}</span>
+              <span class="dbt-reply-author">{{ rp.repliedBy?.name || 'Nastavnik' }}</span>
               <span class="dbt-reply-time">{{ formatDateFull(rp.repliedAt) }}</span>
               <p class="dbt-reply-text">{{ rp.text }}</p>
             </div>
@@ -389,40 +389,40 @@
     <!-- Full modal body: ask form only -->
     <div class="sm-modal__body sm-modal__body--ask-full" *ngIf="showAskForm">
       <form class="ask-form-full" (ngSubmit)="submitDoubt()">
-        <label class="ask-label" for="doubt-title-input">Title <span class="req">*</span></label>
+        <label class="ask-label" for="doubt-title-input">Naslov <span class="req">*</span></label>
         <input
           id="doubt-title-input"
           type="text"
           class="form-control ask-input-title"
           [(ngModel)]="newDoubt.title"
           name="doubtTitle"
-          placeholder="Short question title"
+          placeholder="Kratki naslov pitanja"
           maxlength="200"
           autocomplete="off"
         />
-        <label class="ask-label" for="doubt-explain-input">Explanation</label>
+        <label class="ask-label" for="doubt-explain-input">Objašnjenje</label>
         <textarea
           id="doubt-explain-input"
           class="form-control ask-input-explain"
           rows="8"
           [(ngModel)]="newDoubt.explanation"
           name="doubtExplain"
-          placeholder="Describe your doubt in detail…"
+          placeholder="Opišite vaše pitanje detaljno…"
           maxlength="2000"
         ></textarea>
-        <label class="ask-label">Visibility</label>
+        <label class="ask-label">Vidljivost</label>
         <div class="vis-toggle vis-toggle--large">
           <button type="button" class="vis-opt" [class.vis-opt--on]="newDoubt.visibility==='public'" (click)="newDoubt.visibility='public'">
-            <i class="fas fa-globe"></i> Public <span class="vis-hint">Everyone in the class can see</span>
+            <i class="fas fa-globe"></i> Javno <span class="vis-hint">Svi u razredu mogu videti</span>
           </button>
           <button type="button" class="vis-opt" [class.vis-opt--on]="newDoubt.visibility==='private'" (click)="newDoubt.visibility='private'">
-            <i class="fas fa-lock"></i> Private <span class="vis-hint">Only you and your teacher</span>
+            <i class="fas fa-lock"></i> Privatno <span class="vis-hint">Samo vi i vaš nastavnik</span>
           </button>
         </div>
         <div class="ask-actions ask-actions--footer">
-          <button type="button" class="ask-cancel ask-cancel--wide" (click)="toggleAskForm()">Cancel</button>
+          <button type="button" class="ask-cancel ask-cancel--wide" (click)="toggleAskForm()">Otkaži</button>
           <button type="submit" class="ask-submit ask-submit--wide" [disabled]="submittingDoubt || !newDoubt.title.trim()">
-            {{ submittingDoubt ? 'Submitting…' : 'Submit doubt' }}
+            {{ submittingDoubt ? 'Slanje…' : 'Pošalji pitanje' }}
           </button>
         </div>
       </form>
@@ -434,7 +434,7 @@
 <div class="sm-modal-overlay" *ngIf="showSubmissionModal" (click)="closeSubmissionModal()">
   <div class="sm-modal sm-modal--lg" (click)="$event.stopPropagation()">
     <div class="sm-modal__head">
-      <h3><i class="fas fa-upload"></i> Answer Submissions</h3>
+      <h3><i class="fas fa-upload"></i> Otpremljeni odgovori</h3>
       <span class="sm-modal__sub" *ngIf="submissionMeeting">{{ submissionMeeting.topic }}</span>
       <button type="button" class="sm-modal__close" (click)="closeSubmissionModal()">&times;</button>
     </div>
@@ -442,7 +442,7 @@
 
       <!-- Upload: row 1 = pick file; row 2 = note + send -->
       <div class="sub-upload-compact">
-        <p class="sub-upload-hint">PDF, images, or Word — max 50 MB per file.</p>
+        <p class="sub-upload-hint">PDF, slike ili Word — maks. 50 MB po datoteci.</p>
         <div class="sub-row-file">
           <input
             #submissionFileInput
@@ -454,19 +454,19 @@
           />
           <button type="button" class="sub-pick-btn" (click)="submissionFileInput.click()">
             <i class="fas fa-upload" aria-hidden="true"></i>
-            Choose file
+            Odaberi datoteku
           </button>
           <span class="sub-file-name" *ngIf="selectedFile" [title]="selectedFile.name">{{ selectedFile.name }}</span>
-          <span class="sub-file-placeholder" *ngIf="!selectedFile">No file selected</span>
+          <span class="sub-file-placeholder" *ngIf="!selectedFile">Nije izabrana datoteka</span>
           <button
             type="button"
             class="sub-clear-file-btn"
             *ngIf="selectedFile"
             (click)="clearSelectedSubmissionFile(submissionFileInput)"
-            title="Remove selected file"
+            title="Ukloni izabranu datoteku"
           >
             <i class="fas fa-times" aria-hidden="true"></i>
-            Clear
+            Ukloni
           </button>
         </div>
         <div class="sub-row-note-send">
@@ -474,7 +474,7 @@
             type="text"
             class="form-control sub-caption-input"
             [(ngModel)]="submissionCaption"
-            placeholder="Add a note (optional)"
+            placeholder="Dodajte napomenu (opciono)"
             maxlength="500"
           />
           <button
@@ -484,17 +484,17 @@
             (click)="uploadSubmission()"
           >
             <i class="fas fa-paper-plane" aria-hidden="true"></i>
-            {{ uploading ? 'Uploading…' : 'Send Answer' }}
+            {{ uploading ? 'Otpremanje…' : 'Pošalji odgovor' }}
           </button>
         </div>
       </div>
 
-      <div class="sub-divider">Your submissions</div>
+      <div class="sub-divider">Vaši odgovori</div>
 
       <!-- Submissions list -->
-      <div class="text-center text-muted py-3" *ngIf="loadingSubmissions" style="font-size:12px;">Loading…</div>
+      <div class="text-center text-muted py-3" *ngIf="loadingSubmissions" style="font-size:12px;">Učitavanje…</div>
       <div *ngIf="!loadingSubmissions">
-        <div class="sm-modal__empty" *ngIf="submissions.length === 0">No submissions yet. Upload your first answer above.</div>
+        <div class="sm-modal__empty" *ngIf="submissions.length === 0">Još nema odgovora. Otpremite prvi odgovor gore.</div>
         <div class="sub-card" *ngFor="let sub of submissions">
           <div class="sub-card__top">
             <div class="sub-card__file">
@@ -505,7 +505,7 @@
               </div>
             </div>
             <div class="sub-card__actions">
-              <button type="button" class="sm-pill sm-pill--view" (click)="viewSubmissionFile(sub)" title="View file">View</button>
+              <button type="button" class="sm-pill sm-pill--view" (click)="viewSubmissionFile(sub)" title="Prikaži datoteku">Prikaži</button>
               <span class="sub-badge" [ngClass]="submissionFeedbackClass(sub)">{{ submissionFeedbackLabel(sub) }}</span>
             </div>
           </div>
@@ -513,7 +513,7 @@
           <div class="sub-card__feedback" *ngIf="sub.feedback?.comment">
             <i class="fas fa-comment-alt sub-card__feedback-icon"></i>
             <div>
-              <span class="sub-card__feedback-author">{{ sub.feedback.reviewedBy?.name || 'Teacher' }}</span>
+              <span class="sub-card__feedback-author">{{ sub.feedback.reviewedBy?.name || 'Nastavnik' }}</span>
               <p class="sub-card__feedback-text">{{ sub.feedback.comment }}</p>
             </div>
           </div>
@@ -528,7 +528,7 @@
 <app-class-feedback-modal
   [visible]="showFeedbackModal"
   [meetingId]="feedbackMeeting?._id || ''"
-  [classTitle]="feedbackMeeting?.topic || 'Your Class'"
+  [classTitle]="feedbackMeeting?.topic || 'Vaš čas'"
   [batch]="feedbackMeeting?.batch || ''"
   (closed)="closeFeedbackModal()"
   (submitted)="onFeedbackSubmitted()">

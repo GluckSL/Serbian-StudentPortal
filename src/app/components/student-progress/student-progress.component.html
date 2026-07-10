@@ -14,23 +14,23 @@
       <div class="sp-card__head">
         <span class="sp-card__title">
           <span class="material-icons" aria-hidden="true">person</span>
-          Student Profile
+          Profil studenta
         </span>
         <span class="sp-badge" [class.sp-badge--green]="profile.studentStatus === 'ONGOING'"
               [class.sp-badge--gray]="profile.studentStatus !== 'ONGOING'">
-          {{ profile.studentStatus === 'ONGOING' ? 'Active' : profile.studentStatus }}
+          {{ profile.studentStatus === 'ONGOING' ? 'Aktivan' : profile.studentStatus }}
         </span>
       </div>
       <table class="sp-table">
         <tbody>
-          <tr><td class="sp-table__label">Student ID</td><td class="sp-table__value">{{ profile.regNo }}</td>
-              <td class="sp-table__label">Name</td><td class="sp-table__value">{{ profile.name }}</td></tr>
-          <tr><td class="sp-table__label">Batch</td><td class="sp-table__value">{{ profile.batch || '—' }}</td>
-              <td class="sp-table__label">Teacher</td><td class="sp-table__value">{{ profile.teacher || '—' }}</td></tr>
-          <tr><td class="sp-table__label">Service</td><td class="sp-table__value">{{ profile.servicesOpted || '—' }}</td>
-              <td class="sp-table__label">Visa Route</td><td class="sp-table__value">{{ visaRouteLabel }}</td></tr>
-          <tr><td class="sp-table__label">Level Path</td><td class="sp-table__value">{{ levelPath }}</td>
-              <td class="sp-table__label">Enrolled</td><td class="sp-table__value">{{ formatDate(profile.enrollmentDate) }}</td></tr>
+          <tr><td class="sp-table__label">ID studenta</td><td class="sp-table__value">{{ profile.regNo }}</td>
+              <td class="sp-table__label">Ime</td><td class="sp-table__value">{{ profile.name }}</td></tr>
+          <tr><td class="sp-table__label">Grupa</td><td class="sp-table__value">{{ profile.batch || '—' }}</td>
+              <td class="sp-table__label">Nastavnik</td><td class="sp-table__value">{{ profile.teacher || '—' }}</td></tr>
+          <tr><td class="sp-table__label">Usluga</td><td class="sp-table__value">{{ profile.servicesOpted || '—' }}</td>
+              <td class="sp-table__label">Vizna ruta</td><td class="sp-table__value">{{ visaRouteLabel }}</td></tr>
+          <tr><td class="sp-table__label">Putanja nivoa</td><td class="sp-table__value">{{ levelPath }}</td>
+              <td class="sp-table__label">Upisan</td><td class="sp-table__value">{{ formatDate(profile.enrollmentDate) }}</td></tr>
         </tbody>
       </table>
     </div>
@@ -40,22 +40,22 @@
   <div class="sp-section" *ngIf="showLearning">
     <div class="sp-section__title">
       <span class="material-icons" aria-hidden="true">school</span>
-      Learning
+      Učenje
     </div>
 
     <!-- Quick stats row -->
     <div class="sp-status-grid sp-status-grid--learning-stats">
       <div class="sp-stat sp-stat--blue">
         <div class="sp-stat__val">{{ attendanceRate }}%</div>
-        <div class="sp-stat__lbl">Attendance</div>
+        <div class="sp-stat__lbl">Prisustvo</div>
       </div>
       <div class="sp-stat sp-stat--orange">
         <div class="sp-stat__val">{{ botUsage.weekMinutes }}m</div>
-        <div class="sp-stat__lbl">AI Bot / Week</div>
+        <div class="sp-stat__lbl">AI Bot / Nedeljno</div>
       </div>
       <div class="sp-stat sp-stat--purple" *ngIf="showLearningContent">
         <div class="sp-stat__val">{{ exercisesThisWeek }}</div>
-        <div class="sp-stat__lbl">Exercises / Week</div>
+        <div class="sp-stat__lbl">Vežbe / Nedeljno</div>
       </div>
     </div>
 
@@ -66,7 +66,7 @@
         <div class="sp-card__head">
           <span class="sp-card__title">
             <span class="material-icons" aria-hidden="true">school</span>
-            Language Progress
+            Napredak u jeziku
           </span>
           <span class="sp-card__meta">{{ currentLevelLabel }}</span>
         </div>
@@ -82,22 +82,22 @@
             <span class="sp-level-detail__lbl">{{ lv.level }}</span>
             <div class="sp-level-detail__info">
               <span class="sp-level-detail__dates">
-                <span *ngIf="lv.startDate">Started: {{ formatDate(lv.startDate) }}</span>
-                <span *ngIf="!lv.startDate && lv.status === 'not-started'" class="sp-level-detail__na">Not started</span>
-                <span *ngIf="!lv.startDate && lv.status !== 'not-started'" class="sp-level-detail__na">Start date N/A</span>
+                <span *ngIf="lv.startDate">Početo: {{ formatDate(lv.startDate) }}</span>
+                <span *ngIf="!lv.startDate && lv.status === 'not-started'" class="sp-level-detail__na">Nije početo</span>
+                <span *ngIf="!lv.startDate && lv.status !== 'not-started'" class="sp-level-detail__na">Datum početka N/A</span>
               </span>
               <span class="sp-level-detail__dates" *ngIf="lv.completedDate">
-                Completed: {{ formatDate(lv.completedDate) }}
+                Završeno: {{ formatDate(lv.completedDate) }}
               </span>
             </div>
             <span class="sp-level-detail__days"
                   [class.sp-level-detail__days--done]="lv.status === 'completed'"
                   [class.sp-level-detail__days--active]="lv.status === 'in-progress'">
               <ng-container *ngIf="lv.status === 'completed' && lv.startDate && lv.completedDate">
-                {{ calcDays(lv.startDate, lv.completedDate) }} days
+                {{ calcDays(lv.startDate, lv.completedDate) }} dana
               </ng-container>
               <ng-container *ngIf="lv.status === 'in-progress' && lv.startDate">
-                {{ calcDays(lv.startDate) }} days so far
+                {{ calcDays(lv.startDate) }} dana do sada
               </ng-container>
               <ng-container *ngIf="lv.status === 'not-started'">—</ng-container>
               <ng-container *ngIf="lv.status !== 'not-started' && !lv.startDate">—</ng-container>
@@ -111,16 +111,16 @@
         <div class="sp-card__head">
           <span class="sp-card__title">
             <span class="material-icons" aria-hidden="true">assignment</span>
-            Attendance
+            Prisustvo
           </span>
           <span class="sp-card__meta">{{ attendance.attended }}/{{ attendance.total }}</span>
         </div>
         <div class="sp-bar"><div class="sp-bar__fill sp-bar__fill--blue" [style.width.%]="attendanceRate"></div></div>
         <div class="sp-kv-row">
-          <span>Rate</span><span class="sp-kv-val">{{ attendanceRate }}%</span>
+          <span>Procenat</span><span class="sp-kv-val">{{ attendanceRate }}%</span>
         </div>
         <div class="sp-kv-row">
-          <span>Last session</span><span class="sp-kv-val">{{ attendance.lastSessionDate ? formatDate(attendance.lastSessionDate) : '—' }}</span>
+          <span>Poslednja sesija</span><span class="sp-kv-val">{{ attendance.lastSessionDate ? formatDate(attendance.lastSessionDate) : '—' }}</span>
         </div>
       </div>
 
@@ -129,16 +129,16 @@
         <div class="sp-card__head">
           <span class="sp-card__title">
             <span class="material-icons" aria-hidden="true">smart_toy</span>
-            AI Bot Usage
+            Korišćenje AI Bota
           </span>
           <span class="sp-card__meta">{{ botUsage.weekMinutes }}/{{ botUsage.targetMinutesPerWeek }} min</span>
         </div>
         <div class="sp-bar"><div class="sp-bar__fill sp-bar__fill--purple" [style.width.%]="botWeekPercent"></div></div>
         <div class="sp-kv-row">
-          <span>Today</span><span class="sp-kv-val">{{ botUsage.todayMinutes }} min</span>
+          <span>Danas</span><span class="sp-kv-val">{{ botUsage.todayMinutes }} min</span>
         </div>
         <div class="sp-kv-row">
-          <span>This week</span><span class="sp-kv-val">{{ botUsage.weekMinutes }} min</span>
+          <span>Ove nedelje</span><span class="sp-kv-val">{{ botUsage.weekMinutes }} min</span>
         </div>
       </div>
 
@@ -147,18 +147,18 @@
         <div class="sp-card__head">
           <span class="sp-card__title">
             <span class="material-icons" aria-hidden="true">ads_click</span>
-            Digital Exercises
+            Digitalne vežbe
           </span>
-          <span class="sp-card__meta">{{ exercisesThisWeek }} this week</span>
+          <span class="sp-card__meta">{{ exercisesThisWeek }} ove nedelje</span>
         </div>
         <div class="sp-kv-row">
-          <span>Today</span><span class="sp-kv-val">{{ exercisesToday }}</span>
+          <span>Danas</span><span class="sp-kv-val">{{ exercisesToday }}</span>
         </div>
         <div class="sp-kv-row">
-          <span>This week</span><span class="sp-kv-val">{{ exercisesThisWeek }}</span>
+          <span>Ove nedelje</span><span class="sp-kv-val">{{ exercisesThisWeek }}</span>
         </div>
         <div class="sp-kv-row">
-          <span>All time</span><span class="sp-kv-val">{{ exercisesTotal }}</span>
+          <span>Ukupno</span><span class="sp-kv-val">{{ exercisesTotal }}</span>
         </div>
       </div>
 
@@ -169,7 +169,7 @@
   <div class="sp-section" *ngIf="showDocsVisa">
     <div class="sp-section__title">
       <span class="material-icons" aria-hidden="true">folder</span>
-      Documents & Visa
+      Dokumenti i viza
     </div>
     <div class="sp-section__grid sp-section__grid--two">
 
@@ -178,31 +178,31 @@
         <div class="sp-card__head">
           <span class="sp-card__title">
             <span class="material-icons" aria-hidden="true">folder</span>
-            Documents
+            Dokumenti
           </span>
-          <span class="sp-card__meta">{{ docsSummary.verified }} verified / {{ docsSummary.total }}</span>
+          <span class="sp-card__meta">{{ docsSummary.verified }} potvrđeno / {{ docsSummary.total }}</span>
         </div>
         <div class="sp-bar sp-bar--lg"><div class="sp-bar__fill sp-bar__fill--yellow" [style.width.%]="docsPercent"></div></div>
         <div class="sp-doc-summary" *ngIf="docsSummary.total > 0">
           <span class="sp-doc-chip sp-doc-chip--verified">
             <span class="material-icons" aria-hidden="true">check</span>
-            {{ docsSummary.verified }} Verified
+            {{ docsSummary.verified }} Potvrđeno
           </span>
           <span class="sp-doc-chip sp-doc-chip--pending">
             <span class="material-icons" aria-hidden="true">hourglass_empty</span>
-            {{ docsSummary.pending }} Pending
+            {{ docsSummary.pending }} Na čekanju
           </span>
           <span class="sp-doc-chip sp-doc-chip--rejected" *ngIf="docsSummary.rejected > 0">
             <span class="material-icons" aria-hidden="true">close</span>
-            {{ docsSummary.rejected }} Rejected
+            {{ docsSummary.rejected }} Odbijeno
           </span>
           <span class="sp-doc-chip sp-doc-chip--not-uploaded">
             <span class="material-icons" aria-hidden="true">radio_button_unchecked</span>
-            {{ docsSummary.notUploaded }} Not Uploaded
+            {{ docsSummary.notUploaded }} Nije otpremljeno
           </span>
         </div>
         <table class="sp-doc-table">
-          <thead><tr><th>Document</th><th>Status</th></tr></thead>
+          <thead><tr><th>Dokument</th><th>Status</th></tr></thead>
           <tbody>
             <tr *ngFor="let doc of $any(documents | slice:0:6)">
               <td>{{ doc.name }}</td>
@@ -215,15 +215,15 @@
                   <span class="material-icons" aria-hidden="true">
                     {{ doc.status === 'verified' ? 'check' : doc.status === 'pending' ? 'hourglass_empty' : doc.status === 'rejected' ? 'close' : 'radio_button_unchecked' }}
                   </span>
-                  {{ doc.status === 'verified' ? 'Verified' : doc.status === 'pending' ? 'Pending' : doc.status === 'rejected' ? 'Rejected' : 'Not Uploaded' }}
+                  {{ doc.status === 'verified' ? 'Potvrđeno' : doc.status === 'pending' ? 'Na čekanju' : doc.status === 'rejected' ? 'Odbijeno' : 'Nije otpremljeno' }}
                 </span>
               </td>
             </tr>
-            <tr *ngIf="documents.length > 6"><td colspan="2" class="sp-doc-more">+ {{ documents.length - 6 }} more documents</td></tr>
-            <tr *ngIf="!documents.length"><td colspan="2" class="sp-empty">No document requirements for your service</td></tr>
+            <tr *ngIf="documents.length > 6"><td colspan="2" class="sp-doc-more">+ {{ documents.length - 6 }} više dokumenata</td></tr>
+            <tr *ngIf="!documents.length"><td colspan="2" class="sp-empty">Nema dokumentacionih zahteva za vašu uslugu</td></tr>
           </tbody>
         </table>
-        <a routerLink="/student-documents" class="sp-visa-link">Manage documents →</a>
+        <a routerLink="/student-documents" class="sp-visa-link">Upravljaj dokumentima →</a>
       </div>
 
       <!-- Visa Stage -->
@@ -231,9 +231,9 @@
         <div class="sp-card__head">
           <span class="sp-card__title">
             <span class="material-icons" aria-hidden="true">flight</span>
-            Visa Stage
+            Faza vize
           </span>
-          <span class="sp-card__meta">{{ visa.route || 'Not set' }}</span>
+          <span class="sp-card__meta">{{ visa.route || 'Nije postavljeno' }}</span>
         </div>
         <div *ngIf="visa.steps.length; else noVisa">
           <div class="sp-visa">
@@ -250,7 +250,7 @@
           </div>
           <div class="sp-visa-progress">
             <div class="sp-visa-progress__header">
-              <span class="sp-visa-progress__title">Application Progress</span>
+              <span class="sp-visa-progress__title">Napredak aplikacije</span>
               <span class="sp-visa-progress__pct">{{ visa.totalSteps ? (((visa.currentStep) / visa.totalSteps) * 100 | number:'1.0-0') : 0 }}%</span>
             </div>
             <div class="sp-bar sp-bar--lg" style="margin-bottom:10px;">
@@ -274,15 +274,15 @@
                 <div class="sp-visa-history__content">
                   <span class="sp-visa-history__date">{{ formatDate(h.date) }}</span>
                   <span class="sp-visa-history__note">{{ h.note }}</span>
-                  <span class="sp-visa-history__by">by {{ h.updatedBy }}</span>
+                  <span class="sp-visa-history__by">od {{ h.updatedBy }}</span>
                 </div>
               </div>
             </div>
           </div>
-          <a routerLink="/visa-status" class="sp-visa-link">View full visa details →</a>
+          <a routerLink="/visa-status" class="sp-visa-link">Pogledaj sve detalje o vizi →</a>
         </div>
         <ng-template #noVisa>
-          <div class="sp-empty">No visa tracking record yet. Contact the team for updates.</div>
+          <div class="sp-empty">Još nema evidencije o vizi. Kontaktirajte tim za ažuriranja.</div>
         </ng-template>
       </div>
 
@@ -293,28 +293,28 @@
   <div class="sp-section">
     <div class="sp-section__title">
       <span class="material-icons" aria-hidden="true">payments</span>
-      Payments
+      Plaćanja
     </div>
     <div class="sp-card">
       <div class="sp-card__head">
         <span class="sp-card__title">
           <span class="material-icons" aria-hidden="true">payments</span>
-          Payment Summary
-        </span>
+            Pregled plaćanja
+          </span>
         <span class="sp-card__meta">{{ payments.currency }}</span>
       </div>
 
       <!-- Ledger view -->
       <ng-container *ngIf="payments.source === 'ledger'">
-        <div class="sp-kv-row"><span>Total Amount</span><span class="sp-kv-val">{{ payments.totalPackageAmount | number:'1.0-0' }}</span></div>
-        <div class="sp-kv-row"><span>Paid Amount</span><span class="sp-kv-val" style="color:#16a34a;font-weight:700;">{{ payments.paidAmount | number:'1.0-0' }}</span></div>
-        <div class="sp-kv-row"><span>Balance</span><span class="sp-kv-val" [style.color]="payments.pendingAmount > 0 ? '#dc2626' : '#16a34a'" style="font-weight:700;">{{ payments.pendingAmount | number:'1.0-0' }}</span></div>
+        <div class="sp-kv-row"><span>Ukupan iznos</span><span class="sp-kv-val">{{ payments.totalPackageAmount | number:'1.0-0' }}</span></div>
+        <div class="sp-kv-row"><span>Plaćeni iznos</span><span class="sp-kv-val" style="color:#16a34a;font-weight:700;">{{ payments.paidAmount | number:'1.0-0' }}</span></div>
+        <div class="sp-kv-row"><span>Saldo</span><span class="sp-kv-val" [style.color]="payments.pendingAmount > 0 ? '#dc2626' : '#16a34a'" style="font-weight:700;">{{ payments.pendingAmount | number:'1.0-0' }}</span></div>
         <div class="sp-bar sp-bar--lg" style="margin-top:10px;">
           <div class="sp-bar__fill sp-bar__fill--green" [style.width.%]="payPct"></div>
         </div>
-        <div class="sp-small-text" style="margin-top:4px;">{{ payPct }}% paid</div>
+        <div class="sp-small-text" style="margin-top:4px;">{{ payPct }}% plaćeno</div>
         <div *ngIf="payments.paymentHistory.length" style="margin-top:12px;border-top:1px solid #e5e7eb;padding-top:8px;">
-          <div class="sp-small-text" style="font-weight:700;margin-bottom:6px;">Recent Payments</div>
+          <div class="sp-small-text" style="font-weight:700;margin-bottom:6px;">Nedavna plaćanja</div>
           <div class="sp-kv-row" *ngFor="let ph of payments.paymentHistory">
             <span>{{ formatDate(ph.date) }} {{ ph.note ? '— ' + ph.note : '' }}</span>
             <span class="sp-kv-val" style="color:#16a34a;">+{{ ph.amount | number:'1.0-0' }}</span>
@@ -324,16 +324,16 @@
 
       <!-- Invoice view -->
       <ng-container *ngIf="payments.source !== 'ledger'">
-        <div class="sp-kv-row"><span>Total Amount</span><span class="sp-kv-val">{{ payments.totalAmount | number:'1.0-0' }}</span></div>
-        <div class="sp-kv-row"><span>Paid Amount</span><span class="sp-kv-val" style="color:#16a34a;font-weight:700;">{{ payments.paidAmount | number:'1.0-0' }}</span></div>
-        <div class="sp-kv-row"><span>Balance</span><span class="sp-kv-val" [style.color]="payments.pendingAmount > 0 ? '#dc2626' : '#16a34a'" style="font-weight:700;">{{ payments.pendingAmount | number:'1.0-0' }}</span></div>
+        <div class="sp-kv-row"><span>Ukupan iznos</span><span class="sp-kv-val">{{ payments.totalAmount | number:'1.0-0' }}</span></div>
+        <div class="sp-kv-row"><span>Plaćeni iznos</span><span class="sp-kv-val" style="color:#16a34a;font-weight:700;">{{ payments.paidAmount | number:'1.0-0' }}</span></div>
+        <div class="sp-kv-row"><span>Saldo</span><span class="sp-kv-val" [style.color]="payments.pendingAmount > 0 ? '#dc2626' : '#16a34a'" style="font-weight:700;">{{ payments.pendingAmount | number:'1.0-0' }}</span></div>
         <div class="sp-bar sp-bar--lg" style="margin-top:10px;">
           <div class="sp-bar__fill sp-bar__fill--green" [style.width.%]="payPct"></div>
         </div>
-        <div class="sp-small-text" style="margin-top:4px;">{{ payPct }}% paid</div>
+        <div class="sp-small-text" style="margin-top:4px;">{{ payPct }}% plaćeno</div>
         <table class="sp-invoice-table" *ngIf="payments.invoices.length" style="margin-top:12px;">
           <thead>
-            <tr><th>Invoice #</th><th>Description</th><th>Date</th><th>Amount</th><th>Tax</th><th>Total</th><th>Status</th></tr>
+            <tr><th>Faktura br.</th><th>Opis</th><th>Datum</th><th>Iznos</th><th>Porez</th><th>Ukupno</th><th>Status</th></tr>
           </thead>
           <tbody>
             <tr *ngFor="let inv of payments.invoices">
@@ -349,22 +349,22 @@
                       [class.sp-pay-badge--overdue]="inv.paymentStatus === 'unpaid' && inv.dueDate && isOverdue(inv.dueDate)"
                       [class.sp-pay-badge--pending]="inv.paymentStatus === 'unpaid' && (!inv.dueDate || !isOverdue(inv.dueDate))">
                   <span class="material-icons" aria-hidden="true" *ngIf="inv.paymentStatus === 'paid'" style="font-size:12px;vertical-align:middle;margin-right:2px;">check</span>
-                  {{ inv.paymentStatus === 'paid' ? 'Paid' : (inv.dueDate && isOverdue(inv.dueDate) ? 'Overdue' : 'Unpaid') }}
+                  {{ inv.paymentStatus === 'paid' ? 'Plaćeno' : (inv.dueDate && isOverdue(inv.dueDate) ? 'Zakasnelo' : 'Neplaćeno') }}
                 </span>
               </td>
             </tr>
           </tbody>
           <tfoot>
             <tr class="sp-invoice-total">
-              <td colspan="5">Total</td>
+              <td colspan="5">Ukupno</td>
               <td>{{ payments.totalAmount | number:'1.0-0' }}</td>
-              <td><span class="sp-pay-badge sp-pay-badge--paid">Paid: {{ payments.paidAmount | number:'1.0-0' }}</span></td>
+              <td><span class="sp-pay-badge sp-pay-badge--paid">Plaćeno: {{ payments.paidAmount | number:'1.0-0' }}</span></td>
             </tr>
           </tfoot>
         </table>
       </ng-container>
 
-      <a routerLink="/my-payments" class="sp-visa-link">View full payment details →</a>
+      <a routerLink="/my-payments" class="sp-visa-link">Pogledaj sve detalje o plaćanju →</a>
     </div>
   </div>
 
@@ -372,7 +372,7 @@
   <div class="sp-section">
     <div class="sp-section__title">
       <span class="material-icons" aria-hidden="true">history</span>
-      History
+      Istorija
     </div>
     <div class="sp-card">
       <div class="sp-timeline">
@@ -384,7 +384,7 @@
             <span class="sp-timeline__desc">{{ h.desc }}</span>
           </div>
         </div>
-        <div *ngIf="!history.length" class="sp-empty">No history yet</div>
+        <div *ngIf="!history.length" class="sp-empty">Još nema istorije</div>
       </div>
     </div>
   </div>

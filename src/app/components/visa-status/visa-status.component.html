@@ -4,9 +4,9 @@
     <div>
       <h2 class="vs-title">
         <span class="material-icons vs-title__icon">flight_takeoff</span>
-        Visa Application Status
+        Status vize
       </h2>
-      <p class="vs-subtitle">{{ profile.name }} — {{ visa.route || 'Not set' }}</p>
+      <p class="vs-subtitle">{{ profile.name }} — {{ visa.route || 'Nije postavljeno' }}</p>
     </div>
   </div>
 
@@ -15,7 +15,7 @@
     <!-- Stepper + Progress (full width) -->
     <div class="vs-card">
       <!-- BEFORE: the stepper could overflow or compress on 412px screens without a visible horizontal scroll area. -->
-      <div class="vs-stepper" tabindex="0" aria-label="Visa application stages">
+      <div class="vs-stepper" tabindex="0" aria-label="Faze zahteva za vizu">
         <ng-container *ngFor="let step of visa.steps; let i = index; let last = last">
           <div class="vs-step"
                [class.vs-step--active]="i === visa.currentStep"
@@ -29,7 +29,7 @@
       </div>
       <div class="vs-progress">
         <div class="vs-progress__header">
-          <span class="vs-progress__title">Application Progress</span>
+          <span class="vs-progress__title">Napredak prijave</span>
           <span class="vs-progress__pct">{{ progressPct }}%</span>
         </div>
         <div class="vs-bar"><div class="vs-bar__fill" [style.width.%]="progressPct"></div></div>
@@ -59,7 +59,7 @@
               <span class="vs-stage__num"
                     [class.vs-stage__num--active]="i === visa.currentStep"
                     [class.vs-stage__num--done]="i < visa.currentStep">{{ stg.stage }}</span>
-              <span class="vs-stage__name">{{ visa.steps[i] || 'Stage ' + stg.stage }}</span>
+              <span class="vs-stage__name">{{ visa.steps[i] || 'Faza ' + stg.stage }}</span>
               <span class="vs-stage__outcome" *ngIf="stg.outcome"
                     [class.vs-stage__outcome--completed]="stg.outcome === 'completed'"
                     [class.vs-stage__outcome--rejected]="stg.outcome === 'rejected'"
@@ -67,7 +67,7 @@
                 <span class="material-icons vs-outcome-icon" *ngIf="stg.outcome === 'completed'">check</span>
                 <span class="material-icons vs-outcome-icon" *ngIf="stg.outcome === 'rejected'">close</span>
                 <span class="material-icons vs-outcome-icon vs-outcome-icon--spin" *ngIf="stg.outcome === 'in_progress'">sync</span>
-                {{ stg.outcome === 'completed' ? 'Completed' : (stg.outcome === 'rejected' ? 'Rejected' : 'In Progress') }}
+                {{ stg.outcome === 'completed' ? 'Završeno' : (stg.outcome === 'rejected' ? 'Odbijeno' : 'U toku') }}
               </span>
               <span class="vs-stage__date" *ngIf="stg.outcomeDate">{{ formatDate(stg.outcomeDate) }}</span>
             </div>
@@ -78,10 +78,10 @@
               </div>
               <div class="vs-stage__action" *ngIf="stg.actionRequired">
                 <span class="material-icons vs-stage__icon-inline">warning</span>
-                Action required: {{ stg.actionNote || 'Please check with the team.' }}
+                Potrebna akcija: {{ stg.actionNote || 'Proverite sa timom.' }}
               </div>
               <div class="vs-stage__handled" *ngIf="stg.handledBy">
-                Handled by: {{ stg.handledBy === 'team' ? 'Glück Global Team' : (stg.handledBy === 'embassy' ? 'Embassy' : 'Student') }}
+                Rukuje: {{ stg.handledBy === 'team' ? 'Glück Global tim' : (stg.handledBy === 'embassy' ? 'Ambasada' : 'Student') }}
               </div>
               <div class="vs-stage__stage-date" *ngIf="stg.stageDate && stg.stageDateLabel">
                 <span class="material-icons vs-stage__icon-inline">event</span>
@@ -96,7 +96,7 @@
           <div class="vs-final__row">
             <span class="vs-final__label">
               <span class="material-icons vs-final__icon">task_alt</span>
-              Final Visa Outcome
+              Konačni ishod vize
             </span>
             <span class="vs-final__val"
                   [class.vs-final__val--approved]="visa.finalOutcome === 'approved'"
@@ -116,7 +116,7 @@
         <div class="vs-card vs-history-card">
           <h3 class="vs-section-title">
             <span class="material-icons vs-section-icon">history</span>
-            Complete Update History
+            Kompletna istorija ažuriranja
           </h3>
           <div class="vs-history" *ngIf="visa.history?.length; else noHistory">
             <div class="vs-history__item" *ngFor="let h of visa.history">
@@ -124,13 +124,13 @@
               <div class="vs-history__content">
                 <span class="vs-history__date">{{ formatDate(h.date) }}</span>
                 <span class="vs-history__note">{{ h.note }}</span>
-                <span class="vs-history__by">by {{ h.updatedBy }}</span>
+                <span class="vs-history__by">od {{ h.updatedBy }}</span>
               </div>
             </div>
           </div>
           <ng-template #noHistory>
             <!-- BEFORE: empty history text used inline styles and mobile font size below 14px. -->
-            <p class="vs-empty-text">No updates yet.</p>
+            <p class="vs-empty-text">Nema ažuriranja.</p>
           </ng-template>
         </div>
       </div>
@@ -141,7 +141,7 @@
   <ng-template #noVisa>
     <!-- BEFORE: empty visa state used inline spacing instead of responsive component styles. -->
     <div class="vs-card vs-empty-card">
-      <p>No visa tracking record yet. Contact the team for updates.</p>
+      <p>Nema zapisa praćenja vize. Kontaktirajte tim za ažuriranja.</p>
     </div>
   </ng-template>
 </div>

@@ -61,7 +61,8 @@ router.post('/', async (req, res) => {
         'Tamil': 'தமிழ்',
         'Sinhala': 'සිංහල',
         'English': 'English',
-        'German': 'Deutsch'
+        'German': 'Deutsch',
+        'Serbian': 'Srpski'
       };
       
       const nativeName = languageNames[to] || to;
@@ -91,6 +92,7 @@ router.get('/languages', (req, res) => {
     'German', 
     'Tamil',
     'Sinhala',
+    'Serbian',
     'Spanish',
     'French',
     'Italian',

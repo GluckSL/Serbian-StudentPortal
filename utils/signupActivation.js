@@ -236,7 +236,7 @@ async function resolvePasswordForWelcomeEmail(user, signupApp) {
 
 async function sendPublicSignupWelcomeEmail(user, signupApp) {
   const { plain: plainPassword } = await resolvePasswordForWelcomeEmail(user, signupApp);
-  const loginUrl = `${process.env.FRONTEND_URL || 'https://gluckstudentsportal.com'}/login`;
+  const loginUrl = `${process.env.PORTAL_URL || process.env.FRONTEND_URL || 'https://portal.gluckglobal.rs'}/login`;
   const welcomeMail = buildSignupApprovedWelcomeEmail({
     name: user.name,
     regNo: user.regNo,
@@ -299,7 +299,7 @@ async function approvePublicSignupApplication(applicationToken, opts = {}) {
 }
 
 async function sendPublicSignupRejectionEmail(app, rejectionReason) {
-  const frontendUrl = process.env.FRONTEND_URL || 'https://gluckstudentsportal.com';
+  const frontendUrl = process.env.PORTAL_URL || process.env.FRONTEND_URL || 'https://portal.gluckglobal.rs';
   const signupUrl = `${frontendUrl}/signup/apply?token=${app.applicationToken}`;
   const mail = buildSignupRejectedEmail({
     name: app.name,

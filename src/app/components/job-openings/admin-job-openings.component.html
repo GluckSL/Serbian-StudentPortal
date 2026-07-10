@@ -5,21 +5,21 @@
         <span class="material-icons">work</span>
       </div>
       <div>
-        <h1>Job Openings</h1>
-        <p>Manage career openings shown to all students on the Job Portal tab.</p>
+        <h1>Oglasi za posao</h1>
+        <p>Upravljajte oglasima prikazanim svim studentima na kartici Portala za posao.</p>
       </div>
     </div>
     <button type="button" class="ajo-btn ajo-btn--primary" (click)="openCreate()">
       <span class="material-icons">add</span>
-      New opening
+      Novi oglas
     </button>
   </header>
 
   <section class="ajo-settings" *ngIf="portalSettings">
     <div class="ajo-settings__head">
       <div>
-        <h2>Portal banner</h2>
-        <p class="ajo-hint">Hero text and stats students see at the top of the job portal.</p>
+        <h2>Baner portala</h2>
+        <p class="ajo-hint">Tekst zaglavlja i statistike koje studenti vide na vrhu portala za posao.</p>
       </div>
       <div class="ajo-stat-chips" *ngIf="stats">
         <span class="ajo-chip">{{ stats.organizations }}+ orgs</span>
@@ -28,47 +28,47 @@
     </div>
     <div class="ajo-grid">
       <label>
-        Hero title
+        Naslov zaglavlja
         <input type="text" [(ngModel)]="portalSettings.heroTitle" maxlength="120" />
       </label>
       <label>
-        Average package label
+        Oznaka prosečnog paketa
         <input type="text" [(ngModel)]="portalSettings.averagePackageLabel" maxlength="80" />
       </label>
       <label class="ajo-full">
-        Hero subtitle
+        Podnaslov zaglavlja
         <textarea rows="2" [(ngModel)]="portalSettings.heroSubtitle" maxlength="500"></textarea>
       </label>
     </div>
     <div class="ajo-settings__foot">
-      <button type="button" class="ajo-btn ajo-btn--accent" (click)="savePortalSettings()">Save banner</button>
+      <button type="button" class="ajo-btn ajo-btn--accent" (click)="savePortalSettings()">Sačuvaj baner</button>
     </div>
   </section>
 
   <section class="ajo-section">
-    <h2 class="ajo-section__title">Manage portal listings</h2>
-    <p class="ajo-hint ajo-section__intro">Opening jobs, closed roles, and students placed through Glück.</p>
+    <h2 class="ajo-section__title">Upravljajte listama portala</h2>
+    <p class="ajo-hint ajo-section__intro">Otvorena radna mesta, zatvoreni oglasi i studenti zaposleni kroz Glück.</p>
 
     <nav class="ajo-tabs" aria-label="Admin job portal tabs">
       <button type="button" class="ajo-tabs__btn" [class.ajo-tabs__btn--active]="adminTab === 'openings'" (click)="setAdminTab('openings')">
-        Opening jobs
+        Otvoreni oglasi
       </button>
       <button type="button" class="ajo-tabs__btn" [class.ajo-tabs__btn--active]="adminTab === 'closed'" (click)="setAdminTab('closed')">
-        Closed jobs
+        Zatvoreni oglasi
       </button>
       <button type="button" class="ajo-tabs__btn" [class.ajo-tabs__btn--active]="adminTab === 'placements'" (click)="setAdminTab('placements')">
-        Placed students
+        Zaposleni studenti
       </button>
     </nav>
 
     <div class="ajo-tab-panel" *ngIf="adminTab === 'openings'">
     <div class="ajo-section__head">
       <div>
-        <p class="ajo-hint" *ngIf="!loading && openings.length > 0">{{ openings.length }} active opening(s)</p>
+        <p class="ajo-hint" *ngIf="!loading && openings.length > 0">{{ openings.length }} aktivni oglas(i)</p>
       </div>
       <button type="button" class="ajo-btn ajo-btn--accent ajo-btn--sm" (click)="openCreate()">
         <span class="material-icons">add</span>
-        New opening
+        Novi oglas
       </button>
     </div>
 
@@ -78,26 +78,26 @@
 
     <div class="ajo-empty-card" *ngIf="!loading && openings.length === 0">
       <span class="material-icons">business_center</span>
-      <p>No job openings yet</p>
-      <span>Create one to show students on the portal.</span>
-      <button type="button" class="ajo-btn ajo-btn--primary" (click)="openCreate()">Create first opening</button>
+      <p>Nema oglasa za posao</p>
+      <span>Kreirajte jedan da biste ga prikazali studentima na portalu.</span>
+      <button type="button" class="ajo-btn ajo-btn--primary" (click)="openCreate()">Kreirajte prvi oglas</button>
     </div>
 
     <div class="ajo-table-wrap" *ngIf="!loading && openings.length > 0">
       <table class="ajo-table">
         <thead>
           <tr>
-            <th class="ajo-table__col-role">Role</th>
-            <th class="ajo-table__col-details">Details</th>
-            <th class="ajo-table__col-deadline">Apply before</th>
-            <th class="ajo-table__col-apps">Applications</th>
+            <th class="ajo-table__col-role">Uloga</th>
+            <th class="ajo-table__col-details">Detalji</th>
+            <th class="ajo-table__col-deadline">Prijavite se pre</th>
+            <th class="ajo-table__col-apps">Prijave</th>
             <th class="ajo-table__col-status">Status</th>
-            <th class="ajo-table__col-actions">Actions</th>
+            <th class="ajo-table__col-actions">Akcije</th>
           </tr>
         </thead>
         <tbody>
           <tr *ngFor="let job of openings" class="ajo-table__row">
-            <td class="ajo-table__role" data-label="Role">
+            <td class="ajo-table__role" data-label="Uloga">
               <div class="ajo-table__company-cell">
                 <img
                   *ngIf="resolveLogoUrl(job.companyLogoUrl)"
@@ -111,31 +111,31 @@
                 <span class="ajo-table__company-name">{{ job.jobTitle }}</span>
               </div>
             </td>
-            <td class="ajo-table__details" data-label="Details">
+            <td class="ajo-table__details" data-label="Detalji">
               <span class="ajo-table__detail-line">{{ job.jobType || '—' }}</span>
               <span class="ajo-table__detail-sub">{{ job.experience || '—' }} · {{ job.location || '—' }}</span>
             </td>
-            <td class="ajo-table__deadline" data-label="Apply before">{{ formatApplyDeadline(job.applyBefore) }}</td>
-            <td class="ajo-table__apps" data-label="Applications">
+            <td class="ajo-table__deadline" data-label="Prijavite se pre">{{ formatApplyDeadline(job.applyBefore) }}</td>
+            <td class="ajo-table__apps" data-label="Prijave">
               <button type="button" class="ajo-btn ajo-btn--apps ajo-btn--sm" (click)="viewApplications(job)">
                 <span class="material-icons">groups</span>
                 {{ job.applicationCount || 0 }}
               </button>
             </td>
-            <td class="ajo-table__status" data-label="Status">
+            <td class="ajo-table__status" data-label="Status" >
               <span
                 class="ajo-status"
                 [class.ajo-status--live]="job.isPublished && job.isActive"
                 [class.ajo-status--draft]="!job.isPublished"
                 [class.ajo-status--off]="job.isPublished && !job.isActive"
               >
-                {{ !job.isPublished ? 'Draft' : !job.isActive ? 'Inactive' : 'Live' }}
+                {{ !job.isPublished ? 'Nacrt' : !job.isActive ? 'Neaktivno' : 'Aktivno' }}
               </span>
             </td>
-            <td class="ajo-table__actions" data-label="Actions">
+            <td class="ajo-table__actions" data-label="Akcije">
               <div class="ajo-table__action-group">
-                <button type="button" class="ajo-btn ajo-btn--sm" (click)="openEdit(job)">Edit</button>
-                <button type="button" class="ajo-btn ajo-btn--danger ajo-btn--sm" (click)="remove(job)">Delete</button>
+                <button type="button" class="ajo-btn ajo-btn--sm" (click)="openEdit(job)">Uredi</button>
+                <button type="button" class="ajo-btn ajo-btn--danger ajo-btn--sm" (click)="remove(job)">Obriši</button>
               </div>
             </td>
           </tr>
@@ -146,10 +146,10 @@
 
     <div class="ajo-tab-panel" *ngIf="adminTab === 'closed'">
       <div class="ajo-section__head">
-        <p class="ajo-hint">Shown on the student <strong>Closed jobs</strong> tab.</p>
+        <p class="ajo-hint">Prikazano na kartici <strong>Zatvoreni oglasi</strong> za studente.</p>
         <button type="button" class="ajo-btn ajo-btn--accent ajo-btn--sm" (click)="openClosedCreate()">
           <span class="material-icons">add</span>
-          Add closed job
+          Dodaj zatvoreni oglas
         </button>
       </div>
       <div *ngIf="closedLoading" class="ajo-table-loading">
@@ -157,19 +157,19 @@
       </div>
       <div class="ajo-empty-card" *ngIf="!closedLoading && closedList.length === 0">
         <span class="material-icons">history</span>
-        <p>No closed jobs yet</p>
-        <button type="button" class="ajo-btn ajo-btn--primary" (click)="openClosedCreate()">Add closed job</button>
+        <p>Nema zatvorenih oglasa</p>
+        <button type="button" class="ajo-btn ajo-btn--primary" (click)="openClosedCreate()">Dodaj zatvoreni oglas</button>
       </div>
       <div class="ajo-table-wrap" *ngIf="!closedLoading && closedList.length > 0">
         <table class="ajo-table">
           <thead>
             <tr>
-              <th>Company</th>
-              <th>Role</th>
-              <th>Details</th>
-              <th>Closed</th>
+              <th>Kompanija</th>
+              <th>Uloga</th>
+              <th>Detalji</th>
+              <th>Zatvoreno</th>
               <th>Status</th>
-              <th>Actions</th>
+              <th>Akcije</th>
             </tr>
           </thead>
           <tbody>
@@ -189,13 +189,13 @@
               <td class="ajo-table__deadline">{{ formatDeadline(row.closedAt) }}</td>
               <td>
                 <span class="ajo-status" [class.ajo-status--live]="row.isPublished" [class.ajo-status--draft]="!row.isPublished">
-                  {{ row.isPublished ? 'Published' : 'Hidden' }}
+                  {{ row.isPublished ? 'Objavljeno' : 'Skriveno' }}
                 </span>
               </td>
               <td>
                 <div class="ajo-table__action-group">
-                  <button type="button" class="ajo-btn ajo-btn--sm" (click)="openClosedEdit(row)">Edit</button>
-                  <button type="button" class="ajo-btn ajo-btn--danger ajo-btn--sm" (click)="removeClosed(row)">Delete</button>
+                  <button type="button" class="ajo-btn ajo-btn--sm" (click)="openClosedEdit(row)">Uredi</button>
+                  <button type="button" class="ajo-btn ajo-btn--danger ajo-btn--sm" (click)="removeClosed(row)">Obriši</button>
                 </div>
               </td>
             </tr>
@@ -206,10 +206,10 @@
 
     <div class="ajo-tab-panel" *ngIf="adminTab === 'placements'">
       <div class="ajo-section__head">
-        <p class="ajo-hint">Success stories on the student <strong>Placed via Glück</strong> tab.</p>
+        <p class="ajo-hint">Priče o uspehu na kartici <strong>Zaposleni preko Glück</strong> za studente.</p>
         <button type="button" class="ajo-btn ajo-btn--accent ajo-btn--sm" (click)="openPlacementCreate()">
           <span class="material-icons">add</span>
-          Add placement
+          Dodaj zaposlenje
         </button>
       </div>
       <div *ngIf="placementsLoading" class="ajo-table-loading">
@@ -217,20 +217,20 @@
       </div>
       <div class="ajo-empty-card" *ngIf="!placementsLoading && placementsList.length === 0">
         <span class="material-icons">celebration</span>
-        <p>No placements yet</p>
-        <button type="button" class="ajo-btn ajo-btn--primary" (click)="openPlacementCreate()">Add placement</button>
+        <p>Nema zaposlenja</p>
+        <button type="button" class="ajo-btn ajo-btn--primary" (click)="openPlacementCreate()">Dodaj zaposlenje</button>
       </div>
       <div class="ajo-table-wrap" *ngIf="!placementsLoading && placementsList.length > 0">
         <table class="ajo-table">
           <thead>
             <tr>
               <th>Student</th>
-              <th>Company</th>
-              <th>Role</th>
-              <th>Package</th>
-              <th>Placed</th>
+              <th>Kompanija</th>
+              <th>Uloga</th>
+              <th>Paket</th>
+              <th>Zaposleno</th>
               <th>Status</th>
-              <th>Actions</th>
+              <th>Akcije</th>
             </tr>
           </thead>
           <tbody>
@@ -251,13 +251,13 @@
               <td class="ajo-table__deadline">{{ formatDeadline(row.placedAt) }}</td>
               <td>
                 <span class="ajo-status" [class.ajo-status--live]="row.isPublished" [class.ajo-status--draft]="!row.isPublished">
-                  {{ row.isPublished ? 'Published' : 'Hidden' }}
+                  {{ row.isPublished ? 'Objavljeno' : 'Skriveno' }}
                 </span>
               </td>
               <td>
                 <div class="ajo-table__action-group">
-                  <button type="button" class="ajo-btn ajo-btn--sm" (click)="openPlacementEdit(row)">Edit</button>
-                  <button type="button" class="ajo-btn ajo-btn--danger ajo-btn--sm" (click)="removePlacement(row)">Delete</button>
+                  <button type="button" class="ajo-btn ajo-btn--sm" (click)="openPlacementEdit(row)">Uredi</button>
+                  <button type="button" class="ajo-btn ajo-btn--danger ajo-btn--sm" (click)="removePlacement(row)">Obriši</button>
                 </div>
               </td>
             </tr>
@@ -271,23 +271,23 @@
   <div class="ajo-modal ajo-modal--compact" *ngIf="showClosedForm" role="dialog" (click)="$event.stopPropagation()">
     <header class="ajo-modal__head">
       <div class="ajo-modal__head-text">
-        <h2>{{ editingClosedId ? 'Edit closed job' : 'Add closed job' }}</h2>
+        <h2>{{ editingClosedId ? 'Uredi zatvoreni oglas' : 'Dodaj zatvoreni oglas' }}</h2>
       </div>
-      <button type="button" class="ajo-modal__close" (click)="closeClosedForm()" aria-label="Close"><span class="material-icons">close</span></button>
+      <button type="button" class="ajo-modal__close" (click)="closeClosedForm()" aria-label="Zatvori"><span class="material-icons">close</span></button>
     </header>
     <div class="ajo-modal__body">
       <div class="ajo-form-grid ajo-form-grid--2">
-        <label class="ajo-field"><span class="ajo-field__label">Company <em>*</em></span><input type="text" [(ngModel)]="closedForm.companyName" /></label>
-        <label class="ajo-field"><span class="ajo-field__label">Job title <em>*</em></span><input type="text" [(ngModel)]="closedForm.jobTitle" /></label>
-        <label class="ajo-field"><span class="ajo-field__label">Job type</span>
+        <label class="ajo-field"><span class="ajo-field__label">Kompanija <em>*</em></span><input type="text" [(ngModel)]="closedForm.companyName" /></label>
+        <label class="ajo-field"><span class="ajo-field__label">Naziv posla <em>*</em></span><input type="text" [(ngModel)]="closedForm.jobTitle" /></label>
+        <label class="ajo-field"><span class="ajo-field__label">Tip posla</span>
           <select [(ngModel)]="closedForm.jobType"><option *ngFor="let t of jobTypes" [value]="t">{{ t }}</option></select>
         </label>
-        <label class="ajo-field"><span class="ajo-field__label">Closed date <em>*</em></span><input type="datetime-local" [(ngModel)]="closedForm.closedAt" /></label>
-        <label class="ajo-field"><span class="ajo-field__label">Experience</span><input type="text" [(ngModel)]="closedForm.experience" /></label>
-        <label class="ajo-field"><span class="ajo-field__label">Location</span><input type="text" [(ngModel)]="closedForm.location" /></label>
-        <label class="ajo-field"><span class="ajo-field__label">Salary</span><input type="text" [(ngModel)]="closedForm.salary" /></label>
-        <label class="ajo-field ajo-field--wide"><span class="ajo-field__label">Skills (comma-separated)</span><input type="text" [(ngModel)]="closedForm.skillsText" /></label>
-        <label class="ajo-field ajo-field--wide"><span class="ajo-field__label">Note</span><input type="text" [(ngModel)]="closedForm.note" placeholder="e.g. Position filled" /></label>
+        <label class="ajo-field"><span class="ajo-field__label">Datum zatvaranja <em>*</em></span><input type="datetime-local" [(ngModel)]="closedForm.closedAt" /></label>
+        <label class="ajo-field"><span class="ajo-field__label">Iskustvo</span><input type="text" [(ngModel)]="closedForm.experience" /></label>
+        <label class="ajo-field"><span class="ajo-field__label">Lokacija</span><input type="text" [(ngModel)]="closedForm.location" /></label>
+        <label class="ajo-field"><span class="ajo-field__label">Plata</span><input type="text" [(ngModel)]="closedForm.salary" /></label>
+        <label class="ajo-field ajo-field--wide"><span class="ajo-field__label">Veštine (razdvojene zarezom)</span><input type="text" [(ngModel)]="closedForm.skillsText" /></label>
+        <label class="ajo-field ajo-field--wide"><span class="ajo-field__label">Beleška</span><input type="text" [(ngModel)]="closedForm.note" placeholder="npr. Pozicija popunjena" /></label>
       </div>
       <div class="ajo-logo-row">
         <label class="ajo-file-btn"><span class="material-icons">upload</span> Logo<input type="file" accept="image/*" (change)="onClosedLogoSelected($event)" hidden /></label>
@@ -296,12 +296,12 @@
       <label class="ajo-switch">
         <input type="checkbox" [(ngModel)]="closedForm.isPublished" />
         <span class="ajo-switch__ui"></span>
-        <span class="ajo-switch__text"><strong>Published</strong><small>Visible on student Closed jobs tab</small></span>
+        <span class="ajo-switch__text"><strong>Objavljeno</strong><small>Vidljivo na kartici Zatvoreni oglasi</small></span>
       </label>
     </div>
     <footer class="ajo-modal__foot">
-      <button type="button" class="ajo-btn ajo-btn--ghost" (click)="closeClosedForm()">Cancel</button>
-      <button type="button" class="ajo-btn ajo-btn--submit" [disabled]="savingClosed" (click)="saveClosed()">{{ savingClosed ? 'Saving…' : 'Save' }}</button>
+      <button type="button" class="ajo-btn ajo-btn--ghost" (click)="closeClosedForm()">Otkaži</button>
+      <button type="button" class="ajo-btn ajo-btn--submit" [disabled]="savingClosed" (click)="saveClosed()">{{ savingClosed ? 'Čuvanje…' : 'Sačuvaj' }}</button>
     </footer>
   </div>
 
@@ -309,34 +309,34 @@
   <div class="ajo-modal ajo-modal--compact" *ngIf="showPlacementForm" role="dialog" (click)="$event.stopPropagation()">
     <header class="ajo-modal__head">
       <div class="ajo-modal__head-text">
-        <h2>{{ editingPlacementId ? 'Edit placement' : 'Add placement' }}</h2>
+        <h2>{{ editingPlacementId ? 'Uredi zaposlenje' : 'Dodaj zaposlenje' }}</h2>
       </div>
-      <button type="button" class="ajo-modal__close" (click)="closePlacementForm()" aria-label="Close"><span class="material-icons">close</span></button>
+      <button type="button" class="ajo-modal__close" (click)="closePlacementForm()" aria-label="Zatvori"><span class="material-icons">close</span></button>
     </header>
     <div class="ajo-modal__body">
       <div class="ajo-form-grid ajo-form-grid--2">
-        <label class="ajo-field"><span class="ajo-field__label">Student name <em>*</em></span><input type="text" [(ngModel)]="placementForm.studentName" /></label>
-        <label class="ajo-field"><span class="ajo-field__label">Reg. no.</span><input type="text" [(ngModel)]="placementForm.studentRegNo" /></label>
-        <label class="ajo-field"><span class="ajo-field__label">Batch</span><input type="text" [(ngModel)]="placementForm.batch" /></label>
-        <label class="ajo-field"><span class="ajo-field__label">Placed date <em>*</em></span><input type="datetime-local" [(ngModel)]="placementForm.placedAt" /></label>
-        <label class="ajo-field"><span class="ajo-field__label">Company <em>*</em></span><input type="text" [(ngModel)]="placementForm.companyName" /></label>
-        <label class="ajo-field"><span class="ajo-field__label">Role <em>*</em></span><input type="text" [(ngModel)]="placementForm.jobTitle" /></label>
-        <label class="ajo-field"><span class="ajo-field__label">Package</span><input type="text" [(ngModel)]="placementForm.packageLabel" placeholder="e.g. 12 LPA" /></label>
-        <label class="ajo-field ajo-field--wide"><span class="ajo-field__label">Story</span><textarea rows="3" [(ngModel)]="placementForm.story"></textarea></label>
+        <label class="ajo-field"><span class="ajo-field__label">Ime studenta <em>*</em></span><input type="text" [(ngModel)]="placementForm.studentName" /></label>
+        <label class="ajo-field"><span class="ajo-field__label">Reg. br.</span><input type="text" [(ngModel)]="placementForm.studentRegNo" /></label>
+        <label class="ajo-field"><span class="ajo-field__label">Grupa</span><input type="text" [(ngModel)]="placementForm.batch" /></label>
+        <label class="ajo-field"><span class="ajo-field__label">Datum zaposlenja <em>*</em></span><input type="datetime-local" [(ngModel)]="placementForm.placedAt" /></label>
+        <label class="ajo-field"><span class="ajo-field__label">Kompanija <em>*</em></span><input type="text" [(ngModel)]="placementForm.companyName" /></label>
+        <label class="ajo-field"><span class="ajo-field__label">Uloga <em>*</em></span><input type="text" [(ngModel)]="placementForm.jobTitle" /></label>
+        <label class="ajo-field"><span class="ajo-field__label">Paket</span><input type="text" [(ngModel)]="placementForm.packageLabel" placeholder="npr. 12 LPA" /></label>
+        <label class="ajo-field ajo-field--wide"><span class="ajo-field__label">Priča</span><textarea rows="3" [(ngModel)]="placementForm.story"></textarea></label>
       </div>
       <div class="ajo-logo-row">
-        <label class="ajo-file-btn"><span class="material-icons">upload</span> Company logo<input type="file" accept="image/*" (change)="onPlacementLogoSelected($event)" hidden /></label>
+        <label class="ajo-file-btn"><span class="material-icons">upload</span> Logo kompanije<input type="file" accept="image/*" (change)="onPlacementLogoSelected($event)" hidden /></label>
         <img *ngIf="placementLogoPreview" class="ajo-logo-preview" [src]="placementLogoPreview" alt="" />
       </div>
       <label class="ajo-switch">
         <input type="checkbox" [(ngModel)]="placementForm.isPublished" />
         <span class="ajo-switch__ui"></span>
-        <span class="ajo-switch__text"><strong>Published</strong><small>Visible on student Placed via Glück tab</small></span>
+        <span class="ajo-switch__text"><strong>Objavljeno</strong><small>Vidljivo na kartici Zaposleni preko Glück</small></span>
       </label>
     </div>
     <footer class="ajo-modal__foot">
-      <button type="button" class="ajo-btn ajo-btn--ghost" (click)="closePlacementForm()">Cancel</button>
-      <button type="button" class="ajo-btn ajo-btn--submit" [disabled]="savingPlacement" (click)="savePlacement()">{{ savingPlacement ? 'Saving…' : 'Save' }}</button>
+      <button type="button" class="ajo-btn ajo-btn--ghost" (click)="closePlacementForm()">Otkaži</button>
+      <button type="button" class="ajo-btn ajo-btn--submit" [disabled]="savingPlacement" (click)="savePlacement()">{{ savingPlacement ? 'Čuvanje…' : 'Sačuvaj' }}</button>
     </footer>
   </div>
 
@@ -344,11 +344,11 @@
   <div class="ajo-modal" *ngIf="showForm" role="dialog" aria-labelledby="ajo-modal-title" (click)="$event.stopPropagation()">
     <header class="ajo-modal__head">
       <div class="ajo-modal__head-text">
-        <span class="ajo-modal__badge">{{ editingId ? 'Editing' : 'New post' }}</span>
-        <h2 id="ajo-modal-title">{{ editingId ? 'Edit job opening' : 'Create job opening' }}</h2>
-        <p>Students will see this on the Job Portal once published and active.</p>
+        <span class="ajo-modal__badge">{{ editingId ? 'Uređivanje' : 'Novi oglas' }}</span>
+        <h2 id="ajo-modal-title">{{ editingId ? 'Uredi oglas za posao' : 'Kreiraj oglas za posao' }}</h2>
+        <p>Studenti će ovo videti na Portalu za posao jednom kada bude objavljeno i aktivno.</p>
       </div>
-      <button type="button" class="ajo-modal__close" (click)="closeForm()" aria-label="Close">
+      <button type="button" class="ajo-modal__close" (click)="closeForm()" aria-label="Zatvori">
         <span class="material-icons">close</span>
       </button>
     </header>
@@ -357,52 +357,52 @@
       <section class="ajo-form-section">
         <h3 class="ajo-form-section__title">
           <span class="material-icons">business</span>
-          Role details
+          Detalji uloge
         </h3>
         <div class="ajo-form-grid ajo-form-grid--3">
           <label class="ajo-field">
-            <span class="ajo-field__label">Job title <em>*</em></span>
-            <input type="text" [(ngModel)]="form.jobTitle" placeholder="e.g. Software Engineer" />
+            <span class="ajo-field__label">Naziv posla <em>*</em></span>
+            <input type="text" [(ngModel)]="form.jobTitle" placeholder="npr. Softverski inženjer" />
           </label>
           <label class="ajo-field">
-            <span class="ajo-field__label">Job type</span>
+            <span class="ajo-field__label">Tip posla</span>
             <select [(ngModel)]="form.jobType">
               <option *ngFor="let t of jobTypes" [value]="t">{{ t }}</option>
             </select>
           </label>
           <label class="ajo-field">
-            <span class="ajo-field__label">Experience</span>
-            <input type="text" [(ngModel)]="form.experience" placeholder="e.g. 4 - 7 Years, Fresher" />
+            <span class="ajo-field__label">Iskustvo</span>
+            <input type="text" [(ngModel)]="form.experience" placeholder="npr. 4 - 7 godina, Početnik" />
           </label>
           <label class="ajo-field">
-            <span class="ajo-field__label">Job category</span>
-            <input type="text" [(ngModel)]="form.jobCategory" placeholder="e.g. Software Development" />
+            <span class="ajo-field__label">Kategorija posla</span>
+            <input type="text" [(ngModel)]="form.jobCategory" placeholder="npr. Razvoj softvera" />
           </label>
           <label class="ajo-field">
-            <span class="ajo-field__label">Journey day</span>
+            <span class="ajo-field__label">Dan putovanja</span>
             <input
               type="number"
               min="1"
               max="200"
               [(ngModel)]="form.minJourneyDay"
-              placeholder="e.g. 40"
+              placeholder="npr. 40"
             />
-            <span class="ajo-field__hint">Min day to apply · leave empty for all</span>
+            <span class="ajo-field__hint">Min. dan za prijavu · ostavite prazno za sve</span>
           </label>
           <label class="ajo-field ajo-field--wide">
-            <span class="ajo-field__label">Skills <span class="ajo-field__hint">comma-separated</span></span>
+            <span class="ajo-field__label">Veštine <span class="ajo-field__hint">razdvojene zarezom</span></span>
             <input type="text" [(ngModel)]="form.skillsText" placeholder="Java, React.js, MongoDB, Node" />
           </label>
         </div>
         <div class="ajo-logo-row">
           <div class="ajo-logo-upload">
-            <span class="ajo-field__label">Company logo</span>
+            <span class="ajo-field__label">Logo kompanije</span>
             <label class="ajo-file-btn">
               <span class="material-icons">upload</span>
-              Choose image
+              Odaberite sliku
               <input type="file" accept="image/*" (change)="onLogoSelected($event)" hidden />
             </label>
-            <span class="ajo-file-hint">PNG, JPG or WEBP · max 5 MB</span>
+            <span class="ajo-file-hint">PNG, JPG ili WEBP · maks. 5 MB</span>
           </div>
           <div class="ajo-logo-preview-wrap" *ngIf="logoPreview">
             <img class="ajo-logo-preview" [src]="logoPreview" alt="Logo preview" />
@@ -414,22 +414,22 @@
       <section class="ajo-form-section">
         <h3 class="ajo-form-section__title">
           <span class="material-icons">place</span>
-          Location & compensation
+          Lokacija i kompenzacija
         </h3>
         <div class="ajo-form-grid ajo-form-grid--3">
           <label class="ajo-field">
-            <span class="ajo-field__label">Location type</span>
+            <span class="ajo-field__label">Tip lokacije</span>
             <select [(ngModel)]="form.locationType">
               <option *ngFor="let l of locationTypes" [value]="l">{{ l }}</option>
             </select>
           </label>
           <label class="ajo-field">
-            <span class="ajo-field__label">Location</span>
-            <input type="text" [(ngModel)]="form.location" placeholder="e.g. Bengaluru (Karnataka)" />
+            <span class="ajo-field__label">Lokacija</span>
+            <input type="text" [(ngModel)]="form.location" placeholder="npr. Bengaluru (Karnataka)" />
           </label>
           <label class="ajo-field">
-            <span class="ajo-field__label">Salary</span>
-            <input type="text" [(ngModel)]="form.salary" placeholder="e.g. As per industry standard" />
+            <span class="ajo-field__label">Plata</span>
+            <input type="text" [(ngModel)]="form.salary" placeholder="npr. Prema standardu industrije" />
           </label>
         </div>
       </section>
@@ -437,12 +437,12 @@
       <section class="ajo-form-section">
         <h3 class="ajo-form-section__title">
           <span class="material-icons">event</span>
-          Application deadline
+          Rok za prijavu
         </h3>
-        <p class="ajo-section-note">Students apply through an in-portal form. You can review submissions under Applications on each opening.</p>
+        <p class="ajo-section-note">Studenti se prijavljuju putem formulara na portalu. Možete pregledati prijave u sekciji Prijave za svaki oglas.</p>
         <div class="ajo-form-grid ajo-form-grid--2">
           <label class="ajo-field">
-            <span class="ajo-field__label">Apply before <em>*</em></span>
+            <span class="ajo-field__label">Prijavite se pre <em>*</em></span>
             <input type="date" [(ngModel)]="form.applyBefore" />
           </label>
         </div>
@@ -451,23 +451,23 @@
       <section class="ajo-form-section ajo-form-section--inline">
         <h3 class="ajo-form-section__title">
           <span class="material-icons">visibility</span>
-          Visibility
+          Vidljivost
         </h3>
         <div class="ajo-toggles">
           <label class="ajo-switch">
             <input type="checkbox" [(ngModel)]="form.isPublished" />
             <span class="ajo-switch__ui"></span>
             <span class="ajo-switch__text">
-              <strong>Published</strong>
-              <small>Visible to students on the portal</small>
+              <strong>Objavljeno</strong>
+              <small>Vidljivo studentima na portalu</small>
             </span>
           </label>
           <label class="ajo-switch">
             <input type="checkbox" [(ngModel)]="form.isActive" />
             <span class="ajo-switch__ui"></span>
             <span class="ajo-switch__text">
-              <strong>Active</strong>
-              <small>Listing is enabled (turn off to hide without deleting)</small>
+              <strong>Aktivno</strong>
+              <small>Oglas je omogućen (isključite da biste sakrili bez brisanja)</small>
             </span>
           </label>
         </div>
@@ -476,10 +476,10 @@
       <section class="ajo-form-section">
         <h3 class="ajo-form-section__title">
           <span class="material-icons">description</span>
-          Job description
+          Opis posla
         </h3>
         <div class="ajo-editor">
-          <quill-editor [(ngModel)]="form.description" [modules]="quillModules" placeholder="Describe the role, responsibilities, and requirements…"></quill-editor>
+          <quill-editor [(ngModel)]="form.description" [modules]="quillModules" placeholder="Opišite ulogu, odgovornosti i zahteve…"></quill-editor>
         </div>
       </section>
     </div>
@@ -487,13 +487,13 @@
     <footer class="ajo-modal__foot">
       <p class="ajo-modal__foot-note">
         <span class="material-icons">info</span>
-        Required: job title and apply-before deadline
+        Obavezno: naziv posla i rok za prijavu
       </p>
       <div class="ajo-modal__foot-actions">
-        <button type="button" class="ajo-btn ajo-btn--ghost" (click)="closeForm()">Cancel</button>
+        <button type="button" class="ajo-btn ajo-btn--ghost" (click)="closeForm()">Otkaži</button>
         <button type="button" class="ajo-btn ajo-btn--submit" [disabled]="saving" (click)="save()">
           <span class="material-icons" *ngIf="!saving">{{ editingId ? 'save' : 'publish' }}</span>
-          {{ saving ? 'Saving…' : (editingId ? 'Save changes' : 'Publish opening') }}
+          {{ saving ? 'Čuvanje…' : (editingId ? 'Sačuvaj promene' : 'Objavi oglas') }}
         </button>
       </div>
     </footer>
@@ -503,21 +503,21 @@
   <div class="ajo-modal ajo-modal--apps" *ngIf="showApplications && applicationsJob" role="dialog" (click)="$event.stopPropagation()">
     <header class="ajo-modal__head">
       <div class="ajo-modal__head-text">
-        <span class="ajo-modal__badge">Applications</span>
+        <span class="ajo-modal__badge">Prijave</span>
         <h2>{{ applicationsJob.jobTitle }}</h2>
-        <p>{{ applications.length }} submission(s)</p>
+        <p>{{ applications.length }} prijava</p>
       </div>
-      <button type="button" class="ajo-modal__close" (click)="closeApplications()" aria-label="Close">
+      <button type="button" class="ajo-modal__close" (click)="closeApplications()" aria-label="Zatvori">
         <span class="material-icons">close</span>
       </button>
     </header>
 
     <div class="ajo-modal__body ajo-apps-body">
-      <div *ngIf="applicationsLoading" class="ajo-apps-loading">Loading applications…</div>
+      <div *ngIf="applicationsLoading" class="ajo-apps-loading">Učitavanje prijava…</div>
 
       <div *ngIf="!applicationsLoading && applications.length === 0" class="ajo-apps-empty">
         <span class="material-icons">inbox</span>
-        <p>No applications yet</p>
+        <p>Nema prijava</p>
       </div>
 
       <article class="ajo-app-card" *ngFor="let app of applications">
@@ -528,16 +528,16 @@
           </div>
           <a *ngIf="app.resumeUrl" class="ajo-btn ajo-btn--accent" [href]="resumeUrl(app)" target="_blank" rel="noopener">
             <span class="material-icons">description</span>
-            Resume
+            Biografija
           </a>
         </header>
         <dl class="ajo-app-details">
-          <div><dt>Email</dt><dd>{{ app.studentEmail }}</dd></div>
-          <div><dt>Phone</dt><dd>{{ app.phone }}</dd></div>
+          <div><dt>E-pošta</dt><dd>{{ app.studentEmail }}</dd></div>
+          <div><dt>Telefon</dt><dd>{{ app.phone }}</dd></div>
           <div *ngIf="app.linkedIn"><dt>LinkedIn</dt><dd><a [href]="app.linkedIn" target="_blank" rel="noopener">{{ app.linkedIn }}</a></dd></div>
         </dl>
         <div class="ajo-app-cover">
-          <strong>Cover letter</strong>
+          <strong>Propratno pismo</strong>
           <p>{{ app.coverLetter }}</p>
         </div>
       </article>

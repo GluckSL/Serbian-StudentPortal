@@ -1,77 +1,77 @@
 <div class="teacher-resources-admin">
   <div class="page-header">
-    <h2>Teacher Resources</h2>
-    <p>Upload and manage resources with batch, level and plan targeting.</p>
+    <h2>Resursi za nastavnike</h2>
+    <p>Otpremajte i upravljajte resursima sa ciljanjem po grupi, nivou i planu.</p>
   </div>
 
   <section class="upload-card">
     <div class="card-head">
-      <h3>Upload Resource</h3>
-      <span class="hint">Select multiple files per upload (audio, video, PDF, docs, images)</span>
+      <h3>Otpremi resurs</h3>
+      <span class="hint">Izaberite više datoteka po otpremanju (audio, video, PDF, dokumenti, slike)</span>
     </div>
 
     <div class="form-grid form-grid--upload">
       <div class="form-field form-field--wide">
-        <label>Teachers <span class="required">*</span></label>
+        <label>Nastavnici <span class="required">*</span></label>
         <select class="select-multi" multiple size="6" [(ngModel)]="selectedTeacherIds">
           <option *ngFor="let teacher of teachers" [value]="teacher._id">{{ teacher.name }}</option>
         </select>
-        <span class="hint-inline">Hold Ctrl (Windows) or ⌘ (Mac) to select multiple. Only these teachers will see the resource.</span>
+        <span class="hint-inline">Držite Ctrl (Windows) ili ⌘ (Mac) za višestruki odabir. Samo ovi nastavnici će videti resurs.</span>
       </div>
 
       <div class="form-field">
-        <label>Title <span class="required">*</span></label>
-        <input type="text" [(ngModel)]="title" placeholder="Enter title" />
+        <label>Naslov <span class="required">*</span></label>
+        <input type="text" [(ngModel)]="title" placeholder="Unesite naslov" />
       </div>
 
       <div class="form-field">
-        <label>Day <span class="required">*</span></label>
-        <input type="text" [(ngModel)]="day" placeholder="Example: Day 1" />
+        <label>Dan <span class="required">*</span></label>
+        <input type="text" [(ngModel)]="day" placeholder="Primer: Dan 1" />
       </div>
 
       <div class="form-field">
-        <label>Batch</label>
-        <input type="text" [(ngModel)]="batch" placeholder="Example: April Intake" />
+        <label>Grupa</label>
+        <input type="text" [(ngModel)]="batch" placeholder="Primer: April — upis" />
       </div>
 
       <div class="form-field">
-        <label>Level</label>
-        <input type="text" [(ngModel)]="level" placeholder="Example: A1 / Beginner" />
+        <label>Nivo</label>
+        <input type="text" [(ngModel)]="level" placeholder="Primer: A1 / Početni" />
       </div>
 
       <div class="form-field">
         <label>Plan</label>
-        <input type="text" [(ngModel)]="plan" placeholder="Example: Weekend Plan" />
+        <input type="text" [(ngModel)]="plan" placeholder="Primer: Vikend plan" />
       </div>
 
       <div class="form-field">
-        <label>Resource Type</label>
-        <input type="text" [(ngModel)]="resourceType" placeholder="Example: Worksheet / PPT / Quiz" />
+        <label>Vrsta resursa</label>
+        <input type="text" [(ngModel)]="resourceType" placeholder="Primer: Radni list / PPT / Kviz" />
       </div>
 
       <div class="form-field">
-        <label>Topic</label>
-        <input type="text" [(ngModel)]="topic" placeholder="Example: Basic Introductions" />
+        <label>Tema</label>
+        <input type="text" [(ngModel)]="topic" placeholder="Primer: Osnovna predstavljanja" />
       </div>
 
       <div class="form-field form-field--wide">
-        <label>Description</label>
-        <textarea [(ngModel)]="description" rows="3" placeholder="Short details for teachers"></textarea>
+        <label>Opis</label>
+        <textarea [(ngModel)]="description" rows="3" placeholder="Kratki detalji za nastavnike"></textarea>
       </div>
 
       <div class="form-field form-field--wide">
-        <label>Files <span class="required">*</span> <span class="hint-inline">(audio, video MP4/MKV/WebM/MOV, PDF, images, HTML, docs — max 50 MB each, up to 20 files)</span></label>
+        <label>Datoteke <span class="required">*</span> <span class="hint-inline">(audio, video MP4/MKV/WebM/MOV, PDF, slike, HTML, dokumenti — maks. 50 MB svaka, do 20 datoteka)</span></label>
         <div class="file-picker">
           <input id="resource-file" type="file" multiple (change)="onFileSelected($event)" />
-          <label class="file-btn" for="resource-file">+ Add files</label>
-          <span class="file-name" *ngIf="files.length === 0">No files chosen</span>
+          <label class="file-btn" for="resource-file">+ Dodaj datoteke</label>
+          <span class="file-name" *ngIf="files.length === 0">Nije izabrana nijedna datoteka</span>
         </div>
         <ul class="file-list" *ngIf="files.length > 0">
           <li *ngFor="let f of files; let i = index" class="file-list-item">
             <span class="file-list-icon">{{ f.name.split('.').pop()?.toUpperCase() }}</span>
             <span class="file-list-name">{{ f.name }}</span>
             <span class="file-list-size">{{ formatBytes(f.size) }}</span>
-            <button type="button" class="file-list-remove" (click)="removeFile(i)" title="Remove">×</button>
+            <button type="button" class="file-list-remove" (click)="removeFile(i)" title="Ukloni">×</button>
           </li>
         </ul>
       </div>
@@ -79,75 +79,75 @@
 
     <div class="upload-action">
       <button type="button" [disabled]="uploading" (click)="upload()">
-        {{ uploading ? 'Uploading...' : 'Upload Resource' }}
+        {{ uploading ? 'Otpremanje...' : 'Otpremi resurs' }}
       </button>
     </div>
   </section>
 
   <section class="list-card">
     <div class="card-head">
-      <h3>Uploaded Resources</h3>
-      <span class="hint">{{ filteredResources.length }} of {{ resources.length }} files</span>
+      <h3>Otpremljeni resursi</h3>
+      <span class="hint">{{ filteredResources.length }} od {{ resources.length }} datoteka</span>
     </div>
 
     <div class="filter-grid">
       <div class="form-field">
-        <label>Search</label>
-        <input type="text" [(ngModel)]="searchTerm" placeholder="Search title, day, file, topic..." />
+        <label>Pretraga</label>
+        <input type="text" [(ngModel)]="searchTerm" placeholder="Pretraži naslov, dan, datoteku, temu..." />
       </div>
       <div class="form-field">
-        <label>Teacher</label>
+        <label>Nastavnik</label>
         <select [(ngModel)]="filterTeacherId" (change)="loadResources()">
-          <option value="">All teachers</option>
+          <option value="">Svi nastavnici</option>
           <option *ngFor="let teacher of teachers" [value]="teacher._id">{{ teacher.name }}</option>
         </select>
       </div>
       <div class="form-field">
-        <label>Batch</label>
+        <label>Grupa</label>
         <select [(ngModel)]="filterBatch" (change)="loadResources()">
-          <option value="">All batches</option>
+          <option value="">Sve grupe</option>
           <option *ngFor="let value of availableBatches" [value]="value">{{ value }}</option>
         </select>
       </div>
       <div class="form-field">
-        <label>Level</label>
+        <label>Nivo</label>
         <select [(ngModel)]="filterLevel" (change)="loadResources()">
-          <option value="">All levels</option>
+          <option value="">Svi nivoi</option>
           <option *ngFor="let value of availableLevels" [value]="value">{{ value }}</option>
         </select>
       </div>
       <div class="form-field">
         <label>Plan</label>
         <select [(ngModel)]="filterPlan" (change)="loadResources()">
-          <option value="">All plans</option>
+          <option value="">Svi planovi</option>
           <option *ngFor="let value of availablePlans" [value]="value">{{ value }}</option>
         </select>
       </div>
       <div class="filter-actions">
-        <button type="button" class="btn-outline" (click)="clearFilters()">Reset Filters</button>
+        <button type="button" class="btn-outline" (click)="clearFilters()">Poništi filtere</button>
       </div>
     </div>
 
-    <div *ngIf="loading" class="empty-msg">Loading resources...</div>
-    <div *ngIf="!loading && filteredResources.length === 0" class="empty-msg">No resources found for selected filters.</div>
+    <div *ngIf="loading" class="empty-msg">Učitavanje resursa...</div>
+    <div *ngIf="!loading && filteredResources.length === 0" class="empty-msg">Nisu pronađeni resursi za izabrane filtere.</div>
 
     <div *ngIf="!loading && filteredResources.length > 0" class="table-wrap">
       <table class="resource-table">
         <thead>
           <tr>
-            <th>Teacher</th>
-            <th>Title</th>
-            <th>Day</th>
-            <th>Batch</th>
-            <th>Level</th>
+            <th>Nastavnik</th>
+            <th>Naslov</th>
+            <th>Dan</th>
+            <th>Grupa</th>
+            <th>Nivo</th>
             <th>Plan</th>
-            <th>Type</th>
-            <th>Topic</th>
-            <th>Description</th>
-            <th>File</th>
-            <th>Size</th>
-            <th>Uploaded</th>
-            <th>Actions</th>
+            <th>Vrsta</th>
+            <th>Tema</th>
+            <th>Opis</th>
+            <th>Datoteka</th>
+            <th>Veličina</th>
+            <th>Otpremljeno</th>
+            <th>Akcije</th>
           </tr>
         </thead>
         <tbody>
@@ -165,9 +165,9 @@
             <td>{{ getFileSizeLabel(item.fileSize) }}</td>
             <td>{{ item.uploadedAt | date: 'medium' }}</td>
             <td class="action-col">
-              <button type="button" class="btn-play" (click)="play(item)">Play</button>
-              <button type="button" class="btn-edit" (click)="startEdit(item)">Edit</button>
-              <button type="button" class="btn-delete" (click)="delete(item)">Delete</button>
+              <button type="button" class="btn-play" (click)="play(item)">Reprodukuj</button>
+              <button type="button" class="btn-edit" (click)="startEdit(item)">Izmeni</button>
+              <button type="button" class="btn-delete" (click)="delete(item)">Obriši</button>
             </td>
           </tr>
         </tbody>
@@ -177,73 +177,73 @@
 
   <section class="upload-card" *ngIf="editingResourceId">
     <div class="card-head">
-      <h3>Edit Resource</h3>
-      <span class="hint">Update metadata or replace the file.</span>
+      <h3>Izmeni resurs</h3>
+      <span class="hint">Ažurirajte metapodatke ili zamenite datoteku.</span>
     </div>
 
     <div class="form-grid form-grid--upload">
       <div class="form-field form-field--wide">
-        <label>Teachers <span class="required">*</span></label>
+        <label>Nastavnici <span class="required">*</span></label>
         <select class="select-multi" multiple size="6" [(ngModel)]="editTeacherIds">
           <option *ngFor="let teacher of teachers" [value]="teacher._id">{{ teacher.name }}</option>
         </select>
-        <span class="hint-inline">Only selected teachers can open this resource in their portal.</span>
+        <span class="hint-inline">Samo izabrani nastavnici mogu otvoriti ovaj resurs na svom portalu.</span>
       </div>
 
       <div class="form-field">
-        <label>Title <span class="required">*</span></label>
-        <input type="text" [(ngModel)]="editTitle" placeholder="Enter title" />
+        <label>Naslov <span class="required">*</span></label>
+        <input type="text" [(ngModel)]="editTitle" placeholder="Unesite naslov" />
       </div>
 
       <div class="form-field">
-        <label>Day <span class="required">*</span></label>
-        <input type="text" [(ngModel)]="editDay" placeholder="Example: Day 1" />
+        <label>Dan <span class="required">*</span></label>
+        <input type="text" [(ngModel)]="editDay" placeholder="Primer: Dan 1" />
       </div>
 
       <div class="form-field">
-        <label>Batch</label>
-        <input type="text" [(ngModel)]="editBatch" placeholder="Example: April Intake" />
+        <label>Grupa</label>
+        <input type="text" [(ngModel)]="editBatch" placeholder="Primer: April — upis" />
       </div>
 
       <div class="form-field">
-        <label>Level</label>
-        <input type="text" [(ngModel)]="editLevel" placeholder="Example: A1 / Beginner" />
+        <label>Nivo</label>
+        <input type="text" [(ngModel)]="editLevel" placeholder="Primer: A1 / Početni" />
       </div>
 
       <div class="form-field">
         <label>Plan</label>
-        <input type="text" [(ngModel)]="editPlan" placeholder="Example: Weekend Plan" />
+        <input type="text" [(ngModel)]="editPlan" placeholder="Primer: Vikend plan" />
       </div>
 
       <div class="form-field">
-        <label>Resource Type</label>
-        <input type="text" [(ngModel)]="editResourceType" placeholder="Example: Worksheet / PPT / Quiz" />
+        <label>Vrsta resursa</label>
+        <input type="text" [(ngModel)]="editResourceType" placeholder="Primer: Radni list / PPT / Kviz" />
       </div>
 
       <div class="form-field">
-        <label>Topic</label>
-        <input type="text" [(ngModel)]="editTopic" placeholder="Example: Basic Introductions" />
+        <label>Tema</label>
+        <input type="text" [(ngModel)]="editTopic" placeholder="Primer: Osnovna predstavljanja" />
       </div>
 
       <div class="form-field form-field--wide">
-        <label>Description</label>
-        <textarea [(ngModel)]="editDescription" rows="3" placeholder="Short details for teachers"></textarea>
+        <label>Opis</label>
+        <textarea [(ngModel)]="editDescription" rows="3" placeholder="Kratki detalji za nastavnike"></textarea>
       </div>
 
       <div class="form-field form-field--wide">
-        <label>Replace File (Optional)</label>
+        <label>Zameni datoteku (opcionalno)</label>
         <div class="file-picker">
           <input id="resource-edit-file" type="file" (change)="onEditFileSelected($event)" />
-          <label class="file-btn" for="resource-edit-file">Choose replacement file</label>
-          <span class="file-name">{{ editSelectedFileName || 'Keep existing file' }}</span>
+          <label class="file-btn" for="resource-edit-file">Izaberi novu datoteku</label>
+          <span class="file-name">{{ editSelectedFileName || 'Zadrži postojeću datoteku' }}</span>
         </div>
       </div>
     </div>
 
     <div class="upload-action upload-action--edit">
-      <button type="button" class="btn-outline" [disabled]="savingEdit" (click)="cancelEdit()">Cancel</button>
+      <button type="button" class="btn-outline" [disabled]="savingEdit" (click)="cancelEdit()">Otkaži</button>
       <button type="button" [disabled]="savingEdit" (click)="saveEdit()">
-        {{ savingEdit ? 'Saving...' : 'Save Changes' }}
+        {{ savingEdit ? 'Čuvanje...' : 'Sačuvaj izmene' }}
       </button>
     </div>
   </section>
@@ -252,14 +252,14 @@
     <div class="preview-topbar">
       <strong>{{ activePreviewTitle }}</strong>
       <div class="topbar-actions">
-        <button class="fullscreen-btn" type="button" (click)="toggleFullscreen(previewContainer)">Fullscreen</button>
-        <button class="close-btn" type="button" (click)="closePreview()">Close</button>
+        <button class="fullscreen-btn" type="button" (click)="toggleFullscreen(previewContainer)">Ceo ekran</button>
+        <button class="close-btn" type="button" (click)="closePreview()">Zatvori</button>
       </div>
     </div>
 
     <div *ngIf="activePreviewIsAudio" class="preview-audio-wrap">
       <audio controls controlsList="nodownload noremoteplayback" disablePictureInPicture [src]="activePreviewRawUrl" style="width:100%;max-width:600px;">
-        Your browser does not support the audio element.
+        Vaš pretraživač ne podržava audio element.
       </audio>
     </div>
 
@@ -271,14 +271,14 @@
       [src]="activePreviewRawUrl"
       style="max-width:100%;max-height:calc(100vh - 60px);"
     >
-      Your browser does not support the video element.
+      Vaš pretraživač ne podržava video element.
     </video>
 
     <iframe
       *ngIf="!activePreviewIsAudio && !activePreviewIsVideo"
       [src]="activePreviewUrl"
       sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups"
-      title="Resource preview"
+      title="Pregled resursa"
     ></iframe>
   </div>
 </div>

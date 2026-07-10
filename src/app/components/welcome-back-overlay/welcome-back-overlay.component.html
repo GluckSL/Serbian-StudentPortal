@@ -4,7 +4,7 @@
   [class.wb-backdrop--out]="closing"
   role="dialog"
   aria-modal="true"
-  aria-label="Missed class reminder"
+  aria-label="Podsetnik za propušten čas"
   (click)="dismiss()"
 >
   <div class="wb-card" [class.wb-card--in]="animating" [class.wb-card--out]="closing" (click)="$event.stopPropagation()">
@@ -12,17 +12,17 @@
       <img
         class="wb-fox"
         src="assets/dg-bot/fox/sadfull.png"
-        alt="Fritz, your sad study buddy"
+        alt="Fritz, vaš tužni drug za učenje"
       />
     </div>
 
-    <h2 class="wb-title">You missed today's class! 😔</h2>
+    <h2 class="wb-title">Propustili ste današnji čas! 😔</h2>
     <p class="wb-message">
-      I'm sad as your buddy. Every missed lesson can delay your journey to Germany. Don't miss the next one!
+      Tužan sam kao vaš drug. Svaki propušten čas može odložiti vaše putovanje ka Nemačkoj. Ne propustite sledeći!
     </p>
 
     <button type="button" class="wb-cta" (click)="dismiss()">
-      I'll be there next time! 💪
+      Biću tu sledeći put! 💪
     </button>
   </div>
 </div>

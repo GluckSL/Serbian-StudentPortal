@@ -31,11 +31,11 @@ import { AuthService } from '../../services/auth.service';
 export class StudentLogsComponent implements OnInit {
   analyticsTab: 'overview' | 'student' | 'page' | 'day' | 'timeline' = 'overview';
   readonly analyticsTabs: { id: 'overview' | 'student' | 'page' | 'day' | 'timeline'; label: string; icon: string }[] = [
-    { id: 'overview', label: 'Overview', icon: 'fa-chart-pie' },
-    { id: 'student', label: 'Student wise', icon: 'fa-users' },
-    { id: 'page', label: 'Page wise', icon: 'fa-window-maximize' },
-    { id: 'day', label: 'Day wise', icon: 'fa-calendar-day' },
-    { id: 'timeline', label: 'Timeline', icon: 'fa-stream' }
+    { id: 'overview', label: 'Pregled', icon: 'fa-chart-pie' },
+    { id: 'student', label: 'Po učeniku', icon: 'fa-users' },
+    { id: 'page', label: 'Po stranici', icon: 'fa-window-maximize' },
+    { id: 'day', label: 'Po danu', icon: 'fa-calendar-day' },
+    { id: 'timeline', label: 'Vremenska linija', icon: 'fa-stream' }
   ];
   activityEvents: StudentActivityEvent[] = [];
   /** Full set from API (includes login/logout) — used for portal-time estimation. */
@@ -73,14 +73,14 @@ export class StudentLogsComponent implements OnInit {
   toDate = '';
 
   readonly typeOptions: { id: StudentActivityType; label: string }[] = [
-    { id: 'LOGIN', label: 'Login' },
-    { id: 'LOGOUT', label: 'Logout' },
-    { id: 'MEETING_ATTENDANCE', label: 'Meeting / join' },
-    { id: 'EXERCISE_ATTEMPT', label: 'Digital exercise' },
-    { id: 'MODULE_PROGRESS', label: 'Learning modules' },
-    { id: 'SESSION_RECORD', label: 'AI sessions' },
-    { id: 'ASSIGNMENT_SUBMISSION', label: 'Assignments' },
-    { id: 'PROFILE_UPDATE', label: 'Profile updates' }
+    { id: 'LOGIN', label: 'Prijava' },
+    { id: 'LOGOUT', label: 'Odjava' },
+    { id: 'MEETING_ATTENDANCE', label: 'Sastanak / pristupanje' },
+    { id: 'EXERCISE_ATTEMPT', label: 'Digitalna vežba' },
+    { id: 'MODULE_PROGRESS', label: 'Moduli učenja' },
+    { id: 'SESSION_RECORD', label: 'AI sesije' },
+    { id: 'ASSIGNMENT_SUBMISSION', label: 'Zadaci' },
+    { id: 'PROFILE_UPDATE', label: 'Ažuriranja profila' }
   ];
 
   currentPage = 1;

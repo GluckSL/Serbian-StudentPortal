@@ -8,9 +8,9 @@
           <mat-icon>monitor_heart</mat-icon>
         </div>
         <div>
-          <h1 class="phc-title">Payment Health Checkup</h1>
+          <h1 class="phc-title">Provera zdravlja plaćanja</h1>
           <p class="phc-subtitle">
-            Pending balance urgency for {{ statusFilterLabel }} students in batches 35 to 46
+            Hitnost salda na čekanju za {{ statusFilterLabel }} učenike u grupama 35 do 46
           </p>
         </div>
       </div>
@@ -28,21 +28,21 @@
         </div>
         <div class="phc-header-total">
           <span class="phc-header-total__count">{{ loading ? '…' : totalCount }}</span>
-          <span class="phc-header-total__label">students</span>
-          <span class="phc-header-total__hint">Batches 35–46 · {{ statusFilterLabel }}</span>
+          <span class="phc-header-total__label">učenika</span>
+          <span class="phc-header-total__hint">Grupe 35–46 · {{ statusFilterLabel }}</span>
         </div>
         <div class="phc-header-legend">
           <span class="phc-legend-item phc-legend-item--green">
             <span class="phc-legend-dot"></span>
-            Days 1–5 of level (safe)
+            Dani 1–5 nivoa (bezbedno)
           </span>
           <span class="phc-legend-item phc-legend-item--yellow">
             <span class="phc-legend-dot"></span>
-            Days 6–8 (follow up)
+            Dani 6–8 (praćenje)
           </span>
           <span class="phc-legend-item phc-legend-item--red">
             <span class="phc-legend-dot"></span>
-            Day 9+ (urgent call)
+            Dan 9+ (hitan poziv)
           </span>
         </div>
       </div>
@@ -66,8 +66,8 @@
             <mat-icon>groups</mat-icon>
           </div>
           <div class="phc-card__count">{{ totalCount }}</div>
-          <div class="phc-card__label">All Students</div>
-          <div class="phc-card__hint">All {{ statusFilterLabel }} · batches 35–46</div>
+          <div class="phc-card__label">Svi učenici</div>
+          <div class="phc-card__hint">Svi {{ statusFilterLabel }} · grupe 35–46</div>
         </button>
 
         <!-- Full Paid -->
@@ -81,10 +81,10 @@
             <mat-icon>check_circle</mat-icon>
           </div>
           <div class="phc-card__count">{{ fullPaidCount }}</div>
-          <div class="phc-card__label">Full Paid</div>
-          <div class="phc-card__hint">No balance remaining</div>
+          <div class="phc-card__label">Potpuno plaćeno</div>
+          <div class="phc-card__hint">Nema preostalog salda</div>
           <div class="phc-card__pending phc-card__pending--paid" *ngIf="hasPaidTotal(fullPaidPaidTotal)">
-            <span class="phc-card__pending-label">Total paid</span>
+            <span class="phc-card__pending-label">Ukupno plaćeno</span>
             <app-payment-currency-totals
               [lkr]="fullPaidPaidTotal.lkr"
               [inr]="fullPaidPaidTotal.inr"
@@ -106,10 +106,10 @@
             <mat-icon>account_balance_wallet</mat-icon>
           </div>
           <div class="phc-card__count">{{ pendingCount }}</div>
-          <div class="phc-card__label">Pending</div>
-          <div class="phc-card__hint">Have outstanding balance</div>
+          <div class="phc-card__label">Na čekanju</div>
+          <div class="phc-card__hint">Imaju neizmireni saldo</div>
           <div class="phc-card__pending" *ngIf="hasPendingTotal(pendingCardTotal)">
-            <span class="phc-card__pending-label">Total pending</span>
+            <span class="phc-card__pending-label">Ukupno na čekanju</span>
             <app-payment-currency-pending-totals
               [lkr]="pendingCardTotal.lkr"
               [inr]="pendingCardTotal.inr"
@@ -131,10 +131,10 @@
             <mat-icon>eco</mat-icon>
           </div>
           <div class="phc-card__count">{{ greenCount }}</div>
-          <div class="phc-card__label">Green</div>
-          <div class="phc-card__hint">Days 1–5 of level · will pay</div>
+          <div class="phc-card__label">Zeleni</div>
+          <div class="phc-card__hint">Dani 1–5 nivoa · platiće</div>
           <div class="phc-card__pending" *ngIf="hasPendingTotal(greenPendingTotal)">
-            <span class="phc-card__pending-label">Total pending</span>
+            <span class="phc-card__pending-label">Ukupno na čekanju</span>
             <app-payment-currency-pending-totals
               [lkr]="greenPendingTotal.lkr"
               [inr]="greenPendingTotal.inr"
@@ -156,10 +156,10 @@
             <mat-icon>schedule</mat-icon>
           </div>
           <div class="phc-card__count">{{ yellowCount }}</div>
-          <div class="phc-card__label">Yellow</div>
-          <div class="phc-card__hint">Days 6–8 · remind to pay</div>
+          <div class="phc-card__label">Žuti</div>
+          <div class="phc-card__hint">Dani 6–8 · podsetiti na plaćanje</div>
           <div class="phc-card__pending" *ngIf="hasPendingTotal(yellowPendingTotal)">
-            <span class="phc-card__pending-label">Total pending</span>
+            <span class="phc-card__pending-label">Ukupno na čekanju</span>
             <app-payment-currency-pending-totals
               [lkr]="yellowPendingTotal.lkr"
               [inr]="yellowPendingTotal.inr"
@@ -181,10 +181,10 @@
             <mat-icon>local_fire_department</mat-icon>
           </div>
           <div class="phc-card__count">{{ redCount }}</div>
-          <div class="phc-card__label">Red</div>
-          <div class="phc-card__hint">Day 9+ · urgent call needed</div>
+          <div class="phc-card__label">Crveni</div>
+          <div class="phc-card__hint">Dan 9+ · potreban hitan poziv</div>
           <div class="phc-card__pending" *ngIf="hasPendingTotal(redPendingTotal)">
-            <span class="phc-card__pending-label">Total pending</span>
+            <span class="phc-card__pending-label">Ukupno na čekanju</span>
             <app-payment-currency-pending-totals
               [lkr]="redPendingTotal.lkr"
               [inr]="redPendingTotal.inr"
@@ -205,14 +205,14 @@
             <input
               type="text"
               class="phc-search"
-              placeholder="Search by name, email or batch…"
+              placeholder="Pretraži po imenu, emailu ili grupi…"
               [(ngModel)]="searchQuery"
               (ngModelChange)="onSearchChange()"
               autocomplete="off"
             />
           </div>
           <span class="phc-row-count">
-            {{ filteredRows.length }} student{{ filteredRows.length !== 1 ? 's' : '' }}
+            {{ filteredRows.length }} učenika
             <ng-container *ngIf="filteredRows.length > pageSize">
               · {{ pageStart }}–{{ pageEnd }}
             </ng-container>
@@ -224,7 +224,7 @@
             [disabled]="exporting || !filteredRows.length"
           >
             <mat-icon>download</mat-icon>
-            <span>{{ exporting ? 'Exporting…' : 'Export' }}</span>
+            <span>{{ exporting ? 'Izvoz…' : 'Izvezi' }}</span>
           </button>
         </div>
 
@@ -233,14 +233,14 @@
             <thead>
               <tr>
                 <th>#</th>
-                <th>Student</th>
-                <th>Batch</th>
-                <th>Level</th>
-                <th>Journey Day</th>
-                <th class="phc-td-amount">Total</th>
-                <th class="phc-td-amount">Paid</th>
-                <th class="phc-td-amount">Pending</th>
-                <th>Health</th>
+                <th>Učenik</th>
+                <th>Grupa</th>
+                <th>Nivo</th>
+                <th>Dan putovanja</th>
+                <th class="phc-td-amount">Ukupno</th>
+                <th class="phc-td-amount">Plaćeno</th>
+                <th class="phc-td-amount">Na čekanju</th>
+                <th>Zdravlje</th>
               </tr>
             </thead>
             <tbody>
@@ -322,7 +322,7 @@
           <ng-template #emptyTpl>
             <div class="phc-empty">
               <mat-icon>search_off</mat-icon>
-              <p>No students match the current filter.</p>
+              <p>Nema učenika koji odgovaraju trenutnom filteru.</p>
             </div>
           </ng-template>
         </div>
@@ -335,16 +335,16 @@
             [disabled]="page <= 1"
           >
             <mat-icon>chevron_left</mat-icon>
-            Previous
+            Prethodna
           </button>
-          <span class="phc-pagination__info">Page {{ page }} of {{ totalPages }}</span>
+          <span class="phc-pagination__info">Strana {{ page }} od {{ totalPages }}</span>
           <button
             type="button"
             class="phc-pagination__btn"
             (click)="goToPage(page + 1)"
             [disabled]="page >= totalPages"
           >
-            Next
+            Sledeća
             <mat-icon>chevron_right</mat-icon>
           </button>
         </div>
@@ -355,7 +355,7 @@
     <ng-template #loadingTpl>
       <div class="phc-loading">
         <mat-spinner diameter="48"></mat-spinner>
-        <p>Loading health data for batches 35–46 ({{ statusFilterLabel }})…</p>
+        <p>Učitavanje podataka o zdravlju za grupe 35–46 ({{ statusFilterLabel }})…</p>
       </div>
     </ng-template>
   </div>

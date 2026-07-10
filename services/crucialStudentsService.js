@@ -287,7 +287,7 @@ async function getCrucialStudents() {
     ? Math.round(totalMinutesAll / crucialStudents.length)
     : 0;
 
-  const generatedAt = new Date().toLocaleString('en-IN', {
+  const generatedAt = new Date().toLocaleString('sr-Latn-RS', {
     timeZone: 'Asia/Kolkata',
     day: 'numeric', month: 'short', year: 'numeric',
     hour: '2-digit', minute: '2-digit',
@@ -313,7 +313,7 @@ function emptyResult() {
       total: 0,
       avgMinutes: 0,
       windowLabel: 'Last 3 exercise days (positions 2, 4, 5 per week)',
-      generatedAt: new Date().toLocaleString('en-IN', {
+      generatedAt: new Date().toLocaleString('sr-Latn-RS', {
         timeZone: 'Asia/Kolkata',
         day: 'numeric', month: 'short', year: 'numeric',
         hour: '2-digit', minute: '2-digit',

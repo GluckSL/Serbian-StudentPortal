@@ -38,7 +38,7 @@ export class PaymentHubRevenueInsightsComponent implements OnInit {
     scales: {
       x: {
         grid: { color: 'rgba(148,163,184,0.2)' },
-        ticks: { callback: (v) => Number(v).toLocaleString('en-IN') },
+        ticks: { callback: (v) => Number(v).toLocaleString('sr-Latn-RS') },
       },
       y: { grid: { display: false } },
     },
@@ -91,6 +91,6 @@ export class PaymentHubRevenueInsightsComponent implements OnInit {
 
   fmt(n: number | undefined | null): string {
     if (n === undefined || n === null) return '0';
-    return n.toLocaleString('en-IN');
+    return n.toLocaleString('sr-Latn-RS');
   }
 }

@@ -148,12 +148,12 @@ export class PaymentHubRequestStudentPageComponent implements OnInit {
 
   fmt(val: number | undefined | null): string {
     if (val == null) return '0';
-    return val.toLocaleString('en-IN');
+    return val.toLocaleString('sr-Latn-RS');
   }
 
   fmtDate(d: string | undefined): string {
     if (!d) return '—';
-    return new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+    return new Date(d).toLocaleDateString('sr-Latn-RS', { day: '2-digit', month: 'short', year: 'numeric' });
   }
 
   statusClass(status: string): string {

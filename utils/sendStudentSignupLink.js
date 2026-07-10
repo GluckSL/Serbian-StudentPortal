@@ -67,7 +67,7 @@ async function sendStudentSignupLinkEmail(user, profile = {}) {
   const app = await ensureSignupApplicationForUser(user, profile);
   if (!app) return { ok: false, reason: 'no_application' };
 
-  const frontendUrl = (process.env.FRONTEND_URL || 'https://gluckstudentsportal.com').replace(/\/$/, '');
+  const frontendUrl = (process.env.PORTAL_URL || process.env.FRONTEND_URL || 'https://portal.gluckglobal.rs').replace(/\/$/, '');
   const signupUrl = `${frontendUrl}/signup/apply?token=${app.applicationToken}`;
   const linkMail = buildSignupLinkEmail({ name: user.name || profile.name || 'there', signupUrl });
 

@@ -1,4 +1,4 @@
-import {
+﻿import {
   Component, Input, Output, EventEmitter, OnInit, OnDestroy, ChangeDetectorRef,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
@@ -67,7 +67,7 @@ export interface MCResult {
 
         <div class="mc__next-area" *ngIf="correctIndex !== null && !isLast && lives > 0">
           <button class="mc__next" (click)="nextQuestion()">
-            Next <mat-icon>arrow_forward</mat-icon>
+            Sledeće <mat-icon>arrow_forward</mat-icon>
             <div class="mc__next-progress"></div>
           </button>
         </div>
@@ -78,8 +78,8 @@ export interface MCResult {
         <mat-icon class="mc__done-icon" *ngIf="!dead && accuracy >= 80">emoji_events</mat-icon>
         <mat-icon class="mc__done-icon" *ngIf="!dead && accuracy < 80 && accuracy >= 50">thumb_up</mat-icon>
         <mat-icon class="mc__done-icon" *ngIf="!dead && accuracy < 50">replay</mat-icon>
-        <p *ngIf="dead">Game Over — no lives left!</p>
-        <p *ngIf="!dead">All questions answered!</p>
+        <p *ngIf="dead">Igra završena — nema više života!</p>
+        <p *ngIf="!dead">Sva pitanja odgovorena!</p>
       </div>
 
       <app-xp-float [xp]="xpBurst" [trigger]="xpTrigger"></app-xp-float>

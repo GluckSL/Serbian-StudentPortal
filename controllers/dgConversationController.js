@@ -28,7 +28,7 @@ async function denyIfStudentDgJourneyLocked(req, mod) {
     return {
       status: 403,
       body: {
-        message: 'Journey content is not enabled for your batch yet.',
+        message: 'Sadržaj putovanja još nije omogućen za vašu grupu.',
         code: 'JOURNEY_NOT_ACTIVE',
       },
     };
@@ -37,7 +37,7 @@ async function denyIfStudentDgJourneyLocked(req, mod) {
     return {
       status: 403,
       body: {
-        message: 'DG modules are not available for your batch.',
+        message: 'DG moduli nisu dostupni za vašu grupu.',
         code: 'LEARNING_CONTENT_DISABLED',
       },
     };
@@ -50,7 +50,7 @@ async function denyIfStudentDgJourneyLocked(req, mod) {
     return {
       status: 403,
       body: {
-        message: 'This module unlocks on a later day of your course.',
+        message: 'Ovaj modul se otključava kasnijeg dana vašeg kursa.',
         code: 'COURSE_DAY_LOCKED',
         studentCourseDay: access.courseDay,
         moduleCourseDay: mod.courseDay,
@@ -111,14 +111,14 @@ exports.start = async (req, res) => {
   try {
     const { moduleId, sessionId } = req.body;
     if (!moduleId || !sessionId) {
-      return res.status(400).json({ message: 'moduleId and sessionId are required' });
+      return res.status(400).json({ message: 'moduleId i sessionId su obavezni' });
     }
 
     const mod = await DGModule.findOne({ _id: moduleId, isActive: true });
-    if (!mod) return res.status(404).json({ message: 'Module not found' });
+    if (!mod) return res.status(404).json({ message: 'Modul nije pronađen' });
 
     if (req.user.role === 'STUDENT' && !mod.visibleToStudents) {
-      return res.status(403).json({ message: 'Module not available' });
+      return res.status(403).json({ message: 'Modul nije dostupan' });
     }
 
     const journeyDeny = await denyIfStudentDgJourneyLocked(req, mod);
@@ -160,7 +160,7 @@ exports.start = async (req, res) => {
     });
   } catch (err) {
     console.error('[dgConversation.start]', err);
-    res.status(500).json({ message: err.message || 'Start failed' });
+    res.status(500).json({ message: err.message || 'Pokretanje nije uspelo' });
   }
 };
 
@@ -180,7 +180,7 @@ exports.respond = async (req, res) => {
 
     if (!moduleId || !sessionId) {
       return res.status(400).json({
-        message: 'moduleId and sessionId are required',
+        message: 'moduleId i sessionId su obavezni',
       });
     }
 
@@ -188,9 +188,9 @@ exports.respond = async (req, res) => {
     let state = getState(sessionId);
     if (!state) {
       const mod = await DGModule.findOne({ _id: moduleId, isActive: true });
-      if (!mod) return res.status(404).json({ message: 'Module not found' });
+      if (!mod) return res.status(404).json({ message: 'Modul nije pronađen' });
       if (req.user.role === 'STUDENT' && !mod.visibleToStudents) {
-        return res.status(403).json({ message: 'Module not available' });
+        return res.status(403).json({ message: 'Modul nije dostupan' });
       }
       const journeyDeny = await denyIfStudentDgJourneyLocked(req, mod);
       if (journeyDeny) return res.status(journeyDeny.status).json(journeyDeny.body);
@@ -203,7 +203,7 @@ exports.respond = async (req, res) => {
     // ── UI actions: Continue / Complete (no spoken userText required) ────────
     if (clientAction === 'continue' || clientAction === 'complete') {
       if (!state.conversationStarted) {
-        return res.status(400).json({ message: 'Conversation has not started yet' });
+        return res.status(400).json({ message: 'Razgovor još nije počeo' });
       }
       if (clientAction === 'continue') {
         setState(sessionId, { sessionChoiceResolved: true });
@@ -273,7 +273,7 @@ exports.respond = async (req, res) => {
 
     if (!clientAction && (!userText || !String(userText).trim())) {
       return res.status(400).json({
-        message: 'userText is required',
+        message: 'userText je obavezan',
       });
     }
 
@@ -429,6 +429,6 @@ exports.respond = async (req, res) => {
     });
   } catch (err) {
     console.error('[dgConversationController.respond]', err);
-    res.status(500).json({ message: err.message || 'Conversation response failed' });
+    res.status(500).json({ message: err.message || 'Odgovor na razgovor nije uspeo' });
   }
 };

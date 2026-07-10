@@ -157,7 +157,7 @@ async function buildExcel(students, counts) {
   });
   headerRow.height = 28;
 
-  const fmt = (d) => (d ? new Date(d).toLocaleDateString('en-IN', { timeZone: TZ }) : '—');
+  const fmt = (d) => (d ? new Date(d).toLocaleDateString('sr-Latn-RS', { timeZone: TZ }) : '—');
 
   students.forEach((s, i) => {
     const row = sheet.addRow({
@@ -263,7 +263,7 @@ async function buildExcel(students, counts) {
  * Build the HTML body for the daily report email.
  */
 function buildEmailHtml(counts, students) {
-  const today = new Date().toLocaleDateString('en-IN', {
+  const today = new Date().toLocaleDateString('sr-Latn-RS', {
     timeZone: TZ,
     weekday: 'long',
     year: 'numeric',
@@ -399,7 +399,7 @@ async function sendDailyStudentStatusReport() {
     const excelBuffer = await buildExcel(students, counts);
     const html = buildEmailHtml(counts, students);
 
-    const today = new Date().toLocaleDateString('en-IN', {
+    const today = new Date().toLocaleDateString('sr-Latn-RS', {
       timeZone: TZ,
       year: 'numeric',
       month: 'long',

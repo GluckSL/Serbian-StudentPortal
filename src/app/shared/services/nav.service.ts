@@ -1,4 +1,4 @@
-﻿import { Injectable } from '@angular/core';
+import { Injectable } from '@angular/core';
 
 export interface NavItem {
   id: string;
@@ -121,237 +121,237 @@ export class NavService {
     attendance: ['/admin/attendance-dashboard'],
   };
 
-  // ── ADMIN ──────────────────────────────────────────────
+  // -- ADMIN ----------------------------------------------
   private readonly ADMIN_NAV: NavGroup[] = [
 
-    // ── Overview ──────────────────────────────────────
+    // -- Overview --------------------------------------
     {
-      group: 'Overview',
+      group: 'Pregled',
       items: [
-        { id: 'dashboard',  label: 'Dashboard', icon: 'dashboard', route: '/admin-dashboard', subGroup: null },
-        { id: 'engagement-overview', label: 'Batch Overview', icon: 'insights', route: '/admin/engagement-overview', subGroup: null },
-        { id: 'students',   label: 'Students',  icon: 'school',    route: '/admin/students',  subGroup: 'Student Management' },
-        { id: 'teachers',   label: 'Teachers',  icon: 'group',     route: '/teachers',        subGroup: 'Teacher Management' },
-        { id: 'user-roles', label: 'User Roles', icon: 'key',      route: '/user-roles',      subGroup: null },
-        { id: 'account-audit-log', label: 'Account Audit Log', icon: 'history', route: '/account-audit-log', subGroup: null },
+        { id: 'dashboard',  label: 'Kontrolna tabla', icon: 'dashboard', route: '/admin-dashboard', subGroup: null },
+        { id: 'engagement-overview', label: 'Pregled grupe', icon: 'insights', route: '/admin/engagement-overview', subGroup: null },
+        { id: 'students',   label: 'Ucenici',  icon: 'school',    route: '/admin/students',  subGroup: 'Upravljanje ucenicima' },
+        { id: 'teachers',   label: 'Nastavnici',  icon: 'group',     route: '/teachers',        subGroup: 'Upravljanje nastavnicima' },
+        { id: 'user-roles', label: 'Uloge korisnika', icon: 'key',      route: '/user-roles',      subGroup: null },
+        { id: 'account-audit-log', label: 'Evidencija aktivnosti', icon: 'history', route: '/account-audit-log', subGroup: null },
         { id: 'crm',        label: 'CRM',        icon: 'hub',       route: '/admin/crm',       subGroup: null }
       ]
     },
 
-    // ── Classes & Attendance ─────────────────────────
-    // Timetable → live sessions → attendance → recordings — full class lifecycle
+    // -- Classes & Attendance -------------------------
+    // Timetable ? live sessions ? attendance ? recordings � full class lifecycle
     {
-      group: 'Classes & Attendance',
+      group: 'Casovi i prisustvo',
       items: [
-        { id: 'timetable',        label: 'Timetable',        icon: 'calendar_today', route: '/time-table-view-admin',  subGroup: null },
-        { id: 'manage-classes',   label: 'Manage Classes',   icon: 'videocam',       route: '/teacher/meetings',       subGroup: null },
-        { id: 'gluck-room',       label: 'Gluck Room',       icon: 'meeting_room',   route: '/gluck-room',             subGroup: null },
-        { id: 'attendance',       label: 'Attendance',       icon: 'bar_chart',      route: '/admin/zoom-reports',     subGroup: null },
-        { id: 'class-recordings', label: 'Class Recordings', icon: 'play_circle',    route: '/class-recordings',       subGroup: null }
+        { id: 'timetable',        label: 'Raspored',        icon: 'calendar_today', route: '/time-table-view-admin',  subGroup: null },
+        { id: 'manage-classes',   label: 'Upravljanje casovima',   icon: 'videocam',       route: '/teacher/meetings',       subGroup: null },
+        { id: 'gluck-room',       label: 'Gluck soba',       icon: 'meeting_room',   route: '/gluck-room',             subGroup: null },
+        { id: 'attendance',       label: 'Prisustvo',       icon: 'bar_chart',      route: '/admin/zoom-reports',     subGroup: null },
+        { id: 'class-recordings', label: 'Snimci casova', icon: 'play_circle',    route: '/class-recordings',       subGroup: null }
       ]
     },
 
-    // ── Learning Content ─────────────────────────────────
+    // -- Learning Content ---------------------------------
     // Modules, exercises, and resources teachers use in lessons
     {
-      group: 'Learning Content',
+      group: 'Sadr�aj za ucenje',
       items: [
-        { id: 'dg-bot',            label: 'DG Bot Modules',       icon: 'pets',             route: '/admin/dg-modules',        subGroup: 'Module Management' },
-        { id: 'dg-bot-v2',        label: 'DG Bot Modules 2.0',   icon: 'auto_awesome',     route: '/admin/dg-modules-v2',     subGroup: 'Module Management' },
-        { id: 'sprechen-exam',     label: 'Sprechen Exam',    icon: 'record_voice_over', route: '/admin/sprechen-exam',    subGroup: 'Module Management' },
-        { id: 'exercises',         label: 'Online Exercises',     icon: 'fitness_center',   route: '/admin/digital-exercises',    subGroup: null },
-        { id: 'exercises-v2',      label: 'Online Exercises 2.0', icon: 'upgrade',          route: '/admin/digital-exercises-v2', subGroup: null },
-        { id: 'teacher-resources', label: 'Teacher Resources',     icon: 'folder_shared',    route: '/admin/teacher-resources',    subGroup: null },
-        { id: 'correction',        label: 'Correction',       icon: 'build_circle',     route: '/admin/correction',        subGroup: null }
+        { id: 'dg-bot',            label: 'DG Bot moduli',       icon: 'pets',             route: '/admin/dg-modules',        subGroup: 'Upravljanje modulima' },
+        { id: 'dg-bot-v2',        label: 'DG Bot moduli 2.0',   icon: 'auto_awesome',     route: '/admin/dg-modules-v2',     subGroup: 'Upravljanje modulima' },
+        { id: 'sprechen-exam',     label: 'Sprechen ispit',    icon: 'record_voice_over', route: '/admin/sprechen-exam',    subGroup: 'Upravljanje modulima' },
+        { id: 'exercises',         label: 'Online ve�be',     icon: 'fitness_center',   route: '/admin/digital-exercises',    subGroup: null },
+        { id: 'exercises-v2',      label: 'Online ve�be 2.0', icon: 'upgrade',          route: '/admin/digital-exercises-v2', subGroup: null },
+        { id: 'teacher-resources', label: 'Resursi za nastavnike',     icon: 'folder_shared',    route: '/admin/teacher-resources',    subGroup: null },
+        { id: 'correction',        label: 'Korekcija',       icon: 'build_circle',     route: '/admin/correction',        subGroup: null }
       ]
     },
 
-    // ── GlückArena ───────────────────────────────────────────
+    // -- Gl�ckArena -------------------------------------------
     // All arena game, analytics, and command tools in one place
     {
-      group: 'GlückArena',
+      group: 'Gl�ckArena',
       items: [
         { id: 'glueck-arena',           label: 'Arena',             icon: 'sports_esports', route: '/admin/glueck-arena',                          subGroup: null },
-        { id: 'glueck-arena-command',   label: 'Command Center',    icon: 'tune',           route: '/admin/glueck-arena/command-center',           subGroup: null },
-        { id: 'glueck-arena-analytics', label: 'Arena Analytics',   icon: 'insights',       route: '/admin/glueck-arena/analytics',                subGroup: null },
-        { id: 'glueck-arena-teacher',   label: 'Teacher Insights',  icon: 'school',         route: '/admin/glueck-arena/teacher-analytics',        subGroup: null },
-        { id: 'bf-team-battles',        label: 'Team Battles',      icon: 'groups',         route: '/admin/glueck-arena/battlefield/team-battles', subGroup: null }
+        { id: 'glueck-arena-command',   label: 'Komandni centar',    icon: 'tune',           route: '/admin/glueck-arena/command-center',           subGroup: null },
+        { id: 'glueck-arena-analytics', label: 'Analitika arene',   icon: 'insights',       route: '/admin/glueck-arena/analytics',                subGroup: null },
+        { id: 'glueck-arena-teacher',   label: 'Uvidi nastavnika',  icon: 'school',         route: '/admin/glueck-arena/teacher-analytics',        subGroup: null },
+        { id: 'bf-team-battles',        label: 'Timske bitke',      icon: 'groups',         route: '/admin/glueck-arena/battlefield/team-battles', subGroup: null }
       ]
     },
 
-    // ── Progress & Analytics ───────────────────────────
+    // -- Progress & Analytics ---------------------------
     // All reporting and tracking dashboards for student progress
     {
-      group: 'Progress & Analytics',
+      group: 'Napredak i analitika',
       items: [
-        { id: 'portal-analytics',  label: 'Portal Analytics',  icon: 'analytics',   route: '/portal-analytics',       subGroup: 'Student Management' },
-        { id: 'student-progress',  label: 'Student Progress',  icon: 'trending_up', route: '/admin/student-progress', subGroup: null },
-        { id: 'admin-performance', label: 'Performance',       icon: 'speed',       route: '/admin/performance',      subGroup: null },
-        { id: 'language-tracking', label: 'Language Tracking', icon: 'translate',   route: '/admin/language-tracking', subGroup: null },
-        { id: 'batch-leaderboard', label: 'Batch Leaderboard', icon: 'leaderboard', route: '/admin/leaderboard',      subGroup: null },
-        { id: 'journey',           label: 'Journey',           icon: 'map',         route: '/admin/journey',          subGroup: null },
-        { id: 'go-students',       label: 'GO Students',       icon: 'rocket_launch', route: '/admin/go-students',    subGroup: null }
+        { id: 'portal-analytics',  label: 'Analitika portala',  icon: 'analytics',   route: '/portal-analytics',       subGroup: 'Upravljanje ucenicima' },
+        { id: 'student-progress',  label: 'Napredak ucenika',  icon: 'trending_up', route: '/admin/student-progress', subGroup: null },
+        { id: 'admin-performance', label: 'Performanse',       icon: 'speed',       route: '/admin/performance',      subGroup: null },
+        { id: 'language-tracking', label: 'Pracenje jezika', icon: 'translate',   route: '/admin/language-tracking', subGroup: null },
+        { id: 'batch-leaderboard', label: 'Rang lista grupe', icon: 'leaderboard', route: '/admin/leaderboard',      subGroup: null },
+        { id: 'journey',           label: 'Put',           icon: 'map',         route: '/admin/journey',          subGroup: null },
+        { id: 'go-students',       label: 'GO Ucenici',       icon: 'rocket_launch', route: '/admin/go-students',    subGroup: null }
       ]
     },
 
-    // ── Sales & Finance ────────────────────────────────────────
+    // -- Sales & Finance ----------------------------------------
     {
-      group: 'Sales & Finance',
+      group: 'Prodaja i finansije',
       items: [
-        { id: 'enrollment-overview', label: 'Enrollment Overview', icon: 'storefront',             route: '/admin/enrollment-overview', subGroup: null },
-        { id: 'finance-dashboard',   label: 'Finance Dashboard',   icon: 'account_balance_wallet', route: '/admin/finance-dashboard',   subGroup: null },
-        { id: 'payment-hub',         label: 'Payment Hub',         icon: 'credit_card',            route: '/admin/payment-hub',         subGroup: null },
-        { id: 'payment-request',     label: 'Request Payment',     icon: 'send',                   route: '/admin/payment-request',     subGroup: null }
-        // Legacy payment tabs hidden — use Payment Hub instead
-        // { id: 'payments', label: 'Payments', icon: 'payments', route: '/admin/payments', subGroup: null },
+        { id: 'enrollment-overview', label: 'Pregled upisa', icon: 'storefront',             route: '/admin/enrollment-overview', subGroup: null },
+        { id: 'finance-dashboard',   label: 'Finansijska kontrolna tabla',   icon: 'account_balance_wallet', route: '/admin/finance-dashboard',   subGroup: null },
+        { id: 'payment-hub',         label: 'Centar za placanje',         icon: 'credit_card',            route: '/admin/payment-hub',         subGroup: null },
+        { id: 'payment-request',     label: 'Zahtev za placanje',     icon: 'send',                   route: '/admin/payment-request',     subGroup: null }
+        // Legacy payment tabs hidden � use Payment Hub instead
+        // { id: 'payments', label: 'Placanja', icon: 'payments', route: '/admin/payments', subGroup: null },
         // { id: 'invoices', label: 'Invoices', icon: 'receipt_long', route: '/admin/invoices', subGroup: null },
         // { id: 'payment-approvals', label: 'Payment Approvals', icon: 'check_circle', route: '/admin/payment-approvals', subGroup: null }
       ]
     },
 
-    // ── Documents & Data ──────────────────────────────────────
+    // -- Documents & Data --------------------------------------
     {
-      group: 'Documents & Data',
+      group: 'Dokumenti i podaci',
       items: [
-        { id: 'documents',         label: 'Documents',          icon: 'description', route: '/admin/document-verification', subGroup: null },
-        { id: 'google-sheet-sync', label: 'Sheet Sync',         icon: 'table_chart', route: '/admin/google-sheet-sync',     subGroup: null },
+        { id: 'documents',         label: 'Dokumenti',          icon: 'description', route: '/admin/document-verification', subGroup: null },
+        { id: 'google-sheet-sync', label: 'Sinhronizacija tabele',         icon: 'table_chart', route: '/admin/google-sheet-sync',     subGroup: null },
         // { id: 'monday-sync',       label: 'Monday.com Preview', icon: 'sync',        route: '/admin/monday-sync-preview',   subGroup: null },
-        { id: 'visa-tracking',     label: 'Visa Tracking',      icon: 'flight',      route: '/admin/visa-tracking',         subGroup: null }
+        { id: 'visa-tracking',     label: 'Pracenje vize',      icon: 'flight',      route: '/admin/visa-tracking',         subGroup: null }
       ]
     },
 
-    // ── Support & Comms ────────────────────────────────────────
+    // -- Support & Comms ----------------------------------------
     {
-      group: 'Support & Comms',
+      group: 'Podr�ka i komunikacija',
       items: [
-        { id: 'announcements',   label: 'Announcements',    icon: 'campaign',            route: '/admin/announcements',   subGroup: null },
-        { id: 'job-openings',    label: 'Job Openings',     icon: 'work',                route: '/admin/job-openings',    subGroup: null },
-        { id: 'support-tickets', label: 'Support Tickets',  icon: 'confirmation_number', route: '/admin/support-tickets', subGroup: null },
-        { id: 'olly-chat',       label: 'Olly Live Chat 🦊', icon: 'forum',             route: '/admin/olly-chat',       subGroup: null },
-        { id: 'class-feedback',  label: 'Class Feedback 🦊', icon: 'rate_review',       route: '/admin/class-feedback',  subGroup: null },
-        { id: 'help',            label: 'Help & Support',   icon: 'help',                route: '/help',                  subGroup: null }
+        { id: 'announcements',   label: 'Obave�tenja',    icon: 'campaign',            route: '/admin/announcements',   subGroup: null },
+        { id: 'job-openings',    label: 'Oglasi za posao',     icon: 'work',                route: '/admin/job-openings',    subGroup: null },
+        { id: 'support-tickets', label: 'Tiketi za podr�ku',  icon: 'confirmation_number', route: '/admin/support-tickets', subGroup: null },
+        { id: 'olly-chat',       label: 'Olly cet u�ivo ??', icon: 'forum',             route: '/admin/olly-chat',       subGroup: null },
+        { id: 'class-feedback',  label: 'Povratne informacije o casu ??', icon: 'rate_review',       route: '/admin/class-feedback',  subGroup: null },
+        { id: 'help',            label: 'Pomoc i podr�ka',   icon: 'help',                route: '/help',                  subGroup: null }
       ]
     },
 
-    // ── System & Account ──────────────────────────────────────
+    // -- System & Account --------------------------------------
     {
-      group: 'System',
+      group: 'Sistem',
       items: [
-        { id: 'test-accounts', label: 'Test Accounts', icon: 'science', route: '/admin/test-accounts', subGroup: null },
-        { id: 'profile',       label: 'Profile',       icon: 'person',  route: '/profile',             subGroup: null }
+        { id: 'test-accounts', label: 'Test nalozi', icon: 'science', route: '/admin/test-accounts', subGroup: null },
+        { id: 'profile',       label: 'Profil',       icon: 'person',  route: '/profile',             subGroup: null }
       ]
     }
 
   ];
-  // ── TEACHER ────────────────────────────────────────────────────────────
-  // No Dashboard for teacher — redirects to students
+  // -- TEACHER ------------------------------------------------------------
+  // No Dashboard for teacher � redirects to students
   private readonly TEACHER_NAV: NavGroup[] = [
     {
-      group: 'Students',
+      group: 'Ucenici',
       items: [
-        { id: 'students', label: 'Students', icon: 'groups', route: '/teacher-dashboard', subGroup: null },
-        { id: 'my-classes', label: 'My Classes', icon: 'class', route: '/teacher-dashboard/my-classes', subGroup: null }
+        { id: 'students', label: 'Ucenici', icon: 'groups', route: '/teacher-dashboard', subGroup: null },
+        { id: 'my-classes', label: 'Moji casovi', icon: 'class', route: '/teacher-dashboard/my-classes', subGroup: null }
       ]
     },
     {
-      group: 'Learning',
+      group: 'Ucenje',
       items: [
-        { id: 'dg-bot',    label: 'DG Bot Modules',   icon: 'pets', route: '/admin/dg-modules',        subGroup: 'Module Management' },
-        { id: 'dg-bot-v2', label: 'DG Bot Modules 2.0', icon: 'auto_awesome', route: '/admin/dg-modules-v2', subGroup: 'Module Management' },
-        { id: 'sprechen-exam', label: 'Sprechen Exam',  icon: 'record_voice_over', route: '/admin/sprechen-exam', subGroup: 'Module Management' },
-        { id: 'exercises',    label: 'Online Exercises',     icon: 'fitness_center', route: '/admin/digital-exercises',    subGroup: null },
-        { id: 'exercises-v2', label: 'Online Exercises 2.0', icon: 'upgrade',        route: '/admin/digital-exercises-v2', subGroup: null },
-        { id: 'glueck-arena', label: 'GlückArena', icon: 'sports_esports', route: '/admin/glueck-arena', subGroup: null },
-        { id: 'bf-team-battles', label: 'Team Battles', icon: 'groups', route: '/admin/glueck-arena/battlefield/team-battles', subGroup: null }
+        { id: 'dg-bot',    label: 'DG Bot moduli',   icon: 'pets', route: '/admin/dg-modules',        subGroup: 'Upravljanje modulima' },
+        { id: 'dg-bot-v2', label: 'DG Bot moduli 2.0', icon: 'auto_awesome', route: '/admin/dg-modules-v2', subGroup: 'Upravljanje modulima' },
+        { id: 'sprechen-exam', label: 'Sprechen ispit',  icon: 'record_voice_over', route: '/admin/sprechen-exam', subGroup: 'Upravljanje modulima' },
+        { id: 'exercises',    label: 'Online ve�be',     icon: 'fitness_center', route: '/admin/digital-exercises',    subGroup: null },
+        { id: 'exercises-v2', label: 'Online ve�be 2.0', icon: 'upgrade',        route: '/admin/digital-exercises-v2', subGroup: null },
+        { id: 'glueck-arena', label: 'Gl�ckArena', icon: 'sports_esports', route: '/admin/glueck-arena', subGroup: null },
+        { id: 'bf-team-battles', label: 'Timske bitke', icon: 'groups', route: '/admin/glueck-arena/battlefield/team-battles', subGroup: null }
 
       ]
     },
     {
-      group: 'My Analytics',
+      group: 'Moja analitika',
       items: [
-        { id: 'my-analytics', label: 'My Analytics', icon: 'analytics', route: '/my-analytics', subGroup: null }
+        { id: 'my-analytics', label: 'Moja analitika', icon: 'analytics', route: '/my-analytics', subGroup: null }
       ]
     },
     {
-      group: 'Help',
+      group: 'Pomoc',
       items: [
-        { id: 'announcements', label: 'Announcements', icon: 'campaign', route: '/admin/announcements', subGroup: null },
-        { id: 'help', label: 'Help & Support', icon: 'help', route: '/help', subGroup: null }
+        { id: 'announcements', label: 'Obave�tenja', icon: 'campaign', route: '/admin/announcements', subGroup: null },
+        { id: 'help', label: 'Pomoc i podr�ka', icon: 'help', route: '/help', subGroup: null }
       ]
     },
     {
-      group: 'Timetable',
+      group: 'Raspored',
       items: [
-        { id: 'timetable', label: 'Timetable', icon: 'calendar_today', route: '/time-table-view-teacher', subGroup: null }
+        { id: 'timetable', label: 'Raspored', icon: 'calendar_today', route: '/time-table-view-teacher', subGroup: null }
       ]
     },
     {
-      group: 'Gluck Room',
+      group: 'Gluck soba',
       items: [
-        { id: 'gluck-room', label: 'Gluck Room', icon: 'meeting_room', route: '/gluck-room', subGroup: null }
+        { id: 'gluck-room', label: 'Gluck soba', icon: 'meeting_room', route: '/gluck-room', subGroup: null }
       ]
     },
     {
-      group: 'Profile',
+      group: 'Profil',
       items: [
-        { id: 'profile', label: 'Profile', icon: 'person', route: '/profile', subGroup: null }
+        { id: 'profile', label: 'Profil', icon: 'person', route: '/profile', subGroup: null }
       ]
     }
   ];
 
-  // ── STUDENT ────────────────────────────────────────────────────────────
+  // -- STUDENT ------------------------------------------------------------
   // Profile merged into Dashboard. No separate AI Bot Report or Attendance nav items.
   private readonly STUDENT_NAV: NavGroup[] = [
     {
-      group: 'Dashboard',
+      group: 'Kontrolna tabla',
       items: [
-        { id: 'dashboard', label: 'Dashboard', icon: 'home', route: '/student-progress', subGroup: null }
+        { id: 'dashboard', label: 'Kontrolna tabla', icon: 'home', route: '/student-progress', subGroup: null }
       ]
     },
     {
-      group: 'Learning',
+      group: 'Ucenje',
       items: [
-        { id: 'my-course', label: 'My Course', icon: 'menu_book', route: '/student/my-course', subGroup: null },
-        { id: 'glueck-arena', label: 'GlückArena', icon: 'sports_esports', route: '/glueck-arena', subGroup: null },
-        { id: 'student-announcements', label: 'Announcements', icon: 'campaign', route: '/student/announcements', subGroup: null },
-        { id: 'job-openings', label: 'Job Openings', icon: 'work', route: '/student/job-openings', subGroup: null },
-        { id: 'performance', label: 'Performance History', icon: 'assessment', route: '/performance-history', subGroup: null }
+        { id: 'my-course', label: 'Moj kurs', icon: 'menu_book', route: '/student/my-course', subGroup: null },
+        { id: 'glueck-arena', label: 'Gl�ckArena', icon: 'sports_esports', route: '/glueck-arena', subGroup: null },
+        { id: 'student-announcements', label: 'Obave�tenja', icon: 'campaign', route: '/student/announcements', subGroup: null },
+        { id: 'job-openings', label: 'Oglasi za posao', icon: 'work', route: '/student/job-openings', subGroup: null },
+        { id: 'performance', label: 'Istorija napretka', icon: 'assessment', route: '/performance-history', subGroup: null }
       ]
     },
     {
-      group: 'Gluck Room',
+      group: 'Gluck soba',
       items: [
-        { id: 'gluck-room', label: 'Gluck Room', icon: 'meeting_room', route: '/student/gluck-room', subGroup: null }
+        { id: 'gluck-room', label: 'Gluck soba', icon: 'meeting_room', route: '/student/gluck-room', subGroup: null }
       ]
     },
     {
-      group: 'Documents',
+      group: 'Dokumenti',
       items: [
-        { id: 'documents', label: 'Documents', icon: 'folder', route: '/student-documents', subGroup: null }
+        { id: 'documents', label: 'Dokumenti', icon: 'folder', route: '/student-documents', subGroup: null }
       ]
     },
     {
-      group: 'Payments',
+      group: 'Placanja',
       items: [
-        { id: 'my-payments', label: 'My Payments', icon: 'payments', route: '/my-payments', subGroup: null }
+        { id: 'my-payments', label: 'Moja placanja', icon: 'payments', route: '/my-payments', subGroup: null }
       ]
     },
     {
-      group: 'Visa Status',
+      group: 'Status vize',
       items: [
-        { id: 'visa-status', label: 'Visa Status', icon: 'flight', route: '/visa-status', subGroup: null }
+        { id: 'visa-status', label: 'Status vize', icon: 'flight', route: '/visa-status', subGroup: null }
       ]
     },
     {
-      group: 'Timetable',
+      group: 'Raspored',
       items: [
-        { id: 'timetable', label: 'Timetable', icon: 'calendar_today', route: '/time-table-view-student', subGroup: null }
+        { id: 'timetable', label: 'Raspored', icon: 'calendar_today', route: '/time-table-view-student', subGroup: null }
       ]
     },
     {
-      group: 'Help',
+      group: 'Pomoc',
       items: [
-        { id: 'help', label: 'Help & Support', icon: 'help', route: '/help', subGroup: null }
+        { id: 'help', label: 'Pomoc i podr�ka', icon: 'help', route: '/help', subGroup: null }
       ]
     }
   ];
@@ -478,7 +478,7 @@ export class NavService {
     return (fallbackPermissions || []).includes(tabId) ? 'view' : null;
   }
 
-  // ── Teacher tab permissions (view/edit/full) ───────────────────────────────
+  // -- Teacher tab permissions (view/edit/full) -------------------------------
 
   normalizeTeacherTabPermissions(
     permissions: string[] = [],
@@ -542,14 +542,14 @@ export class NavService {
 
     if (allowedIds.has('journey')) {
       const journeyItem = this.getAllAdminNavItems().find((i) => i.id === 'journey');
-      const learningIdx = baseNav.findIndex((g) => g.group === 'Learning');
+      const learningIdx = baseNav.findIndex((g) => g.group === 'Ucenje');
       if (journeyItem && learningIdx >= 0) {
         const learning = baseNav[learningIdx];
         const hasJourney = learning.items.some((i) => i.id === 'journey');
         if (!hasJourney) {
           baseNav[learningIdx] = {
             ...learning,
-            items: [...learning.items, { ...journeyItem, label: 'Journey' }]
+            items: [...learning.items, { ...journeyItem, label: 'Put' }]
           };
         }
       }
@@ -558,12 +558,12 @@ export class NavService {
     const assignedAdminGroups: NavGroup[] = this.ADMIN_NAV
       .map((group) => ({
         ...group,
-        group: `${group.group} (Assigned Access)`,
+        group: `${group.group} (Dodeljen pristup)`,
         items: group.items
           .filter((item) => allowedIds.has(item.id) && item.id !== 'journey')
           .map((item) =>
             item.id === 'teacher-resources'
-              ? { ...item, label: 'Resources', route: '/teacher/resources' }
+              ? { ...item, label: 'Resursi', route: '/teacher/resources' }
               : item
           )
       }))
@@ -572,7 +572,7 @@ export class NavService {
     return [...baseNav, ...assignedAdminGroups];
   }
 
-  // ── Sub-Admin permissions ─────────────────────────────────────────────────
+  // -- Sub-Admin permissions -------------------------------------------------
 
   private readonly LEGACY_PERMISSION_ALIASES: Record<string, string> = {
     'krish-dashboard': 'enrollment-overview',

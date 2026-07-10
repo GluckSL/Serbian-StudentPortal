@@ -133,7 +133,8 @@ const DGModuleSchema = new mongoose.Schema(
     },
     language: { type: String, default: 'German' },
     /** Target language mirror; native = student's L1 (same as Learning Modules role-play). */
-    nativeLanguage: { type: String, default: 'English' },
+    // Serbia deployment: Serbian is the default native language
+    nativeLanguage: { type: String, default: 'Serbian' },
     minimumCompletionTime: { type: Number, default: 10, min: 5, max: 60 },
     minPracticeMinutes: { type: Number, default: 10, min: 5, max: 120 },
     maxPracticeMinutes: { type: Number, default: null, min: 5, max: 180 },

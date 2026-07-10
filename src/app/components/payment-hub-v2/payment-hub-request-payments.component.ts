@@ -131,13 +131,13 @@ export class PaymentHubRequestPaymentsComponent implements OnInit {
   loadingActionId: string | null = null;
 
   readonly approvalStatuses = [
-    { value: 'SUBMITTED,UNDER_REVIEW,APPROVED,REJECTED', label: 'Recent (pending + history)' },
-    { value: 'SUBMITTED,UNDER_REVIEW', label: 'Pending only' },
-    { value: 'SUBMITTED', label: 'Submitted' },
-    { value: 'UNDER_REVIEW', label: 'Under Review' },
-    { value: 'APPROVED', label: 'Approved' },
-    { value: 'REJECTED', label: 'Rejected' },
-    { value: '', label: 'All' },
+    { value: 'SUBMITTED,UNDER_REVIEW,APPROVED,REJECTED', label: 'Nedavno (na čekanju + istorija)' },
+    { value: 'SUBMITTED,UNDER_REVIEW', label: 'Samo na čekanju' },
+    { value: 'SUBMITTED', label: 'Podneto' },
+    { value: 'UNDER_REVIEW', label: 'Na pregledu' },
+    { value: 'APPROVED', label: 'Odobreno' },
+    { value: 'REJECTED', label: 'Odbijeno' },
+    { value: '', label: 'Svi' },
   ];
 
   constructor(
@@ -208,7 +208,7 @@ export class PaymentHubRequestPaymentsComponent implements OnInit {
       },
       error: () => {
         this.loadingStudents = false;
-        this.snack.open('Failed to load students', 'Dismiss', { duration: 4000 });
+        this.snack.open('Nije uspelo učitavanje učenika', 'Zatvori', { duration: 4000 });
       },
     });
   }
@@ -282,19 +282,19 @@ export class PaymentHubRequestPaymentsComponent implements OnInit {
 
   sendRequest(): void {
     if (this.selectedIds.size === 0) {
-      this.snack.open('Select at least one student', 'OK', { duration: 3000 });
+      this.snack.open('Izaberite najmanje jednog učenika', 'OK', { duration: 3000 });
       return;
     }
     if (!this.amount || this.amount <= 0) {
-      this.snack.open('Enter a valid amount', 'OK', { duration: 3000 });
+      this.snack.open('Unesite važeći iznos', 'OK', { duration: 3000 });
       return;
     }
     if (!this.dueDate) {
-      this.snack.open('Select a due date', 'OK', { duration: 3000 });
+      this.snack.open('Izaberite rok', 'OK', { duration: 3000 });
       return;
     }
     if (this.paymentType === 'Custom' && !this.customType.trim()) {
-      this.snack.open('Enter a custom payment type label', 'OK', { duration: 3000 });
+      this.snack.open('Unesite oznaku za prilagođenu vrstu plaćanja', 'OK', { duration: 3000 });
       return;
     }
 
@@ -312,12 +312,12 @@ export class PaymentHubRequestPaymentsComponent implements OnInit {
     }).subscribe({
       next: (res) => {
         this.sendingRequest = false;
-        this.snack.open(`Request sent to ${res.count} student(s).`, 'OK', { duration: 4000 });
+        this.snack.open(`Zahtev poslat za ${res.count} učenika.`, 'OK', { duration: 4000 });
         this.resetPaymentForm();
       },
       error: (e) => {
         this.sendingRequest = false;
-        this.snack.open(e?.error?.message || 'Failed to send request', 'Dismiss', { duration: 5000 });
+        this.snack.open(e?.error?.message || 'Nije uspelo slanje zahteva', 'Zatvori', { duration: 5000 });
       },
     });
   }
@@ -358,7 +358,7 @@ export class PaymentHubRequestPaymentsComponent implements OnInit {
       },
       error: () => {
         this.loadingApprovals = false;
-        this.snack.open('Could not load approval queue', 'Dismiss', { duration: 4000 });
+        this.snack.open('Nije moguće učitati red za odobrenje', 'Zatvori', { duration: 4000 });
       },
     });
   }
@@ -451,13 +451,13 @@ export class PaymentHubRequestPaymentsComponent implements OnInit {
         if (url) open(url);
         else {
           this.snack.open(
-            'Proof file not found. If the student just uploaded, confirm the file exists under server uploads or S3.',
-            'Dismiss',
+            'Datoteka dokaza nije pronađena. Ako je učenik upravo otpremio, potvrdite da datoteka postoji pod server uploads ili S3.',
+            'Zatvori',
             { duration: 7000 },
           );
         }
       },
-      error: () => this.snack.open('Could not load proof link', 'Dismiss', { duration: 4000 }),
+      error: () => this.snack.open('Nije moguće učitati vezu za dokaz', 'Zatvori', { duration: 4000 }),
     });
   }
 
@@ -536,8 +536,8 @@ export class PaymentHubRequestPaymentsComponent implements OnInit {
     this.api.approveSubmission(sub._id, body).subscribe({
       next: (res) => {
         this.loadingActionId = null;
-        const msg = res.receiptNumber ? ` Receipt: ${res.receiptNumber}` : '';
-        this.snack.open('Approved. Confirmation email sent to the student.' + msg + (res.isFullyPaid ? ' Fully paid!' : ''), 'OK', { duration: 5000 });
+        const msg = res.receiptNumber ? ` Potvrda: ${res.receiptNumber}` : '';
+        this.snack.open('Odobreno. Potvrda putem emaila poslata učeniku.' + msg + (res.isFullyPaid ? ' Potpuno plaćeno!' : ''), 'OK', { duration: 5000 });
         this.activeActionId = null;
         this.loadApprovals();
         this.loadSignupApprovals();
@@ -545,14 +545,14 @@ export class PaymentHubRequestPaymentsComponent implements OnInit {
       },
       error: (e) => {
         this.loadingActionId = null;
-        this.snack.open(e?.error?.message || 'Approve failed', 'Dismiss', { duration: 5000 });
+        this.snack.open(e?.error?.message || 'Odobravanje nije uspelo', 'Zatvori', { duration: 5000 });
       },
     });
   }
 
   reject(sub: ApprovalQueueItem, reason?: string, reviewUpdates?: Record<string, unknown>): void {
     const rejectionReason = (reason ?? this.rejectReason).trim();
-    if (!rejectionReason) { this.snack.open('Enter a rejection reason', 'OK', { duration: 3000 }); return; }
+    if (!rejectionReason) { this.snack.open('Unesite razlog odbijanja', 'OK', { duration: 3000 }); return; }
     this.loadingActionId = sub._id;
     const body: { rejectionReason: string; reviewUpdates?: Record<string, unknown> } = { rejectionReason };
     if (reviewUpdates) {
@@ -561,7 +561,7 @@ export class PaymentHubRequestPaymentsComponent implements OnInit {
     this.api.rejectSubmission(sub._id, body).subscribe({
       next: () => {
         this.loadingActionId = null;
-        this.snack.open('Rejected. The student has been emailed with your reason.', 'OK', { duration: 5000 });
+        this.snack.open('Odbijeno. Učenik je obavešten putem emaila sa vašim razlogom.', 'OK', { duration: 5000 });
         this.activeActionId = null;
         this.rejectReason = '';
         this.loadApprovals();
@@ -570,17 +570,17 @@ export class PaymentHubRequestPaymentsComponent implements OnInit {
       },
       error: (e) => {
         this.loadingActionId = null;
-        this.snack.open(e?.error?.message || 'Reject failed', 'Dismiss', { duration: 5000 });
+        this.snack.open(e?.error?.message || 'Odbijanje nije uspelo', 'Zatvori', { duration: 5000 });
       },
     });
   }
 
   reupload(sub: ApprovalQueueItem): void {
     this.loadingActionId = sub._id;
-    this.api.requestReupload(sub._id, { reuploadNote: this.reuploadNote || 'Please upload a clearer screenshot.' }).subscribe({
+    this.api.requestReupload(sub._id, { reuploadNote: this.reuploadNote || 'Molimo otpremite jasniji snimak ekrana.' }).subscribe({
       next: () => {
         this.loadingActionId = null;
-        this.snack.open('Reupload requested.', 'OK', { duration: 3000 });
+        this.snack.open('Ponovni upload zatražen.', 'OK', { duration: 3000 });
         this.activeActionId = null;
         this.reuploadNote = '';
         this.loadApprovals();
@@ -589,7 +589,7 @@ export class PaymentHubRequestPaymentsComponent implements OnInit {
       },
       error: (e) => {
         this.loadingActionId = null;
-        this.snack.open(e?.error?.message || 'Request failed', 'Dismiss', { duration: 5000 });
+        this.snack.open(e?.error?.message || 'Zahtev nije uspeo', 'Zatvori', { duration: 5000 });
       },
     });
   }
@@ -601,7 +601,7 @@ export class PaymentHubRequestPaymentsComponent implements OnInit {
   formatPaymentDateTime(sub: ApprovalQueueItem): string {
     const raw = sub.paymentDateTime || sub.submittedAt;
     if (!raw) return '—';
-    return new Date(raw).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    return new Date(raw).toLocaleString('sr-Latn-RS', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
   }
 
   formatSignupSubmittedAt(row: SignupPendingApplication): string {
@@ -623,7 +623,7 @@ export class PaymentHubRequestPaymentsComponent implements OnInit {
 
   viewSignupProof(row: SignupPendingApplication): void {
     if (!row.proofViewUrl) {
-      this.snack.open('Proof file not available.', 'Dismiss', { duration: 4000 });
+      this.snack.open('Datoteka dokaza nije dostupna.', 'Zatvori', { duration: 4000 });
       return;
     }
     window.open(row.proofViewUrl, '_blank', 'noopener,noreferrer');
@@ -645,11 +645,11 @@ export class PaymentHubRequestPaymentsComponent implements OnInit {
       this.api.updateSignupApplication(row.applicationToken, patch).subscribe({
         next: () => {
           if (batch) this.signupApproveBatch = batch;
-          this.snack.open('Signup details saved. Review and click Approve when ready.', 'OK', { duration: 4000 });
+          this.snack.open('Detalji prijave sačuvani. Pregledajte i kliknite Odobri kada budete spremni.', 'OK', { duration: 4000 });
           this.loadSignupApprovals();
         },
         error: (e) => {
-          this.snack.open(e?.error?.message || 'Could not save signup details', 'Dismiss', { duration: 5000 });
+          this.snack.open(e?.error?.message || 'Nije moguće sačuvati detalje prijave', 'Zatvori', { duration: 5000 });
         },
       });
     });
@@ -670,7 +670,7 @@ export class PaymentHubRequestPaymentsComponent implements OnInit {
       },
       error: (e) => {
         this.loadingSignupToken = null;
-        this.snack.open(e?.error?.message || 'Could not approve signup', 'Dismiss', { duration: 5000 });
+        this.snack.open(e?.error?.message || 'Nije moguće odobriti prijavu', 'Zatvori', { duration: 5000 });
       },
     });
   }
@@ -695,13 +695,13 @@ export class PaymentHubRequestPaymentsComponent implements OnInit {
       }).subscribe({
         next: (res) => {
           this.loadingSignupToken = null;
-          this.snack.open(res.message || 'Signup rejected. The student has been notified by email.', 'OK', { duration: 5000 });
+          this.snack.open(res.message || 'Prijava odbijena. Učenik je obavešten putem emaila.', 'OK', { duration: 5000 });
           this.loadSignupApprovals();
           this.refreshPendingQueueCount();
         },
         error: (e) => {
           this.loadingSignupToken = null;
-          this.snack.open(e?.error?.message || 'Could not reject signup', 'Dismiss', { duration: 5000 });
+          this.snack.open(e?.error?.message || 'Nije moguće odbiti prijavu', 'Zatvori', { duration: 5000 });
         },
       });
     });
@@ -750,26 +750,26 @@ export class PaymentHubRequestPaymentsComponent implements OnInit {
 
   fmt(val: number | undefined | null): string {
     if (val === undefined || val === null) return '0';
-    return val.toLocaleString('en-IN');
+    return val.toLocaleString('sr-Latn-RS');
   }
 
   get studentPaginationLabel(): string {
     const from = (this.studentPage - 1) * this.studentPageSize + 1;
     const to = Math.min(this.studentPage * this.studentPageSize, this.studentTotal);
-    return `${from}–${to} of ${this.studentTotal}`;
+    return `${from}–${to} od ${this.studentTotal}`;
   }
 
   get approvalPaginationLabel(): string {
     const from = (this.approvalPage - 1) * this.approvalPageSize + 1;
     const to = Math.min(this.approvalPage * this.approvalPageSize, this.approvalTotal);
-    return `${from}–${to} of ${this.approvalTotal}`;
+    return `${from}–${to} od ${this.approvalTotal}`;
   }
 
   // ── Approval card context (readable payment + instalment summary) ─────────
 
   requestTypeLine(sub: ApprovalQueueItem): string {
     const pr = sub.paymentRequestId;
-    if (!pr) return 'Payment';
+    if (!pr) return 'Plaćanje';
     if (pr.paymentType === 'Custom' && pr.customType?.trim()) {
       return `${pr.paymentType} — ${pr.customType.trim()}`;
     }
@@ -786,8 +786,8 @@ export class PaymentHubRequestPaymentsComponent implements OnInit {
   installmentBadge(sub: ApprovalQueueItem): string | null {
     if (!this.isInstallmentRequest(sub)) return null;
     const total = sub.paymentRequestId?.totalInstallments ?? '?';
-    if (sub.installmentNumber != null) return `Instalment ${sub.installmentNumber} of ${total}`;
-    return `${total} instalments`;
+    if (sub.installmentNumber != null) return `Rata ${sub.installmentNumber} od ${total}`;
+    return `${total} rata`;
   }
 
   openStudentPaymentPage(sub: ApprovalQueueItem, ev?: Event): void {

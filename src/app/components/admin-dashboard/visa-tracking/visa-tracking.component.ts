@@ -218,7 +218,7 @@ export class VisaTrackingComponent implements OnInit {
 
   formatDate(d: any): string {
     if (!d) return '—';
-    return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    return new Date(d).toLocaleDateString('sr-Latn-RS', { day: '2-digit', month: '2-digit', year: 'numeric' });
   }
 
   stageLabel(record: any): string {

@@ -4,12 +4,12 @@
   <div class="sw-steps" *ngIf="currentStep === 1 || (currentStep === 2 && paymentSubStep === 'choose-method')">
     <div class="sw-step" [class.sw-step--active]="currentStep === 1" [class.sw-step--done]="currentStep > 1">
       <span class="sw-step__num">1</span>
-      <span class="sw-step__label">Personal Info</span>
+      <span class="sw-step__label">Lični podaci</span>
     </div>
     <div class="sw-step__line"></div>
     <div class="sw-step" [class.sw-step--active]="currentStep === 2">
       <span class="sw-step__num">2</span>
-      <span class="sw-step__label">Payment</span>
+      <span class="sw-step__label">Plaćanje</span>
     </div>
   </div>
 
@@ -17,54 +17,54 @@
   <ng-container *ngIf="currentStep === 1">
 
     <ng-container *ngIf="otpSubStep === 'info'">
-      <h3 class="sw-title">Tell us about yourself</h3>
-      <p class="sw-subtitle">Fill in your details, choose your course plan, and we'll send a verification code to your email.</p>
+      <h3 class="sw-title">Recite nam nešto o sebi</h3>
+      <p class="sw-subtitle">Popunite svoje podatke, odaberite plan kursa i poslaćemo vam kod za verifikaciju na vašu e-mail adresu.</p>
 
       <div class="sw-grid sw-grid--2">
         <div class="sw-field">
-          <label class="sw-label" for="sw-name">Full name <span class="sw-required">*</span></label>
-          <input id="sw-name" type="text" class="sw-input" [(ngModel)]="name" placeholder="Your full name" autocomplete="name" />
+          <label class="sw-label" for="sw-name">Puno ime <span class="sw-required">*</span></label>
+          <input id="sw-name" type="text" class="sw-input" [(ngModel)]="name" placeholder="Vaše puno ime" autocomplete="name" />
         </div>
         <div class="sw-field">
-          <label class="sw-label" for="sw-email">Email <span class="sw-required">*</span></label>
+          <label class="sw-label" for="sw-email">E-mail adresa <span class="sw-required">*</span></label>
           <input id="sw-email" type="email" class="sw-input" [(ngModel)]="email" placeholder="you@example.com" autocomplete="email" />
         </div>
         <div class="sw-field">
-          <label class="sw-label" for="sw-email-confirm">Confirm email <span class="sw-required">*</span></label>
-          <input id="sw-email-confirm" type="email" class="sw-input" [(ngModel)]="emailConfirm" placeholder="Re-enter your email" autocomplete="email" />
-          <p class="sw-hint">Must match exactly — one wrong letter sends the code to a different inbox.</p>
+          <label class="sw-label" for="sw-email-confirm">Potvrdite e-mail <span class="sw-required">*</span></label>
+          <input id="sw-email-confirm" type="email" class="sw-input" [(ngModel)]="emailConfirm" placeholder="Ponovo unesite e-mail" autocomplete="email" />
+          <p class="sw-hint">Mora se tačno podudarati — jedna pogrešna slova šalje kod na drugu prijemnu poštu.</p>
         </div>
         <div class="sw-field">
-          <label class="sw-label" for="sw-phone">Phone number</label>
+          <label class="sw-label" for="sw-phone">Broj telefona</label>
           <input id="sw-phone" type="tel" class="sw-input" [(ngModel)]="phoneNumber" placeholder="+91 98765 43210" />
         </div>
         <div class="sw-field">
-          <label class="sw-label" for="sw-whatsapp">WhatsApp number</label>
-          <input id="sw-whatsapp" type="tel" class="sw-input" [(ngModel)]="whatsappNumber" placeholder="Same as phone if identical" />
+          <label class="sw-label" for="sw-whatsapp">WhatsApp broj</label>
+          <input id="sw-whatsapp" type="tel" class="sw-input" [(ngModel)]="whatsappNumber" placeholder="Isti kao telefon ako je identičan" />
         </div>
         <div class="sw-field sw-field--full">
-          <label class="sw-label" for="sw-address">Address</label>
-          <input id="sw-address" type="text" class="sw-input" [(ngModel)]="address" placeholder="City, State, Country" />
+          <label class="sw-label" for="sw-address">Adresa</label>
+          <input id="sw-address" type="text" class="sw-input" [(ngModel)]="address" placeholder="Grad, Država, Zemlja" />
         </div>
         <div class="sw-field">
-          <label class="sw-label" for="sw-lang-level">German level opted <span class="sw-required">*</span></label>
+          <label class="sw-label" for="sw-lang-level">Odabrani nivo nemačkog <span class="sw-required">*</span></label>
           <select id="sw-lang-level" class="sw-input sw-select" [(ngModel)]="languageLevelOpted">
-            <option value="">Select level</option>
+            <option value="">Odaberite nivo</option>
             <option *ngFor="let lvl of GERMAN_LEVEL_OPTIONS" [value]="lvl">{{ lvl }}</option>
           </select>
         </div>
         <div class="sw-field">
           <label class="sw-label" for="sw-plan">Plan <span class="sw-required">*</span></label>
           <select id="sw-plan" class="sw-input sw-select" [(ngModel)]="selectedSubscription">
-            <option value="">Select plan</option>
+            <option value="">Odaberite plan</option>
             <option *ngFor="let s of SUBSCRIPTIONS" [value]="s.value">{{ s.label }}</option>
           </select>
         </div>
       </div>
 
       <div class="sw-field">
-        <label class="sw-label">Learn German from this language <span class="sw-required">*</span></label>
-        <p class="sw-hint">Select the language you are most comfortable learning in.</p>
+        <label class="sw-label">Učite nemački iz ovog jezika <span class="sw-required">*</span></label>
+        <p class="sw-hint">Odaberite jezik koji vam je najugodniji za učenje.</p>
         <div class="sw-medium-opts">
           <button
             type="button"
@@ -82,58 +82,58 @@
 
       <div class="sw-actions">
         <button type="button" class="sw-btn sw-btn--ghost" (click)="backFromPersonalInfo()">
-          <i class="fas fa-arrow-left"></i> {{ emailVerified ? 'Back' : 'Back to login' }}
+          <i class="fas fa-arrow-left"></i> {{ emailVerified ? 'Nazad' : 'Nazad na prijavu' }}
         </button>
         <button type="button" class="sw-btn sw-btn--primary" [disabled]="loading" (click)="submitPersonalInfo()">
           <ng-container *ngIf="!loading">
-            <ng-container *ngIf="emailVerified">Save &amp; continue <i class="fas fa-arrow-right"></i></ng-container>
-            <ng-container *ngIf="!emailVerified">Send verification code <i class="fas fa-arrow-right"></i></ng-container>
+            <ng-container *ngIf="emailVerified">Sačuvaj i nastavi <i class="fas fa-arrow-right"></i></ng-container>
+            <ng-container *ngIf="!emailVerified">Pošalji kod za verifikaciju <i class="fas fa-arrow-right"></i></ng-container>
           </ng-container>
-          <ng-container *ngIf="loading"><span class="sw-spinner"></span> {{ emailVerified ? 'Saving…' : 'Sending…' }}</ng-container>
+          <ng-container *ngIf="loading"><span class="sw-spinner"></span> {{ emailVerified ? 'Čuvanje…' : 'Slanje…' }}</ng-container>
         </button>
       </div>
     </ng-container>
 
     <ng-container *ngIf="otpSubStep === 'otp'">
-      <h3 class="sw-title">Verify your email</h3>
-      <p class="sw-subtitle">Enter the 6-digit code sent to <strong>{{ email }}</strong> and choose a password.</p>
+      <h3 class="sw-title">Verifikujte svoju e-mail adresu</h3>
+      <p class="sw-subtitle">Unesite 6-cifreni kod poslat na <strong>{{ email }}</strong> i odaberite lozinku.</p>
 
       <div class="sw-inbox-tips" role="note">
-        <p class="sw-inbox-tips__title"><i class="fas fa-inbox"></i> Not seeing the email?</p>
+        <p class="sw-inbox-tips__title"><i class="fas fa-inbox"></i> Ne vidite e-mail?</p>
         <ul>
-          <li>Sign in to Gmail as <strong>{{ email }}</strong> (profile icon → account email).</li>
-          <li>Check <strong>Promotions</strong>, <strong>Spam</strong>, and <strong>All Mail</strong>; search <code>from:gluckglobal.com verification</code>.</li>
-          <li>Wait 1–2 minutes, then use Resend code.</li>
+          <li>Prijavite se na Gmail kao <strong>{{ email }}</strong> (ikona profila → e-mail naloga).</li>
+          <li>Proverite <strong>Promotions</strong>, <strong>Spam</strong> i <strong>All Mail</strong>; pretražite <code>from:gluckglobal.com verification</code>.</li>
+          <li>Sačekajte 1–2 minuta, zatim koristite Ponovo pošalji kod.</li>
         </ul>
       </div>
 
       <div class="sw-field">
-        <label class="sw-label" for="sw-otp">Verification code <span class="sw-required">*</span></label>
-        <input id="sw-otp" type="text" class="sw-input sw-input--otp" [(ngModel)]="otp" maxlength="6" placeholder="6-digit code" inputmode="numeric" autocomplete="one-time-code" />
+          <label class="sw-label" for="sw-otp">Kod za verifikaciju <span class="sw-required">*</span></label>
+        <input id="sw-otp" type="text" class="sw-input sw-input--otp" [(ngModel)]="otp" maxlength="6" placeholder="6-cifreni kod" inputmode="numeric" autocomplete="one-time-code" />
         <p class="sw-otp-resend">
-          Didn't receive the code?
+          Niste primili kod?
           <button
             type="button"
             class="sw-otp-resend__link"
             [disabled]="otpResendCooldown > 0 || resendOtpLoading || loading || !applicationToken"
             (click)="resendOtp()">
-            <ng-container *ngIf="resendOtpLoading">Sending…</ng-container>
-            <ng-container *ngIf="!resendOtpLoading && otpResendCooldown > 0">Resend in {{ otpResendCooldown }}s</ng-container>
-            <ng-container *ngIf="!resendOtpLoading && otpResendCooldown === 0">Resend code</ng-container>
+            <ng-container *ngIf="resendOtpLoading">Slanje…</ng-container>
+            <ng-container *ngIf="!resendOtpLoading && otpResendCooldown > 0">Ponovo pošalji za {{ otpResendCooldown }}s</ng-container>
+            <ng-container *ngIf="!resendOtpLoading && otpResendCooldown === 0">Ponovo pošalji kod</ng-container>
           </button>
         </p>
       </div>
       <div class="sw-field">
-        <label class="sw-label" for="sw-pwd">Choose a password <span class="sw-required">*</span></label>
+          <label class="sw-label" for="sw-pwd">Odaberite lozinku <span class="sw-required">*</span></label>
         <div class="sw-pw-row">
-          <input [type]="showPwd ? 'text' : 'password'" id="sw-pwd" class="sw-input" [(ngModel)]="password" placeholder="Min. 8 characters" autocomplete="new-password" />
+          <input [type]="showPwd ? 'text' : 'password'" id="sw-pwd" class="sw-input" [(ngModel)]="password" placeholder="Min. 8 karaktera" autocomplete="new-password" />
           <button type="button" class="sw-pw-toggle" (click)="showPwd = !showPwd"><i [class]="showPwd ? 'fas fa-eye-slash' : 'fas fa-eye'"></i></button>
         </div>
       </div>
       <div class="sw-field">
-        <label class="sw-label" for="sw-confirm-pwd">Confirm password <span class="sw-required">*</span></label>
+          <label class="sw-label" for="sw-confirm-pwd">Potvrdite lozinku <span class="sw-required">*</span></label>
         <div class="sw-pw-row">
-          <input [type]="showConfirmPwd ? 'text' : 'password'" id="sw-confirm-pwd" class="sw-input" [(ngModel)]="confirmPassword" placeholder="Re-enter password" autocomplete="new-password" />
+          <input [type]="showConfirmPwd ? 'text' : 'password'" id="sw-confirm-pwd" class="sw-input" [(ngModel)]="confirmPassword" placeholder="Ponovo unesite lozinku" autocomplete="new-password" />
           <button type="button" class="sw-pw-toggle" (click)="showConfirmPwd = !showConfirmPwd"><i [class]="showConfirmPwd ? 'fas fa-eye-slash' : 'fas fa-eye'"></i></button>
         </div>
       </div>
@@ -143,11 +143,11 @@
 
       <div class="sw-actions">
         <button type="button" class="sw-btn sw-btn--ghost" (click)="otpSubStep = 'info'; error = ''">
-          <i class="fas fa-arrow-left"></i> Back
+          <i class="fas fa-arrow-left"></i> Prethodno
         </button>
         <button type="button" class="sw-btn sw-btn--primary" [disabled]="loading" (click)="verifyOtp()">
-          <ng-container *ngIf="!loading">Verify &amp; continue <i class="fas fa-arrow-right"></i></ng-container>
-          <ng-container *ngIf="loading"><span class="sw-spinner"></span> Verifying…</ng-container>
+          <ng-container *ngIf="!loading">Verifikuj i nastavi <i class="fas fa-arrow-right"></i></ng-container>
+          <ng-container *ngIf="loading"><span class="sw-spinner"></span> Verifikacija…</ng-container>
         </button>
       </div>
     </ng-container>
@@ -158,11 +158,11 @@
   <ng-container *ngIf="currentStep === 2 && paymentSubStep === 'choose-method'">
     <header class="sw-pay-header sw-pay-header--compact">
       <button type="button" class="sw-pay-back" (click)="backFromPayment()">
-        <i class="fas fa-arrow-left"></i> Edit details
+        <i class="fas fa-arrow-left"></i> Uredi podatke
       </button>
       <div class="sw-pay-header__text">
-        <h3 class="sw-pay-header__title">Choose how you paid</h3>
-        <p class="sw-pay-header__sub">Select one option to continue your registration.</p>
+        <h3 class="sw-pay-header__title">Odaberite način plaćanja</h3>
+        <p class="sw-pay-header__sub">Odaberite jednu opciju da biste nastavili registraciju.</p>
       </div>
     </header>
 
@@ -174,8 +174,8 @@
         [disabled]="loading"
         (click)="selectPaymentMethod('razorpay')">
         <span class="sw-pay-method-card__icon"><i class="fas fa-credit-card"></i></span>
-        <span class="sw-pay-method-card__title">Online payment</span>
-        <span class="sw-pay-method-card__desc">Pay now with card, UPI, or net banking — instant activation.</span>
+        <span class="sw-pay-method-card__title">Plaćanje online</span>
+        <span class="sw-pay-method-card__desc">Platite karticom, UPI-jem ili internet bankarstvom — trenutna aktivacija.</span>
       </button>
 
       <button
@@ -184,21 +184,21 @@
         [disabled]="loading"
         (click)="selectPaymentMethod('manual')">
         <span class="sw-pay-method-card__icon"><i class="fas fa-receipt"></i></span>
-        <span class="sw-pay-method-card__title">Already paid</span>
-        <span class="sw-pay-method-card__desc">I transferred to the {{ activeBankTitle }} account — upload payment screenshot.</span>
+        <span class="sw-pay-method-card__title">Već plaćeno</span>
+        <span class="sw-pay-method-card__desc">Uplatili ste na {{ activeBankTitle }} račun — priložite screenshot uplate.</span>
       </button>
     </div>
 
     <footer class="sw-pay-footer sw-pay-footer--compact">
       <div class="sw-pay-footer__meta">
-        <div class="sw-pay-chip"><span>Level</span><strong>{{ languageLevelOpted }}</strong></div>
+          <div class="sw-pay-chip"><span>Nivo</span><strong>{{ languageLevelOpted }}</strong></div>
         <div class="sw-pay-chip"><span>Plan</span><strong>{{ planLabel }}</strong></div>
-        <div class="sw-pay-chip sw-pay-chip--last"><span>Total</span><strong>{{ formattedAmount }}</strong></div>
+        <div class="sw-pay-chip sw-pay-chip--last"><span>Ukupno</span><strong>{{ formattedAmount }}</strong></div>
       </div>
     </footer>
 
     <div class="sw-loading-row" *ngIf="loading">
-      <span class="sw-spinner sw-spinner--dark"></span> Preparing your payment…
+      <span class="sw-spinner sw-spinner--dark"></span> Priprema vašeg plaćanja…
     </div>
     <div *ngIf="error" class="sw-error" role="alert"><i class="fas fa-exclamation-circle"></i> {{ error }}</div>
   </ng-container>
@@ -208,20 +208,20 @@
 
     <header class="sw-pay-header">
       <button type="button" class="sw-pay-back" (click)="backFromPayment()">
-        <i class="fas fa-arrow-left"></i> Back
+        <i class="fas fa-arrow-left"></i> Prethodno
       </button>
       <div class="sw-pay-header__text">
-        <h3 class="sw-pay-header__title">Bank transfer &amp; payment proof</h3>
-        <p class="sw-pay-header__sub">Transfer to our account, then enter details and upload your screenshot.</p>
+        <h3 class="sw-pay-header__title">Bankarski transfer i dokaz o uplati</h3>
+        <p class="sw-pay-header__sub">Uplatite na naš račun, zatim unesite podatke i priložite screenshot ili PDF.</p>
       </div>
     </header>
 
     <div *ngIf="applicationStatus === 'rejected'" class="sw-reject-banner" role="alert">
       <i class="fas fa-exclamation-triangle"></i>
       <div>
-        <strong>Your previous payment proof was not approved.</strong>
-        <p *ngIf="applicationRejectionReason">Reason: {{ applicationRejectionReason }}</p>
-        <p *ngIf="!applicationRejectionReason">Please review your payment details and upload a corrected screenshot below.</p>
+        <strong>Vaš prethodni dokaz o uplati nije odobren.</strong>
+        <p *ngIf="applicationRejectionReason">Razlog: {{ applicationRejectionReason }}</p>
+        <p *ngIf="!applicationRejectionReason">Molimo proverite detalje uplate i priložite ispravljeni screenshot ispod.</p>
       </div>
     </div>
 
@@ -229,7 +229,7 @@
       <div class="sw-bank-card">
         <div class="sw-bank-card__head">
           <h4 class="sw-bank-card__title">
-            <i class="fas fa-university"></i> {{ activeBankTitle }} bank details
+            <i class="fas fa-university"></i> {{ activeBankTitle }} bankarski podaci
           </h4>
           <span class="sw-bank-badge" [class.sw-bank-badge--lkr]="isLkrPayment">{{ selectedCurrency }}</span>
         </div>
@@ -243,40 +243,40 @@
       </div>
 
       <div class="sw-pay-layout__proof">
-        <h4 class="sw-pay-proof__title"><i class="fas fa-receipt"></i> Upload payment proof</h4>
-        <p class="sw-pay-proof__hint">After paying to the {{ activeBankTitle }} account above, enter payment details and upload your screenshot or PDF. Partial payments are OK — enter the amount you actually transferred.</p>
+        <h4 class="sw-pay-proof__title"><i class="fas fa-receipt"></i> Priložite dokaz o uplati</h4>
+        <p class="sw-pay-proof__hint">Nakon uplate na {{ activeBankTitle }} račun gore, unesite detalje uplate i priložite screenshot ili PDF. Delimične uplate su OK — unesite iznos koji ste stvarno uplatili.</p>
 
         <div class="sw-proof-fields">
           <label class="sw-field">
-            <span class="sw-label">Total paid amount <span class="sw-required">*</span></span>
+            <span class="sw-label">Ukupno plaćeni iznos <span class="sw-required">*</span></span>
             <input
               type="number"
               class="sw-input"
               [(ngModel)]="proofPaidAmount"
-              [placeholder]="'e.g. ' + (computedAmount || '')"
+              [placeholder]="'npr. ' + (computedAmount || '')"
               min="1"
               required />
-            <span class="sw-field-hint">{{ selectedCurrency }} — course total: {{ formattedAmount }}</span>
+            <span class="sw-field-hint">{{ selectedCurrency }} — ukupno za kurs: {{ formattedAmount }}</span>
           </label>
           <label class="sw-field">
-            <span class="sw-label">Date &amp; time of payment <span class="sw-required">*</span></span>
+            <span class="sw-label">Datum i vreme uplate <span class="sw-required">*</span></span>
             <input type="datetime-local" class="sw-input" [(ngModel)]="proofPaymentDateTime" required />
           </label>
           <label class="sw-field">
-            <span class="sw-label">Account holder name <span class="sw-required">*</span></span>
+            <span class="sw-label">Ime vlasnika računa <span class="sw-required">*</span></span>
             <input
               type="text"
               class="sw-input"
               [(ngModel)]="proofAccountHolderName"
-              placeholder="Name on bank / UPI account"
+              placeholder="Ime na bankovnom / UPI računu"
               required />
           </label>
         </div>
 
         <label class="sw-upload-box" for="signupProofFile">
           <i class="fas fa-cloud-upload-alt sw-upload-box__icon"></i>
-          <span class="sw-upload-box__text">{{ proofFileName || 'Tap to select file' }}</span>
-          <span class="sw-upload-box__sub">PNG, JPG, HEIC, or PDF — max 15 MB</span>
+          <span class="sw-upload-box__text">{{ proofFileName || 'Dodirnite da izaberete datoteku' }}</span>
+          <span class="sw-upload-box__sub">PNG, JPG, HEIC ili PDF — max 15 MB</span>
           <input
             id="signupProofFile"
             type="file"
@@ -290,17 +290,17 @@
           [disabled]="!proofFile || !proofPaidAmount || !proofPaymentDateTime || !proofAccountHolderName.trim() || loading"
           (click)="submitProof()"
         >
-          <ng-container *ngIf="!loading">Submit payment proof <i class="fas fa-paper-plane"></i></ng-container>
-          <ng-container *ngIf="loading"><span class="sw-spinner"></span> Submitting…</ng-container>
+          <ng-container *ngIf="!loading">Pošalji dokaz o uplati <i class="fas fa-paper-plane"></i></ng-container>
+          <ng-container *ngIf="loading"><span class="sw-spinner"></span> Slanje…</ng-container>
         </button>
       </div>
     </div>
 
     <footer class="sw-pay-footer sw-pay-footer--compact">
       <div class="sw-pay-footer__meta">
-        <div class="sw-pay-chip"><span>Level</span><strong>{{ languageLevelOpted }}</strong></div>
+        <div class="sw-pay-chip"><span>Nivo</span><strong>{{ languageLevelOpted }}</strong></div>
         <div class="sw-pay-chip"><span>Plan</span><strong>{{ planLabel }}</strong></div>
-        <div class="sw-pay-chip sw-pay-chip--last"><span>Course total</span><strong>{{ formattedAmount }}</strong></div>
+        <div class="sw-pay-chip sw-pay-chip--last"><span>Ukupno za kurs</span><strong>{{ formattedAmount }}</strong></div>
       </div>
       <div *ngIf="error" class="sw-error sw-error--footer" role="alert">
         <i class="fas fa-exclamation-circle"></i> {{ error }}
@@ -314,32 +314,32 @@
 
     <header class="sw-pay-header">
       <button type="button" class="sw-pay-back" (click)="backFromPayment()">
-        <i class="fas fa-arrow-left"></i> Back
+        <i class="fas fa-arrow-left"></i> Prethodno
       </button>
       <div class="sw-pay-header__text">
-        <h3 class="sw-pay-header__title">Pay online</h3>
-        <p class="sw-pay-header__sub">Secure checkout with Razorpay — card, UPI, or net banking.</p>
+        <h3 class="sw-pay-header__title">Platite online</h3>
+        <p class="sw-pay-header__sub">Bezbedna naplata putem Razorpay — kartica, UPI ili internet bankarstvo.</p>
       </div>
     </header>
 
     <div class="sw-pay-online-panel">
       <div class="sw-pay-online-panel__amount">
-        <span class="sw-pay-total-label">Amount due</span>
+        <span class="sw-pay-total-label">Iznos za uplatu</span>
         <strong class="sw-pay-total">{{ formattedAmount }}</strong>
       </div>
-      <p class="sw-pay-online-panel__hint">You will be redirected to Razorpay to complete payment. Your account is activated after successful payment.</p>
+      <p class="sw-pay-online-panel__hint">Bićete preusmereni na Razorpay da biste završili plaćanje. Vaš nalog se aktivira nakon uspešnog plaćanja.</p>
     </div>
 
     <footer class="sw-pay-footer">
       <div class="sw-pay-footer__row">
         <div class="sw-pay-footer__meta">
-          <div class="sw-pay-chip"><span>Level</span><strong>{{ languageLevelOpted }}</strong></div>
+          <div class="sw-pay-chip"><span>Nivo</span><strong>{{ languageLevelOpted }}</strong></div>
           <div class="sw-pay-chip"><span>Plan</span><strong>{{ planLabel }}</strong></div>
-          <div class="sw-pay-chip sw-pay-chip--last"><span>Currency</span><strong>{{ selectedCurrency }}</strong></div>
+          <div class="sw-pay-chip sw-pay-chip--last"><span>Valuta</span><strong>{{ selectedCurrency }}</strong></div>
         </div>
         <div class="sw-pay-footer__checkout">
           <div class="sw-pay-total-block">
-            <span class="sw-pay-total-label">Total</span>
+            <span class="sw-pay-total-label">Ukupno</span>
             <strong class="sw-pay-total">{{ formattedAmount }}</strong>
           </div>
           <button
@@ -349,9 +349,9 @@
             (click)="payWithRazorpay()"
           >
             <ng-container *ngIf="!loading">
-              <i class="fas fa-credit-card"></i> Pay now
+              <i class="fas fa-credit-card"></i> Platite sada
             </ng-container>
-            <ng-container *ngIf="loading"><span class="sw-spinner"></span> Please wait…</ng-container>
+            <ng-container *ngIf="loading"><span class="sw-spinner"></span> Molimo sačekajte…</ng-container>
           </button>
         </div>
       </div>
@@ -362,7 +362,7 @@
     </footer>
 
     <div class="sw-loading-row" *ngIf="loading && !paymentFinalized">
-      <span class="sw-spinner sw-spinner--dark"></span> Preparing your payment…
+      <span class="sw-spinner sw-spinner--dark"></span> Priprema vašeg plaćanja…
     </div>
 
   </ng-container>
@@ -373,21 +373,21 @@
       <i class="fas fa-check-circle sw-success-icon"></i>
 
       <ng-container *ngIf="paymentSubStep === 'payment-done'">
-        <h3 class="sw-success-title">Payment Successful!</h3>
-        <p class="sw-success-body">Your account has been created. Check your email for your Web App ID and login details.</p>
+        <h3 class="sw-success-title">Plaćanje uspešno!</h3>
+        <p class="sw-success-body">Vaš nalog je kreiran. Proverite e-mail za vaš Web App ID i podatke za prijavu.</p>
       </ng-container>
 
       <ng-container *ngIf="paymentSubStep === 'proof-done'">
-        <h3 class="sw-success-title">Proof Submitted!</h3>
+        <h3 class="sw-success-title">Dokaz podnet!</h3>
         <p class="sw-success-body">
-          Our team will verify your payment. You <strong>cannot log in</strong> until approval.
-          Once approved, you will receive an email with your <strong>Web App ID</strong>, password, and a link to sign in.
+          Naš tim će verifikovati vašu uplatu. <strong>Ne možete se prijaviti</strong> do odobrenja.
+          Nakon odobrenja, dobićete e-mail sa vašim <strong>Web App ID-om</strong>, lozinkom i linkom za prijavu.
         </p>
       </ng-container>
 
-      <p class="sw-success-note">You can close this window or go back to login.</p>
+      <p class="sw-success-note">Možete zatvoriti ovaj prozor ili se vratiti na prijavu.</p>
       <button type="button" class="sw-btn sw-btn--primary" (click)="backToLogin.emit()">
-        <i class="fas fa-arrow-left"></i> Go to login
+        <i class="fas fa-arrow-left"></i> Idi na prijavu
       </button>
     </div>
   </ng-container>

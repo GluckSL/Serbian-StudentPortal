@@ -301,7 +301,7 @@ export class StudentJourneyDetailModalComponent implements OnChanges {
 
   formatDate(d: string | Date): string {
     if (!d) return '—';
-    return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    return new Date(d).toLocaleDateString('sr-Latn-RS', { day: '2-digit', month: '2-digit', year: 'numeric' });
   }
 
   formatSeconds(sec: number): string {

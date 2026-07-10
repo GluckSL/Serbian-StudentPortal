@@ -5,15 +5,15 @@
         <div class="col-md-8">
           <h1 class="admin-title">
             <i class="fas fa-microphone-alt"></i>
-            Sprechen Exam modules
+            Sprechen Exam moduli
           </h1>
-          <p class="admin-subtitle">Manage Goethe A1 &amp; A2 speaking exams — same workflow as DG Bot (Olly Tutor)</p>
+          <p class="admin-subtitle">Upravljajte Goethe A1 &amp; A2 govornim ispitima — isti tok rada kao DG Bot (Olly Tutor)</p>
         </div>
         <div class="col-md-4 text-end" *ngIf="!loading">
           <div class="admin-stats-quick">
             <div class="stat-item">
               <span class="stat-number">{{ statTotal }}</span>
-              <span class="stat-label">Total modules</span>
+              <span class="stat-label">Ukupno modula</span>
             </div>
           </div>
         </div>
@@ -37,16 +37,16 @@
             <div class="col-lg-5">
               <div class="dg-mm-actions">
                 <button class="btn btn-primary btn-add-module" type="button" (click)="goCreate()">
-                  <i class="fas fa-plus"></i> Create New Module
+                  <i class="fas fa-plus"></i> Kreiraj novi modul
                 </button>
                 <button class="btn btn-success btn-add-module" type="button" (click)="goCreateA2()">
-                  <i class="fas fa-plus"></i> Create A2 Model Test
+                  <i class="fas fa-plus"></i> Kreiraj A2 model test
                 </button>
                 <button class="btn btn-outline-secondary" type="button" (click)="seedPlaceholder()">
-                  <i class="fas fa-magic"></i> Quick placeholder
+                  <i class="fas fa-magic"></i> Brzi placeholder
                 </button>
                 <button class="btn btn-outline-success" type="button" (click)="seedA2Model()">
-                  <i class="fas fa-magic"></i> Quick A2 model
+                  <i class="fas fa-magic"></i> Brzi A2 model
                 </button>
               </div>
             </div>
@@ -57,12 +57,12 @@
                   class="form-control dg-mm-search"
                   [(ngModel)]="listFilter"
                   (ngModelChange)="resetListPage()"
-                  placeholder="Search by title…"
+                  placeholder="Pretraži po naslovu…"
                 />
                 <select class="form-select" [(ngModel)]="statusFilter" (ngModelChange)="resetListPage()">
-                  <option value="all">All Modules</option>
-                  <option value="live">Live only</option>
-                  <option value="draft">Draft only</option>
+                  <option value="all">Svi moduli</option>
+                  <option value="live">Samo uživo</option>
+                  <option value="draft">Samo nacrt</option>
                 </select>
               </div>
             </div>
@@ -73,17 +73,17 @@
           <div class="row">
             <div class="col-md-4">
               <div class="stat-card bg-primary text-white">
-                <div class="stat-content"><h3>{{ statTotal }}</h3><p>Total</p></div>
+                <div class="stat-content"><h3>{{ statTotal }}</h3><p>Ukupno</p></div>
               </div>
             </div>
             <div class="col-md-4">
               <div class="stat-card bg-success text-white">
-                <div class="stat-content"><h3>{{ statLive }}</h3><p>Live</p></div>
+                <div class="stat-content"><h3>{{ statLive }}</h3><p>Uživo</p></div>
               </div>
             </div>
             <div class="col-md-4">
               <div class="stat-card bg-warning text-white">
-                <div class="stat-content"><h3>{{ statDraft }}</h3><p>Draft</p></div>
+                <div class="stat-content"><h3>{{ statDraft }}</h3><p>Nacrt</p></div>
               </div>
             </div>
           </div>
@@ -96,13 +96,13 @@
                 <table class="table table-hover mb-0">
                   <thead class="table-dark">
                     <tr>
-                      <th>Module</th>
-                      <th>Level</th>
-                      <th>Pass</th>
-                      <th>Journey day</th>
+                      <th>Modul</th>
+                      <th>Nivo</th>
+                      <th>Prolaz</th>
+                      <th>Dan putovanja</th>
                       <th>Status</th>
-                      <th class="text-center">Student view</th>
-                      <th class="text-center">Actions</th>
+                      <th class="text-center">Prikaz za učenike</th>
+                      <th class="text-center">Akcije</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -115,12 +115,12 @@
                       </td>
                       <td>{{ m.passThreshold ?? 10 }} / 15</td>
                       <td>
-                        <span class="badge journey-day-badge" *ngIf="m.courseDay != null">Day {{ m.courseDay }}</span>
+                        <span class="badge journey-day-badge" *ngIf="m.courseDay != null">Dan {{ m.courseDay }}</span>
                         <span class="text-muted" *ngIf="m.courseDay == null">—</span>
                       </td>
                       <td>
                         <span class="badge" [class.mm-badge-live]="m.visibleToStudents" [class.mm-badge-draft]="!m.visibleToStudents">
-                          {{ m.visibleToStudents ? 'Live' : 'Draft' }}
+                          {{ m.visibleToStudents ? 'Uživo' : 'Nacrt' }}
                         </span>
                       </td>
                       <td class="text-center">
@@ -136,16 +136,16 @@
                       </td>
                       <td class="text-center">
                         <div class="action-buttons">
-                          <button type="button" class="btn btn-sm btn-outline-purple me-1" (click)="goAnalytics(m)" title="Sessions">
+                          <button type="button" class="btn btn-sm btn-outline-purple me-1" (click)="goAnalytics(m)" title="Sesije">
                             <i class="fas fa-chart-bar"></i>
                           </button>
-                          <button type="button" class="btn btn-sm btn-outline-primary me-1" (click)="goEdit(m)" title="Edit">
+                          <button type="button" class="btn btn-sm btn-outline-primary me-1" (click)="goEdit(m)" title="Uredi">
                             <i class="fas fa-edit"></i>
                           </button>
-                          <button type="button" class="btn btn-sm btn-outline-success me-1" (click)="goPreview(m)" title="Preview">
+                          <button type="button" class="btn btn-sm btn-outline-success me-1" (click)="goPreview(m)" title="Pregled">
                             <i class="fas fa-play"></i>
                           </button>
-                          <button type="button" class="btn btn-sm btn-outline-danger" (click)="archiveModule(m)" title="Archive">
+                          <button type="button" class="btn btn-sm btn-outline-danger" (click)="archiveModule(m)" title="Arhiviraj">
                             <i class="fas fa-trash"></i>
                           </button>
                         </div>
@@ -170,8 +170,8 @@
 
         <div class="mm-empty-card" *ngIf="modules.length === 0">
           <div class="empty-state">
-            <h3>No Sprechen exam modules yet</h3>
-            <p>Create your first module with <strong>Create New Module</strong> (same as DG Bot).</p>
+            <h3>Još nema Sprechen exam modula</h3>
+            <p>Kreirajte prvi modul sa <strong>Kreiraj novi modul</strong> (isto kao DG Bot).</p>
           </div>
         </div>
       </ng-container>

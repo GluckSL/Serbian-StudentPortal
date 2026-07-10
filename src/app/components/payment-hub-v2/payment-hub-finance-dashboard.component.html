@@ -3,7 +3,7 @@
     <div class="ph-insights-header-inner">
       <a class="ph-insights-back" routerLink="/admin/finance-dashboard">
         <mat-icon>arrow_back</mat-icon>
-        Finance overview
+        Pregled finansija
       </a>
       <h1 class="ph-insights-title">{{ pageTitle }}</h1>
       <p class="ph-insights-sub">{{ pageSubtitle }}</p>
@@ -13,37 +13,37 @@
   <div class="ph-insights-body">
     <div class="ph-insights-filters ph-finance-filters">
       <div class="ph-finance-email-triggers">
-        <span class="ph-finance-email-triggers__label">
+          <span class="ph-finance-email-triggers__label">
           <mat-icon class="ph-finance-email-triggers__icon">mail</mat-icon>
-          Email reports
+          Email izveštaji
         </span>
         <button
           type="button"
           class="ph-finance-trigger-btn ph-finance-trigger-btn--morning"
           (click)="triggerEmailReport('morning')"
           [disabled]="!!triggeringReport || loading"
-          [matTooltip]="'Send 10 AM pending balance summary to finance team'"
+          [matTooltip]="'Pošalji rezime salda na čekanju u 10h finansijskom timu'"
         >
           <mat-icon>wb_sunny</mat-icon>
           <ng-container *ngIf="triggeringReport === 'morning'; else morningLabel">
-            <span class="ph-finance-trigger-btn__sending">Sending…</span>
+            <span class="ph-finance-trigger-btn__sending">Slanje…</span>
           </ng-container>
-          <ng-template #morningLabel>10 AM Report</ng-template>
+          <ng-template #morningLabel>Izveštaj 10h</ng-template>
         </button>
         <button
           type="button"
           class="ph-finance-trigger-btn ph-finance-trigger-btn--evening"
           (click)="triggerEmailReport('evening')"
           [disabled]="!!triggeringReport || loading"
-          [matTooltip]="'Send 6 PM received-today summary to finance team'"
+          [matTooltip]="'Pošalji rezime primljenog danas u 18h finansijskom timu'"
         >
           <mat-icon>nights_stay</mat-icon>
           <ng-container *ngIf="triggeringReport === 'evening'; else eveningLabel">
-            <span class="ph-finance-trigger-btn__sending">Sending…</span>
+            <span class="ph-finance-trigger-btn__sending">Slanje…</span>
           </ng-container>
-          <ng-template #eveningLabel>6 PM Report</ng-template>
+          <ng-template #eveningLabel>Izveštaj 18h</ng-template>
         </button>
-        <span class="ph-finance-email-triggers__hint">Auto-sends daily at 10 AM &amp; 6 PM IST</span>
+        <span class="ph-finance-email-triggers__hint">Automatski šalje dnevno u 10h i 18h IST</span>
       </div>
     </div>
 
@@ -51,8 +51,8 @@
       <div class="ph-finance-kpi-grid" *ngIf="showPlanPaymentSummary">
         <article class="ph-finance-kpi-card ph-finance-kpi-card--expected">
           <div class="ph-finance-kpi-card__head">
-            <span class="ph-finance-kpi-card__label">Total payment</span>
-            <span class="ph-finance-kpi-card__meta">{{ cardTotals.studentCount }} students</span>
+            <span class="ph-finance-kpi-card__label">Ukupno plaćanje</span>
+            <span class="ph-finance-kpi-card__meta">{{ cardTotals.studentCount }} učenika</span>
           </div>
           <div class="ph-finance-kpi-card__hero" *ngIf="paymentSummaryTotals.expected.lkr > 0">
             <span class="ph-finance-kpi-card__ccy">LKR</span>
@@ -64,7 +64,7 @@
         </article>
         <article class="ph-finance-kpi-card ph-finance-kpi-card--received">
           <div class="ph-finance-kpi-card__head">
-            <span class="ph-finance-kpi-card__label">Total received</span>
+            <span class="ph-finance-kpi-card__label">Ukupno primljeno</span>
           </div>
           <div class="ph-finance-kpi-card__hero" *ngIf="paymentSummaryTotals.received.lkr > 0">
             <span class="ph-finance-kpi-card__ccy">LKR</span>
@@ -76,7 +76,7 @@
         </article>
         <article class="ph-finance-kpi-card ph-finance-kpi-card--pending">
           <div class="ph-finance-kpi-card__head">
-            <span class="ph-finance-kpi-card__label">Total pending</span>
+            <span class="ph-finance-kpi-card__label">Ukupno na čekanju</span>
           </div>
           <div class="ph-finance-kpi-card__hero" *ngIf="paymentSummaryTotals.pending.lkr > 0">
             <span class="ph-finance-kpi-card__ccy">LKR</span>
@@ -91,7 +91,7 @@
       <div class="ph-finance-kpi-grid ph-finance-kpi-grid--outlook" *ngIf="!showPlanPaymentSummary && hasVisibleBatches">
         <article class="ph-finance-kpi-card ph-finance-kpi-card--ongoing">
           <div class="ph-finance-kpi-card__head">
-            <span class="ph-finance-kpi-card__label">Ongoing pending</span>
+            <span class="ph-finance-kpi-card__label">Tekuće na čekanju</span>
           </div>
           <div class="ph-finance-kpi-card__hero" *ngIf="pendingBreakdownTotals.ongoing.lkr > 0">
             <span class="ph-finance-kpi-card__ccy">LKR</span>
@@ -106,12 +106,12 @@
           <p class="ph-finance-kpi-card__secondary" *ngIf="pendingBreakdownTotals.ongoing.lkr > 0 && pendingBreakdownTotals.ongoing.inr > 0">
             INR {{ fmtPayment(pendingBreakdownTotals.ongoing.inr) }}
           </p>
-          <p class="ph-finance-kpi-card__hint">Current level · all active batches</p>
+          <p class="ph-finance-kpi-card__hint">Trenutni nivo · sve aktivne grupe</p>
         </article>
 
         <article class="ph-finance-kpi-card ph-finance-kpi-card--last-level">
           <div class="ph-finance-kpi-card__head">
-            <span class="ph-finance-kpi-card__label">Previous levels pending</span>
+            <span class="ph-finance-kpi-card__label">Prethodni nivoi na čekanju</span>
           </div>
           <div class="ph-finance-kpi-card__hero" *ngIf="pendingBreakdownTotals.lastLevel.lkr > 0">
             <span class="ph-finance-kpi-card__ccy">LKR</span>
@@ -126,12 +126,12 @@
           <p class="ph-finance-kpi-card__secondary" *ngIf="pendingBreakdownTotals.lastLevel.lkr > 0 && pendingBreakdownTotals.lastLevel.inr > 0">
             INR {{ fmtPayment(pendingBreakdownTotals.lastLevel.inr) }}
           </p>
-          <p class="ph-finance-kpi-card__hint">Pending from earlier levels (matches table)</p>
+          <p class="ph-finance-kpi-card__hint">Na čekanju od ranijih nivoa (odgovara tabeli)</p>
         </article>
 
         <article class="ph-finance-kpi-card ph-finance-kpi-card--commencement">
           <div class="ph-finance-kpi-card__head">
-            <span class="ph-finance-kpi-card__label">Commencement (next 10 days)</span>
+            <span class="ph-finance-kpi-card__label">Početak (narednih 10 dana)</span>
           </div>
           <div class="ph-finance-kpi-card__hero" *ngIf="pendingBreakdownTotals.commencement10.lkr > 0">
             <span class="ph-finance-kpi-card__ccy">LKR</span>
@@ -147,14 +147,14 @@
             INR {{ fmtPayment(pendingBreakdownTotals.commencement10.inr) }}
           </p>
           <p class="ph-finance-kpi-card__hint">
-            {{ pendingBreakdownTotals.commencementBatchCount }} batch{{ pendingBreakdownTotals.commencementBatchCount !== 1 ? 'es' : '' }}
-            commencing by {{ pendingBreakdownTotals.commencementCutoffLabel }}
+            {{ pendingBreakdownTotals.commencementBatchCount }} grupa{{ pendingBreakdownTotals.commencementBatchCount !== 1 ? '' : '' }}
+            počinje do {{ pendingBreakdownTotals.commencementCutoffLabel }}
           </p>
         </article>
 
         <article class="ph-finance-kpi-card ph-finance-kpi-card--grand-total">
           <div class="ph-finance-kpi-card__head">
-            <span class="ph-finance-kpi-card__label">Total amount</span>
+            <span class="ph-finance-kpi-card__label">Ukupan iznos</span>
           </div>
           <div class="ph-finance-kpi-card__hero" *ngIf="pendingBreakdownGrandTotal.lkr > 0">
             <span class="ph-finance-kpi-card__ccy">LKR</span>
@@ -169,12 +169,12 @@
           <p class="ph-finance-kpi-card__secondary ph-finance-kpi-card__secondary--grand" *ngIf="pendingBreakdownGrandTotal.lkr > 0 && pendingBreakdownGrandTotal.inr > 0">
             INR {{ fmtPayment(pendingBreakdownGrandTotal.inr) }}
           </p>
-          <p class="ph-finance-kpi-card__hint">Ongoing + previous levels + commencement</p>
+          <p class="ph-finance-kpi-card__hint">Tekuće + prethodni nivoi + početak</p>
         </article>
       </div>
 
       <div class="ph-health-grid" *ngIf="!showPlanPaymentSummary">
-        <p class="ph-health-grid-heading">Student breakdown · click to filter table</p>
+        <p class="ph-health-grid-heading">Pregled učenika · kliknite za filtriranje tabele</p>
         <div class="ph-health-cards">
           <button
             type="button"
@@ -183,7 +183,7 @@
             [class.ph-health-card--active]="isInsightActive(opt.value)"
             [disabled]="insightCount(opt.key) === 0 && opt.value !== ''"
             (click)="applyInsightFilter(opt.value)"
-            [matTooltip]="opt.hint + (opt.value ? ' · Click again to clear' : '')"
+            [matTooltip]="opt.hint + (opt.value ? ' · Kliknite ponovo da biste obrisali' : '')"
           >
             <div class="ph-health-card-icon">
               <mat-icon>{{ opt.icon }}</mat-icon>
@@ -217,9 +217,9 @@
                   [hideZero]="true"
                 ></app-payment-currency-overdue-totals>
               </div>
-              <span class="ph-health-card-hint" *ngIf="opt.key === 'all'">In current view</span>
+              <span class="ph-health-card-hint" *ngIf="opt.key === 'all'">U trenutnom prikazu</span>
               <span class="ph-health-card-hint" *ngIf="opt.key !== 'all'">
-                {{ studentPct(insightCount(opt.key), cardTotals.studentCount) }} of students
+                {{ studentPct(insightCount(opt.key), cardTotals.studentCount) }} učenika
               </span>
             </div>
             <mat-icon class="ph-health-card-chevron" *ngIf="isInsightActive(opt.value)">filter_alt</mat-icon>
@@ -230,7 +230,7 @@
       <section class="ph-table-section ph-surface ph-finance-table-section" id="ph-finance-table">
         <div class="ph-table-toolbar">
           <div class="ph-table-toolbar-left">
-            <h2 class="ph-section-title">Batch breakdown</h2>
+            <h2 class="ph-section-title">Pregled po grupama</h2>
             <span class="ph-insight-filter-chip" *ngIf="batchInsight">
               <mat-icon>filter_alt</mat-icon>
               {{ activeInsightLabel() }}
@@ -239,8 +239,8 @@
               </button>
             </span>
             <span class="ph-select-meta">
-              {{ displayBatchRows.length }} batches
-              <ng-container *ngIf="hasVisibleBatches"> · {{ visibleBatches.length }} on dashboard</ng-container>
+              {{ displayBatchRows.length }} grupa
+              <ng-container *ngIf="hasVisibleBatches"> · {{ visibleBatches.length }} na tabli</ng-container>
               <ng-container *ngIf="levelStatusFilter"> · {{ activeLevelStatusLabel() }}</ng-container>
             </span>
           </div>
@@ -251,7 +251,7 @@
               [class.ph-scope-btn--active]="!!cohortStatus"
               [matMenuTriggerFor]="statusFilterMenu"
             >
-              {{ cohortStatus ? studentStatusLabel(cohortStatus) : 'All statuses' }}
+              {{ cohortStatus ? studentStatusLabel(cohortStatus) : 'Svi statusi' }}
               <mat-icon>arrow_drop_down</mat-icon>
             </button>
             <mat-menu #statusFilterMenu="matMenu">
@@ -273,7 +273,7 @@
               [class.ph-scope-btn--active]="isSlotScope"
               [matMenuTriggerFor]="slotScopeMenu"
             >
-              {{ isSlotScope ? slotScopeLabel : 'Level / Type' }}
+              {{ isSlotScope ? slotScopeLabel : 'Nivo / Vrsta' }}
               <mat-icon>arrow_drop_down</mat-icon>
             </button>
             <mat-menu #slotScopeMenu="matMenu">
@@ -291,16 +291,16 @@
             [disabled]="exporting || !rowsInDashboard.length"
           >
             <mat-icon>add</mat-icon>
-            {{ exporting ? 'Exporting…' : 'Export' }}
+            {{ exporting ? 'Izvoz…' : 'Izvezi' }}
           </button>
           <mat-menu #exportMenu="matMenu">
             <button mat-menu-item type="button" (click)="exportBatches('xlsx', 'all')">
               <mat-icon>grid_on</mat-icon>
-              <span>Excel — dashboard batches ({{ rowsInDashboard.length }})</span>
+              <span>Excel — grupe sa kontrolne table ({{ rowsInDashboard.length }})</span>
             </button>
             <button mat-menu-item type="button" (click)="exportBatches('csv', 'all')">
               <mat-icon>description</mat-icon>
-              <span>CSV — dashboard batches</span>
+              <span>CSV — grupe sa kontrolne table</span>
             </button>
             <button mat-menu-item type="button" (click)="exportBatches('xlsx', 'visible')" [disabled]="!displayBatchRows.length">
               <mat-icon>filter_list</mat-icon>
@@ -313,7 +313,7 @@
               class="ph-batch-stu-search-input"
               type="search"
               [(ngModel)]="tableSearch"
-              placeholder="Search batch or level…"
+              placeholder="Pretraži grupu ili nivo…"
               aria-label="Search batch"
             />
           </div>
@@ -342,8 +342,8 @@
                 type="button"
                 class="ph-commence-icon-btn ph-commence-amount-edit-btn"
                 (click)="startEditCommencementAmount(r.batch, info)"
-                [matTooltip]="info.isManualAmount ? 'Edit manual amount' : 'Edit auto-calculated amount'"
-                aria-label="Edit projected amount"
+                        [matTooltip]="info.isManualAmount ? 'Uredi ručni iznos' : 'Uredi automatski izračunati iznos'"
+                        aria-label="Uredi projektovani iznos"
               ><mat-icon>edit</mat-icon></button>
             </div>
             <div class="ph-commence-amount-editor" *ngIf="editingCommencementAmountBatch === r.batch">
@@ -375,24 +375,24 @@
                   class="ph-commence-icon-btn ph-commence-icon-btn--confirm"
                   (click)="saveCommencementAmount(r.batch)"
                   [disabled]="savingCommencementAmountBatch === r.batch"
-                  matTooltip="Save amount"
+                        matTooltip="Sačuvaj iznos"
                 ><mat-icon>check</mat-icon></button>
                 <button
                   type="button"
                   class="ph-commence-icon-btn"
                   (click)="cancelEditCommencementAmount()"
-                  matTooltip="Cancel"
+                  matTooltip="Otkaži"
                 ><mat-icon>close</mat-icon></button>
                 <button
                   type="button"
                   class="ph-commence-icon-btn ph-commence-icon-btn--danger"
                   *ngIf="hasManualCommencementAmount(r.batch)"
                   (click)="clearCommencementAmount(r.batch)"
-                  matTooltip="Reset to auto-calculated"
+                        matTooltip="Resetuj na automatski izračunato"
                 ><mat-icon>replay</mat-icon></button>
               </div>
             </div>
-            <span class="ph-commence-amount-tag" *ngIf="info.isManualAmount && editingCommencementAmountBatch !== r.batch">Manual</span>
+            <span class="ph-commence-amount-tag" *ngIf="info.isManualAmount && editingCommencementAmountBatch !== r.batch">Ručno</span>
           </div>
         </ng-template>
 
@@ -413,17 +413,17 @@
             </colgroup>
             <thead>
               <tr>
-                <th class="ph-col-batch">Batch</th>
-                <th class="ph-col-level">Level</th>
-                <th class="ph-col-students">Students</th>
-                <th class="ph-num ph-col-money">Total payment</th>
-                <th class="ph-num ph-col-money">Received</th>
-                <th class="ph-num ph-col-money">Pending</th>
-                <th class="ph-num ph-col-money">Overdue</th>
-                <th class="ph-col-commence">Commencement</th>
-                <th class="ph-num ph-col-money">Prev. Level Pending</th>
-                <th class="ph-col-journey">Journey</th>
-                <th class="ph-col-actions">Action</th>
+                <th class="ph-col-batch">Grupa</th>
+                <th class="ph-col-level">Nivo</th>
+                <th class="ph-col-students">Učenici</th>
+                <th class="ph-num ph-col-money">Ukupno plaćanje</th>
+                <th class="ph-num ph-col-money">Primljeno</th>
+                <th class="ph-num ph-col-money">Na čekanju</th>
+                <th class="ph-num ph-col-money">Zakasnelo</th>
+                <th class="ph-col-commence">Početak</th>
+                <th class="ph-num ph-col-money">Preth. nivo na čekanju</th>
+                <th class="ph-col-journey">Putovanje</th>
+                <th class="ph-col-actions">Akcija</th>
               </tr>
             </thead>
             <tbody>
@@ -490,10 +490,10 @@
                     class="ph-pending-incl-badge"
                     [class.ph-pending-incl-badge--off]="isBatchPendingExcluded(r.batch)"
                     (click)="toggleBatchPendingExclusion(r.batch)"
-                    [matTooltip]="isBatchPendingExcluded(r.batch) ? 'Excluded from pending cards · tap to include' : 'Included in pending cards · tap to exclude'"
+                    [matTooltip]="isBatchPendingExcluded(r.batch) ? 'Isključeno iz kartica na čekanju · kliknite da biste uključili' : 'Uključeno u kartice na čekanju · kliknite da biste isključili'"
                   >
                     <mat-icon>{{ isBatchPendingExcluded(r.batch) ? 'do_not_disturb_on' : 'check_circle' }}</mat-icon>
-                    {{ isBatchPendingExcluded(r.batch) ? 'excl.' : 'incl.' }}
+                    {{ isBatchPendingExcluded(r.batch) ? 'isklj.' : 'uklj.' }}
                   </button>
                 </td>
                 <td class="ph-num ph-col-overdue">
@@ -501,10 +501,10 @@
                     <span
                       class="ph-overdue-days"
                       [class.ph-overdue-days--hot]="(overdueDaysSince(r.overdueSince) ?? 0) >= 7"
-                      [matTooltip]="r.overdueSince ? 'Overdue since ' + formatOverdueSince(r.overdueSince) : 'Overdue balance'"
+                      [matTooltip]="r.overdueSince ? 'Zakašnjelo od ' + formatOverdueSince(r.overdueSince) : 'Zakašnjeli saldo'"
                     >{{ overdueDaysLabel(r) }}</span>
                     <span class="ph-overdue-since-sub" *ngIf="r.overdueSince">
-                      since {{ formatOverdueSince(r.overdueSince) }}
+                      od {{ formatOverdueSince(r.overdueSince) }}
                     </span>
                   </ng-container>
                   <ng-template #noOverdue><span class="ph-ccy-empty">—</span></ng-template>
@@ -525,13 +525,13 @@
                       class="ph-commence-icon-btn ph-commence-icon-btn--confirm"
                       (click)="saveManualPaymentDate(r.batch)"
                       [disabled]="!editingPaymentDateValue"
-                      matTooltip="Save date"
+                      matTooltip="Sačuvaj datum"
                     ><mat-icon>check</mat-icon></button>
                     <button
                       type="button"
                       class="ph-commence-icon-btn"
                       (click)="cancelEditPaymentDate()"
-                      matTooltip="Cancel"
+                      matTooltip="Otkaži"
                     ><mat-icon>close</mat-icon></button>
                   </div>
 
@@ -552,16 +552,16 @@
                               type="button"
                               class="ph-commence-icon-btn"
                               (click)="startEditPaymentDate(r.batch, r)"
-                              matTooltip="Edit date"
-                              aria-label="Edit payment date"
+                              matTooltip="Uredi datum"
+                              aria-label="Uredi datum plaćanja"
                             ><mat-icon>edit</mat-icon></button>
                             <button
                               type="button"
                               class="ph-commence-icon-btn ph-commence-icon-btn--danger"
                               *ngIf="hasManualCommencementDate(r.batch)"
                               (click)="clearManualPaymentDate(r.batch)"
-                              [matTooltip]="r.batchType === 'new' ? 'Reset to auto-calculated date' : 'Remove date'"
-                              aria-label="Remove manual payment date"
+                              [matTooltip]="r.batchType === 'new' ? 'Resetuj na automatski izračunati datum' : 'Ukloni datum'"
+                              aria-label="Ukloni ručni datum plaćanja"
                             ><mat-icon>close</mat-icon></button>
                           </div>
                         </div>
@@ -578,10 +578,10 @@
                         type="button"
                         class="ph-commence-add-btn"
                         (click)="startEditPaymentDate(r.batch, r)"
-                        matTooltip="Set next payment date manually"
+                        matTooltip="Ručno postavite datum sledećeg plaćanja"
                       >
                         <mat-icon>event_available</mat-icon>
-                        Set date
+                        Postavi datum
                       </button>
                     </ng-template>
                   </ng-container>
@@ -604,7 +604,7 @@
                 <td class="ph-col-journey">
                   <span
                     class="ph-day-badge ph-day-badge--ratio"
-                    [matTooltip]="r.level ? 'Day ' + journeyDayRatio(r) + ' · level ' + r.level : 'Journey day'"
+                    [matTooltip]="r.level ? 'Dan ' + journeyDayRatio(r) + ' · nivo ' + r.level : 'Dan putovanja'"
                   >{{ journeyDayRatio(r) }}</span>
                 </td>
                 <td class="ph-col-actions">
@@ -616,10 +616,10 @@
                         type="button"
                         class="ph-details-btn ph-action-chip-btn"
                         (click)="openBatchStudents(r.batch)"
-                        matTooltip="Open all students in new tab"
+                        matTooltip="Otvori sve učenike u novoj kartici"
                       >
                         <mat-icon>open_in_new</mat-icon>
-                        Details
+                        Detalji
                       </button>
 
                       <button
@@ -628,10 +628,10 @@
                         type="button"
                         class="ph-remark-add-btn ph-action-chip-btn"
                         (click)="startEditBatchRemark(r.batch)"
-                        matTooltip="Add a remark for this batch"
+                        matTooltip="Dodajte napomenu za ovu grupu"
                       >
                         <mat-icon>edit_note</mat-icon>
-                        Add remarks
+                        Dodajte napomenu
                       </button>
 
                       <button
@@ -640,7 +640,7 @@
                         class="ph-remark-display"
                         (click)="startEditBatchRemark(r.batch)"
                         [matTooltip]="getBatchRemarkDisplay(r.batch)"
-                        [attr.aria-label]="'Edit remark for batch ' + r.batch"
+                        [attr.aria-label]="'Uredi napomenu za grupu ' + r.batch"
                       >
                         {{ getBatchRemarkDisplay(r.batch) }}
                       </button>
@@ -652,8 +652,8 @@
                         color="warn"
                         (click)="removeVisibleBatch(r.batch)"
                         [disabled]="savingVisibleBatches"
-                        matTooltip="Remove from dashboard"
-                        aria-label="Remove batch from dashboard"
+                        matTooltip="Ukloni sa kontrolne table"
+                        aria-label="Ukloni grupu sa kontrolne table"
                       >
                         <mat-icon>remove_circle_outline</mat-icon>
                       </button>
@@ -664,11 +664,11 @@
                         class="ph-batch-remark-input"
                         [value]="getBatchRemarkDraft(r.batch)"
                         (input)="onBatchRemarkInput(r.batch, $any($event.target).value)"
-                        placeholder="Type remark…"
+                        placeholder="Unesite napomenu…"
                         rows="2"
                         maxlength="500"
                         [disabled]="savingRemarkBatch === r.batch"
-                        [attr.aria-label]="'Remark for batch ' + r.batch"
+                        [attr.aria-label]="'Napomena za grupu ' + r.batch"
                       ></textarea>
                       <div class="ph-remark-edit-actions">
                         <button
@@ -679,7 +679,7 @@
                           (click)="saveBatchRemark(r.batch)"
                           [disabled]="savingRemarkBatch === r.batch"
                         >
-                          Save
+                          Sačuvaj
                         </button>
                         <button
                           mat-button
@@ -688,7 +688,7 @@
                           (click)="cancelEditBatchRemark(r.batch)"
                           [disabled]="savingRemarkBatch === r.batch"
                         >
-                          Cancel
+                          Otkaži
                         </button>
                       </div>
                     </div>
@@ -703,18 +703,18 @@
           <p class="ph-empty-note">
             {{
               !hasVisibleBatches
-                ? (isLanguageMode ? 'No language batches added yet. Go back and add batches from the Language Payment card.' : 'No batches added to this dashboard yet. Use Add batches above.')
+                ? (isLanguageMode ? 'Još nema jezičkih grupa. Idite nazad i dodajte grupe sa kartice Jezičko plaćanje.' : 'Još nema grupa na ovoj kontrolnoj tabli. Koristite Dodaj grupe gore.')
                 : tableSearch || batchInsight
-                  ? 'No batches match your filter.'
-                  : 'No batch data found for the added batches.'
+                  ? 'Nema grupa koje odgovaraju vašem filteru.'
+                  : 'Nisu pronađeni podaci za dodane grupe.'
             }}
           </p>
         </ng-template>
       </section>
     </ng-container>
 
-    <ng-template #skeleton>
-      <div class="ph-finance-skeleton" aria-busy="true" aria-label="Loading finance dashboard">
+        <ng-template #skeleton>
+      <div class="ph-finance-skeleton" aria-busy="true" aria-label="Učitavanje finansijske kontrolne table">
         <div class="ph-health-cards">
           <div class="ph-skeleton-card" *ngFor="let _ of [1,2,3,4,5,6]"></div>
         </div>

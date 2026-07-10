@@ -145,11 +145,11 @@ export class PaymentApprovalsComponent implements OnInit {
 
   formatDate(d: string | Date): string {
     if (!d) return '';
-    return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    return new Date(d).toLocaleDateString('sr-Latn-RS', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
   }
 
   formatAmount(n: number): string {
-    return (n || 0).toLocaleString('en-IN', { minimumFractionDigits: 0 });
+    return (n || 0).toLocaleString('sr-Latn-RS', { minimumFractionDigits: 0 });
   }
 
   showToast(msg: string, type: 'success' | 'error'): void {

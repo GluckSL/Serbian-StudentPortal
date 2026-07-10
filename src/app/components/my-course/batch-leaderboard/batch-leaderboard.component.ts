@@ -70,7 +70,7 @@ export class BatchLeaderboardComponent implements OnInit, OnChanges {
       .pipe(catchError(() => of(null)))
       .subscribe((res) => {
         this.loading = false;
-        if (!res) { this.error = 'Could not load leaderboard. Please try again.'; return; }
+        if (!res) { this.error = 'Nije moguće učitati rang listu. Pokušajte ponovo.'; return; }
         this.data = res;
         this._cache[period] = res;
       });
@@ -107,8 +107,8 @@ export class BatchLeaderboardComponent implements OnInit, OnChanges {
     const buddy = t?.gluckBuddy ?? { done: 0, total: 0 };
     const ar = t?.arena ?? { done: 0, total: 0 };
     return [
-      { key: 'live', label: 'Live', icon: '🎥', done: live.done, total: live.total, tone: 'blue' },
-      { key: 'exercises', label: 'Exercises', icon: '📚', done: ex.done, total: ex.total, tone: 'green' },
+      { key: 'live', label: 'Uživo', icon: '🎥', done: live.done, total: live.total, tone: 'blue' },
+      { key: 'exercises', label: 'Vežbe', icon: '📚', done: ex.done, total: ex.total, tone: 'green' },
       { key: 'buddy', label: 'Glück Buddy', icon: '🎙️', done: buddy.done, total: buddy.total, tone: 'purple' },
       { key: 'arena', label: 'Arena', icon: '⚡', done: ar.done, total: ar.total, tone: 'amber' },
     ];
@@ -184,10 +184,10 @@ export class BatchLeaderboardComponent implements OnInit, OnChanges {
 
   get taskSectionLabel(): string {
     const p = this.todayTasks?.period ?? this.subTab;
-    if (p === 'weekly') return 'This week\'s tasks';
-    if (p === 'overall') return 'Overall progress';
+    if (p === 'weekly') return 'Zadaci ove nedelje';
+    if (p === 'overall') return 'Ukupan napredak';
     const day = this.todayTasks?.courseDay ?? this.myStats?.currentCourseDay ?? '';
-    return `Day ${day} tasks`;
+    return `Zadaci za dan ${day}`;
   }
 
   /** How many engagement minutes needed to reach the rank above */
@@ -221,9 +221,9 @@ export class BatchLeaderboardComponent implements OnInit, OnChanges {
   }
 
   get activeMatesLabel(): string {
-    if (this.subTab === 'today') return `${this.activeMatesCount} batchmate${this.activeMatesCount === 1 ? '' : 's'} learning today`;
-    if (this.subTab === 'weekly') return `${this.activeMatesCount} batchmate${this.activeMatesCount === 1 ? '' : 's'} learning this week`;
-    return `${this.activeMatesCount} batchmate${this.activeMatesCount === 1 ? '' : 's'} learning overall`;
+    if (this.subTab === 'today') return `${this.activeMatesCount} ${this.activeMatesCount === 1 ? 'učenik uči' : 'učenika uči'} danas`;
+    if (this.subTab === 'weekly') return `${this.activeMatesCount} ${this.activeMatesCount === 1 ? 'učenik uči' : 'učenika uči'} ove nedelje`;
+    return `${this.activeMatesCount} ${this.activeMatesCount === 1 ? 'učenik uči' : 'učenika uči'} ukupno`;
   }
 
   formatEngagementMinutes(minutes: number): string {
@@ -262,18 +262,18 @@ export class BatchLeaderboardComponent implements OnInit, OnChanges {
     const parts: string[] = [];
 
     if (entry.engagementMinutes > 0) {
-      parts.push(`${this.formatEngagementMinutes(entry.engagementMinutes)} learning`);
+      parts.push(`${this.formatEngagementMinutes(entry.engagementMinutes)} učenja`);
     }
 
     if (entry.exercisesTotal > 0) {
-      parts.push(`${this.formatExerciseCompletion(entry)} exercises`);
+      parts.push(`${this.formatExerciseCompletion(entry)} vežbi`);
     } else if (entry.exercisesCompleted > 0) {
-      parts.push(`${entry.exercisesCompleted} exercise${entry.exercisesCompleted > 1 ? 's' : ''} done`);
+      parts.push(`${entry.exercisesCompleted} vežb${entry.exercisesCompleted === 1 ? 'a' : 'i'} urađeno`);
     }
 
     if (parts.length) return parts.join(' · ');
-    if (entry.loggedToday) return 'Checked in · no learning time yet';
-    return 'Getting started';
+    if (entry.loggedToday) return 'Prijavljen · još nema vremena učenja';
+    return 'Počinje se';
   }
 
   getRankUpHint(): string | null {
@@ -283,16 +283,16 @@ export class BatchLeaderboardComponent implements OnInit, OnChanges {
 
     const mins = this.minutesToRankUp;
     if (mins != null && mins > 0) {
-      return `+${this.formatEngagementMinutes(mins)} learning to reach #${this.myRank - 1}`;
+      return `+${this.formatEngagementMinutes(mins)} učenja do #${this.myRank - 1}`;
     }
 
     const myPct = this.exerciseCompletionPercent(this.myStats);
     const abovePct = this.exerciseCompletionPercent(above);
     if (this.myStats.engagementMinutes === above.engagementMinutes && abovePct > myPct) {
-      return `Complete more exercises to reach #${this.myRank - 1}`;
+      return `Završite više vežbi da dostignete #${this.myRank - 1}`;
     }
 
-    return `Keep learning to reach #${this.myRank - 1}`;
+    return `Nastavite da učite da dostignete #${this.myRank - 1}`;
   }
 
   getStatusBadge(entry: LeaderboardEntry): { label: string; cls: string } | null {
@@ -300,26 +300,26 @@ export class BatchLeaderboardComponent implements OnInit, OnChanges {
     const active = entry.engagementMinutes > 0;
 
     if (this.subTab === 'today') {
-      if (entry.rank === 1 && active) return { label: 'Topper', cls: 'badge--champion' };
-      if (entry.rank === 2 && active) return { label: 'Star', cls: 'badge--star' };
-      if (entry.rank === 3 && active) return { label: 'Rising star', cls: 'badge--star' };
-      if (avg >= 85 && entry.exercisesCompleted > 0) return { label: 'Sharp mind', cls: 'badge--mind' };
-      if (entry.exercisesCompleted > 0 && entry.dgSessionsCompleted > 0) return { label: 'All-rounder', cls: 'badge--step' };
-      if (entry.exercisesCompleted > 0) return { label: 'Go getter', cls: 'badge--task' };
-      if (entry.dgSessionsCompleted > 0) return { label: 'Speaker pro', cls: 'badge--task' };
-      if (entry.arenaXp > 0) return { label: 'Arena ace', cls: 'badge--arena' };
-      if (entry.loggedToday) return { label: 'On track', cls: 'badge--neutral' };
+      if (entry.rank === 1 && active) return { label: 'Prvi', cls: 'badge--champion' };
+      if (entry.rank === 2 && active) return { label: 'Zvezda', cls: 'badge--star' };
+      if (entry.rank === 3 && active) return { label: 'U ascendantu', cls: 'badge--star' };
+      if (avg >= 85 && entry.exercisesCompleted > 0) return { label: 'Oštar um', cls: 'badge--mind' };
+      if (entry.exercisesCompleted > 0 && entry.dgSessionsCompleted > 0) return { label: 'Svestran', cls: 'badge--step' };
+      if (entry.exercisesCompleted > 0) return { label: 'Aktivan', cls: 'badge--task' };
+      if (entry.dgSessionsCompleted > 0) return { label: 'Govorni pro', cls: 'badge--task' };
+      if (entry.arenaXp > 0) return { label: 'Arena as', cls: 'badge--arena' };
+      if (entry.loggedToday) return { label: 'Na pravom putu', cls: 'badge--neutral' };
     } else if (this.subTab === 'weekly') {
-      if (entry.rank === 1 && active) return { label: 'Week champion', cls: 'badge--champion' };
-      if (entry.currentStreak >= 5) return { label: 'On fire', cls: 'badge--streak' };
-      if (avg >= 80) return { label: 'Consistent', cls: 'badge--mind' };
-      if (active) return { label: 'Keep going', cls: 'badge--step' };
+      if (entry.rank === 1 && active) return { label: 'Šampion nedelje', cls: 'badge--champion' };
+      if (entry.currentStreak >= 5) return { label: 'U plamenu', cls: 'badge--streak' };
+      if (avg >= 80) return { label: 'Dosledan', cls: 'badge--mind' };
+      if (active) return { label: 'Nastavi', cls: 'badge--step' };
     } else {
-      if (entry.rank === 1) return { label: 'Batch legend', cls: 'badge--champion' };
-      if (entry.rank === 2) return { label: 'Elite', cls: 'badge--star' };
-      if (entry.rank === 3) return { label: 'Top tier', cls: 'badge--star' };
+      if (entry.rank === 1) return { label: 'Legenda grupe', cls: 'badge--champion' };
+      if (entry.rank === 2) return { label: 'Elita', cls: 'badge--star' };
+      if (entry.rank === 3) return { label: 'Vrh', cls: 'badge--star' };
       if (entry.currentCourseDay >= 100) return { label: 'Veteran', cls: 'badge--step' };
-      if (avg >= 75) return { label: 'Strong', cls: 'badge--mind' };
+      if (avg >= 75) return { label: 'Jak', cls: 'badge--mind' };
     }
     return null;
   }
@@ -355,7 +355,7 @@ export class BatchLeaderboardComponent implements OnInit, OnChanges {
 
   subTabs: SubTab[] = ['today', 'weekly', 'overall'];
   getSubTabLabel(tab: SubTab): string {
-    return tab === 'today' ? 'Today' : tab === 'weekly' ? 'This Week' : 'Overall';
+    return tab === 'today' ? 'Danas' : tab === 'weekly' ? 'Ova nedelja' : 'Ukupno';
   }
 
   trackByStudentId(_: number, entry: LeaderboardEntry): string {

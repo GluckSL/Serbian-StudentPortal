@@ -2,28 +2,28 @@
 
   <header class="page-top">
     <div>
-      <h2>Student Document Profile</h2>
-      <p class="subtitle">Review uploads, approve or reject with notes — students receive email on approval or rejection</p>
+      <h2>Profil dokumenata studenta</h2>
+      <p class="subtitle">Pregledajte otpremljene fajlove, odobrite ili odbijte uz napomene — studenti dobijaju email o odobravanju ili odbijanju</p>
     </div>
     <div class="header-actions">
       <button mat-flat-button class="btn-pill btn-generate-agreement" (click)="openAgreementWorkspace()">
         <mat-icon>description</mat-icon>
-        Generate Agreement
+        Generiši ugovor
       </button>
       <button mat-flat-button color="primary" class="btn-pill btn-export" (click)="exportStudentDocumentDetails()">
         <mat-icon>download</mat-icon>
-        Export
+        Izvezi
       </button>
       <button mat-stroked-button class="btn-pill" (click)="goBack()">
         <mat-icon>arrow_back</mat-icon>
-        Back
+        Nazad
       </button>
     </div>
   </header>
 
   <div class="student-info-banner">
     <div class="info-chip info-chip--name">
-      <span class="info-label">Name</span>
+      <span class="info-label">Ime</span>
       <span class="info-value">{{ student.name || '—' }}</span>
       <app-test-account-badge [show]="!!student.isTestAccount"></app-test-account-badge>
     </div>
@@ -36,15 +36,15 @@
       <span class="info-value">{{ student.studentStatus || '—' }}</span>
     </div>
     <div class="info-chip info-chip--package">
-      <span class="info-label">Package</span>
+      <span class="info-label">Paket</span>
       <span class="info-value">{{ student.subscription || '—' }}</span>
     </div>
     <div class="info-chip info-chip--service">
-      <span class="info-label">Service</span>
+      <span class="info-label">Usluga</span>
       <span class="info-value">{{ student.servicesOpted || '—' }}</span>
     </div>
     <div class="info-chip info-chip--qual">
-      <span class="info-label">Qualification</span>
+      <span class="info-label">Kvalifikacija</span>
       <span class="info-value">{{ student.qualifications || '—' }}</span>
     </div>
   </div>
@@ -52,7 +52,7 @@
   <div class="table-card">
       <div *ngIf="loading" class="loading">
         <mat-spinner diameter="36"></mat-spinner>
-        <p>Loading documents…</p>
+        <p>Učitavanje dokumenata…</p>
       </div>
 
       <ng-container *ngIf="!loading">
@@ -63,7 +63,7 @@
             [class.doc-tab--active]="activeTab === 'admin_pending'"
             (click)="setTab('admin_pending')">
             <mat-icon>rate_review</mat-icon>
-            Pending — Admin review
+            Na čekanju — Admin pregled
             <span class="tab-badge tab-badge--admin">{{ adminPendingCount }}</span>
           </button>
           <button
@@ -72,7 +72,7 @@
             [class.doc-tab--active]="activeTab === 'student_pending'"
             (click)="setTab('student_pending')">
             <mat-icon>person</mat-icon>
-            Pending — Student action
+            Na čekanju — Akcija studenta
             <span class="tab-badge tab-badge--student">{{ studentPendingCount }}</span>
           </button>
           <button
@@ -81,7 +81,7 @@
             [class.doc-tab--active]="activeTab === 'all'"
             (click)="setTab('all')">
             <mat-icon>folder</mat-icon>
-            All documents
+            Svi dokumenti
             <span class="tab-badge">{{ allCount }}</span>
           </button>
         </div>
@@ -90,12 +90,12 @@
         <table class="documents-table">
           <thead>
             <tr>
-              <th>Document</th>
-              <th>File</th>
+              <th>Dokument</th>
+              <th>Fajl</th>
               <th>Status</th>
-              <th>Uploaded</th>
-              <th>Re-upload reason</th>
-              <th>Actions</th>
+              <th>Otpremljeno</th>
+              <th>Razlog za ponovano otpremanje</th>
+              <th>Akcije</th>
             </tr>
           </thead>
           <tbody>
@@ -111,26 +111,26 @@
               <td>
                 <div class="req-title">
                   <span class="req-title-text" [matTooltip]="row.label">{{ row.label }}</span>
-                  <span class="agreement-badge" *ngIf="row.isAgreement">Agreement</span>
+                  <span class="agreement-badge" *ngIf="row.isAgreement">Ugovor</span>
                 </div>
-                <small class="req-meta">{{ row.required ? 'Required' : 'Optional' }}</small>
+                <small class="req-meta">{{ row.required ? 'Obavezno' : 'Opciono' }}</small>
               </td>
               <td>
                 <ng-container *ngIf="row.doc; else notUploadedCell">
                   <span class="file-name" [matTooltip]="row.doc.documentName || row.doc.fileName">{{ row.doc.documentName || row.doc.fileName }}</span>
                 </ng-container>
                 <ng-template #notUploadedCell>
-                  <span class="muted">Not uploaded</span>
+                  <span class="muted">Nije otpremljeno</span>
                 </ng-template>
               </td>
               <td class="status-cell">
                 <span [class]="getStatusBadgeClass(row.status)">
                   <mat-icon>{{ getStatusIcon(row.status) }}</mat-icon>
                   <ng-container *ngIf="row.isAgreement && row.agreementStatus === 'SENT' && !row.hasSignedCopy">
-                    Awaiting signature
+                    Čeka potpis
                   </ng-container>
                   <ng-container *ngIf="row.isAgreement && row.agreementStatus === 'SIGNED_PENDING'">
-                    Pending review
+                    Čeka pregled
                   </ng-container>
                   <ng-container *ngIf="!row.isAgreement || (row.agreementStatus !== 'SENT' && row.agreementStatus !== 'SIGNED_PENDING')">
                     {{ getStatusLabel(row.status) }}
@@ -147,11 +147,11 @@
                   <ng-container *ngIf="canReviewRow(row)">
                     <button type="button" class="act-btn act-btn--approve" (click)="openVerifyDialog(row, 'VERIFIED')">
                       <mat-icon>check_circle</mat-icon>
-                      Approve
+                      Odobri
                     </button>
                     <button type="button" class="act-btn act-btn--reject" (click)="openVerifyDialog(row, 'REJECTED')">
                       <mat-icon>cancel</mat-icon>
-                      Reject
+                      Odbij
                     </button>
                   </ng-container>
 
@@ -159,10 +159,10 @@
                           (click)="viewRow(row)"
                           [disabled]="(!row.isAgreement && row.doc?.fileName === 'NO_FILE_UPLOADED') || (row.isAgreement && !row.agreementId)">
                     <mat-icon>visibility</mat-icon>
-                    View
+                    Prikaži
                   </button>
 
-                  <button type="button" class="act-btn act-btn--more" [matMenuTriggerFor]="rowMenu" aria-label="More actions" matTooltip="More options">
+                  <button type="button" class="act-btn act-btn--more" [matMenuTriggerFor]="rowMenu" aria-label="Više akcija" matTooltip="Više opcija">
                     <mat-icon>more_vert</mat-icon>
                   </button>
                   <mat-menu #rowMenu="matMenu" class="row-actions-menu">
@@ -171,22 +171,22 @@
                             (click)="downloadDocument(row.doc)"
                             [disabled]="row.doc.fileName === 'NO_FILE_UPLOADED'">
                       <mat-icon>download</mat-icon>
-                      <span>Download</span>
+                      <span>Preuzmite</span>
                     </button>
                     <button mat-menu-item
                             *ngIf="row.isAgreement && row.agreementId"
                             (click)="downloadAgreement(row.agreementId!, 'signed', row.doc.fileName)"
                             [disabled]="!row.hasSignedCopy">
                       <mat-icon>draw</mat-icon>
-                      <span>Signed copy</span>
+                      <span>Potpisana kopija</span>
                     </button>
                     <button mat-menu-item *ngIf="!row.isAgreement" (click)="replaceDocument(row.doc)">
                       <mat-icon>sync_alt</mat-icon>
-                      <span>Replace file</span>
+                      <span>Zameni fajl</span>
                     </button>
                     <button mat-menu-item (click)="uploadForStudent(row)">
                       <mat-icon>cloud_upload</mat-icon>
-                      <span>Upload for student</span>
+                      <span>Otpremi za studenta</span>
                     </button>
                   </mat-menu>
                 </div>
@@ -194,11 +194,11 @@
                   <div class="upload-only-actions">
                     <button type="button" class="act-btn act-btn--generate" *ngIf="row.isAgreement" (click)="openAgreementWorkspace()">
                       <mat-icon>description</mat-icon>
-                      Generate agreement
+                      Generiši ugovor
                     </button>
                     <button type="button" class="act-btn act-btn--upload" (click)="uploadForStudent(row)">
                       <mat-icon>cloud_upload</mat-icon>
-                      Upload for student
+                      Otpremi za studenta
                     </button>
                   </div>
                 </ng-template>
@@ -217,33 +217,33 @@
           <mat-icon [color]="verificationAction === 'VERIFIED' ? 'primary' : 'warn'">
             {{ verificationAction === 'VERIFIED' ? 'check_circle' : 'cancel' }}
           </mat-icon>
-          {{ verificationAction === 'VERIFIED' ? 'Approve' : 'Reject & request re-upload' }}
+          {{ verificationAction === 'VERIFIED' ? 'Odobri' : 'Odbij i zahtevaj ponovano otpremanje' }}
         </h3>
         <button mat-icon-button (click)="closeVerificationDialog()"><mat-icon>close</mat-icon></button>
       </div>
       <div class="dialog-body" *ngIf="verifyTarget">
         <p><strong>Student:</strong> {{ student.name }}</p>
-        <p><strong>Document:</strong> {{ verifyTarget.label }}</p>
+        <p><strong>Dokument:</strong> {{ verifyTarget.label }}</p>
         <p class="reject-hint" *ngIf="verificationAction === 'REJECTED'">
-          The student will receive an email with your reason and a link to upload again.
+          Student će primiti email sa vašim razlogom i linkom za ponovano otpremanje.
         </p>
         <p class="reject-hint" *ngIf="verificationAction === 'VERIFIED'" style="background:#ecfdf5;border-color:#a7f3d0;color:#047857">
-          The student will receive an approval email with a link to the portal.
+          Student će primiti email o odobrenju sa linkom na portal.
         </p>
         <mat-form-field appearance="outline" class="full-width">
-          <mat-label>{{ verificationAction === 'VERIFIED' ? 'Notes (optional)' : 'Reason (required)' }}</mat-label>
+          <mat-label>{{ verificationAction === 'VERIFIED' ? 'Napomene (opciono)' : 'Razlog (obavezno)' }}</mat-label>
           <textarea matInput [(ngModel)]="verificationNotes" rows="4"
-            [placeholder]="verificationAction === 'VERIFIED' ? 'Optional note…' : 'e.g. Blurry scan, missing signature…'"></textarea>
+            [placeholder]="verificationAction === 'VERIFIED' ? 'Opciona napomena…' : 'npr. Zamagljeno skeniranje, nedostaje potpis…'"></textarea>
         </mat-form-field>
       </div>
       <div class="dialog-actions">
-        <button mat-button (click)="closeVerificationDialog()" [disabled]="verifying">Cancel</button>
+        <button mat-button (click)="closeVerificationDialog()" [disabled]="verifying">Otkaži</button>
         <button mat-flat-button
                 [color]="verificationAction === 'VERIFIED' ? 'primary' : 'warn'"
                 [disabled]="verifying || (verificationAction === 'REJECTED' && !verificationNotes.trim())"
                 (click)="confirmVerification()">
           <mat-spinner *ngIf="verifying" diameter="16" style="display:inline-block;margin-right:6px"></mat-spinner>
-          {{ verificationAction === 'VERIFIED' ? 'Approve' : 'Reject & notify' }}
+          {{ verificationAction === 'VERIFIED' ? 'Odobri' : 'Odbij i obavesti' }}
         </button>
       </div>
     </div>

@@ -64,7 +64,7 @@ export interface IMResult {
       <div *ngIf="phase === 'error'" class="shell__error">
         <mat-icon>error</mat-icon>
         <p>{{ error }}</p>
-        <button mat-raised-button (click)="back()">Go Back</button>
+        <button mat-raised-button (click)="back()">Nazad</button>
       </div>
 
       <!-- Unified shell layout for intro and playing phases -->
@@ -88,27 +88,27 @@ export interface IMResult {
               <div class="sb-panel__meta-row" *ngIf="set.level"><mat-icon>school</mat-icon><span>{{ set.level }}</span></div>
               <div class="sb-panel__meta-row"><mat-icon>bolt</mat-icon><span>+{{ set.xpReward }} XP</span></div>
               <div class="sb-panel__meta-row"><mat-icon>schedule</mat-icon><span>~{{ set.estimatedDurationMinutes }} min</span></div>
-              <div class="sb-panel__meta-row"><mat-icon>quiz</mat-icon><span>{{ questions.length }} questions</span></div>
-              <div class="sb-panel__meta-row" *ngIf="set.courseDay != null"><mat-icon>flag</mat-icon><span>Journey {{ set.courseDay === 0 ? 'Trial' : ('day ' + set.courseDay) }}</span></div>
+              <div class="sb-panel__meta-row"><mat-icon>quiz</mat-icon><span>{{ questions.length }} pitanja</span></div>
+              <div class="sb-panel__meta-row" *ngIf="set.courseDay != null"><mat-icon>flag</mat-icon><span>Putovanje {{ set.courseDay === 0 ? 'Proba' : ('dan ' + set.courseDay) }}</span></div>
             </section>
             <section class="sb-panel__block">
-              <h3><mat-icon>info</mat-icon> How it works</h3>
-              <p *ngIf="set.gameType === 'sentence_builder'">Drag words into the correct positions. The clock counts up from zero — finish all sentences as fast as you can.</p>
-              <p *ngIf="set.gameType === 'scramble_rush'">Type words before letters fall. Limited lives — complete all levels to win.</p>
-              <p *ngIf="set.gameType === 'image_matching'">Drag each word to the matching image. Match all pairs to complete the game.</p>
-              <p *ngIf="set.gameType === 'gender_stack'">Words fall from the sky and stack on the shelf — drag each noun into DER, DIE, or DAS before the pile overflows. You have 5 lives.</p>
-              <p *ngIf="set.gameType === 'matching'">Match each item on the left with the correct item on the right, then check your answers.</p>
-              <p *ngIf="set.gameType === 'flashcards'">Complete all items in this module to earn XP.</p>
-              <p *ngIf="set.gameType === 'flapjugation'">Fly your bird into the correct verb conjugation — dodge all the wrong ones. Each correct hit advances to the next pronoun.</p>
-              <p *ngIf="set.gameType === 'whackawort'">Whack the German words that match the target category — hit the wrong ones and lose a life!</p>
-              <p *ngIf="set.gameType === 'memory'">Flip cards to reveal pictures and words. Find and match each picture with the correct word. Match all pairs to win!</p>
-              <p *ngIf="set.gameType === 'jumbled_words'">Look at the picture and arrange the jumbled letters into the correct order to form the word. Drag each letter tile into the right slot and submit your answer.</p>
-              <p *ngIf="set.gameType === 'hangman'">Read the clue and guess the word one letter at a time. Each wrong guess brings the hangman closer — guess all letters before the figure is complete to win!</p>
-              <p *ngIf="set.gameType === 'word_picture_match'">Match each word to the correct picture. Click the picture that matches the word shown — match all pairs before time runs out!</p>
-              <p *ngIf="set.gameType === 'multiple_choice'">Read the question and choose the correct answer from the options. Each correct answer earns points — answer as many as you can before time runs out!</p>
-              <p *ngIf="set.gameType === 'spin_wheel'">Spin the wheel to land on a German phrase. After each spin, choose <strong>Eliminate</strong> to remove that phrase from the wheel or <strong>Resume</strong> to keep it and spin again. Narrow the wheel until one phrase remains!</p>
-              <p *ngIf="set.gameType === 'tap_boxes'">Tap a numbered box on the classroom grid. The view zooms in cinematically and peels back to reveal the hidden German phrase. Open every box to finish!</p>
-              <p *ngIf="set.gameType === 'word_search'">Find hidden words across, down, or diagonally. Drag from the first letter to the last, or tap each letter in order. Wrong selections cost a life!</p>
+              <h3><mat-icon>info</mat-icon> Kako funkcioniše</h3>
+              <p *ngIf="set.gameType === 'sentence_builder'">Prevucite reči na ispravne pozicije. Sat broji od nule — završite sve rečenice što brže možete.</p>
+              <p *ngIf="set.gameType === 'scramble_rush'">Kucajte reči pre nego što slova padnu. Ograničen broj života — završite sve nivoe da pobedite.</p>
+              <p *ngIf="set.gameType === 'image_matching'">Prevucite svaku reč do odgovarajuće slike. Uparite sve parove da završite igru.</p>
+              <p *ngIf="set.gameType === 'gender_stack'">Reči padaju s neba i gomilaju se na polici — prevucite svaki imenicu u DER, DIE ili DAS pre nego što gomila prekorači. Imate 5 života.</p>
+              <p *ngIf="set.gameType === 'matching'">Uparite svaki element s leve strane sa ispravnim elementom s desne, zatim proverite odgovore.</p>
+              <p *ngIf="set.gameType === 'flashcards'">Završite sve stavke u ovom modulu da zaradite XP.</p>
+              <p *ngIf="set.gameType === 'flapjugation'">Navedite svoju pticu na ispravnu konjugaciju glagola — izbegavajte pogrešne. Svaki tačan pogodak prelazi na sledeću zamenicu.</p>
+              <p *ngIf="set.gameType === 'whackawort'">Udarajte nemačke reči koje odgovaraju ciljnoj kategoriji — pogodak pogrešnih košta živote!</p>
+              <p *ngIf="set.gameType === 'memory'">Okrenite kartice da otkrijete slike i reči. Pronađite i uparite svaku sliku sa ispravnom rečju. Uparite sve parove da pobedite!</p>
+              <p *ngIf="set.gameType === 'jumbled_words'">Pogledajte sliku i složite pomešana slova u ispravnom redosledu da formira reč. Prevucite svako slovo na pravo mesto i potvrdite odgovor.</p>
+              <p *ngIf="set.gameType === 'hangman'">Pročitajte naznaku i pogađajte reč slovo po slovo. Svaki pogrešan pokušaj dovodi vešalice bliže — pogodite sva slova pre nego što figura bude kompletna!</p>
+              <p *ngIf="set.gameType === 'word_picture_match'">Uparite svaku reč sa ispravnom slikom. Kliknite sliku koja odgovara prikazanoj reči — uparite sve parove pre isteka vremena!</p>
+              <p *ngIf="set.gameType === 'multiple_choice'">Pročitajte pitanje i izaberite tačan odgovor. Svaki tačan odgovor donosi poene — odgovorite na što više pitanja pre isteka vremena!</p>
+              <p *ngIf="set.gameType === 'spin_wheel'">Zavrtite točak da sletite na nemački izraz. Nakon svakog okretanja, izaberite <strong>Eliminiši</strong> da uklonite taj izraz ili <strong>Nastavi</strong> da ga zadržite i ponovo okrenete. Sužavajte točak dok ne ostane jedan izraz!</p>
+              <p *ngIf="set.gameType === 'tap_boxes'">Dodirnite numerisanu kutiju na tabli. Pogled se kinematski uvećava i otkriva skriveni nemački izraz. Otvorite svaku kutiju da završite!</p>
+              <p *ngIf="set.gameType === 'word_search'">Pronađite skrivene reči horizontalno, vertikalno ili dijagonalno. Prevucite od prvog do poslednjeg slova ili dodirnite svako slovo redom. Pogrešan izbor košta život!</p>
             </section>
           </aside>
 
@@ -133,20 +133,20 @@ export interface IMResult {
                 <span class="shell-tag">{{ set.difficulty }}</span>
                 <span class="shell-tag" *ngIf="set.level">{{ set.level }}</span>
                 <span class="shell-tag shell-tag--muted" *ngIf="set.category">{{ set.category }}</span>
-                <span class="shell-tag shell-tag--muted" *ngIf="set.courseDay != null">{{ set.courseDay === 0 ? 'Trial' : ('Day ' + set.courseDay) }}</span>
+                <span class="shell-tag shell-tag--muted" *ngIf="set.courseDay != null">{{ set.courseDay === 0 ? 'Proba' : ('Dan ' + set.courseDay) }}</span>
               </div>
               <h1>{{ set.title }}</h1>
-              <p class="shell-intro__desc">{{ set.description || 'Get ready to practice your German skills.' }}</p>
+              <p class="shell-intro__desc">{{ set.description || 'Spremite se da vežbate nemački jezik.' }}</p>
               <div class="shell-intro__stats">
-                <div class="shell-intro__stat"><mat-icon>quiz</mat-icon><strong>{{ questions.length }}</strong><span>Questions</span></div>
-                <div class="shell-intro__stat"><mat-icon>schedule</mat-icon><strong>~{{ set.estimatedDurationMinutes }}</strong><span>Minutes</span></div>
-                <div class="shell-intro__stat"><mat-icon>timer</mat-icon><strong>Count-up</strong><span>Total time</span></div>
+                <div class="shell-intro__stat"><mat-icon>quiz</mat-icon><strong>{{ questions.length }}</strong><span>Pitanja</span></div>
+                <div class="shell-intro__stat"><mat-icon>schedule</mat-icon><strong>~{{ set.estimatedDurationMinutes }}</strong><span>Minuta</span></div>
+                <div class="shell-intro__stat"><mat-icon>timer</mat-icon><strong>Rastuće</strong><span>Ukupno vreme</span></div>
                 <div class="shell-intro__stat"><mat-icon>bolt</mat-icon><strong>{{ set.xpReward }}</strong><span>Max XP</span></div>
               </div>
               <div class="shell-intro__actions">
                 <button class="shell-intro__start" (click)="startPlay()">
                   <mat-icon>play_arrow</mat-icon>
-                  <span>Start game</span>
+                  <span>Počni igru</span>
                 </button>
               </div>
               </div>
@@ -276,9 +276,9 @@ export interface IMResult {
           <!-- Placeholder -->
           <div *ngIf="phase === 'playing' && isPlaceholderType()" class="shell__placeholder">
             <mat-icon>construction</mat-icon>
-            <h3>Coming Soon</h3>
-            <p>{{ set?.gameType }} game type is coming soon!</p>
-            <button mat-raised-button (click)="back()">Back to GlückArena</button>
+            <h3>Uskoro</h3>
+            <p>{{ set?.gameType }} vrsta igre uskoro dolazi!</p>
+            <button mat-raised-button (click)="back()">Nazad na GlückArenu</button>
           </div>
 
           <!-- Results -->
@@ -298,7 +298,7 @@ export interface IMResult {
             <div class="shell__results__glow"></div>
             <div class="shell__results__score-wrap">
               <div class="shell__results__xp-sub">+{{ finalXp }} XP</div>
-              <div class="shell__results__score-main">{{ finalScore }} <span>Score</span></div>
+              <div class="shell__results__score-main">{{ finalScore }} <span>Rezultat</span></div>
             </div>
             <div class="shell__results__meta">
               <mat-icon>timer</mat-icon>
@@ -310,13 +310,13 @@ export interface IMResult {
             <div class="shell__results__actions">
               <button class="shell__results__btn shell__results__btn--replay" (click)="replay()" [disabled]="replayLoading">
                 <mat-icon>{{ replayLoading ? 'hourglass_top' : 'replay' }}</mat-icon>
-                {{ replayLoading ? 'Starting…' : 'Play Again' }}
+                {{ replayLoading ? 'Počinje…' : 'Igraj ponovo' }}
               </button>
               <button class="shell__results__btn" routerLink="/glueck-arena/leaderboard">
-                <mat-icon>leaderboard</mat-icon> Leaderboard
+                <mat-icon>leaderboard</mat-icon> Rang lista
               </button>
               <button class="shell__results__btn shell__results__btn--outline" (click)="back()">
-                <mat-icon>home</mat-icon> Back
+                <mat-icon>home</mat-icon> Nazad
               </button>
             </div>
           </div>
@@ -329,8 +329,8 @@ export interface IMResult {
           <div class="shell-side shell-side--lb">
             <div class="shell-side__lb">
               <header class="shell-side__lb-head">
-                <h3><mat-icon>leaderboard</mat-icon> Leaderboard</h3>
-                <a routerLink="/glueck-arena/leaderboard" class="shell-side__lb-link">See all</a>
+                <h3><mat-icon>leaderboard</mat-icon> Rang lista</h3>
+                <a routerLink="/glueck-arena/leaderboard" class="shell-side__lb-link">Vidi sve</a>
               </header>
               <div class="lb__list" *ngIf="!lbLoading && lbEntries.length">
                 <div class="lb__row" *ngFor="let e of lbEntries"
@@ -340,16 +340,16 @@ export interface IMResult {
                   [class.lb__row--top3]="e.rank === 3">
                   <div class="lb__row-body">
                     <div class="lb__rank-col">
-                      <span class="lb__medal lb__medal--1" *ngIf="e.rank === 1" title="1st place"><mat-icon>emoji_events</mat-icon></span>
-                      <span class="lb__medal lb__medal--2" *ngIf="e.rank === 2" title="2nd place"><mat-icon>military_tech</mat-icon></span>
-                      <span class="lb__medal lb__medal--3" *ngIf="e.rank === 3" title="3rd place"><mat-icon>workspace_premium</mat-icon></span>
+                      <span class="lb__medal lb__medal--1" *ngIf="e.rank === 1" title="1. mesto"><mat-icon>emoji_events</mat-icon></span>
+                      <span class="lb__medal lb__medal--2" *ngIf="e.rank === 2" title="2. mesto"><mat-icon>military_tech</mat-icon></span>
+                      <span class="lb__medal lb__medal--3" *ngIf="e.rank === 3" title="3. mesto"><mat-icon>workspace_premium</mat-icon></span>
                       <span class="lb__rank-num" *ngIf="e.rank > 3">{{ e.rank }}</span>
                     </div>
                     <div class="lb__player">
                       <span class="lb__avatar" [class.lb__avatar--top]="e.rank <= 3">{{ playerInitials(e.name) }}</span>
                       <div class="lb__info">
-                        <span class="lb__name">{{ e.name }} <span *ngIf="isMe(e)" class="lb__you">You</span></span>
-                        <span class="lb__sub">{{ e.gamesCompleted }} games · Best {{ e.bestScore }} pts</span>
+                        <span class="lb__name">{{ e.name }} <span *ngIf="isMe(e)" class="lb__you">Ti</span></span>
+                        <span class="lb__sub">{{ e.gamesCompleted }} igara · Rekord {{ e.bestScore }} poena</span>
                       </div>
                     </div>
                   </div>
@@ -362,7 +362,7 @@ export interface IMResult {
               <div class="lb__list lb__list--skel" *ngIf="lbLoading">
                 <div class="lb__row lb__row--skel" *ngFor="let _ of [1,2,3]"></div>
               </div>
-              <div class="lb__empty" *ngIf="!lbLoading && !lbEntries.length">No rankings yet — play to appear here.</div>
+              <div class="lb__empty" *ngIf="!lbLoading && !lbEntries.length">Nema rangiranja — igraj da se pojaviš ovde.</div>
             </div>
           </div>
         </aside>
@@ -372,7 +372,7 @@ export interface IMResult {
       <div class="shell__badge-popup" *ngIf="newBadges.length">
         <mat-icon>emoji_events</mat-icon>
         <div>
-          <strong>Badge unlocked!</strong>
+          <strong>Bedž otključan!</strong>
           <p *ngFor="let b of newBadges">{{ b.title }}</p>
         </div>
         <button mat-icon-button (click)="newBadges = []"><mat-icon>close</mat-icon></button>
@@ -948,7 +948,7 @@ export class GamePlayShellComponent implements OnInit {
   private loadGameSession(fromReplay = false) {
     const id = this.route.snapshot.paramMap.get('id');
     if (!id) {
-      this.error = 'Game not found';
+      this.error = 'Igra nije pronađena';
       this.phase = 'error';
       return;
     }
@@ -981,7 +981,7 @@ export class GamePlayShellComponent implements OnInit {
   }
 
   private onSessionStartFailed(err: { error?: { message?: string } }, fromReplay: boolean) {
-    const message = err?.error?.message || 'Could not start game';
+      const message = err?.error?.message || 'Nije moguće pokrenuti igru';
     if (fromReplay) {
       this.replayLoading = false;
       this.notify.error(message);
@@ -1126,9 +1126,9 @@ export class GamePlayShellComponent implements OnInit {
         this.newBadges = r.newAchievements || [];
         this.phase = 'results';
         if (!r.preview && (r.xpBonus ?? 0) > 0) {
-          this.notify.success(`🎉 +${r.xpBonus} XP earned!`);
+          this.notify.success(`🎉 +${r.xpBonus} XP zarađeno!`);
         } else if (r.preview) {
-          this.notify.success('Preview complete');
+          this.notify.success('Pregled završen');
         }
       },
       error: () => { this.phase = 'results'; }
@@ -1150,9 +1150,9 @@ export class GamePlayShellComponent implements OnInit {
         this.newBadges = r.newAchievements || [];
         this.phase = 'results';
         if (!r.preview && (r.xpBonus ?? 0) > 0) {
-          this.notify.success(`🎉 +${r.xpBonus} XP earned!`);
+          this.notify.success(`🎉 +${r.xpBonus} XP zaradeno!`);
         } else if (r.preview) {
-          this.notify.success('Preview complete');
+          this.notify.success('Pregled zavr�en');
         }
       },
       error: () => { this.phase = 'results'; }
@@ -1172,7 +1172,7 @@ export class GamePlayShellComponent implements OnInit {
         this.finalXp = r.xpBonus ?? 0;
         this.newBadges = r.newAchievements || [];
         this.phase = 'results';
-        this.notify.success(`🎉 +${r.xpBonus} XP earned!`);
+        this.notify.success(`🎉 +${r.xpBonus} XP zaradeno!`);
       },
       error: () => { this.phase = 'results'; }
     });
@@ -1193,9 +1193,9 @@ export class GamePlayShellComponent implements OnInit {
         this.newBadges = r.newAchievements || [];
         this.phase = 'results';
         if (!r.preview && (r.xpBonus ?? 0) > 0) {
-          this.notify.success(`🎉 +${r.xpBonus} XP earned!`);
+          this.notify.success(`🎉 +${r.xpBonus} XP zaradeno!`);
         } else if (r.preview) {
-          this.notify.success('Preview complete');
+          this.notify.success('Pregled zavr�en');
         }
       },
       error: () => { this.phase = 'results'; }
@@ -1217,9 +1217,9 @@ export class GamePlayShellComponent implements OnInit {
         this.newBadges = r.newAchievements || [];
         this.phase = 'results';
         if (!r.preview && (r.xpBonus ?? 0) > 0) {
-          this.notify.success(`🎉 +${r.xpBonus} XP earned!`);
+          this.notify.success(`🎉 +${r.xpBonus} XP zaradeno!`);
         } else if (r.preview) {
-          this.notify.success('Preview complete');
+          this.notify.success('Pregled zavr�en');
         }
       },
       error: () => { this.phase = 'results'; }
@@ -1240,9 +1240,9 @@ export class GamePlayShellComponent implements OnInit {
         this.newBadges = r.newAchievements || [];
         this.phase = 'results';
         if (!r.preview && (r.xpBonus ?? 0) > 0) {
-          this.notify.success(`🎉 +${r.xpBonus} XP earned!`);
+          this.notify.success(`🎉 +${r.xpBonus} XP zaradeno!`);
         } else if (r.preview) {
-          this.notify.success('Preview complete');
+          this.notify.success('Pregled zavr�en');
         }
       },
       error: () => { this.phase = 'results'; }
@@ -1264,9 +1264,9 @@ export class GamePlayShellComponent implements OnInit {
         this.newBadges = r.newAchievements || [];
         this.phase = 'results';
         if (!r.preview && (r.xpBonus ?? 0) > 0) {
-          this.notify.success(`🎉 +${r.xpBonus} XP earned!`);
+          this.notify.success(`🎉 +${r.xpBonus} XP zaradeno!`);
         } else if (r.preview) {
-          this.notify.success('Preview complete');
+          this.notify.success('Pregled zavr�en');
         }
       },
       error: () => { this.phase = 'results'; }
@@ -1287,9 +1287,9 @@ export class GamePlayShellComponent implements OnInit {
         this.newBadges = r.newAchievements || [];
         this.phase = 'results';
         if (!r.preview && (r.xpBonus ?? 0) > 0) {
-          this.notify.success(`🎉 +${r.xpBonus} XP earned!`);
+          this.notify.success(`🎉 +${r.xpBonus} XP zaradeno!`);
         } else if (r.preview) {
-          this.notify.success('Preview complete');
+          this.notify.success('Pregled zavr�en');
         }
       },
       error: () => { this.phase = 'results'; }
@@ -1310,9 +1310,9 @@ export class GamePlayShellComponent implements OnInit {
         this.newBadges = r.newAchievements || [];
         this.phase = 'results';
         if (!r.preview && (r.xpBonus ?? 0) > 0) {
-          this.notify.success(`🎉 +${r.xpBonus} XP earned!`);
+          this.notify.success(`🎉 +${r.xpBonus} XP zaradeno!`);
         } else if (r.preview) {
-          this.notify.success('Preview complete');
+          this.notify.success('Pregled zavr�en');
         }
       },
       error: () => { this.phase = 'results'; }
@@ -1333,9 +1333,9 @@ export class GamePlayShellComponent implements OnInit {
         this.newBadges = r.newAchievements || [];
         this.phase = 'results';
         if (!r.preview && (r.xpBonus ?? 0) > 0) {
-          this.notify.success(`🎉 +${r.xpBonus} XP earned!`);
+          this.notify.success(`🎉 +${r.xpBonus} XP zaradeno!`);
         } else if (r.preview) {
-          this.notify.success('Preview complete');
+          this.notify.success('Pregled zavr�en');
         }
       },
       error: () => { this.phase = 'results'; }
@@ -1356,9 +1356,9 @@ export class GamePlayShellComponent implements OnInit {
         this.newBadges = r.newAchievements || [];
         this.phase = 'results';
         if (!r.preview && (r.xpBonus ?? 0) > 0) {
-          this.notify.success(`🎉 +${r.xpBonus} XP earned!`);
+          this.notify.success(`🎉 +${r.xpBonus} XP zaradeno!`);
         } else if (r.preview) {
-          this.notify.success('Preview complete');
+          this.notify.success('Pregled zavr�en');
         }
       },
       error: () => { this.phase = 'results'; }
@@ -1379,9 +1379,9 @@ export class GamePlayShellComponent implements OnInit {
         this.newBadges = r.newAchievements || [];
         this.phase = 'results';
         if (!r.preview && (r.xpBonus ?? 0) > 0) {
-          this.notify.success(`🎉 +${r.xpBonus} XP earned!`);
+          this.notify.success(`🎉 +${r.xpBonus} XP zaradeno!`);
         } else if (r.preview) {
-          this.notify.success('Preview complete');
+          this.notify.success('Pregled zavr�en');
         }
       },
       error: () => { this.phase = 'results'; }
@@ -1402,9 +1402,9 @@ export class GamePlayShellComponent implements OnInit {
         this.newBadges = r.newAchievements || [];
         this.phase = 'results';
         if (!r.preview && (r.xpBonus ?? 0) > 0) {
-          this.notify.success(`🎉 +${r.xpBonus} XP earned!`);
+          this.notify.success(`🎉 +${r.xpBonus} XP zaradeno!`);
         } else if (r.preview) {
-          this.notify.success('Preview complete');
+          this.notify.success('Pregled zavr�en');
         }
       },
       error: () => { this.phase = 'results'; }
@@ -1425,9 +1425,9 @@ export class GamePlayShellComponent implements OnInit {
         this.newBadges = r.newAchievements || [];
         this.phase = 'results';
         if (!r.preview && (r.xpBonus ?? 0) > 0) {
-          this.notify.success(`🎉 +${r.xpBonus} XP earned!`);
+          this.notify.success(`🎉 +${r.xpBonus} XP zaradeno!`);
         } else if (r.preview) {
-          this.notify.success('Preview complete');
+          this.notify.success('Pregled zavr�en');
         }
       },
       error: () => { this.phase = 'results'; }
@@ -1448,9 +1448,9 @@ export class GamePlayShellComponent implements OnInit {
         this.newBadges = r.newAchievements || [];
         this.phase = 'results';
         if (!r.preview && (r.xpBonus ?? 0) > 0) {
-          this.notify.success(`🎉 +${r.xpBonus} XP earned!`);
+          this.notify.success(`🎉 +${r.xpBonus} XP zaradeno!`);
         } else if (r.preview) {
-          this.notify.success('Preview complete');
+          this.notify.success('Pregled zavr�en');
         }
       },
       error: () => { this.phase = 'results'; }
@@ -1500,3 +1500,4 @@ export class GamePlayShellComponent implements OnInit {
     return map[type] ?? 'linear-gradient(135deg,#405980,#7a9cc0)';
   }
 }
+

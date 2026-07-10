@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+﻿import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterModule } from '@angular/router';
@@ -64,7 +64,7 @@ export class PaymentHubStudentDetailComponent implements OnInit {
     { key: 'VISA', label: 'Visa' },
   ];
   readonly statLevelOptions: Array<{ value: StatLevelFilter; label: string }> = [
-    { value: 'ALL', label: 'All' },
+    { value: 'ALL', label: 'Svi' },
     { value: 'A1', label: 'A1' },
     { value: 'A2', label: 'A2' },
     { value: 'B1', label: 'B1' },
@@ -133,7 +133,7 @@ export class PaymentHubStudentDetailComponent implements OnInit {
       },
       error: () => {
         this.loading = false;
-        this.snack.open('Could not load student payment history', 'Dismiss', { duration: 4000 });
+        this.snack.open('Nije moguće učitati istoriju plaćanja učenika', 'Zatvori', { duration: 4000 });
       },
     });
   }
@@ -150,13 +150,13 @@ export class PaymentHubStudentDetailComponent implements OnInit {
         if (url) open(url);
         else {
           this.snack.open(
-            'Proof file not found. It may have been deleted or the stored path no longer matches the file.',
-            'Dismiss',
+            'Datoteka dokaza nije pronađena. Možda je obrisana ili sačuvana putanja više ne odgovara datoteci.',
+            'Zatvori',
             { duration: 6000 },
           );
         }
       },
-      error: () => this.snack.open('Could not load proof link', 'Dismiss', { duration: 4000 }),
+      error: () => this.snack.open('Nije moguće učitati vezu za dokaz', 'Zatvori', { duration: 4000 }),
     });
   }
 
@@ -170,17 +170,17 @@ export class PaymentHubStudentDetailComponent implements OnInit {
 
   fmt(val: number | undefined | null): string {
     if (val === undefined || val === null) return '0';
-    return val.toLocaleString('en-IN');
+    return val.toLocaleString('sr-Latn-RS');
   }
 
   fmtDate(d: string | undefined | null): string {
     if (!d) return '—';
-    return new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+    return new Date(d).toLocaleDateString('sr-Latn-RS', { day: '2-digit', month: 'short', year: 'numeric' });
   }
 
   fmtDateTime(d: string | undefined | null): string {
     if (!d) return '—';
-    return new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    return new Date(d).toLocaleDateString('sr-Latn-RS', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
   }
 
   planLabel(raw: string | undefined | null): string {
@@ -233,13 +233,13 @@ export class PaymentHubStudentDetailComponent implements OnInit {
 
   requestStatusLabel(status: string): string {
     const map: Record<string, string> = {
-      REQUESTED: 'Requested',
-      SUBMITTED: 'Submitted',
-      UNDER_REVIEW: 'Under review',
-      APPROVED: 'Approved',
-      REJECTED: 'Rejected',
-      OVERDUE: 'Overdue',
-      FULLY_PAID: 'Fully paid',
+      REQUESTED: 'Zatraženo',
+      SUBMITTED: 'Podneto',
+      UNDER_REVIEW: 'Na pregledu',
+      APPROVED: 'Odobreno',
+      REJECTED: 'Odbijeno',
+      OVERDUE: 'Zakašnjelo',
+      FULLY_PAID: 'Potpuno plaćeno',
     };
     return map[status] || status || '—';
   }
@@ -258,7 +258,7 @@ export class PaymentHubStudentDetailComponent implements OnInit {
 
   get journeyDayLabel(): string {
     const d = this.journeyDay;
-    return d != null ? `Day ${d} / 200` : '—';
+    return d != null ? `Dan ${d} / 200` : '—';
   }
 
   get batchLabel(): string {
@@ -409,10 +409,10 @@ export class PaymentHubStudentDetailComponent implements OnInit {
   }
 
   private static readonly PAYMENT_TYPE_LABELS: Record<string, string> = {
-    LANGUAGE_FEE:   'Language Course Fee',
-    DOCS_PAYMENT:   'Documentation Payment',
-    VISA_PAYMENT:   'Visa Payment',
-    CUSTOM_PAYMENT: 'Custom Payment',
+    LANGUAGE_FEE:   'Naknada za jezički kurs',
+    DOCS_PAYMENT:   'Plaćanje dokumentacije',
+    VISA_PAYMENT:   'Plaćanje vize',
+    CUSTOM_PAYMENT: 'Prilagođeno plaćanje',
   };
 
   formatPaymentType(type: string, customType?: string): string {
@@ -469,16 +469,16 @@ export class PaymentHubStudentDetailComponent implements OnInit {
     const amount = Number(this.editForm.amount);
     const paidAmount = Number(this.editForm.paidAmount);
     if (!Number.isFinite(amount) || amount <= 0) {
-      this.snack.open('Enter a valid requested amount', 'Dismiss', { duration: 3500 });
+      this.snack.open('Unesite važeći traženi iznos', 'Zatvori', { duration: 3500 });
       return;
     }
     if (!this.editForm.dueDate) {
-      this.snack.open('Select a due date', 'Dismiss', { duration: 3500 });
+      this.snack.open('Izaberite rok plaćanja', 'Zatvori', { duration: 3500 });
       return;
     }
     const dueDate = new Date(this.editForm.dueDate);
     if (Number.isNaN(dueDate.getTime())) {
-      this.snack.open('Invalid due date', 'Dismiss', { duration: 3500 });
+      this.snack.open('Nevažeći rok plaćanja', 'Zatvori', { duration: 3500 });
       return;
     }
 
@@ -492,13 +492,13 @@ export class PaymentHubStudentDetailComponent implements OnInit {
     }).subscribe({
       next: () => {
         this.editSaving = false;
-        this.snack.open('Payment record updated', 'OK', { duration: 3500 });
+        this.snack.open('Zapis plaćanja ažuriran', 'OK', { duration: 3500 });
         this.cancelEditRequest();
         this.load();
       },
       error: (e) => {
         this.editSaving = false;
-        this.snack.open(e?.error?.message || 'Could not update payment', 'Dismiss', { duration: 5000 });
+        this.snack.open(e?.error?.message || 'Nije moguće ažurirati plaćanje', 'Zatvori', { duration: 5000 });
       },
     });
   }
@@ -506,16 +506,16 @@ export class PaymentHubStudentDetailComponent implements OnInit {
   deleteRequest(req: PaymentRequest): void {
     if (!req._id || !this.canManageRequest(req)) return;
     const label = this.formatPaymentType(req.paymentType, req.customType);
-    if (!window.confirm(`Remove this payment record (${label})? This cannot be undone.`)) return;
+    if (!window.confirm(`Ukloniti ovaj zapis plaćanja (${label})? Ovo se ne može opozvati.`)) return;
 
     this.api.archiveRequest(req._id, 'Removed from payment hub by admin').subscribe({
       next: () => {
-        this.snack.open('Payment record removed', 'OK', { duration: 3500 });
+        this.snack.open('Zapis plaćanja uklonjen', 'OK', { duration: 3500 });
         if (this.editingRequestId === req._id) this.cancelEditRequest();
         this.load();
       },
       error: (e) => {
-        this.snack.open(e?.error?.message || 'Could not remove payment', 'Dismiss', { duration: 5000 });
+        this.snack.open(e?.error?.message || 'Nije moguće ukloniti plaćanje', 'Zatvori', { duration: 5000 });
       },
     });
   }
@@ -577,10 +577,10 @@ export class PaymentHubStudentDetailComponent implements OnInit {
 
   slotStatusLabel(slotKey: PaymentSlotKey): string {
     const map: Record<string, string> = {
-      empty: 'Not mapped',
-      settled: 'Settled',
-      partial: 'Partial',
-      balance: 'Balance due',
+      empty: 'Nije mapirano',
+      settled: 'Izmireno',
+      partial: 'Delimično',
+      balance: 'Saldo dugovan',
     };
     return map[this.slotStatusKey(slotKey)] || '—';
   }
@@ -616,13 +616,13 @@ export class PaymentHubStudentDetailComponent implements OnInit {
     if (!this.history?.student?._id || !this.canResetSlot(slotKey)) return;
     const requests = this.requestsForSlot(slotKey).filter((r) => r._id);
     if (!requests.length) {
-      this.snack.open(`${slotKey} was already empty — nothing to reset`, 'OK', { duration: 4000 });
+      this.snack.open(`${slotKey} je već bio prazan — nema šta da se resetuje`, 'OK', { duration: 4000 });
       return;
     }
     const label = this.paymentSlots.find((s) => s.key === slotKey)?.label || slotKey;
     const msg =
-      `Reset all payments for ${label}?\n\n` +
-      'Paid and balance on this card will become 0. Payment records for this level/category are archived. This cannot be undone.';
+      `Resetovati sva plaćanja za ${label}?\n\n` +
+      'Plaćeno i saldo na ovoj kartici postaju 0. Zapisi plaćanja za ovaj nivo/kategoriju se arhiviraju. Ovo se ne može opozvati.';
     if (!window.confirm(msg)) return;
 
     this.resettingSlotKey = slotKey;
@@ -636,7 +636,7 @@ export class PaymentHubStudentDetailComponent implements OnInit {
         if (this.activeMapSlot === slotKey) this.cancelMap();
         if (this.activeFullPaidSlot === slotKey) this.cancelFullPaid();
         this.snack.open(
-          `${label} payments cleared — paid and balance are now 0 (${requests.length} record${requests.length === 1 ? '' : 's'} archived)`,
+          `${label} plaćanja obrisana — plaćeno i saldo su sada 0 (${requests.length} zapis${requests.length === 1 ? '' : 'a'} arhiviran)`,
           'OK',
           { duration: 5000 },
         );
@@ -644,7 +644,7 @@ export class PaymentHubStudentDetailComponent implements OnInit {
       },
       error: (e) => {
         this.resettingSlotKey = null;
-        this.snack.open(e?.error?.message || 'Could not reset payments', 'Dismiss', { duration: 5000 });
+        this.snack.open(e?.error?.message || 'Nije moguće resetovati plaćanja', 'Zatvori', { duration: 5000 });
         this.load();
       },
     });
@@ -692,7 +692,7 @@ export class PaymentHubStudentDetailComponent implements OnInit {
     this.fullPaidCurrency = this.primaryCurrencyForSlot(slotKey);
     this.fullPaidAmount = this.suggestFullPaidAmount(slotKey, this.fullPaidCurrency);
     this.fullPaidDate = new Date().toISOString().slice(0, 10);
-    this.fullPaidRemarks = 'Full course payment — discounted level fee';
+    this.fullPaidRemarks = 'Plaćanje celog kursa — snižena naknada za nivo';
   }
 
   cancelFullPaid(): void {
@@ -708,16 +708,16 @@ export class PaymentHubStudentDetailComponent implements OnInit {
     if (!this.history?.student?._id) return;
     const amount = Number(this.fullPaidAmount);
     if (!Number.isFinite(amount) || amount <= 0) {
-      this.snack.open('Enter the full paid amount for this level', 'Dismiss', { duration: 3500 });
+      this.snack.open('Unesite ukupno plaćeni iznos za ovaj nivo', 'Zatvori', { duration: 3500 });
       return;
     }
     if (!this.fullPaidDate) {
-      this.snack.open('Select a payment date', 'Dismiss', { duration: 3500 });
+      this.snack.open('Izaberite datum plaćanja', 'Zatvori', { duration: 3500 });
       return;
     }
     const paymentDate = new Date(this.fullPaidDate);
     if (Number.isNaN(paymentDate.getTime())) {
-      this.snack.open('Invalid payment date', 'Dismiss', { duration: 3500 });
+      this.snack.open('Nevažeći datum plaćanja', 'Zatvori', { duration: 3500 });
       return;
     }
 
@@ -732,13 +732,13 @@ export class PaymentHubStudentDetailComponent implements OnInit {
     }).subscribe({
       next: (res) => {
         this.fullPaidSaving = false;
-        this.snack.open(res.message || `${slotKey} marked full paid`, 'OK', { duration: 4500 });
+        this.snack.open(res.message || `${slotKey} označen kao potpuno plaćen`, 'OK', { duration: 4500 });
         this.cancelFullPaid();
         this.load();
       },
       error: (e) => {
         this.fullPaidSaving = false;
-        this.snack.open(e?.error?.message || 'Could not save full paid amount', 'Dismiss', { duration: 5000 });
+        this.snack.open(e?.error?.message || 'Nije moguće sačuvati ukupno plaćeni iznos', 'Zatvori', { duration: 5000 });
       },
     });
   }
@@ -770,21 +770,21 @@ export class PaymentHubStudentDetailComponent implements OnInit {
     const isLevelSlot = slotKey === 'A1' || slotKey === 'A2' || slotKey === 'B1' || slotKey === 'B2';
     const quoteOnlySave = isLevelSlot && quotedTotal > 0 && (!Number.isFinite(amount) || amount <= 0);
     if (!quoteOnlySave && (!Number.isFinite(amount) || amount <= 0)) {
-      this.snack.open('Enter a valid amount', 'Dismiss', { duration: 3500 });
+      this.snack.open('Unesite važeći iznos', 'Zatvori', { duration: 3500 });
       return;
     }
     if (quoteOnlySave && quotedTotal <= 0) {
-      this.snack.open('Enter the correct Total / Quoted for this level', 'Dismiss', { duration: 3500 });
+      this.snack.open('Unesite ispravno Ukupno / Navedeno za ovaj nivo', 'Zatvori', { duration: 3500 });
       return;
     }
     if (!this.mappingDate) {
-      this.snack.open('Select a payment date', 'Dismiss', { duration: 3500 });
+      this.snack.open('Izaberite datum plaćanja', 'Zatvori', { duration: 3500 });
       return;
     }
 
     const paymentDate = new Date(this.mappingDate);
     if (Number.isNaN(paymentDate.getTime())) {
-      this.snack.open('Invalid payment date', 'Dismiss', { duration: 3500 });
+      this.snack.open('Nevažeći datum plaćanja', 'Zatvori', { duration: 3500 });
       return;
     }
 
@@ -824,7 +824,7 @@ export class PaymentHubStudentDetailComponent implements OnInit {
         quotedTotal: quotedTotal > 0 ? quotedTotal : undefined,
         currency: this.mappingCurrency,
         paymentDate: paymentDate.toISOString(),
-        remarks: remarks || `Mapped as ${slotKey} advance payment`,
+          remarks: remarks || `Mapirano kao ${slotKey} avansno plaćanje`,
       }];
     }
 
@@ -833,23 +833,23 @@ export class PaymentHubStudentDetailComponent implements OnInit {
       next: (res) => {
         this.mappingSaving = false;
         const custom = res.data?.custom?.[0];
-        let msg = `${slotKey} payment mapped successfully`;
+        let msg = `${slotKey} plaćanje uspešno mapirano`;
         if (custom?.reconciled?.updated) {
           const q = custom.reconciled.quotedTotal ?? 0;
           const remaining = custom.reconciled.amountRemaining ?? 0;
           const paidSoFar = custom.reconciled.totalPaid ?? 0;
           if (remaining > 0 && paidSoFar <= 0) {
-            msg = `${slotKey} quoted at ${this.mappingCurrency} ${this.fmt(q)} — ${this.mappingCurrency} ${this.fmt(remaining)} pending`;
+            msg = `${slotKey} navedeno na ${this.mappingCurrency} ${this.fmt(q)} — ${this.mappingCurrency} ${this.fmt(remaining)} na čekanju`;
           } else {
-            msg = `${slotKey} quote updated to ${this.mappingCurrency} ${this.fmt(q)}`;
+            msg = `${slotKey} ponuda ažurirana na ${this.mappingCurrency} ${this.fmt(q)}`;
             if (remaining <= 0) {
-              msg += ' — fully settled';
+              msg += ' — potpuno izmireno';
             } else if (remaining > 0) {
-              msg += ` — ${this.mappingCurrency} ${this.fmt(remaining)} pending`;
+              msg += ` — ${this.mappingCurrency} ${this.fmt(remaining)} na čekanju`;
             }
           }
         } else if (custom?.alreadyMapped) {
-          msg = `${slotKey} payment was already on file; totals refreshed`;
+          msg = `${slotKey} plaćanje je već evidentirano; ukupni iznosi osveženi`;
         }
         this.snack.open(msg, 'OK', { duration: 4500 });
         this.cancelMap();
@@ -857,12 +857,12 @@ export class PaymentHubStudentDetailComponent implements OnInit {
       },
       error: (e) => {
         this.mappingSaving = false;
-        const msg = e?.error?.message || 'Could not map payment';
+        const msg = e?.error?.message || 'Nije moguće mapirati plaćanje';
         const isDuplicate = e?.status === 409 || String(msg).toLowerCase().includes('duplicate');
         if (isDuplicate) {
           this.load();
         }
-        this.snack.open(msg, 'Dismiss', { duration: isDuplicate ? 7000 : 5000 });
+        this.snack.open(msg, 'Zatvori', { duration: isDuplicate ? 7000 : 5000 });
       },
     });
   }
@@ -965,10 +965,10 @@ export class PaymentHubStudentDetailComponent implements OnInit {
     const parts: string[] = [];
     const label = this.currencyLabel(this.mappingCurrency);
     if (this.mappingTotal != null && this.mappingTotal > 0) {
-      parts.push(`Quoted: ${label} ${this.fmt(this.mappingTotal)}`);
+      parts.push(`Navedeno: ${label} ${this.fmt(this.mappingTotal)}`);
     }
     if (this.mappingBalance != null && this.mappingBalance >= 0) {
-      parts.push(`Balance: ${label} ${this.fmt(this.mappingBalance)}`);
+      parts.push(`Saldo: ${label} ${this.fmt(this.mappingBalance)}`);
     }
     if (userText) parts.push(userText);
     return parts.join(' · ');

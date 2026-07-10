@@ -344,7 +344,7 @@ router.post('/:id/confirm', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), 
                 </tr>
                 <tr>
                   <td style="padding:12px 16px;font-size:13px;color:#64748b;">Confirmation Date</td>
-                  <td style="padding:12px 16px;font-size:14px;">${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' })}</td>
+                  <td style="padding:12px 16px;font-size:14px;">${new Date().toLocaleDateString('sr-Latn-RS', { day: '2-digit', month: 'long', year: 'numeric' })}</td>
                 </tr>
                 <tr style="background:#f0f9ff;">
                   <td style="padding:12px 16px;font-size:13px;color:#64748b;">Status</td>

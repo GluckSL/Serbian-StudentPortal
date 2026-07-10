@@ -1,14 +1,14 @@
 <!-- time-table.component.html -->
 <div class="container min-vh-100 d-flex justify-content-center align-items-start px-4">
   <div class="card shadow-lg p-4 w-100" style="max-width: 600px;">
-    <h2 class="text-center mb-4">Create Time Table</h2>
+    <h2 class="text-center mb-4">Kreiraj raspored</h2>
 
     <form (ngSubmit)="createTimeTable()" #timeTableForm="ngForm">
 
         <div class="row">
         <!-- Week Start Date -->
         <div class="col-md-6 mb-3">
-            <label for="weekStartDate" class="form-label">Week Start Date</label>
+            <label for="weekStartDate" class="form-label">Datum početka sedmice</label>
             <input
             type="date"
             id="weekStartDate"
@@ -21,7 +21,7 @@
 
         <!-- Week End Date -->
         <div class="col-md-6 mb-3">
-            <label for="weekEndDate" class="form-label">Week End Date</label>
+            <label for="weekEndDate" class="form-label">Datum kraja sedmice</label>
             <input
             type="date"
             id="weekEndDate"
@@ -35,21 +35,21 @@
 
       <!-- Batch -->
       <div class="mb-3">
-        <label for="batch" class="form-label">Batch</label>
+        <label for="batch" class="form-label">Grupa</label>
         <input
           type="text"
           id="batch"
           name="batch"
           [(ngModel)]="timeTable.batch"
           required
-          placeholder="Enter batch name"
+          placeholder="Unesite naziv grupe"
           class="form-control"
         />
       </div>
 
       <!-- Medium -->
       <div class="mb-3">
-        <label for="medium" class="form-label">Medium</label>
+        <label for="medium" class="form-label">Medijum</label>
         <select
           id="medium"
           name="medium"
@@ -67,7 +67,7 @@
 
       <!-- Plan -->
       <div class="mb-3">
-        <label for="plan" class="form-label">Plan</label>
+        <label for="plan" class="form-label">Plan pretplate</label>
         <select
           id="plan"
           name="plan"
@@ -82,7 +82,7 @@
 
       <!-- Assign Teacher -->
       <div class="mb-3">
-        <label for="assignedTeacher" class="form-label">Assign Teacher</label>
+        <label for="assignedTeacher" class="form-label">Dodeli nastavnika</label>
         <select
           id="assignedTeacher"
           name="assignedTeacher"
@@ -122,9 +122,9 @@
             required
             class="form-select me-2"
           >
-            <option value="" disabled>Select Status</option>
-            <option value="Scheduled">Scheduled</option>
-            <option value="Cancelled">Cancelled</option>
+            <option value="" disabled>Izaberi status</option>
+            <option value="Scheduled">Zakazano</option>
+            <option value="Cancelled">Otkazano</option>
           </select>
 
           <button
@@ -142,7 +142,7 @@
           class="btn btn-outline-primary btn-sm"
           (click)="addTimeSlot(day)"
         >
-          + Add Slot
+          + Dodaj termin
         </button>
       </div>
 
@@ -160,7 +160,7 @@
         [disabled]="!timeTableForm.form.valid || isLoading"
         class="btn btn-primary w-100 py-2 mt-3"
       >
-        {{ isLoading ? 'Saving...' : (isEditMode ? 'Update Time Table' : 'Create Time Table') }}
+        {{ isLoading ? 'Čuvanje...' : (isEditMode ? 'Ažuriraj raspored' : 'Kreiraj raspored') }}
       </button>
     </form>
   </div>

@@ -9,16 +9,16 @@
     <!-- Hero only when both Practice and Exam tabs are shown (hidden when Exam tab is not offered). -->
     <header class="gb-hub__hero" *ngIf="showSegment">
       <div class="gb-hub__hero-copy">
-        <p class="gb-hub__kicker">Speaking practice</p>
+        <p class="gb-hub__kicker">Vežbanje govora</p>
         <h2 class="gb-hub__title">Glück Buddy</h2>
-        <p class="gb-hub__lead">Role-play lessons and exam simulations for your journey day.</p>
+        <p class="gb-hub__lead">Lekcije igranja uloga i simulacije ispita za vaš dan putovanja.</p>
       </div>
       <div class="gb-hub__hero-visual" aria-hidden="true">
         <img src="assets/images/practice-partner-fox.svg" alt="" width="72" height="72" />
       </div>
     </header>
 
-    <div class="gb-hub__segment" *ngIf="showSegment" role="tablist" aria-label="Glück Buddy mode">
+    <div class="gb-hub__segment" *ngIf="showSegment" role="tablist" aria-label="Glück Buddy mod">
       <button
         type="button"
         role="tab"
@@ -28,7 +28,7 @@
         (click)="subTab = 'practice'"
       >
         <span class="material-icons" aria-hidden="true">forum</span>
-        <span>Practice</span>
+        <span>Vežbanje</span>
       </button>
       <button
         type="button"
@@ -39,7 +39,7 @@
         (click)="subTab = 'exam'"
       >
         <span class="material-icons" aria-hidden="true">record_voice_over</span>
-        <span>Exam</span>
+        <span>Ispit</span>
       </button>
     </div>
 
@@ -68,12 +68,12 @@
 
       <section class="gb-hub__empty" *ngIf="subTab === 'exam' && !showExamTab">
         <img class="gb-hub__empty-fox" src="assets/images/practice-partner-fox.svg" alt="" width="88" height="88" />
-        <h3>No exam modules yet</h3>
+        <h3>Još nema modula ispita</h3>
         <p *ngIf="journeyFixedDay != null">
-          Nothing is assigned for <strong>Day {{ journeyFixedDay }}</strong> yet.
+          Ništa nije dodeljeno za <strong>Dan {{ journeyFixedDay }}</strong> još uvek.
         </p>
         <p *ngIf="journeyFixedDay == null">
-          Your teacher has not published exam simulations for <strong>Day {{ studentCourseDay }}</strong> yet.
+          Vaš nastavnik još uvek nije objavio simulacije ispita za <strong>Dan {{ studentCourseDay }}</strong>.
         </p>
       </section>
     </div>

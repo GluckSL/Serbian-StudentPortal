@@ -1,4 +1,4 @@
-// src/app/components/meeting-link/meetings-list.component.ts
+﻿// src/app/components/meeting-link/meetings-list.component.ts
 
 import { ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
 import { Router } from '@angular/router';
@@ -457,7 +457,7 @@ export class MeetingsListComponent implements OnInit, OnDestroy {
 
   formatDate(date: string | Date, timeZone?: string): string {
     const tz = timeZone || 'Asia/Kolkata';
-    return new Date(date).toLocaleString('en-US', {
+    return new Date(date).toLocaleString('sr-Latn-RS', {
       month: 'short',
       day: 'numeric',
       year: 'numeric',

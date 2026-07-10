@@ -352,7 +352,7 @@ cron.schedule('*/1 * * * *', async () => {
     );
 
     const todayWeekday = now
-      .toLocaleDateString('en-US', {
+      .toLocaleDateString('sr-Latn-RS', {
         weekday: 'long',
         timeZone: 'Asia/Colombo'
       })
@@ -520,7 +520,7 @@ cron.schedule('*/1 * * * *', async () => {
       new Date().toLocaleString("en-US", { timeZone: "Asia/Colombo" })
     );
 
-    const todayWeekday = now.toLocaleDateString('en-US', {
+    const todayWeekday = now.toLocaleDateString('sr-Latn-RS', {
       weekday: 'long',
       timeZone: 'Asia/Colombo'
     })

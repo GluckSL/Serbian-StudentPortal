@@ -1,4 +1,4 @@
-import { Component, DestroyRef, HostListener, OnInit, ViewChild, inject } from '@angular/core';
+﻿import { Component, DestroyRef, HostListener, OnInit, ViewChild, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -199,12 +199,12 @@ export class MyCourseComponent implements OnInit {
 
   private readonly motivateLines = [
     'You’re going strong — keep showing up!',
-    'Small steps every day add up. Proud of you!',
-    'Consistency wins. You’ve got this!',
-    'Great rhythm — stay curious and keep practicing.',
-    'Progress, not perfection. You’re doing really well.',
-    'Every day you learn something new. Keep it up!',
-    'Your future self will thank you for today’s effort.'
+    'Mali koraci svaki dan se sabiraju. Ponosni smo na vas!',
+    'Doslednost pobeđuje. Vi to možete!',
+    'Odličan ritam — ostanite radoznali i nastavite da vežbate.',
+    'Napredak, a ne savršenstvo. Radite zaista dobro.',
+    'Svaki dan učite nešto novo. Nastavite!',
+    'Vaše buduće ja će vam zahvaliti za današnji trud.'
   ];
 
   /** Shown on Exercises / Modules / Journey tab row; new random line on each page load. */
@@ -216,29 +216,29 @@ export class MyCourseComponent implements OnInit {
 
   private readonly tabHeaderQuotes = [
     "You're doing great — keep showing up!",
-    'Every bit of practice moves you forward. Stay with it!',
-    'Learning a language is a marathon, not a sprint. You’ve got this.',
-    'Small steps today become fluent tomorrows.',
-    'Mistakes mean you’re learning. Keep going!',
-    'Your effort today is building your future self.',
-    'Consistency beats intensity. Proud of you for sticking with it.',
-    'Curiosity + practice = progress. You’re on the right path.',
-    'One lesson at a time — you’re stronger than you think.',
-    'Show up, try again, celebrate small wins. That’s how winners learn.',
-    'The best time to practice was yesterday; the second best is now.',
-    'You don’t have to be perfect to make real progress.',
-    'Every word you learn opens another door. Keep opening them!',
-    'Stay patient with yourself — fluency is built brick by brick.',
-    'Discipline today, confidence tomorrow.',
-    'You chose growth. That already says something amazing about you.',
-    'Breathe, focus, and take the next small step. That’s enough.',
-    'Hard things get easier when you don’t quit. Keep pushing!',
-    'Your dedication is visible, even on the days it feels invisible.',
-    'Believe in the version of you who finishes what you start.'
+    'Svaki deo vežbe vas pokreće napred. Ostanite uz to!',
+    'Učenje jezika je maraton, a ne sprint. Vi to možete.',
+    'Mali koraci danas postaju tečan govor sutra.',
+    'Greške znače da učite. Nastavite!',
+    'Vaš trud danas gradi vaše buduće ja.',
+    'Doslednost pobeđuje intenzitet. Ponosni smo što ostajete uz to.',
+    'Radoznalost + vežba = napredak. Na pravom ste putu.',
+    'Jedna lekcija po jedna — jači ste nego što mislite.',
+    'Pojavljujte se, pokušajte ponovo, slavite male pobede. Tako pobednici uče.',
+    'Najbol je vreme za vežbu bilo juče; drugo najbol e je sada.',
+    'Ne morate biti savršeni da biste postigli pravi napredak.',
+    'Svaka reč koju naučite otvara nova vrata. Nastavite da ih otvarate!',
+    'Budite strpljivi sa sobom — tečnost se gradi ciglom po ciglom.',
+    'Disciplina danas, samopouzdanje sutra.',
+    'Izabrali ste rast. To već govori nešto neverovatno o vama.',
+    'Udahnite, fokusirajte se i napravite sledeći mali korak. To je dovoljno.',
+    'Teške stvari postaju lakše kad ne odustajete. Nastavite!',
+    'Vaša posvećenost je vidljiva, čak i u danima kada se čini nevidljivom.',
+    'Verujte u verziju sebe koja završava ono što započne.'
   ];
 
   get streakDayLabels(): string[] {
-    return ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    return ['Pon', 'Uto', 'Sre', 'Čet', 'Pet', 'Sub', 'Ned'];
   }
 
   isStreakDayFilled(index: number): boolean {
@@ -267,19 +267,19 @@ export class MyCourseComponent implements OnInit {
 
   get streakRewardText(): string {
     const tier = this.loginStreakData?.weeklyRewardTier;
-    if (tier === 'trophy') return 'Trophy Unlocked!';
-    if (tier === 'gold') return 'Gold Unlocked!';
-    if (tier === 'silver') return 'Silver Unlocked!';
-    if (tier === 'bronze') return 'Bronze Unlocked!';
+    if (tier === 'trophy') return 'Trofej otključan!';
+    if (tier === 'gold') return 'Zlato otključano!';
+    if (tier === 'silver') return 'Srebro otključano!';
+    if (tier === 'bronze') return 'Bronza otključana!';
     return '';
   }
 
   get weeklyRewardLabel(): string {
     const tier = this.loginStreakData?.weeklyRewardTier;
-    if (tier === 'trophy') return 'Trophy';
-    if (tier === 'gold') return 'Gold';
-    if (tier === 'silver') return 'Silver';
-    if (tier === 'bronze') return 'Bronze';
+    if (tier === 'trophy') return 'Trofej';
+    if (tier === 'gold') return 'Zlato';
+    if (tier === 'silver') return 'Srebro';
+    if (tier === 'bronze') return 'Bronza';
     return '';
   }
 
@@ -756,8 +756,8 @@ export class MyCourseComponent implements OnInit {
   }
 
   get updatesLinkText(): string {
-    if (!this.allowsLearningContent) return 'Go to classes';
-    return 'Go to exercises';
+    if (!this.allowsLearningContent) return 'Idi na časove';
+    return 'Idi na vežbe';
   }
 
   setTab(tab: MyCourseTab, opts?: { lbPeriod?: LeaderboardPeriod }): void {
@@ -853,7 +853,7 @@ export class MyCourseComponent implements OnInit {
           finish();
         },
         error: (e) => {
-          this.gluckExamLoadError = e?.error?.message || e?.error?.error || 'Failed to load exam exercises.';
+          this.gluckExamLoadError = e?.error?.message || e?.error?.error || 'Greška pri učitavanju vežbi za ispit.';
           this.gluckExamExercises = [];
           finish();
         },
@@ -868,7 +868,7 @@ export class MyCourseComponent implements OnInit {
           finish();
         },
         error: (e) => {
-          this.gluckExamLoadError = e?.error?.message || this.gluckExamLoadError || 'Failed to load DG exam modules.';
+          this.gluckExamLoadError = e?.error?.message || this.gluckExamLoadError || 'Greška pri učitavanju DG modula za ispit.';
           this.gluckExamDgModules = [];
           finish();
         },
@@ -884,7 +884,7 @@ export class MyCourseComponent implements OnInit {
           finish();
         },
         error: (e) => {
-          this.gluckExamLoadError = e?.error?.message || this.gluckExamLoadError || 'Failed to load Sprechen exam modules.';
+          this.gluckExamLoadError = e?.error?.message || this.gluckExamLoadError || 'Greška pri učitavanju Sprechen modula za ispit.';
           this.gluckExamSprechenModules = [];
           finish();
         },
@@ -1174,7 +1174,7 @@ export class MyCourseComponent implements OnInit {
 
   get studentFirstName(): string {
     const name = (this.profile?.name || '').trim();
-    if (!name) return 'there';
+    if (!name) return 'učenik';
     return name.split(/\s+/)[0];
   }
 
@@ -1188,7 +1188,7 @@ export class MyCourseComponent implements OnInit {
 
   get studentInitial(): string {
     const n = this.studentFirstName;
-    if (!n || n === 'there') return '?';
+    if (!n || n === 'učenik') return '?';
     return n.charAt(0).toUpperCase();
   }
 
@@ -1820,8 +1820,8 @@ export class MyCourseComponent implements OnInit {
     const completed = !!mod.studentProgress?.completed;
     const pct = mod.studentProgress?.bestCompletionPercent;
     const pctLabel = Number.isFinite(Number(pct)) ? ` (${Math.round(Number(pct))}%)` : '';
-    const status = completed ? `Completed${pctLabel}` : 'Not completed';
-    return `${mod.title || 'Module'} · ${mod.level || 'Level N/A'} · ${mod.language || 'German'} · ${status}`;
+    const status = completed ? `Završeno${pctLabel}` : 'Nije završeno';
+    return `${mod.title || 'Modul'} · ${mod.level || 'Nivo N/A'} · ${mod.language || 'Nemački'} · ${status}`;
   }
 
   openGameSet(set: GameSet): void {
@@ -1834,26 +1834,26 @@ export class MyCourseComponent implements OnInit {
   }
 
   getGameSetHoverDetails(set: GameSet): string {
-    const status = this.gameSetDone(set) ? 'Completed' : 'Not completed';
-    const type = set.gameType ? set.gameType.replace(/_/g, ' ') : 'Game';
+    const status = this.gameSetDone(set) ? 'Završeno' : 'Nije završeno';
+    const type = set.gameType ? set.gameType.replace(/_/g, ' ') : 'Igra';
     const day =
       set.courseDay != null && Number.isFinite(Number(set.courseDay))
-        ? `Day ${set.courseDay}`
-        : 'No journey day';
+        ? `Dan ${set.courseDay}`
+        : 'Nema dana putovanja';
     const seq = set.sequenceLetter ? ` · ${set.sequenceLetter}` : '';
     return `${day}${seq} · ${set.title} · ${type} · ${status}`;
   }
 
   getExerciseHoverDetails(ex: DigitalExercise): string {
-    const status = this.exerciseDone(ex) ? 'Completed' : 'Not completed';
+    const status = this.exerciseDone(ex) ? 'Završeno' : 'Nije završeno';
     const dayNum = this.exerciseCourseDayNum(ex);
     const day =
       dayNum != null
         ? formatJourneyDayLabel(dayNum, this.trialDayEnabled)
-        : 'No fixed day';
+        : 'Nema fiksnog dana';
     const seq = ex.sequenceLetter ? ` · ${String(ex.sequenceLetter).toUpperCase()}` : '';
-    const lock = this.isExerciseSequenceLocked(ex) ? ' · Locked' : '';
-    return `${day}${seq}${lock} | ${ex?.level || 'Level N/A'} | ${ex?.category || 'General'} | ${status}`;
+    const lock = this.isExerciseSequenceLocked(ex) ? ' · Zaključano' : '';
+    return `${day}${seq}${lock} | ${ex?.level || 'Nivo N/A'} | ${ex?.category || 'Opšte'} | ${status}`;
   }
 
   ordinalSuffix(n: number): string {
@@ -1891,7 +1891,7 @@ export class MyCourseComponent implements OnInit {
         new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
     );
     const m = list[0];
-    const topic = (m.topic || 'Live class').trim();
+    const topic = (m.topic || 'Čas uživo').trim();
     const whenLabel = this.formatMeetingSoonLabel(new Date(m.startTime));
     this.nextMeetingPreview = { topic, whenLabel };
   }
@@ -1901,10 +1901,10 @@ export class MyCourseComponent implements OnInit {
     const t0 = this.startOfLocalDay(new Date());
     const s0 = this.startOfLocalDay(start);
     const diff = Math.round((s0.getTime() - t0.getTime()) / 86400000);
-    if (diff === 0) return 'Today';
-    if (diff === 1) return 'Tomorrow';
-    if (diff > 1 && diff <= 7) return `In ${diff} days`;
-    return start.toLocaleDateString(undefined, {
+    if (diff === 0) return 'Danas';
+    if (diff === 1) return 'Sutra';
+    if (diff > 1 && diff <= 7) return `Za ${diff} dana`;
+    return start.toLocaleDateString('sr-Latn-RS', {
       weekday: 'short',
       month: 'short',
       day: 'numeric'
@@ -1913,9 +1913,9 @@ export class MyCourseComponent implements OnInit {
 
   lockedExerciseUnlockText(ex: { daysUntilUnlock: number }): string {
     const d = ex.daysUntilUnlock;
-    if (d <= 0) return 'Unlocked on your current journey day — open Exercises to start.';
-    if (d === 1) return 'Locked for now — it unlocks tomorrow on your journey.';
-    return `Locked for now — ${d} more journey days until it opens.`;
+    if (d <= 0) return 'Otključano na vašem trenutnom danu putovanja — otvorite Vežbe da biste počeli.';
+    if (d === 1) return 'Trenutno zaključano — otključava se sutra na vašem putovanju.';
+    return `Trenutno zaključano — još ${d} dana putovanja do otvaranja.`;
   }
 
   private getMeetingJourneyDay(meeting: any): number | null {
@@ -2051,7 +2051,7 @@ export class MyCourseComponent implements OnInit {
   }
 
   formatMeetingDate(date: any): string {
-    return new Date(date).toLocaleDateString('en-US', {
+    return new Date(date).toLocaleDateString('sr-Latn-RS', {
       weekday: 'short',
       month: 'short',
       day: 'numeric',
@@ -2060,7 +2060,7 @@ export class MyCourseComponent implements OnInit {
   }
 
   formatMeetingTime(date: any): string {
-    return new Date(date).toLocaleTimeString('en-US', {
+    return new Date(date).toLocaleTimeString('sr-Latn-RS', {
       hour: '2-digit',
       minute: '2-digit'
     });
@@ -2075,14 +2075,14 @@ export class MyCourseComponent implements OnInit {
 
   getMeetingTimeUntilStart(meeting: any): string {
     const raw = Number(meeting?.timeUntilStart);
-    if (!Number.isFinite(raw) || raw <= 0) return 'Starting soon';
+    if (!Number.isFinite(raw) || raw <= 0) return 'Uskoro počinje';
     const minutes = Math.floor(raw / (1000 * 60));
     const hours = Math.floor(minutes / 60);
     const days = Math.floor(hours / 24);
-    if (days > 0) return `in ${days} day${days > 1 ? 's' : ''}`;
-    if (hours > 0) return `in ${hours} hour${hours > 1 ? 's' : ''}`;
-    if (minutes > 0) return `in ${minutes} minute${minutes > 1 ? 's' : ''}`;
-    return 'Starting soon';
+    if (days > 0) return `za ${days} ${days === 1 ? 'dan' : 'dana'}`;
+    if (hours > 0) return `za ${hours} ${hours === 1 ? 'sat' : 'sati'}`;
+    if (minutes > 0) return `za ${minutes} ${minutes === 1 ? 'minut' : 'minuta'}`;
+    return 'Uskoro počinje';
   }
 
   joinSelectedDayMeeting(meeting: any): void {
@@ -2102,18 +2102,29 @@ export class MyCourseComponent implements OnInit {
     return Math.max(0, Math.min(100, pct));
   }
 
-  getMeetingAttendanceStatus(meeting: any): 'Attended' | 'Not Attended' | 'Missed' {
-    if (meeting?.attended === true) return 'Attended';
+  getMeetingAttendanceStatus(meeting: any): string {
+    if (meeting?.attended === true) return 'Prisustvovao';
     const pct = this.getMeetingAttendancePercent(meeting);
-    if (pct >= 75) return 'Attended';
-    if (meeting?.hasEnded && pct > 0) return 'Not Attended';
-    return 'Missed';
+    if (pct >= 75) return 'Prisustvovao';
+    if (meeting?.hasEnded && pct > 0) return 'Nije prisustvovao';
+    return 'Propustio';
   }
 
-  getMeetingStateLabel(meeting: any): 'Live' | 'Upcoming' | 'Attempted' {
-    if (meeting?.isOngoing) return 'Live';
-    if (meeting?.hasEnded) return 'Attempted';
-    return 'Upcoming';
+  getMeetingStateLabel(meeting: any): string {
+    if (meeting?.isOngoing) return 'Uživo';
+    if (meeting?.hasEnded) return 'Pohađano';
+    return 'Predstojeće';
+  }
+
+  formatAttendanceLabel(status: string | null | undefined): string {
+    switch (status) {
+      case 'Attended': return 'Prisustvovao';
+      case 'Not Attended': return 'Nije prisustvovao';
+      case 'Missed': return 'Propustio';
+      case 'Not Attempted': return 'Nije pokušano';
+      case 'Pending': return 'Na čekanju';
+      default: return status || 'N/A';
+    }
   }
 
   // ── Recording access request panel ──────────────────────────────────────────
@@ -2160,7 +2171,7 @@ export class MyCourseComponent implements OnInit {
         this.recordingReqLoading = false;
       },
       error: (err) => {
-        this.recordingReqError = err?.error?.message || 'Failed to load classes. Please try again.';
+        this.recordingReqError = err?.error?.message || 'Učitavanje časova nije uspelo. Pokušajte ponovo.';
         this.recordingReqLoading = false;
       },
     });
@@ -2214,7 +2225,7 @@ export class MyCourseComponent implements OnInit {
     this.recordingReqService.cancelRequest(requestId).subscribe({
       next: (res) => {
         this.recordingReqCancellingId = null;
-        this.recordingReqSuccessMsg = res?.message || 'Request cancelled.';
+        this.recordingReqSuccessMsg = res?.message || 'Zahtev je otkazan.';
         if (res?.quota) {
           this.recordingReqQuota = this.mapRecordingReqQuota(res.quota);
         }
@@ -2222,7 +2233,7 @@ export class MyCourseComponent implements OnInit {
       },
       error: (err) => {
         this.recordingReqCancellingId = null;
-        this.recordingReqFailMsg = err?.error?.message || 'Failed to cancel request. Please try again.';
+        this.recordingReqFailMsg = err?.error?.message || 'Otkazivanje zahteva nije uspelo. Pokušajte ponovo.';
       },
     });
   }
@@ -2235,27 +2246,24 @@ export class MyCourseComponent implements OnInit {
       next: (res) => {
         this.recordingReqSubmitting = false;
         this.recordingReqConfirmTarget = null;
-        this.recordingReqSuccessMsg = 'Request submitted! You\'ll be notified once it\'s reviewed.';
+        this.recordingReqSuccessMsg = 'Zahtev je poslat! Obavestićemo vas kada bude pregledan.';
         this.recordingsRefreshToken += 1;
         this.loadEligibleClasses(this.recordingReqPage);
       },
       error: (err) => {
         this.recordingReqSubmitting = false;
-        this.recordingReqFailMsg = err?.error?.message || 'Failed to submit request. Please try again.';
+        this.recordingReqFailMsg = err?.error?.message || 'Slanje zahteva nije uspelo. Pokušajte ponovo.';
       },
     });
   }
 
   recordingReqOrdinal(n: number): string {
-    if (n === 1) return '1st';
-    if (n === 2) return '2nd';
-    if (n === 3) return '3rd';
-    return `${n}th`;
+    return `${n}.`;
   }
 
   formatReqDate(d: string | Date | null | undefined): string {
     if (!d) return 'N/A';
-    return new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+    return new Date(d).toLocaleDateString('sr-Latn-RS', { day: 'numeric', month: 'short', year: 'numeric' });
   }
 
   recordingReqRangeStart(): number {
@@ -2269,3 +2277,7 @@ export class MyCourseComponent implements OnInit {
   }
 
 }
+
+
+
+

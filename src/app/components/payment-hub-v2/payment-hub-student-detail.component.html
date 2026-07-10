@@ -2,13 +2,13 @@
 
   <header class="sd-hero">
     <button mat-button type="button" class="sd-back-btn" (click)="goBack()">
-      <mat-icon>arrow_back</mat-icon> Back to Payment Hub
+      <mat-icon>arrow_back</mat-icon> Nazad na Centar plaćanja
     </button>
-    <h1 class="sd-hero__title">Student Payment History</h1>
+    <h1 class="sd-hero__title">Istorija plaćanja učenika</h1>
   </header>
 
   <ng-container *ngIf="loading; else sdLoaded">
-    <div class="sd-skeleton" aria-busy="true" aria-label="Loading student payment history">
+    <div class="sd-skeleton" aria-busy="true" aria-label="Učitavanje istorije plaćanja učenika">
       <mat-card class="sd-student-card sd-skeleton-card">
         <div class="sd-student-top">
           <div class="sd-sk sd-sk--avatar"></div>
@@ -61,17 +61,17 @@
           </div>
         </div>
 
-        <div class="sd-chips" aria-label="Student overview">
+        <div class="sd-chips" aria-label="Pregled učenika">
           <div class="sd-chip sd-chip--batch">
-            <span class="sd-chip__label">Batch</span>
+            <span class="sd-chip__label">Grupa</span>
             <strong class="sd-chip__value">{{ batchLabel }}</strong>
           </div>
           <div class="sd-chip sd-chip--journey">
-            <span class="sd-chip__label">Current journey</span>
+            <span class="sd-chip__label">Trenutno putovanje</span>
             <strong class="sd-chip__value">{{ journeyDayLabel }}</strong>
           </div>
           <div class="sd-chip">
-            <span class="sd-chip__label">Level</span>
+            <span class="sd-chip__label">Nivo</span>
             <strong class="sd-chip__value">{{ history.student.level || '—' }}</strong>
           </div>
           <div class="sd-chip" *ngIf="history.student.subscription">
@@ -79,11 +79,11 @@
             <strong class="sd-chip__value">{{ planLabel(history.student.subscription) }}</strong>
           </div>
           <div class="sd-chip">
-            <span class="sd-chip__label">Student status</span>
+            <span class="sd-chip__label">Status učenika</span>
             <strong class="sd-chip__value">{{ studentStatusLabel }}</strong>
           </div>
           <div class="sd-chip">
-            <span class="sd-chip__label">Joined</span>
+            <span class="sd-chip__label">Pridružio se</span>
             <strong class="sd-chip__value">{{ dateJoined() }}</strong>
           </div>
         </div>
@@ -93,11 +93,11 @@
             <span class="sd-stat__icon material-icons" aria-hidden="true">check_circle</span>
             <div class="sd-stat__body">
               <div class="sd-stat__label-row">
-                <span class="sd-stat__label-text">Total received</span>
+                <span class="sd-stat__label-text">Ukupno primljeno</span>
                 <mat-select
                   class="sd-stat__level-select"
                   [(ngModel)]="receivedLevelFilter"
-                  aria-label="Filter total received by level"
+                  aria-label="Filtriraj ukupno primljeno po nivou"
                   panelClass="sd-stat-level-panel"
                 >
                   <mat-option *ngFor="let opt of statLevelOptions" [value]="opt.value">{{ opt.label }}</mat-option>
@@ -115,11 +115,11 @@
             <span class="sd-stat__icon material-icons" aria-hidden="true">hourglass_top</span>
             <div class="sd-stat__body">
               <div class="sd-stat__label-row">
-                <span class="sd-stat__label-text">Pending</span>
+                <span class="sd-stat__label-text">Na čekanju</span>
                 <mat-select
                   class="sd-stat__level-select"
                   [(ngModel)]="pendingLevelFilter"
-                  aria-label="Filter pending by level"
+                  aria-label="Filtriraj na čekanju po nivou"
                   panelClass="sd-stat-level-panel"
                 >
                   <mat-option *ngFor="let opt of statLevelOptions" [value]="opt.value">{{ opt.label }}</mat-option>
@@ -138,11 +138,11 @@
             <span class="sd-stat__icon material-icons" aria-hidden="true">warning_amber</span>
             <div class="sd-stat__body">
               <div class="sd-stat__label-row">
-                <span class="sd-stat__label-text">Overdue</span>
+                <span class="sd-stat__label-text">Zakašnjelo</span>
                 <mat-select
                   class="sd-stat__level-select"
                   [(ngModel)]="overdueLevelFilter"
-                  aria-label="Filter overdue by level"
+                  aria-label="Filtriraj zakašnjelo po nivou"
                   panelClass="sd-stat-level-panel"
                 >
                   <mat-option *ngFor="let opt of statLevelOptions" [value]="opt.value">{{ opt.label }}</mat-option>
@@ -160,7 +160,7 @@
           <div class="sd-stat sd-stat--count">
             <span class="sd-stat__icon material-icons" aria-hidden="true">receipt_long</span>
             <div class="sd-stat__body">
-              <span class="sd-stat__label">Total requests</span>
+              <span class="sd-stat__label">Ukupni zahtevi</span>
               <strong class="sd-stat__count-val">{{ history.total }}</strong>
             </div>
           </div>
@@ -169,8 +169,8 @@
         <div class="sd-slot-section">
           <div class="sd-slot-section__head">
             <div class="sd-slot-section__titles">
-              <span class="sd-slot-section__title">Payment mapping</span>
-              <span class="sd-slot-section__sub">Mapped by level &amp; category — synced with payment history below</span>
+              <span class="sd-slot-section__title">Mapiranje plaćanja</span>
+              <span class="sd-slot-section__sub">Mapirano po nivou i kategoriji — sinhronizovano sa istorijom plaćanja ispod</span>
             </div>
             <button
               mat-stroked-button
@@ -179,7 +179,7 @@
               *ngIf="emptyMappingSlotCount() > 0"
               (click)="showAllMappingSlots = !showAllMappingSlots"
             >
-              {{ showAllMappingSlots ? 'Show active only' : ('Show all categories (' + paymentSlots.length + ')') }}
+              {{ showAllMappingSlots ? 'Prikaži samo aktivne' : ('Prikaži sve kategorije (' + paymentSlots.length + ')') }}
             </button>
           </div>
           <div class="sd-slot-grid">
@@ -201,10 +201,10 @@
                     *ngIf="canResetSlot(slot.key)"
                     (click)="resetSlotPayments(slot.key)"
                     [disabled]="isResettingSlot(slot.key)"
-                    matTooltip="Clear all payments for this level — paid and balance become 0"
+                    matTooltip="Obriši sva plaćanja za ovaj nivo — plaćeno i saldo postaju 0"
                   >
                     <mat-icon>restart_alt</mat-icon>
-                    {{ isResettingSlot(slot.key) ? 'Resetting…' : 'Reset' }}
+                    {{ isResettingSlot(slot.key) ? 'Resetovanje…' : 'Resetuj' }}
                   </button>
                   <button
                     mat-stroked-button
@@ -212,10 +212,10 @@
                     class="sd-slot-fullpaid-btn"
                     *ngIf="canMarkFullPaid(slot.key)"
                     (click)="onMarkFullPaidClick(slot.key)"
-                    matTooltip="Record full level payment at a custom amount (e.g. 10% course discount)"
+                    matTooltip="Evidentirati plaćanje punog nivoa u prilagođenom iznosu (npr. 10% popust na kurs)"
                   >
                     <mat-icon>verified</mat-icon>
-                    Mark full paid
+                    Označi kao potpuno plaćeno
                   </button>
                   <span class="sd-pill pill-grey" *ngIf="slotSummary(slot.key).requestCount > 0">
                     {{ slotSummary(slot.key).requestCount }} request{{ slotSummary(slot.key).requestCount === 1 ? '' : 's' }}
@@ -223,10 +223,10 @@
                 </div>
               </div>
               <div class="sd-slot-card__meta">
-                Settled {{ slotSummary(slot.key).settledCount }}/{{ slotSummary(slot.key).requestCount }}
+                Izmireno {{ slotSummary(slot.key).settledCount }}/{{ slotSummary(slot.key).requestCount }}
               </div>
               <div class="sd-slot-card__line">
-                <span class="sd-slot-card__label">Paid</span>
+                <span class="sd-slot-card__label">Plaćeno</span>
                 <app-payment-currency-totals
                   [lkr]="slotSummary(slot.key).paid.LKR"
                   [inr]="slotSummary(slot.key).paid.INR"
@@ -236,7 +236,7 @@
                 ></app-payment-currency-totals>
               </div>
               <div class="sd-slot-card__line">
-                <span class="sd-slot-card__label">Balance</span>
+                <span class="sd-slot-card__label">Saldo</span>
                 <app-payment-currency-overdue-totals
                   [lkr]="slotBalanceDisplay(slot.key).LKR"
                   [inr]="slotBalanceDisplay(slot.key).INR"
@@ -258,26 +258,26 @@
                 </li>
               </ul>
               <p class="sd-slot-card__empty" *ngIf="slotSummary(slot.key).requestCount === 0">
-                No payments mapped to {{ slot.label }} yet.
+                Još nema plaćanja mapiranih na {{ slot.label }}.
               </p>
               <button mat-stroked-button type="button" class="sd-slot-card__map-btn" (click)="beginMap(slot.key)">
                 <mat-icon>add_card</mat-icon>
-                {{ slotSummary(slot.key).requestCount > 0 ? 'Add / adjust mapping' : ('Map payment to ' + slot.label) }}
+                {{ slotSummary(slot.key).requestCount > 0 ? 'Dodaj / prilagodi mapiranje' : ('Mapiraj plaćanje na ' + slot.label) }}
               </button>
 
               <div class="sd-slot-fullpaid-form" *ngIf="activeFullPaidSlot === slot.key && isLevelSlot(slot.key)">
                 <p class="sd-slot-fullpaid-form__hint">
-                  Enter the actual amount paid for {{ slot.label }} (e.g. {{ currencyLabel(fullPaidCurrency) }}
-                  {{ fmt(suggestFullPaidAmount(slot.key, fullPaidCurrency)) }} with 10% course discount instead of
-                  {{ fmt(standardLevelFee(slot.key, fullPaidCurrency)) }}). Balance will be set to zero.
+                  Unesite stvarni iznos plaćen za {{ slot.label }} (npr. {{ currencyLabel(fullPaidCurrency) }}
+                  {{ fmt(suggestFullPaidAmount(slot.key, fullPaidCurrency)) }} sa 10% popustom na kurs umesto
+                  {{ fmt(standardLevelFee(slot.key, fullPaidCurrency)) }}). Saldo će biti postavljen na nulu.
                 </p>
                 <div class="sd-slot-map-grid">
                   <label>
-                    <span>Full paid amount</span>
+                    <span>Ukupno plaćeni iznos</span>
                     <input type="number" min="0" [(ngModel)]="fullPaidAmount" />
                   </label>
                   <label>
-                    <span>Currency</span>
+                    <span>Valuta</span>
                     <select [(ngModel)]="fullPaidCurrency" (ngModelChange)="onFullPaidCurrencyChange(slot.key)">
                       <option value="LKR">LKR</option>
                       <option value="INR">INR</option>
@@ -285,18 +285,18 @@
                     </select>
                   </label>
                   <label>
-                    <span>Payment date</span>
+                    <span>Datum plaćanja</span>
                     <input type="date" [(ngModel)]="fullPaidDate" />
                   </label>
                   <label class="sd-slot-map-grid__full">
-                    <span>Remarks (optional)</span>
-                    <input type="text" [(ngModel)]="fullPaidRemarks" placeholder="e.g. Full course upfront — 10% discount" />
+                    <span>Napomena (opciono)</span>
+                    <input type="text" [(ngModel)]="fullPaidRemarks" placeholder="npr. Ceo kurs unapred — 10% popust" />
                   </label>
                 </div>
                 <div class="sd-slot-map-actions">
-                  <button mat-button type="button" (click)="cancelFullPaid()" [disabled]="fullPaidSaving">Cancel</button>
+                  <button mat-button type="button" (click)="cancelFullPaid()" [disabled]="fullPaidSaving">Otkaži</button>
                   <button mat-flat-button color="primary" type="button" (click)="saveFullPaid(slot.key)" [disabled]="fullPaidSaving">
-                    {{ fullPaidSaving ? 'Saving…' : 'Save full paid' }}
+                    {{ fullPaidSaving ? 'Čuvanje…' : 'Sačuvaj potpuno plaćeno' }}
                   </button>
                 </div>
               </div>
@@ -304,15 +304,15 @@
               <div class="sd-slot-map-form" *ngIf="activeMapSlot === slot.key">
                 <div class="sd-slot-map-grid">
                   <label>
-                    <span>Total / Quoted</span>
+                    <span>Ukupno / Navedeno</span>
                     <input type="number" min="0" [(ngModel)]="mappingTotal" (ngModelChange)="onMapTotalChange()" />
                   </label>
                   <label>
-                    <span>Amount</span>
+                    <span>Iznos</span>
                     <input type="number" min="0" [(ngModel)]="mappingAmount" (ngModelChange)="onMapPaidChange()" />
                   </label>
                   <label>
-                    <span>Currency</span>
+                    <span>Valuta</span>
                     <select [(ngModel)]="mappingCurrency" (ngModelChange)="onMappingCurrencyChange(slot.key)">
                       <option value="LKR">LKR</option>
                       <option value="INR">INR</option>
@@ -320,26 +320,26 @@
                     </select>
                   </label>
                   <label>
-                    <span>Balance</span>
+                    <span>Saldo</span>
                     <input type="number" min="0" [(ngModel)]="mappingBalance" (ngModelChange)="onMapBalanceChange()" />
                   </label>
                   <label>
-                    <span>Payment date</span>
+                    <span>Datum plaćanja</span>
                     <input type="date" [(ngModel)]="mappingDate" />
                   </label>
                   <label class="sd-slot-map-grid__full">
-                    <span>Remarks (optional)</span>
-                    <input type="text" [(ngModel)]="mappingRemarks" placeholder="Optional note" />
+                    <span>Napomena (opciono)</span>
+                    <input type="text" [(ngModel)]="mappingRemarks" placeholder="Opciona napomena" />
                   </label>
                 </div>
                 <p class="sd-slot-map-note" *ngIf="slot.key === 'A1' || slot.key === 'A2' || slot.key === 'B1' || slot.key === 'B2'">
-                  <strong>Total / Quoted</strong> sets the correct fee for {{ slot.label }} (e.g. LKR 75,000) and merges duplicate rows.
-                  <strong>Amount</strong> records an additional payment only when there is still a balance. LKR and INR are tracked separately.
+                  <strong>Ukupno / Navedeno</strong> postavlja ispravnu naknadu za {{ slot.label }} (npr. LKR 75.000) i spaja duplikate.
+                  <strong>Iznos</strong> evidentira dodatno plaćanje samo kada još postoji saldo. LKR i INR se prate odvojeno.
                 </p>
                 <div class="sd-slot-map-actions">
-                  <button mat-button type="button" (click)="cancelMap()" [disabled]="mappingSaving">Cancel</button>
+                  <button mat-button type="button" (click)="cancelMap()" [disabled]="mappingSaving">Otkaži</button>
                   <button mat-flat-button color="primary" type="button" (click)="saveMappedPayment(slot.key)" [disabled]="mappingSaving">
-                    Save mapping
+                    Sačuvaj mapiranje
                   </button>
                 </div>
               </div>
@@ -351,16 +351,16 @@
       <mat-card class="sd-history-card">
         <div class="sd-card-title">
           <mat-icon>receipt_long</mat-icon>
-          <span>Payment history</span>
+          <span>Istorija plaćanja</span>
           <span class="sd-card-title__meta" *ngIf="batchLabel !== '—' || journeyDay != null">
-            Batch <strong>{{ batchLabel }}</strong>
-            <ng-container *ngIf="journeyDay != null"> · Journey <strong>{{ journeyDayLabel }}</strong></ng-container>
+            Grupa <strong>{{ batchLabel }}</strong>
+            <ng-container *ngIf="journeyDay != null"> · Putovanje <strong>{{ journeyDayLabel }}</strong></ng-container>
           </span>
         </div>
 
         <div *ngIf="history.requests.length === 0" class="sd-empty">
           <mat-icon>inbox</mat-icon>
-          <p>No payment requests found for this student.</p>
+          <p>Nisu pronađeni zahtevi za plaćanje za ovog učenika.</p>
         </div>
 
         <div class="sd-table-wrap" *ngIf="history.requests.length > 0">
@@ -368,17 +368,17 @@
             <thead>
               <tr>
                 <th>#</th>
-                <th>Batch</th>
-                <th>Journey</th>
-                <th>Payment type</th>
-                <th class="sd-num">Requested</th>
-                <th class="sd-num">Paid</th>
-                <th class="sd-num">Balance</th>
+                <th>Grupa</th>
+                <th>Putovanje</th>
+                <th>Vrsta plaćanja</th>
+                <th class="sd-num">Zatraženo</th>
+                <th class="sd-num">Plaćeno</th>
+                <th class="sd-num">Saldo</th>
                 <th>Status</th>
-                <th>Due</th>
-                <th>Created</th>
-                <th>Remarks</th>
-                <th class="sd-actions-col">Actions</th>
+                <th>Rok</th>
+                <th>Kreirano</th>
+                <th>Napomene</th>
+                <th class="sd-actions-col">Radnje</th>
               </tr>
             </thead>
             <tbody>
@@ -389,7 +389,7 @@
                 <td><span class="sd-cell-journey">{{ journeyDayLabel }}</span></td>
                 <td class="sd-type-cell">
                   <strong>{{ formatPaymentType(req.paymentType, req.customType) }}</strong>
-                  <span *ngIf="isLegacy(req)" class="sd-legacy-badge">Imported</span>
+                  <span *ngIf="isLegacy(req)" class="sd-legacy-badge">Uvezeno</span>
                 </td>
                 <td class="sd-num">
                   <app-payment-currency-amount [currency]="req.currency" [amount]="req.amount"></app-payment-currency-amount>
@@ -415,7 +415,7 @@
                       mat-icon-button
                       type="button"
                       class="sd-icon-btn"
-                      title="Edit payment"
+                      title="Uredi plaćanje"
                       (click)="beginEditRequest(req)"
                       [disabled]="editSaving"
                     >
@@ -425,7 +425,7 @@
                       mat-icon-button
                       type="button"
                       class="sd-icon-btn sd-icon-btn--danger"
-                      title="Delete payment"
+                      title="Obriši plaćanje"
                       (click)="deleteRequest(req)"
                       [disabled]="editSaving"
                     >
@@ -438,22 +438,22 @@
               <tr *ngIf="editingRequestId === req._id && editForm" class="sd-edit-row">
                 <td colspan="12">
                   <div class="sd-edit-panel">
-                    <div class="sd-edit-panel__title">Edit imported payment</div>
+                    <div class="sd-edit-panel__title">Uredi uvezeno plaćanje</div>
                     <div class="sd-edit-grid">
                       <label>
-                        <span>Requested</span>
+                        <span>Zatraženo</span>
                         <input type="number" min="0" [(ngModel)]="editForm.amount" (ngModelChange)="onEditAmountChange()" />
                       </label>
                       <label>
-                        <span>Paid</span>
+                        <span>Plaćeno</span>
                         <input type="number" min="0" [(ngModel)]="editForm.paidAmount" (ngModelChange)="onEditPaidChange()" />
                       </label>
                       <label>
-                        <span>Balance</span>
+                        <span>Saldo</span>
                         <input type="number" min="0" [(ngModel)]="editForm.balance" readonly />
                       </label>
                       <label>
-                        <span>Currency</span>
+                        <span>Valuta</span>
                         <select [(ngModel)]="editForm.currency">
                           <option value="LKR">LKR</option>
                           <option value="INR">INR</option>
@@ -461,18 +461,18 @@
                         </select>
                       </label>
                       <label>
-                        <span>Due date</span>
+                        <span>Rok plaćanja</span>
                         <input type="date" [(ngModel)]="editForm.dueDate" />
                       </label>
                       <label class="sd-edit-remarks">
-                        <span>Remarks</span>
-                        <input type="text" [(ngModel)]="editForm.remarks" placeholder="Optional note" />
+                        <span>Napomene</span>
+                        <input type="text" [(ngModel)]="editForm.remarks" placeholder="Opciona napomena" />
                       </label>
                     </div>
                     <div class="sd-edit-actions">
-                      <button mat-button type="button" (click)="cancelEditRequest()" [disabled]="editSaving">Cancel</button>
+                      <button mat-button type="button" (click)="cancelEditRequest()" [disabled]="editSaving">Otkaži</button>
                       <button mat-flat-button color="primary" type="button" (click)="saveEditRequest(req)" [disabled]="editSaving">
-                        Save changes
+                        Sačuvaj izmene
                       </button>
                     </div>
                   </div>
@@ -487,7 +487,7 @@
       <mat-card class="sd-submissions-card" *ngIf="history.requests.length > 0">
         <div class="sd-card-title">
           <mat-icon>upload_file</mat-icon>
-          <span>Submission details</span>
+          <span>Detalji o podnesenom</span>
         </div>
 
         <div *ngFor="let req of history.requests">
@@ -498,15 +498,15 @@
                 <span class="sd-req-label__amt">
                   <app-payment-currency-amount [currency]="req.currency" [amount]="req.amount"></app-payment-currency-amount>
                 </span>
-                <span class="sd-req-label__due">Due {{ fmtDate(req.dueDate) }}</span>
-                <span *ngIf="isLegacy(req)" class="sd-legacy-badge">Imported</span>
+                <span class="sd-req-label__due">Rok {{ fmtDate(req.dueDate) }}</span>
+                <span *ngIf="isLegacy(req)" class="sd-legacy-badge">Uvezeno</span>
               </span>
               <span *ngIf="canManageRequest(req)" class="sd-req-label__actions">
                 <button
                   mat-icon-button
                   type="button"
                   class="sd-icon-btn sd-icon-btn--danger"
-                  title="Remove this payment record"
+                  title="Ukloni ovaj zapis o plaćanju"
                   (click)="deleteRequest(req)"
                   [disabled]="editSaving"
                 >
@@ -518,21 +518,21 @@
               <div class="sd-sub-index">#{{ j + 1 }}</div>
               <div class="sd-sub-details">
                 <div class="sd-sub-item">
-                  <span class="sd-sub-label">Submitted</span>
+                  <span class="sd-sub-label">Podneto</span>
                   <span>{{ fmtDateTime(sub.submittedAt) }}</span>
                 </div>
                 <div class="sd-sub-item">
-                  <span class="sd-sub-label">Paid</span>
+                  <span class="sd-sub-label">Plaćeno</span>
                   <span class="sd-val-green">
                     <app-payment-currency-amount [currency]="sub.currency" [amount]="sub.paidAmount"></app-payment-currency-amount>
                   </span>
                 </div>
                 <div class="sd-sub-item">
-                  <span class="sd-sub-label">Method</span>
+                  <span class="sd-sub-label">Metoda</span>
                   <span>{{ sub.paymentMethod }}</span>
                 </div>
                 <div class="sd-sub-item" *ngIf="sub.transactionId">
-                  <span class="sd-sub-label">Txn ID</span>
+                  <span class="sd-sub-label">ID transakcije</span>
                   <span>{{ sub.transactionId }}</span>
                 </div>
                 <div class="sd-sub-item">
@@ -540,17 +540,17 @@
                   <span class="sd-pill" [ngClass]="statusClass(sub.status)">{{ requestStatusLabel(sub.status) }}</span>
                 </div>
                 <div class="sd-sub-item" *ngIf="sub.adminRemarks">
-                  <span class="sd-sub-label">Admin note</span>
+                  <span class="sd-sub-label">Admin napomena</span>
                   <span>{{ sub.adminRemarks }}</span>
                 </div>
                 <div class="sd-sub-item" *ngIf="sub.rejectionReason">
-                  <span class="sd-sub-label">Rejected</span>
+                  <span class="sd-sub-label">Odbijeno</span>
                   <span class="sd-val-red">{{ sub.rejectionReason }}</span>
                 </div>
               </div>
               <div class="sd-sub-actions">
                 <button mat-stroked-button type="button" class="sd-btn-screenshot" (click)="viewScreenshot(sub)">
-                  <mat-icon>image</mat-icon> Screenshot
+                  <mat-icon>image</mat-icon> Snimak ekrana
                 </button>
               </div>
             </div>
@@ -559,7 +559,7 @@
 
         <div *ngIf="noSubmissionsYet()" class="sd-empty sd-empty--muted">
           <mat-icon>description</mat-icon>
-          <p>No submissions recorded yet.</p>
+          <p>Još nema zabeleženih podnošenja.</p>
         </div>
       </mat-card>
     </div>
@@ -568,8 +568,8 @@
   <ng-template #sdError>
     <div class="sd-error">
       <mat-icon>error_outline</mat-icon>
-      <p>Could not load student history. Please try again.</p>
-      <button mat-flat-button color="primary" type="button" (click)="load()">Retry</button>
+      <p>Nije moguće učitati istoriju učenika. Pokušajte ponovo.</p>
+      <button mat-flat-button color="primary" type="button" (click)="load()">Pokušaj ponovo</button>
     </div>
   </ng-template>
 

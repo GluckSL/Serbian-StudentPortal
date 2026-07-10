@@ -10,9 +10,9 @@
                 matBadgeSize="small">
         notifications_active
       </mat-icon>
-      <h3>Upcoming Classes</h3>
+      <h3>Predstojeći časovi</h3>
     </div>
-    <button mat-icon-button (click)="loadMeetings()" matTooltip="Refresh">
+    <button mat-icon-button (click)="loadMeetings()" matTooltip="Osveži">
       <mat-icon>refresh</mat-icon>
     </button>
   </div>
@@ -20,7 +20,7 @@
   <!-- Loading State -->
   <div *ngIf="loading" class="loading-state">
     <mat-icon class="spin">hourglass_empty</mat-icon>
-    <span>Loading...</span>
+    <span>Učitavanje...</span>
   </div>
 
   <!-- Error State -->
@@ -38,7 +38,7 @@
       <div class="alert-content">
         <div class="alert-title">
           <strong>{{ meeting.topic }}</strong>
-          <span class="live-badge">LIVE</span>
+          <span class="live-badge">UŽIVO</span>
         </div>
         <div class="alert-details">
           <span><mat-icon>person</mat-icon>{{ meeting.teacher.name }}</span>
@@ -47,7 +47,7 @@
       </div>
       <button mat-raised-button color="warn" class="join-btn" (click)="joinMeeting(meeting)">
         <mat-icon>videocam</mat-icon>
-        Join
+        Pridruži se
       </button>
     </div>
   </div>
@@ -83,7 +83,7 @@
         <button mat-icon-button 
                 [disabled]="!meeting.canJoin"
                 (click)="joinMeeting(meeting)"
-                [matTooltip]="meeting.canJoin ? 'Join class' : 'Not yet available'">
+                [matTooltip]="meeting.canJoin ? 'Pridruži se času' : 'Još nije dostupno'">
           <mat-icon [color]="meeting.canJoin ? 'primary' : ''">
             {{ meeting.canJoin ? 'videocam' : 'schedule' }}
           </mat-icon>
@@ -95,9 +95,9 @@
   <!-- Empty State -->
   <div *ngIf="!loading && !error && getTotalNotifications() === 0" class="empty-state">
     <mat-icon>event_available</mat-icon>
-    <p>No classes in the next 24 hours</p>
+    <p>Nema časova u narednih 24 sata</p>
     <button mat-button color="primary" (click)="viewAllMeetings()">
-      View All Classes
+      Prikaži sve časove
     </button>
   </div>
 
@@ -105,7 +105,7 @@
   <div *ngIf="!loading && !error && getTotalNotifications() > 0" class="footer-actions">
     <button mat-button color="primary" (click)="viewAllMeetings()">
       <mat-icon>event</mat-icon>
-      View All Classes ({{ getTotalNotifications() }})
+      Prikaži sve časove ({{ getTotalNotifications() }})
     </button>
   </div>
 </mat-card>

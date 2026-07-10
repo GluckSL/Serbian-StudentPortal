@@ -73,7 +73,7 @@ interface MpTile {
           <span *ngIf="lastFastest" class="jwmp__bonus"> Fastest!</span>
         </div>
         <div class="jwmp__feedback jwmp__feedback--wrong" *ngIf="feedback === 'wrong'">
-          <mat-icon>cancel</mat-icon> {{ revealWord || 'Wrong' }}
+          <mat-icon>cancel</mat-icon> {{ revealWord || 'Netačno' }}
         </div>
       </div>
 
@@ -279,7 +279,7 @@ export class JumbledWordsMpComponent implements OnChanges, OnDestroy {
     } else {
       this.feedback = 'wrong';
       this.revealWord = result.correctAnswer?.word
-        ? `The word was: ${result.correctAnswer.word}` : 'Wrong';
+        ? `Reč je bila: ${result.correctAnswer.word}` : 'Netačno';
       this.audio.playWrong();
     }
     setTimeout(() => {

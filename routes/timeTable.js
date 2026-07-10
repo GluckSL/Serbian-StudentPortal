@@ -254,18 +254,18 @@ cron.schedule("0 17 * * 0", async () => {
       const mailOptions = {
         from: process.env.EMAIL_USER,
         to: student.email,
-        subject: "📅 Your Upcoming Timetable - Glück Global",
+        subject: "📅 Vaš predstojeći raspored - Glück Global",
         html: `
               <div style="font-family: Arial, sans-serif; color: #333; text-align:center;">
-                <h2>Glück Global Student Portal</h2>
-                <p>Hello <strong>${student.name}</strong>, here is your timetable for the week:</p>
+                <h2>Glück Global Studentski portal</h2>
+                <p>Zdravo <strong>${student.name}</strong>, evo vašeg rasporeda za nedelju:</p>
                 <h3>${new Date(latestTT.weekStartDate).toDateString()} - ${new Date(latestTT.weekEndDate).toDateString()}</h3>
 
                 <table style="width:80%; margin:20px auto; border-collapse:collapse; text-align:center;">
                   <thead>
                     <tr style="background-color:#000e89; color:white;">
-                      <th style="border:1px solid #ddd; padding:8px;">Day</th>
-                      <th style="border:1px solid #ddd; padding:8px;">Schedule</th>
+                      <th style="border:1px solid #ddd; padding:8px;">Dan</th>
+                      <th style="border:1px solid #ddd; padding:8px;">Raspored</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -279,6 +279,15 @@ cron.schedule("0 17 * * 0", async () => {
                         "saturday",
                         "sunday",
                       ];
+                      const dayNames = {
+                        monday: "Ponedeljak",
+                        tuesday: "Utorak",
+                        wednesday: "Sreda",
+                        thursday: "Četvrtak",
+                        friday: "Petak",
+                        saturday: "Subota",
+                        sunday: "Nedelja",
+                      };
                       return days.map(day => {
                         const slots = latestTT[day];
                         let schedule =
@@ -287,7 +296,7 @@ cron.schedule("0 17 * * 0", async () => {
                             : "-";
                         return `
                           <tr>
-                            <td style="border:1px solid #ddd; padding:8px;">${day.charAt(0).toUpperCase() + day.slice(1)}</td>
+                            <td style="border:1px solid #ddd; padding:8px;">${dayNames[day]}</td>
                             <td style="border:1px solid #ddd; padding:8px;">${schedule}</td>
                           </tr>
                         `;
@@ -297,7 +306,7 @@ cron.schedule("0 17 * * 0", async () => {
                 </table>
 
                 <p style="font-size:13px; color:#888; margin-top:20px;">
-                  Best regards,<br>
+                  S poštovanjem,<br>
                   <strong>Glück Global Pvt Ltd</strong>
                 </p>
               </div>
@@ -328,7 +337,7 @@ cron.schedule('*/1 * * * *', async () => {
     );
 
     const todayWeekday = now
-    .toLocaleDateString('en-US', {
+    .toLocaleDateString('sr-Latn-RS', {
       weekday: 'long',
       timeZone: 'Asia/Colombo'
     })
@@ -443,14 +452,14 @@ cron.schedule('*/1 * * * *', async () => {
             // Use the linked Zoom meeting from timetable
             zoomLinkHTML = `
               <p style="margin-top: 20px; font-size:15px;">
-                Please use the following link to join your upcoming class:
+                Molimo koristite sledeći link da se pridružite predstojećem času:
                 <br />
                 <a href="${slot.zoomJoinUrl}" target="_blank" 
                   style="display:inline-block; margin-top:10px; background-color:#000e89; color:#fff; 
                           text-decoration:none; padding:10px 20px; border-radius:6px;">
-                  Join Class
+                  Pridruži se času
                 </a>
-                ${slot.zoomPassword ? `<br /><small style="color:#666; margin-top:5px;">Password: ${slot.zoomPassword}</small>` : ''}
+                ${slot.zoomPassword ? `<br /><small style="color:#666; margin-top:5px;">Lozinka: ${slot.zoomPassword}</small>` : ''}
               </p>
             `;
           } else {
@@ -463,19 +472,19 @@ cron.schedule('*/1 * * * *', async () => {
             if (meetingLink) {
               zoomLinkHTML = `
                 <p style="margin-top: 20px; font-size:15px;">
-                  Please use the following link to join your upcoming class:
+                  Molimo koristite sledeći link da se pridružite predstojećem času:
                   <br />
                   <a href="${meetingLink.link}" target="_blank" 
                     style="display:inline-block; margin-top:10px; background-color:#000e89; color:#fff; 
                             text-decoration:none; padding:10px 20px; border-radius:6px;">
-                    Join Class
+                    Pridruži se času
                   </a>
                 </p>
               `;
             } else {
               zoomLinkHTML = `
                 <p style="margin-top: 20px; color:#999; font-size:14px;">
-                  No meeting link is currently available for this class.
+                  Trenutno nema dostupnog linka za ovaj čas.
                 </p>
               `;
             }
@@ -484,29 +493,29 @@ cron.schedule('*/1 * * * *', async () => {
         const oneHourReminder = {
           from: process.env.EMAIL_USER,
           to: student.email,
-          subject: '⏰ Class Reminder - Glück Global',
+          subject: '⏰ Podsetnik za čas - Glück Global',
           html: `
                   <div style="font-family: Arial, sans-serif; text-align:center; background:#f9f9f9; padding:20px;">
                     <div style="max-width:600px; margin:auto; background:#fff; padding:20px; border-radius:8px; box-shadow:0 4px 10px rgba(0,0,0,0.1);">
                       
                       <div style="max-width:600px; margin:2px; background:#000e89; border-radius:8px;">
-                        <h2 style="color:white; margin:0; padding:10px 10px;">Glück Global - Class Reminder</h2>
+                        <h2 style="color:white; margin:0; padding:10px 10px;">Glück Global - Podsetnik za čas</h2>
                       </div>
 
-                      <p>Hello <strong>${student.name}</strong>,</p>
-                      <p>This is a reminder for your upcoming class:</p>
+                      <p>Zdravo <strong>${student.name}</strong>,</p>
+                      <p>Ovo je podsetnik za vaš predstojeći čas:</p>
 
                       <ul style="list-style:none; padding:0; font-size:15px; text-align:center;">
-                        <li><strong>Day:</strong> ${todayWeekday}</li>
-                        <li><strong>Time:</strong> ${slot.start} - ${slot.end}</li>
+                        <li><strong>Dan:</strong> ${todayWeekday}</li>
+                        <li><strong>Vreme:</strong> ${slot.start} - ${slot.end}</li>
                       </ul>
 
                       ${zoomLinkHTML}
 
-                      <p style="margin-top:20px;">Please be prepared and join on time.</p>
+                      <p style="margin-top:20px;">Molimo budite pripremljeni i pridružite se na vreme.</p>
 
                       <p style="font-size:13px; color:#888;">
-                        Best regards,<br>
+                        S poštovanjem,<br>
                         <strong>Glück Global Pvt Ltd</strong>
                       </p>
                     </div>
@@ -537,7 +546,7 @@ cron.schedule('*/1 * * * *', async () => {
       new Date().toLocaleString("en-US", { timeZone: "Asia/Colombo" })
     );
 
-    const todayWeekday = now.toLocaleDateString('en-US', {
+    const todayWeekday = now.toLocaleDateString('sr-Latn-RS', {
       weekday: 'long',
       timeZone: 'Asia/Colombo'
     })
@@ -655,16 +664,16 @@ cron.schedule('*/1 * * * *', async () => {
           const cancellationMail = {
             from: process.env.EMAIL_USER,
             to: student.email,
-            subject: '❗ Class Cancellation Notice - Glück Global',
+            subject: '❗ Obaveštenje o otkazivanju časa - Glück Global',
             html: `
-              <p>Dear ${student.name},</p>
-              <p>Please note that the Batch <strong>${student.batch}</strong> class scheduled on <strong>${todayWeekday}</strong> at <strong>${slot.start}</strong> with Tutor <strong>${teacherName}</strong> has been cancelled due to unforeseen circumstances.</p>
+              <p>Poštovani/a ${student.name},</p>
+              <p>Obaveštavamo vas da je čas Grupe <strong>${student.batch}</strong> zakazan za <strong>${todayWeekday}</strong> u <strong>${slot.start}</strong> sa Predavačem <strong>${teacherName}</strong> otkazan zbog nepredviđenih okolnosti.</p>
               
-              <p>We sincerely apologize for the inconvenience. Regular sessions will continue as per the normal schedule.</p>
+              <p>Iskreno se izvinjamo za neugodnost. Redovne sesije će se nastaviti prema normalnom rasporedu.</p>
               
-              <p>Thank you for your patience and cooperation.</p>
+              <p>Hvala vam na strpljenju i saradnji.</p>
               
-              <p>Best regards,<br>
+              <p>S poštovanjem,<br>
               Glück Global Pvt Ltd</p>
             `,
           };
@@ -779,9 +788,9 @@ cron.schedule("0 6 * * *", async () => {
             <a href="${firstSlot.zoomJoinUrl}" target="_blank"
               style="display:inline-block; background-color:#000e89; color:#fff;
                     text-decoration:none; padding:10px 20px; border-radius:6px;">
-              Join Class
+              Pridruži se času
             </a>
-            ${firstSlot.zoomPassword ? `<br /><small style="color:#666; margin-top:5px;">Password: ${firstSlot.zoomPassword}</small>` : ''}
+            ${firstSlot.zoomPassword ? `<br /><small style="color:#666; margin-top:5px;">Lozinka: ${firstSlot.zoomPassword}</small>` : ''}
           </p>
         `;
       } else {
@@ -797,14 +806,14 @@ cron.schedule("0 6 * * *", async () => {
               <a href="${meetingLink.link}" target="_blank"
                 style="display:inline-block; background-color:#000e89; color:#fff;
                       text-decoration:none; padding:10px 20px; border-radius:6px;">
-                Join Class
+                Pridruži se času
               </a>
             </p>
           `;
         } else {
           zoomLinkHTML = `
             <p style="margin-top:20px; color:#999;">
-              No meeting link is available for your batch.
+              Nema dostupnog linka za vašu grupu.
             </p>
           `;
         }
@@ -814,17 +823,17 @@ cron.schedule("0 6 * * *", async () => {
       const mailOptions = {
         from: process.env.EMAIL_USER,
         to: student.email,
-        subject: `🎓 Class Reminder - You have class today!`,
+        subject: `🎓 Podsetnik za čas - Danas imate čas!`,
         html: `
           <div style="font-family: Arial, sans-serif; text-align:center; background:#f9f9f9; padding:20px;">
             <div style="max-width:600px; margin:auto; background:#fff; padding:20px; border-radius:8px; box-shadow:0 4px 10px rgba(0,0,0,0.1);">
               
               <div style="background:#000e89; border-radius:8px;">
-                <h2 style="color:white; margin:0; padding:10px;">Glück Global - Today's Classes</h2>
+                <h2 style="color:white; margin:0; padding:10px;">Glück Global - Današnji časovi</h2>
               </div>
 
-              <p>Hello <strong>${student.name}</strong>,</p>
-              <p>Hope you're having a great day! This is a friendly reminder that you have class today:</p>
+              <p>Zdravo <strong>${student.name}</strong>,</p>
+              <p>Nadamo se da imate sjajan dan! Ovo je prijatni podsetnik da danas imate čas:</p>
 
               <ul style="list-style:none; padding:0; font-size:15px;">
                 ${classListHTML}  
@@ -832,10 +841,10 @@ cron.schedule("0 6 * * *", async () => {
 
               ${zoomLinkHTML}
 
-              <p style="margin-top:20px;">Make sure to join your sessions on time.</p>
+              <p style="margin-top:20px;">Pobrinite se da se pridružite sesijama na vreme.</p>
 
               <p style="font-size:13px; color:#888;">
-                Best regards,<br>
+                S poštovanjem,<br>
                 <strong>Glück Global Pvt Ltd</strong>
               </p>
             </div>

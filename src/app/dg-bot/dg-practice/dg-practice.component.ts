@@ -185,7 +185,7 @@ export class DgPracticeComponent implements AfterViewInit, OnDestroy, OnChanges 
       this.countdownLabel = String(n);
       await dgDelay(650);
     }
-    this.countdownLabel = 'Speak now!';
+    this.countdownLabel = 'Govorite sada!';
     await dgDelay(350);
     this.countdownLabel = null;
     this.charState.setState('listening');

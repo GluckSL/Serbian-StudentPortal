@@ -39,13 +39,13 @@ function parseDateRangeQuery(query) {
 }
 
 function enumerateDayKeys(from, to) {
-  const startStr = from.toLocaleDateString('en-CA', { timeZone: COLOMBO_TZ });
-  const endStr = to.toLocaleDateString('en-CA', { timeZone: COLOMBO_TZ });
+  const startStr = from.toLocaleDateString('sr-Latn-RS', { timeZone: COLOMBO_TZ });
+  const endStr = to.toLocaleDateString('sr-Latn-RS', { timeZone: COLOMBO_TZ });
   const keys = [];
   let cur = new Date(`${startStr}T12:00:00+05:30`);
   const endAnchor = new Date(`${endStr}T12:00:00+05:30`);
   while (cur <= endAnchor) {
-    keys.push(cur.toLocaleDateString('en-CA', { timeZone: COLOMBO_TZ }));
+    keys.push(cur.toLocaleDateString('sr-Latn-RS', { timeZone: COLOMBO_TZ }));
     cur = new Date(cur.getTime() + 86400000);
   }
   return keys;
@@ -53,7 +53,7 @@ function enumerateDayKeys(from, to) {
 
 function colomboTodayBounds() {
   const now = new Date();
-  const ymd = now.toLocaleDateString('en-CA', { timeZone: COLOMBO_TZ });
+  const ymd = now.toLocaleDateString('sr-Latn-RS', { timeZone: COLOMBO_TZ });
   const start = new Date(`${ymd}T00:00:00+05:30`);
   const end = new Date(start.getTime() + 86400000);
   return { start, end };
@@ -235,7 +235,7 @@ async function dgSeriesForStudent(studentOid, from, to) {
     .lean();
   const byDay = {};
   for (const s of sessions) {
-    const d = new Date(s.createdAt).toLocaleDateString('en-CA', { timeZone: COLOMBO_TZ });
+    const d = new Date(s.createdAt).toLocaleDateString('sr-Latn-RS', { timeZone: COLOMBO_TZ });
     if (!byDay[d]) byDay[d] = { sessionCount: 0, practiceMs: 0 };
     byDay[d].sessionCount += 1;
     byDay[d].practiceMs += sumDgLogMs(s.logs);
@@ -467,7 +467,7 @@ async function dgSeriesBatch(studentOids, from, to) {
     .lean();
   const byDay = {};
   for (const s of sessions) {
-    const d = new Date(s.createdAt).toLocaleDateString('en-CA', { timeZone: COLOMBO_TZ });
+    const d = new Date(s.createdAt).toLocaleDateString('sr-Latn-RS', { timeZone: COLOMBO_TZ });
     if (!byDay[d]) byDay[d] = { sessionCount: 0, practiceMs: 0 };
     byDay[d].sessionCount += 1;
     byDay[d].practiceMs += sumDgLogMs(s.logs);

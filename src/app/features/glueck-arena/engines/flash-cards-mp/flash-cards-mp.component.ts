@@ -44,7 +44,7 @@ import {
           <mat-icon>check_circle</mat-icon> +{{ lastPoints }} pts
         </div>
         <div class="fcmp__feedback fcmp__feedback--wrong" *ngIf="feedback === 'wrong'">
-          <mat-icon>cancel</mat-icon> {{ revealAnswer || 'Wrong' }}
+          <mat-icon>cancel</mat-icon> {{ revealAnswer || 'Netačno' }}
         </div>
       </div>
 

@@ -28,22 +28,22 @@ const { synthesizeSpeechStream } = require('../services/dgTtsService');
 exports.start = async (req, res) => {
   try {
     const { moduleId } = req.body;
-    if (!moduleId) return res.status(400).json({ message: 'moduleId required' });
+    if (!moduleId) return res.status(400).json({ message: 'moduleId je obavezan' });
 
     const mod = await SprechenExamModule.findById(moduleId).lean();
-    if (!mod || !mod.isActive) return res.status(404).json({ message: 'Module not found' });
+    if (!mod || !mod.isActive) return res.status(404).json({ message: 'Modul nije pronađen' });
 
     if (req.user.role === 'STUDENT') {
       if (!mod.visibleToStudents) {
-        return res.status(403).json({ message: 'Module not available' });
+        return res.status(403).json({ message: 'Modul nije dostupan' });
       }
       const access = await getStudentSprechenJourneyAccess(req.user.id);
       if (!access.enabled) {
-        return res.status(403).json({ message: 'Journey not active', code: 'JOURNEY_NOT_ACTIVE' });
+        return res.status(403).json({ message: 'Putovanje nije aktivno', code: 'JOURNEY_NOT_ACTIVE' });
       }
       if (!sprechenModuleUnlockedForStudentDay(mod.courseDay, access.courseDay)) {
         return res.status(403).json({
-          message: 'Module unlocks on a later day.',
+          message: 'Modul se otključava kasnijeg dana.',
           code: 'COURSE_DAY_LOCKED',
         });
       }
@@ -70,7 +70,7 @@ exports.start = async (req, res) => {
     });
   } catch (e) {
     console.error('[sprechenSession.start]', e);
-    res.status(500).json({ message: e.message || 'Start failed' });
+    res.status(500).json({ message: e.message || 'Pokretanje nije uspelo' });
   }
 };
 
@@ -80,11 +80,11 @@ exports.start = async (req, res) => {
 exports.advance = async (req, res) => {
   try {
     const session = await _loadSession(req.params.id, req.user);
-    if (!session) return res.status(404).json({ message: 'Session not found' });
-    if (session.completed) return res.status(400).json({ message: 'Session already complete' });
+    if (!session) return res.status(404).json({ message: 'Sesija nije pronađena' });
+    if (session.completed) return res.status(400).json({ message: 'Sesija je već završena' });
 
     const mod = await SprechenExamModule.findById(session.moduleId).lean();
-    if (!mod) return res.status(404).json({ message: 'Module not found' });
+    if (!mod) return res.status(404).json({ message: 'Modul nije pronađen' });
 
     const { action } = req.body;
     let result;
@@ -92,7 +92,7 @@ exports.advance = async (req, res) => {
     if (action === 'ready') {
       result = await _getEngine(mod).advanceReady(session, mod);
     } else {
-      return res.status(400).json({ message: `Unknown action: ${action}` });
+      return res.status(400).json({ message: `Nepoznata akcija: ${action}` });
     }
 
     // Presign card image URL so it's fresh for the browser
@@ -104,7 +104,7 @@ exports.advance = async (req, res) => {
     res.json(result);
   } catch (e) {
     console.error('[sprechenSession.advance]', e);
-    res.status(500).json({ message: e.message || 'Advance failed' });
+    res.status(500).json({ message: e.message || 'Napredovanje nije uspelo' });
   }
 };
 
@@ -114,16 +114,16 @@ exports.advance = async (req, res) => {
 exports.turn = async (req, res) => {
   try {
     const session = await _loadSession(req.params.id, req.user);
-    if (!session) return res.status(404).json({ message: 'Session not found' });
-    if (session.completed) return res.status(400).json({ message: 'Session already complete' });
+    if (!session) return res.status(404).json({ message: 'Sesija nije pronađena' });
+    if (session.completed) return res.status(400).json({ message: 'Sesija je već završena' });
 
     const { transcript, durationMs, action } = req.body;
     if (!transcript && transcript !== '') {
-      return res.status(400).json({ message: 'transcript required' });
+      return res.status(400).json({ message: 'transkript je obavezan' });
     }
 
     const mod = await SprechenExamModule.findById(session.moduleId).lean();
-    if (!mod) return res.status(404).json({ message: 'Module not found' });
+    if (!mod) return res.status(404).json({ message: 'Modul nije pronađen' });
 
     const engine = _getEngine(mod);
     const result = await engine.processTurn(session, mod, transcript, durationMs, action);
@@ -144,7 +144,7 @@ exports.turn = async (req, res) => {
     res.json(result);
   } catch (e) {
     console.error('[sprechenSession.turn]', e);
-    res.status(500).json({ message: e.message || 'Turn failed' });
+    res.status(500).json({ message: e.message || 'Tura nije uspela' });
   }
 };
 
@@ -153,16 +153,16 @@ exports.turn = async (req, res) => {
 exports.complete = async (req, res) => {
   try {
     const session = await _loadSession(req.params.id, req.user);
-    if (!session) return res.status(404).json({ message: 'Session not found' });
+    if (!session) return res.status(404).json({ message: 'Sesija nije pronađena' });
 
     const mod = await SprechenExamModule.findById(session.moduleId).lean();
-    if (!mod) return res.status(404).json({ message: 'Module not found' });
+    if (!mod) return res.status(404).json({ message: 'Modul nije pronađen' });
 
     const scores = await _getEngine(mod).completeSession(session, mod);
     res.json({ scores, completed: true });
   } catch (e) {
     console.error('[sprechenSession.complete]', e);
-    res.status(500).json({ message: e.message || 'Complete failed' });
+    res.status(500).json({ message: e.message || 'Završavanje nije uspelo' });
   }
 };
 
@@ -171,7 +171,7 @@ exports.complete = async (req, res) => {
 exports.getState = async (req, res) => {
   try {
     const session = await _loadSession(req.params.id, req.user);
-    if (!session) return res.status(404).json({ message: 'Session not found' });
+    if (!session) return res.status(404).json({ message: 'Sesija nije pronađena' });
 
     const { state, scores, completed } = session;
     let cardImageUrl = state.cardImageUrl || '';
@@ -205,7 +205,7 @@ exports.getReplay = async (req, res) => {
     const session = await SprechenExamSession.findById(req.params.id)
       .populate('studentId', 'name email regNo batch')
       .lean();
-    if (!session) return res.status(404).json({ message: 'Session not found' });
+    if (!session) return res.status(404).json({ message: 'Sesija nije pronađena' });
 
     const mod = await SprechenExamModule.findById(session.moduleId)
       .select('title passThreshold rubric')
@@ -237,14 +237,14 @@ exports.getReplay = async (req, res) => {
 exports.overrideTurnScore = async (req, res) => {
   try {
     const session = await SprechenExamSession.findById(req.params.id).lean(false);
-    if (!session) return res.status(404).json({ message: 'Session not found' });
+    if (!session) return res.status(404).json({ message: 'Sesija nije pronađena' });
 
     const turn = session.turns.id(req.params.turnId);
-    if (!turn) return res.status(404).json({ message: 'Turn not found' });
-    if (turn.role !== 'student') return res.status(400).json({ message: 'Only student turns can be overridden' });
+    if (!turn) return res.status(404).json({ message: 'Tura nije pronađena' });
+    if (turn.role !== 'student') return res.status(400).json({ message: 'Samo ture učenika mogu biti prepisane' });
 
     const { points, note } = req.body;
-    if (typeof points !== 'number') return res.status(400).json({ message: 'points (number) required' });
+    if (typeof points !== 'number') return res.status(400).json({ message: 'points (broj) je obavezan' });
 
     turn.tutorOverride = { points, note: note || '', by: req.user.id, at: new Date() };
 
@@ -269,10 +269,10 @@ exports.overrideTurnScore = async (req, res) => {
 exports.tts = async (req, res) => {
   try {
     const { text, voice } = req.body;
-    if (!text) return res.status(400).json({ message: 'text required' });
+    if (!text) return res.status(400).json({ message: 'tekst je obavezan' });
 
     const stream = await synthesizeSpeechStream(String(text), voice || 'alloy');
-    if (!stream) return res.status(503).json({ message: 'TTS unavailable' });
+    if (!stream) return res.status(503).json({ message: 'TTS nije dostupan' });
 
     res.setHeader('Content-Type', 'audio/mpeg');
     if (stream.pipe) {
@@ -288,7 +288,7 @@ exports.tts = async (req, res) => {
       pump();
     }
   } catch (e) {
-    if (!res.headersSent) res.status(500).json({ message: e.message || 'TTS failed' });
+    if (!res.headersSent) res.status(500).json({ message: e.message || 'TTS nije uspeo' });
   }
 };
 

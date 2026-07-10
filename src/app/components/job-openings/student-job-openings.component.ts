@@ -208,7 +208,7 @@ export class StudentJobOpeningsComponent implements OnInit {
   formatApplyBefore(dateStr: string): string {
     const d = new Date(dateStr);
     if (Number.isNaN(d.getTime())) return '';
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    return d.toLocaleDateString('sr-Latn-RS', { month: 'short', day: 'numeric', year: 'numeric' });
   }
 
   formatClosedAt(dateStr: string): string {

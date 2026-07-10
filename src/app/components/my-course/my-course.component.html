@@ -5,46 +5,46 @@
       class="mc-hero__pill mc-hero__pill--rank"
       *ngIf="weeklyRank != null"
       (click)="openWeeklyLeaderboard()"
-      [attr.aria-label]="'Weekly rank ' + weeklyRank + '. Open leaderboard for this week.'"
+      [attr.aria-label]="'Nedeljni rang ' + weeklyRank + '. Otvori rang listu za ovu nedelju.'"
     >
       <span class="material-icons mc-hero__pill-icon" aria-hidden="true">leaderboard</span>
-      Weekly rank <strong>#{{ weeklyRank }}</strong>
+      Nedeljni rang <strong>#{{ weeklyRank }}</strong>
     </button>
   </ng-template>
 
-  <header class="mc-hero" *ngIf="activeTab === 'classes'" aria-label="Course overview">
+  <header class="mc-hero" *ngIf="activeTab === 'classes'" aria-label="Pregled kursa">
     <div class="mc-hero__content">
-      <h1 class="mc-hero__title">Welcome back, {{ studentFirstName }}!</h1>
+      <h1 class="mc-hero__title">Dobrodošli nazad, {{ studentFirstName }}!</h1>
       <p class="mc-hero__sub">
         <ng-container *ngIf="allowsLearningContent; else classesOnlyHero">
-          Join live classes, practice with exercises, and open Gluck Buddy for speaking practice—all in one place.
+          Pohađajte časove uživo, vežbajte vežbe i otvorite Gluck Buddy za govornu praksu — sve na jednom mestu.
         </ng-container>
         <ng-template #classesOnlyHero>
-          Join live classes and watch your class recordings in one place.
+          Pohađajte časove uživo i gledajte snimke časova na jednom mestu.
         </ng-template>
       </p>
       <div class="mc-hero__badges">
         <span class="mc-hero__pill">
           <span class="material-icons mc-hero__pill-icon" aria-hidden="true">school</span>
-          Current level <strong>{{ levelShortLabel }}</strong>
+          Trenutni nivo <strong>{{ levelShortLabel }}</strong>
         </span>
         <span class="mc-hero__pill" *ngIf="levelProgression.length">
           <span class="material-icons mc-hero__pill-icon" aria-hidden="true">trending_up</span>
-          {{ learningPct }}% of levels completed
+          {{ learningPct }}% nivoa završeno
         </span>
         <span class="mc-hero__pill" [class.mc-hero__pill--gold]="userProfile.subscription === 'PLATINUM'"
           [class.mc-hero__pill--silver]="userProfile.subscription === 'SILVER'"
           *ngIf="userProfile?.role === 'STUDENT' && userProfile?.subscription">
           <span class="material-icons mc-hero__pill-icon" aria-hidden="true">workspace_premium</span>
-          Subscription <strong>{{ userProfile.subscription }}</strong>
+          Pretplata <strong>{{ userProfile.subscription }}</strong>
         </span>
         <span class="mc-hero__pill" *ngIf="loginStreakData">
           <span class="material-icons mc-hero__pill-icon mc-hero__pill-icon--fire" aria-hidden="true">local_fire_department</span>
-          <strong>{{ loginStreakData.currentStreak }}</strong> day streak · <span class="material-icons mc-hero__pill-icon mc-hero__pill-icon--trophy" aria-hidden="true">emoji_events</span> <strong>{{ loginStreakData.totalTrophies }}</strong>
+          <strong>{{ loginStreakData.currentStreak }}</strong> dana u nizu · <span class="material-icons mc-hero__pill-icon mc-hero__pill-icon--trophy" aria-hidden="true">emoji_events</span> <strong>{{ loginStreakData.totalTrophies }}</strong>
         </span>
         <span class="mc-hero__pill" *ngIf="studentBatchLabel">
           <span class="material-icons mc-hero__pill-icon" aria-hidden="true">groups</span>
-          Batch <strong>{{ studentBatchLabel }}</strong>
+          Grupa <strong>{{ studentBatchLabel }}</strong>
         </span>
         <ng-container *ngTemplateOutlet="weeklyRankBadge"></ng-container>
         <span *ngIf="showLanguageFeeDueCard" class="mc-hero__fee-card"
@@ -53,7 +53,7 @@
           [class.mc-hero__fee-card--red]="languageFeeBannerTone === 'red'" role="status" aria-live="polite">
           <span class="material-icons mc-hero__fee-card__icon" aria-hidden="true">payments</span>
           <span class="mc-hero__fee-card__body">
-            <span class="mc-hero__fee-card__label">Language fee due amount</span>
+            <span class="mc-hero__fee-card__label">Dospeli iznos za jezik</span>
             <strong class="mc-hero__fee-card__amount">{{ formattedLanguageFeeDue }}</strong>
           </span>
         </span>
@@ -62,7 +62,7 @@
   </header>
 
   <!-- Same vertical position as My class hero: full-width strip above tabs -->
-  <section class="mc-tab-profile-strip" *ngIf="activeTab !== 'classes'" aria-label="Your profile">
+  <section class="mc-tab-profile-strip" *ngIf="activeTab !== 'classes'" aria-label="Vaš profil">
     <div class="mc-tab-profile">
       <div class="mc-tab-profile__main">
         <p class="mc-tab-profile__name">{{ studentDisplayName }}</p>
@@ -70,17 +70,17 @@
         <div class="mc-tab-profile__row mc-hero__badges">
           <span class="mc-hero__pill">
             <span class="material-icons mc-hero__pill-icon" aria-hidden="true">school</span>
-            Current level <strong>{{ levelShortLabel }}</strong>
+            Trenutni nivo <strong>{{ levelShortLabel }}</strong>
           </span>
           <span class="mc-hero__pill" [class.mc-hero__pill--gold]="userProfile.subscription === 'PLATINUM'"
             [class.mc-hero__pill--silver]="userProfile.subscription === 'SILVER'"
             *ngIf="userProfile?.role === 'STUDENT' && userProfile?.subscription">
             <span class="material-icons mc-hero__pill-icon" aria-hidden="true">workspace_premium</span>
-            Subscription <strong>{{ userProfile.subscription }}</strong>
+            Pretplata <strong>{{ userProfile.subscription }}</strong>
           </span>
           <span class="mc-hero__pill" *ngIf="studentBatchLabel">
             <span class="material-icons mc-hero__pill-icon" aria-hidden="true">groups</span>
-            Batch <strong>{{ studentBatchLabel }}</strong>
+            Grupa <strong>{{ studentBatchLabel }}</strong>
           </span>
           <ng-container *ngTemplateOutlet="weeklyRankBadge"></ng-container>
         </div>
@@ -93,12 +93,12 @@
     <div class="mc-tabs" role="tablist">
       <button type="button" role="tab" class="mc-tab" [class.mc-tab--on]="activeTab === 'leaderboard'"
         (click)="setTab('leaderboard')">
-        Leaderboard
+        Rang lista
       </button>
       <button type="button" role="tab" class="mc-tab"
         [class.mc-tab--on]="activeTab === 'classes'" (click)="setTab('classes')">
-        <span class="mc-tab-text mc-tab-text--desktop">My class</span>
-        <span class="mc-tab-text mc-tab-text--mobile">My class</span>
+        <span class="mc-tab-text mc-tab-text--desktop">Moj čas</span>
+        <span class="mc-tab-text mc-tab-text--mobile">Moj čas</span>
       </button>
       <button *ngIf="showExercisesTab" type="button" role="tab" class="mc-tab"
         [class.mc-tab--on]="activeTab === 'exercises'" (click)="setTab('exercises')">
@@ -110,12 +110,12 @@
       </button>
       <button type="button" role="tab" class="mc-tab" [class.mc-tab--on]="activeTab === 'journey'"
         (click)="setTab('journey')">
-        Journey to Germany
+        Put u Nemačku
       </button>
       <button type="button" role="tab" class="mc-tab mc-tab--badged" [class.mc-tab--on]="activeTab === 'gluck-exam'"
         (click)="setTab('gluck-exam')">
-        Glück Exam
-        <span class="mc-tab-pending-badge" *ngIf="gluckExamAnyPending" aria-label="Pending exam items">1</span>
+        Glück Ispit
+        <span class="mc-tab-pending-badge" *ngIf="gluckExamAnyPending" aria-label="Stavke ispita na čekanju">1</span>
       </button>
     </div>
   </div>
@@ -123,11 +123,11 @@
   <div class="mc-classes-layout" [hidden]="activeTab !== 'classes'" role="tabpanel">
     <div class="mc-classes-layout__main">
       <section class="mc-classes-card mc-classes-card--live" *ngIf="userProfile?.subscription === 'PLATINUM'"
-        aria-label="Live and scheduled classes">
+        aria-label="Časovi uživo i zakazani">
         <app-student-meetings [embedded]="true"></app-student-meetings>
       </section>
-      <section class="mc-classes-card mc-classes-card--recordings" aria-label="Recorded classes">
-        <h3 class="mc-classes-card__title">Recorded classes</h3>
+      <section class="mc-classes-card mc-classes-card--recordings" aria-label="Snimljeni časovi">
+        <h3 class="mc-classes-card__title">Snimljeni časovi</h3>
         <app-student-recordings [embedded]="true" [isPlatinumStudent]="isPlatinumStudent"
           [refreshToken]="recordingsRefreshToken" (reqRecordingClick)="openRecordingReqPanel()"
           (recordingRequestChanged)="onRecordingRequestChanged()"
@@ -136,39 +136,39 @@
     </div>
     <aside class="mc-classes-layout__aside" aria-label="Journey and updates">
       <div class="mc-side-card mc-side-card--journey">
-        <p class="mc-side-card__eyebrow">Your journey</p>
+        <p class="mc-side-card__eyebrow">Vaše putovanje</p>
         <div class="mc-side-card__dayline">
           <span class="mc-side-card__num">{{ elapsedJourneyDayNumber }}</span>
           <span class="mc-side-card__ordinal">{{ ordinalSuffix(elapsedJourneyDayNumber) }}</span>
         </div>
-        <p class="mc-side-card__daylabel">day since you joined</p>
+        <p class="mc-side-card__daylabel">dan od kada ste se pridružili</p>
         <p class="mc-side-card__motivate">{{ motivateLine }}</p>
         <div class="mc-side-card__foot">
           <span class="material-icons" aria-hidden="true">flag</span>
-          <span>Journey {{ journeyDayProgressLabel }}
-            <span class="mc-side-card__foot-hint">(set by your teacher)</span></span>
+            <span>Putovanje {{ journeyDayProgressLabel }}
+            <span class="mc-side-card__foot-hint">(postavio vaš nastavnik)</span></span>
         </div>
 
         <!-- Day completion badge (Silver GO: always visible on My class) -->
         <div class="mc-day-badge-wrap" *ngIf="showDayCompletionBadge">
           <span class="mc-day-badge mc-day-badge--loading" *ngIf="dayCompletionLoading" aria-busy="true">
             <span class="material-icons">hourglass_top</span>
-            Checking Day {{ journeyCourseDay }}…
+            Provera dana {{ journeyCourseDay }}…
           </span>
           <ng-container *ngIf="!dayCompletionLoading && isDayComplete">
             <span class="mc-day-badge mc-day-badge--complete">
               <span class="material-icons">check_circle</span>
-              Day {{ journeyCourseDay }} Completed
+              Dan {{ journeyCourseDay }} Završen
             </span>
             <p class="mc-day-promote-hint" *ngIf="showSilverDayCompletePromotion">
               <span class="material-icons mc-day-promote-hint__icon">rocket_launch</span>
-              Completing now — you'll be instantly promoted to <strong>Day {{ nextJourneyPreviewDay }}</strong>!
+              Završavate sada — bićete odmah napredovani na <strong>Dan {{ nextJourneyPreviewDay }}</strong>!
             </p>
           </ng-container>
           <button type="button" class="mc-day-badge mc-day-badge--incomplete"
             *ngIf="!dayCompletionLoading && !isDayComplete" (click)="openDayCompletionModal()">
             <span class="material-icons">pending</span>
-            Day {{ journeyCourseDay }} Incomplete — tap to see what's left
+            Dan {{ journeyCourseDay }} Nedovršen — tapnite da vidite šta je ostalo
           </button>
         </div>
       </div>
@@ -178,17 +178,17 @@
            [class.mc-side-card--streak--silver]="loginStreakData.weeklyRewardTier === 'silver'"
            [class.mc-side-card--streak--gold]="loginStreakData.weeklyRewardTier === 'gold' || loginStreakData.weeklyRewardTier === 'trophy'"
            *ngIf="loginStreakData">
-        <p class="mc-side-card__eyebrow">Streak</p>
+        <p class="mc-side-card__eyebrow">Niz</p>
         <div class="sc-side-stats">
           <div class="sc-side-stat">
             <span class="sc-side-stat__icon">🔥</span>
             <span class="sc-side-stat__value">{{ loginStreakData.currentStreak }}</span>
-            <span class="sc-side-stat__label">Day Streak</span>
+            <span class="sc-side-stat__label">Dnevni niz</span>
           </div>
           <div class="sc-side-stat">
             <span class="sc-side-stat__icon">🏆</span>
             <span class="sc-side-stat__value">{{ loginStreakData.totalTrophies }}</span>
-            <span class="sc-side-stat__label">Trophies</span>
+            <span class="sc-side-stat__label">Trofeje</span>
           </div>
         </div>
         <div class="sc-side-week">
@@ -207,12 +207,12 @@
           <span class="sc-side-foot__reward" *ngIf="loginStreakData.weeklyRewardTier">
             {{ weeklyRewardEmoji }} {{ weeklyRewardLabel }}
           </span>
-          <span class="sc-side-foot__count">{{ loginStreakData.weeklyDays }}/7 this week</span>
+          <span class="sc-side-foot__count">{{ loginStreakData.weeklyDays }}/7 ove nedelje</span>
         </div>
       </div>
 
       <div class="mc-side-card mc-side-card--updates">
-        <p class="mc-side-card__eyebrow">Updates</p>
+        <p class="mc-side-card__eyebrow">Obaveštenja</p>
         <!-- Announcements are shown under Help & Support (messenger) → Announcements -->
 
         <!-- Silver student: full day completion → instant promotion -->
@@ -221,11 +221,11 @@
             <span class="material-icons">celebration</span>
           </span>
           <div class="mc-update__body">
-            <p class="mc-update__title">Day {{ journeyCourseDay }} Complete!</p>
+            <p class="mc-update__title">Dan {{ journeyCourseDay }} Završen!</p>
             <p class="mc-update__text">
-              You've finished all class recordings, exercises, and Gluck Buddy for
-              <strong>Day {{ journeyCourseDay }}</strong>. You'll be instantly promoted to
-              <strong>Day {{ nextJourneyPreviewDay }}</strong> as soon as the last item is saved. Keep going! 🚀
+              Završili ste sve snimke časova, vežbe i Gluck Buddy za
+              <strong>Dan {{ journeyCourseDay }}</strong>. Bićete odmah napredovani na
+              <strong>Dan {{ nextJourneyPreviewDay }}</strong> čim se sačuva poslednja stavka. Nastavite! 🚀
             </p>
           </div>
         </div>
@@ -236,11 +236,11 @@
             <span class="material-icons">celebration</span>
           </span>
           <div class="mc-update__body">
-            <p class="mc-update__title">Ready for the next journey day</p>
+            <p class="mc-update__title">Spremi za sledeći dan putovanja</p>
             <p class="mc-update__text">
-              You completed attendance for <strong>Day {{ journeyCourseDay }}</strong>. At midnight, your journey
-              advances to
-              <strong>Day {{ nextJourneyPreviewDay }}</strong>. Keep going!
+              Završili ste prisustvo za <strong>Dan {{ journeyCourseDay }}</strong>. U ponoć, vaše putovanje
+              napreduje na
+              <strong>Dan {{ nextJourneyPreviewDay }}</strong>. Nastavite!
             </p>
           </div>
         </div>
@@ -250,7 +250,7 @@
             <span class="material-icons">videocam</span>
           </span>
           <div class="mc-update__body">
-            <p class="mc-update__title">Upcoming live class</p>
+            <p class="mc-update__title">Predstojeći čas uživo</p>
             <p class="mc-update__text">
               <strong>{{ mtg.topic }}</strong>
               <span class="mc-update__when">{{ mtg.whenLabel }}</span>
@@ -263,10 +263,10 @@
             <span class="material-icons">lock_clock</span>
           </span>
           <div class="mc-update__body">
-            <p class="mc-update__title">Digital exercise ahead</p>
+            <p class="mc-update__title">Digitalna vežba napred</p>
             <p class="mc-update__text">
               <strong>{{ nextLockedDigitalExercise.title }}</strong>
-              is tied to <strong>day {{ nextLockedDigitalExercise.courseDay }}</strong>.
+              je vezano za <strong>dan {{ nextLockedDigitalExercise.courseDay }}</strong>.
               {{ nextLockedDigitalExercise ? lockedExerciseUnlockText(nextLockedDigitalExercise) : '' }}
             </p>
           </div>
@@ -278,10 +278,10 @@
             <span class="material-icons">quiz</span>
           </span>
           <div class="mc-update__body">
-            <p class="mc-update__title">New exercise available</p>
+            <p class="mc-update__title">Nova vežba dostupna</p>
             <p class="mc-update__text">
               <strong>{{ nextNewDigitalExercise.title }}</strong>
-              <span class="mc-update__when">is ready now</span>
+              <span class="mc-update__when">je sada dostupno</span>
             </p>
           </div>
         </div>
@@ -289,8 +289,8 @@
         <div class="mc-update mc-update--empty"
           *ngIf="allowsLearningContent && !nextMeetingPreview && !nextLockedDigitalExercise && !nextNewDigitalExercise">
           <span class="material-icons" aria-hidden="true">notifications_none</span>
-          <p>No new class or exercise alerts right now. Check <strong>Exercises</strong> or <strong>Gluck Buddy</strong>
-            anytime.</p>
+          <p>Nema novih obaveštenja o časovima ili vežbama. Proverite <strong>Vežbe</strong> ili <strong>Gluck Buddy</strong>
+            u bilo kom trenutku.</p>
         </div>
 
         <button type="button" class="mc-side-card__link" (click)="setTab(updatesPrimaryTab)">
@@ -308,7 +308,7 @@
 
   <div class="mc-panel" *ngIf="tabVisited.has('talk-buddy')" [hidden]="activeTab !== 'talk-buddy'" role="tabpanel">
     <p class="mc-dg-week-hint" *ngIf="allowsDgBot && !allowsLearningContent">
-      Complete all Glück Buddy modules in your current week to unlock the next week of practice.
+      Završite sve Glück Buddy module u trenutnoj nedelji da biste otključali sledeću nedelju vežbe.
     </p>
     <app-gluck-buddy-hub></app-gluck-buddy-hub>
   </div>
@@ -316,17 +316,17 @@
   <div class="mc-panel mc-journey" *ngIf="tabVisited.has('journey')" [hidden]="activeTab !== 'journey'" role="tabpanel">
     <div class="mc-journey-head">
       <div>
-        <h3>Journey to Germany</h3>
-        <p>See day-wise progress and continue unfinished work.</p>
+        <h3>Put u Nemačku</h3>
+        <p>Pogledajte napredak po danima i nastavite nedovršeni rad.</p>
       </div>
       <div class="mc-journey-head__actions">
         <button type="button" class="mc-progress-btn" [class.mc-progress-btn--muted]="showProgressReport"
           (click)="toggleProgressReport()">
           <span class="material-icons">{{ showProgressReport ? 'expand_less' : 'insights' }}</span>{{ showProgressReport
-          ? 'Hide report' : 'Progress report' }}
+          ? 'Sakrij izveštaj' : 'Izveštaj o napretku' }}
         </button>
         <button type="button" class="mc-progress-btn mc-progress-btn--muted" (click)="openPerformanceHistory()">
-          <span class="material-icons">monitoring</span>Full performance history
+          <span class="material-icons">monitoring</span>Puna istorija performansi
         </button>
         <div class="mc-journey-meta">{{ journeyDayProgressLabel }}</div>
       </div>
@@ -335,24 +335,24 @@
     <div class="mc-progress-page" *ngIf="showProgressReport">
       <div class="mc-progress-page__head">
         <div>
-          <h4>Progress</h4>
+          <h4>Napredak</h4>
           <p>
             <ng-container *ngIf="allowsLearningContent; else classesOnlyProgressText">
-              Weekly or overall completion across classes and exercises.
+              Nedeljno ili ukupno završavanje časova i vežbi.
             </ng-container>
             <ng-template #classesOnlyProgressText>
-              Weekly or overall completion across your classes.
+              Nedeljno ili ukupno završavanje vaših časova.
             </ng-template>
           </p>
         </div>
         <div class="mc-progress-range">
           <button type="button" class="mc-progress-range__btn"
             [class.mc-progress-range__btn--on]="progressRange === 'weekly'" (click)="setProgressRange('weekly')">
-            Weekly
+            Nedeljno
           </button>
           <button type="button" class="mc-progress-range__btn"
             [class.mc-progress-range__btn--on]="progressRange === 'overall'" (click)="setProgressRange('overall')">
-            Overall
+            Ukupno
           </button>
         </div>
       </div>
@@ -364,17 +364,17 @@
               <span>{{ progressClassesPct }}%</span>
             </div>
             <div class="mc-progress-card__body">
-              <span class="mc-progress-card__label">Live classes</span>
+              <span class="mc-progress-card__label">Časovi uživo</span>
               <strong class="mc-progress-card__count">{{ progressClassesDone }} / {{ progressClassesTotal }}</strong>
-              <p class="mc-progress-card__hint">Hover for details</p>
+              <p class="mc-progress-card__hint">Pređite mišem za detalje</p>
               <div class="mc-progress-card__track"><i [style.width.%]="progressClassesPct"></i></div>
             </div>
           </div>
-          <div class="mc-progress-card__popover" role="tooltip" aria-label="Live class details">
-            <div class="mc-progress-card__popover-title">In this period</div>
+          <div class="mc-progress-card__popover" role="tooltip" aria-label="Detalji časa uživo">
+            <div class="mc-progress-card__popover-title">U ovom periodu</div>
             <ul class="mc-progress-card__list">
               <li *ngFor="let m of progressReportMeetings" class="mc-progress-card__item">
-                <div class="mc-progress-card__item-title">{{ m.topic || 'Live class' }}</div>
+                <div class="mc-progress-card__item-title">{{ m.topic || 'Čas uživo' }}</div>
                 <div class="mc-progress-card__item-meta">
                   {{ meetingJourneyDayLabel(m) }} · {{ m.teacher.name || '—' }} · {{ formatMeetingDate(m.startTime) }} ·
                   {{ formatMeetingTime(m.startTime) }} · {{ formatMeetingDuration(m.duration) }}
@@ -382,7 +382,7 @@
                 <div class="mc-progress-card__item-status">{{ meetingProgressStatusLabel(m) }}</div>
               </li>
             </ul>
-            <p class="mc-progress-card__empty" *ngIf="!progressReportMeetings.length">No classes in this range.</p>
+            <p class="mc-progress-card__empty" *ngIf="!progressReportMeetings.length">Nema časova u ovom opsegu.</p>
           </div>
         </div>
 
@@ -396,52 +396,52 @@
               <span class="mc-progress-card__label">{{ exercisesSectionLabel }}</span>
               <strong class="mc-progress-card__count">{{ progressExercisesDone }} / {{ progressExercisesTotal
                 }}</strong>
-              <p class="mc-progress-card__hint">Hover for details</p>
+              <p class="mc-progress-card__hint">Pređite mišem za detalje</p>
               <div class="mc-progress-card__track mc-progress-card__track--green"><i
                   [style.width.%]="progressExercisesPct"></i></div>
             </div>
           </div>
-          <div class="mc-progress-card__popover" role="tooltip" aria-label="Exercise details">
-            <div class="mc-progress-card__popover-title">In this period</div>
+          <div class="mc-progress-card__popover" role="tooltip" aria-label="Detalji vežbe">
+            <div class="mc-progress-card__popover-title">U ovom periodu</div>
             <ul class="mc-progress-card__list">
               <li *ngFor="let ex of progressReportExercises" class="mc-progress-card__item">
                 <div class="mc-progress-card__item-title">{{ ex.title }}</div>
                 <div class="mc-progress-card__item-meta">
-                  <ng-container *ngIf="ex.courseDay != null">Day {{ ex.courseDay }} · </ng-container>{{ ex.level }} · {{
+                  <ng-container *ngIf="ex.courseDay != null">Dan {{ ex.courseDay }} · </ng-container>{{ ex.level }} · {{
                   ex.category }}
                 </div>
                 <div class="mc-progress-card__item-status" [class.done]="!!ex.studentAttempt">
-                  {{ ex.studentAttempt ? 'Completed' : 'Pending' }}
+                  {{ ex.studentAttempt ? 'Završeno' : 'Na čekanju' }}
                 </div>
               </li>
             </ul>
-            <p class="mc-progress-card__empty" *ngIf="!progressReportExercises.length">No exercises in this range.</p>
+            <p class="mc-progress-card__empty" *ngIf="!progressReportExercises.length">Nema vežbi u ovom opsegu.</p>
           </div>
         </div>
       </div>
 
       <div class="mc-progress-total">
-        <span class="mc-progress-total__label">Combined</span>
+        <span class="mc-progress-total__label">Ukupno</span>
         <strong>{{ progressOverallDone }} / {{ progressOverallTotal }}</strong>
         <span class="mc-progress-total__pct">{{ progressOverallPct }}%</span>
       </div>
     </div>
 
     <div class="mc-journey-controls">
-      <input type="text" class="mc-journey-search" placeholder="Search day number..." [(ngModel)]="journeySearch" />
+      <input type="text" class="mc-journey-search" placeholder="Pretraži broj dana..." [(ngModel)]="journeySearch" />
       <div class="mc-journey-filter-wrap">
         <button type="button" class="mc-journey-filter" (click)="journeyFilterOpen = !journeyFilterOpen">
-          <span>{{ journeyFilter === 'all' ? 'All' : journeyFilter === 'completed' ? 'Completed only' : 'Pending only'
+          <span>{{ journeyFilter === 'all' ? 'Sve' : journeyFilter === 'completed' ? 'Samo završene' : 'Samo na čekanju'
             }}</span>
           <span class="material-icons mc-journey-filter__arrow">expand_{{ journeyFilterOpen ? 'less' : 'more' }}</span>
         </button>
         <div class="mc-journey-filter-menu" *ngIf="journeyFilterOpen">
           <button type="button" class="mc-journey-filter-option" [class.on]="journeyFilter === 'all'"
-            (click)="journeyFilter = 'all'; journeyFilterOpen = false">All</button>
+            (click)="journeyFilter = 'all'; journeyFilterOpen = false">Sve</button>
           <button type="button" class="mc-journey-filter-option" [class.on]="journeyFilter === 'completed'"
-            (click)="journeyFilter = 'completed'; journeyFilterOpen = false">Completed only</button>
+            (click)="journeyFilter = 'completed'; journeyFilterOpen = false">Samo završene</button>
           <button type="button" class="mc-journey-filter-option" [class.on]="journeyFilter === 'pending'"
-            (click)="journeyFilter = 'pending'; journeyFilterOpen = false">Pending only</button>
+            (click)="journeyFilter = 'pending'; journeyFilterOpen = false">Samo na čekanju</button>
         </div>
       </div>
     </div>
@@ -456,15 +456,15 @@
 
     <div class="mc-day-summary">
       <span>{{ journeyDayLabel(selectedJourneyDay) }}</span>
-      <span>{{ selectedDayCompletedCount }} / {{ selectedDayTotalCount }} completed</span>
+      <span>{{ selectedDayCompletedCount }} / {{ selectedDayTotalCount }} završeno</span>
     </div>
 
     <div class="mc-day-empty" *ngIf="!selectedDayHasItems">
       <ng-container *ngIf="allowsLearningContent; else classesOnlyDayEmpty">
-        No exercises assigned for this day.
+        Nema vežbi za ovaj dan.
       </ng-container>
       <ng-template #classesOnlyDayEmpty>
-        No exercises for this batch type. Check your live classes below.
+        Nema vežbi za ovaj tip grupe. Proverite vaše časove uživo ispod.
       </ng-template>
     </div>
 
@@ -474,14 +474,14 @@
           <h4>{{ exercisesSectionLabel }}</h4>
           <span class="mc-day-section__count" *ngIf="selectedDayExercises.length">{{ selectedDayExercises.length }}</span>
         </div>
-        <p class="mc-day-section__intro">Digital exercises assigned to journey day {{ selectedJourneyDay }}.</p>
+        <p class="mc-day-section__intro">Digitalne vežbe dodeljene za dan putovanja {{ selectedJourneyDay }}.</p>
         <p class="mc-jc-empty mc-jc-empty--tight"
           *ngIf="journeyDayExercisesLoading && journeyDayExercisesLoadingDay === selectedJourneyDay">
-          Loading exercises…
+          Učitavanje vežbi…
         </p>
         <p class="mc-jc-empty mc-jc-empty--tight"
           *ngIf="!journeyDayExercisesLoading && !selectedDayExercises.length">
-          No exercises are assigned to day {{ selectedJourneyDay }} yet.
+          Nema vežbi dodeljenih za dan {{ selectedJourneyDay }} još.
         </p>
         <div class="mc-day-item" *ngFor="let ex of selectedDayExercises">
           <div class="mc-day-item__main mc-day-item__main--clickable" tabindex="0" [title]="getExerciseHoverDetails(ex)"
@@ -496,13 +496,13 @@
           <div class="mc-day-item__status" [class.done]="ex.studentAttempt && !isExerciseSequenceLocked(ex)"
             [class.pending]="!ex.studentAttempt && !isExerciseSequenceLocked(ex)"
             [class.locked]="isExerciseSequenceLocked(ex)">
-            {{ isExerciseSequenceLocked(ex) ? 'Locked' : (ex.studentAttempt ? 'Completed' : 'Pending') }}
+            {{ isExerciseSequenceLocked(ex) ? 'Zaključano' : (ex.studentAttempt ? 'Završeno' : 'Na čekanju') }}
           </div>
           <button *ngIf="!isExerciseSequenceLocked(ex)" type="button" class="mc-day-item__btn"
             [class.mc-day-item__btn--start]="!ex.studentAttempt" [class.mc-day-item__btn--retry]="!!ex.studentAttempt"
             (click)="openExercise(ex)">
             <span class="material-icons">{{ ex.studentAttempt ? 'replay' : 'play_arrow' }}</span>{{ ex.studentAttempt ?
-            'Re-attempt' : 'Start' }}
+            'Ponovi' : 'Počni' }}
           </button>
           <button *ngIf="isExerciseSequenceLocked(ex)" type="button" class="mc-day-item__btn mc-day-item__btn--locked"
             (click)="openExercise(ex)">
@@ -514,13 +514,13 @@
       <div class="mc-day-section mc-day-section-card mc-day-section-card--weekly-test"
         *ngIf="selectedDayHasWeeklyTestItems">
         <div class="mc-day-section__head">
-          <h4>Weekly Test</h4>
+          <h4>Nedeljni test</h4>
           <span class="mc-day-section__count">
             {{ selectedDayWeeklyTestExercises.length + selectedDayWeeklyTestDgModules.length +
             selectedDayWeeklyTestSprechen.length }}
           </span>
         </div>
-        <p class="mc-day-section__intro">Weekly test items assigned to journey day {{ selectedJourneyDay }}.</p>
+        <p class="mc-day-section__intro">Stavke nedeljnog testa dodeljene za dan putovanja {{ selectedJourneyDay }}.</p>
         <div class="mc-day-item" *ngFor="let ex of selectedDayWeeklyTestExercises">
           <div class="mc-day-item__main mc-day-item__main--clickable" tabindex="0" [title]="getExerciseHoverDetails(ex)"
             (click)="openExercise(ex)" (keydown.enter)="openExercise(ex)">
@@ -530,44 +530,44 @@
           </div>
           <div class="mc-day-item__status" [class.done]="gluckExamExerciseDone(ex)"
             [class.pending]="!gluckExamExerciseDone(ex)">
-            {{ gluckExamExerciseDone(ex) ? 'Completed' : 'Pending' }}
+            {{ gluckExamExerciseDone(ex) ? 'Završeno' : 'Na čekanju' }}
           </div>
           <button type="button" class="mc-day-item__btn" [class.mc-day-item__btn--start]="!gluckExamExerciseDone(ex)"
             [class.mc-day-item__btn--retry]="gluckExamExerciseDone(ex)" (click)="openExercise(ex)">
             <span class="material-icons">{{ gluckExamExerciseDone(ex) ? 'replay' : 'play_arrow' }}</span>
-            {{ gluckExamExerciseDone(ex) ? 'Re-attempt' : 'Start' }}
+            {{ gluckExamExerciseDone(ex) ? 'Ponovi' : 'Počni' }}
           </button>
         </div>
         <div class="mc-day-item" *ngFor="let mod of selectedDayWeeklyTestDgModules">
           <div class="mc-day-item__main mc-day-item__main--clickable" tabindex="0" [title]="getModuleHoverDetails(mod)"
             (click)="openModule(mod)" (keydown.enter)="openModule(mod)">
             <div class="mc-day-item__title">{{ mod.title }}</div>
-            <div class="mc-day-item__sub">{{ mod.level }} · {{ mod.language || 'German' }}</div>
+            <div class="mc-day-item__sub">{{ mod.level }} · {{ mod.language || 'Nemački' }}</div>
             <div class="mc-day-item__hover-hint">{{ getModuleHoverDetails(mod) }}</div>
           </div>
           <div class="mc-day-item__status" [class.done]="gluckExamDgDone(mod)" [class.pending]="!gluckExamDgDone(mod)">
-            {{ gluckExamDgDone(mod) ? 'Completed' : 'Pending' }}
+            {{ gluckExamDgDone(mod) ? 'Završeno' : 'Na čekanju' }}
           </div>
           <button type="button" class="mc-day-item__btn" [class.mc-day-item__btn--open]="gluckExamDgDone(mod)"
             [class.mc-day-item__btn--start]="!gluckExamDgDone(mod)" (click)="openModule(mod)">
             <span class="material-icons">{{ gluckExamDgDone(mod) ? 'launch' : 'play_arrow' }}</span>
-            {{ gluckExamDgDone(mod) ? 'Open' : 'Start' }}
+            {{ gluckExamDgDone(mod) ? 'Otvori' : 'Počni' }}
           </button>
         </div>
         <div class="mc-day-item" *ngFor="let mod of selectedDayWeeklyTestSprechen">
           <div class="mc-day-item__main mc-day-item__main--clickable" tabindex="0" (click)="openSprechenExamModule(mod)"
             (keydown.enter)="openSprechenExamModule(mod)">
             <div class="mc-day-item__title">{{ mod.title }}</div>
-            <div class="mc-day-item__sub">{{ mod.level }} · Pass {{ mod.passThreshold || 10 }}/15</div>
+            <div class="mc-day-item__sub">{{ mod.level }} · Prolaz {{ mod.passThreshold || 10 }}/15</div>
           </div>
           <div class="mc-day-item__status" [class.done]="gluckExamSprechenDone(mod)"
             [class.pending]="!gluckExamSprechenDone(mod)">
-            {{ gluckExamSprechenDone(mod) ? 'Completed' : 'Pending' }}
+            {{ gluckExamSprechenDone(mod) ? 'Završeno' : 'Na čekanju' }}
           </div>
           <button type="button" class="mc-day-item__btn" [class.mc-day-item__btn--open]="gluckExamSprechenDone(mod)"
             [class.mc-day-item__btn--start]="!gluckExamSprechenDone(mod)" (click)="openSprechenExamModule(mod)">
             <span class="material-icons">{{ gluckExamSprechenDone(mod) ? 'replay' : 'play_arrow' }}</span>
-            {{ gluckExamSprechenDone(mod) ? 'Attempt again' : 'Start' }}
+            {{ gluckExamSprechenDone(mod) ? 'Pokušaj ponovo' : 'Počni' }}
           </button>
         </div>
       </div>
@@ -575,12 +575,12 @@
       <div class="mc-day-section mc-day-section-card mc-day-section-card--internal-exam"
         *ngIf="selectedDayHasExamItems">
         <div class="mc-day-section__head">
-          <h4>Internal Exam</h4>
+          <h4>Interni ispit</h4>
           <span class="mc-day-section__count">
             {{ selectedDayExamExercises.length + selectedDayExamDgModules.length + selectedDayExamSprechen.length }}
           </span>
         </div>
-        <p class="mc-day-section__intro">Internal exam items assigned to journey day {{ selectedJourneyDay }}.</p>
+        <p class="mc-day-section__intro">Stavke internog ispita dodeljene za dan putovanja {{ selectedJourneyDay }}.</p>
         <div class="mc-day-item" *ngFor="let ex of selectedDayExamExercises">
           <div class="mc-day-item__main mc-day-item__main--clickable" tabindex="0" [title]="getExerciseHoverDetails(ex)"
             (click)="openExercise(ex)" (keydown.enter)="openExercise(ex)">
@@ -590,67 +590,67 @@
           </div>
           <div class="mc-day-item__status" [class.done]="gluckExamExerciseDone(ex)"
             [class.pending]="!gluckExamExerciseDone(ex)">
-            {{ gluckExamExerciseDone(ex) ? 'Completed' : 'Pending' }}
+            {{ gluckExamExerciseDone(ex) ? 'Završeno' : 'Na čekanju' }}
           </div>
           <button type="button" class="mc-day-item__btn" [class.mc-day-item__btn--start]="!gluckExamExerciseDone(ex)"
             [class.mc-day-item__btn--retry]="gluckExamExerciseDone(ex)" (click)="openExercise(ex)">
             <span class="material-icons">{{ gluckExamExerciseDone(ex) ? 'replay' : 'play_arrow' }}</span>
-            {{ gluckExamExerciseDone(ex) ? 'Re-attempt' : 'Start' }}
+            {{ gluckExamExerciseDone(ex) ? 'Ponovi' : 'Počni' }}
           </button>
         </div>
         <div class="mc-day-item" *ngFor="let mod of selectedDayExamDgModules">
           <div class="mc-day-item__main mc-day-item__main--clickable" tabindex="0" [title]="getModuleHoverDetails(mod)"
             (click)="openModule(mod)" (keydown.enter)="openModule(mod)">
             <div class="mc-day-item__title">{{ mod.title }}</div>
-            <div class="mc-day-item__sub">{{ mod.level }} · {{ mod.language || 'German' }}</div>
+            <div class="mc-day-item__sub">{{ mod.level }} · {{ mod.language || 'Nemački' }}</div>
             <div class="mc-day-item__hover-hint">{{ getModuleHoverDetails(mod) }}</div>
           </div>
           <div class="mc-day-item__status" [class.done]="gluckExamDgDone(mod)" [class.pending]="!gluckExamDgDone(mod)">
-            {{ gluckExamDgDone(mod) ? 'Completed' : 'Pending' }}
+            {{ gluckExamDgDone(mod) ? 'Završeno' : 'Na čekanju' }}
           </div>
           <button type="button" class="mc-day-item__btn" [class.mc-day-item__btn--open]="gluckExamDgDone(mod)"
             [class.mc-day-item__btn--start]="!gluckExamDgDone(mod)" (click)="openModule(mod)">
             <span class="material-icons">{{ gluckExamDgDone(mod) ? 'launch' : 'play_arrow' }}</span>
-            {{ gluckExamDgDone(mod) ? 'Open' : 'Start' }}
+            {{ gluckExamDgDone(mod) ? 'Otvori' : 'Počni' }}
           </button>
         </div>
         <div class="mc-day-item" *ngFor="let mod of selectedDayExamSprechen">
           <div class="mc-day-item__main mc-day-item__main--clickable" tabindex="0" (click)="openSprechenExamModule(mod)"
             (keydown.enter)="openSprechenExamModule(mod)">
             <div class="mc-day-item__title">{{ mod.title }}</div>
-            <div class="mc-day-item__sub">{{ mod.level }} · Pass {{ mod.passThreshold || 10 }}/15</div>
+            <div class="mc-day-item__sub">{{ mod.level }} · Prolaz {{ mod.passThreshold || 10 }}/15</div>
           </div>
           <div class="mc-day-item__status" [class.done]="gluckExamSprechenDone(mod)"
             [class.pending]="!gluckExamSprechenDone(mod)">
-            {{ gluckExamSprechenDone(mod) ? 'Completed' : 'Pending' }}
+            {{ gluckExamSprechenDone(mod) ? 'Završeno' : 'Na čekanju' }}
           </div>
           <button type="button" class="mc-day-item__btn" [class.mc-day-item__btn--open]="gluckExamSprechenDone(mod)"
             [class.mc-day-item__btn--start]="!gluckExamSprechenDone(mod)" (click)="openSprechenExamModule(mod)">
             <span class="material-icons">{{ gluckExamSprechenDone(mod) ? 'replay' : 'play_arrow' }}</span>
-            {{ gluckExamSprechenDone(mod) ? 'Attempt again' : 'Start' }}
+            {{ gluckExamSprechenDone(mod) ? 'Pokušaj ponovo' : 'Počni' }}
           </button>
         </div>
       </div>
 
       <div class="mc-day-section mc-day-section-card mc-day-section-card--modules" *ngIf="selectedDayModules.length">
         <div class="mc-day-section__head">
-          <h4>Modules</h4>
+          <h4>Moduli</h4>
           <span class="mc-day-section__count">{{ selectedDayModules.length }}</span>
         </div>
         <div class="mc-day-item" *ngFor="let mod of selectedDayModules">
           <div class="mc-day-item__main mc-day-item__main--clickable" tabindex="0" [title]="getModuleHoverDetails(mod)"
             (click)="openModule(mod)" (keydown.enter)="openModule(mod)">
             <div class="mc-day-item__title">{{ mod.title }}</div>
-            <div class="mc-day-item__sub">{{ mod.level }} · {{ mod.language || 'German' }}</div>
+            <div class="mc-day-item__sub">{{ mod.level }} · {{ mod.language || 'Nemački' }}</div>
             <div class="mc-day-item__hover-hint">{{ getModuleHoverDetails(mod) }}</div>
           </div>
           <div class="mc-day-item__status" [class.done]="gluckExamDgDone(mod)" [class.pending]="!gluckExamDgDone(mod)">
-            {{ gluckExamDgDone(mod) ? 'Completed' : 'Pending' }}
+            {{ gluckExamDgDone(mod) ? 'Završeno' : 'Na čekanju' }}
           </div>
           <button type="button" class="mc-day-item__btn" [class.mc-day-item__btn--start]="!gluckExamDgDone(mod)"
             [class.mc-day-item__btn--open]="gluckExamDgDone(mod)" (click)="openModule(mod)">
             <span class="material-icons">{{ gluckExamDgDone(mod) ? 'launch' : 'play_arrow' }}</span>
-            {{ gluckExamDgDone(mod) ? 'Open' : 'Start' }}
+            {{ gluckExamDgDone(mod) ? 'Otvori' : 'Počni' }}
           </button>
         </div>
       </div>
@@ -662,16 +662,16 @@
           <h4><span class="material-icons mc-day-section__head-icon">sports_esports</span> GlückArena</h4>
           <span class="mc-day-section__count" *ngIf="selectedDayGameSets.length">{{ selectedDayGameSets.length }}</span>
           <button type="button" class="mc-day-section__browse-btn" (click)="navigateToArena()">
-            Browse all <span class="material-icons">arrow_forward</span>
+            Pregledaj sve <span class="material-icons">arrow_forward</span>
           </button>
         </div>
-        <p class="mc-day-section__intro">German game modules for journey day {{ selectedJourneyDay }} — play to earn XP.</p>
+        <p class="mc-day-section__intro">Nemačke igre za dan putovanja {{ selectedJourneyDay }} — igrajte za XP.</p>
         <ng-container *ngIf="!selectedDayGameSets.length">
-          <p class="mc-jc-empty mc-jc-empty--tight">No GlückArena games are assigned to day {{ selectedJourneyDay }} yet.</p>
+          <p class="mc-jc-empty mc-jc-empty--tight">Nema GlückArena igara dodeljenih za dan {{ selectedJourneyDay }} još.</p>
           <div class="mc-arena-browse-cta">
             <button type="button" class="mc-arena-browse-cta__btn" (click)="navigateToArena()">
               <span class="material-icons">sports_esports</span>
-              Go to GlückArena
+              Idi na GlückArena
             </button>
           </div>
         </ng-container>
@@ -686,12 +686,12 @@
             <div class="mc-day-item__hover-hint">{{ getGameSetHoverDetails(game) }}</div>
           </div>
           <div class="mc-day-item__status" [class.done]="gameSetDone(game)" [class.pending]="!gameSetDone(game)">
-            {{ gameSetDone(game) ? 'Completed' : 'Pending' }}
+            {{ gameSetDone(game) ? 'Završeno' : 'Na čekanju' }}
           </div>
           <button type="button" class="mc-day-item__btn" [class.mc-day-item__btn--start]="!gameSetDone(game)"
             [class.mc-day-item__btn--retry]="gameSetDone(game)" (click)="openGameSet(game)">
             <span class="material-icons">{{ gameSetDone(game) ? 'replay' : 'play_arrow' }}</span>{{ gameSetDone(game) ?
-            'Play again' : 'Play' }}
+            'Igraj ponovo' : 'Igraj' }}
           </button>
         </div>
       </div>
@@ -701,39 +701,39 @@
       <div class="mc-day-section mc-day-section-card mc-day-section-card--talkbuddy">
         <div class="mc-day-section__head">
           <h4>{{ gluckBuddySectionLabel }}</h4>
-          <span class="mc-day-section__count mc-day-section__count--muted">Day {{ selectedJourneyDay }}</span>
+          <span class="mc-day-section__count mc-day-section__count--muted">Dan {{ selectedJourneyDay }}</span>
         </div>
-        <p class="mc-day-section__intro">Speaking role-play for this journey day (Completed / Pending / New).</p>
+        <p class="mc-day-section__intro">Govorna igra uloga za ovaj dan putovanja (Završeno / Na čekanju / Novo).</p>
         <app-gluck-buddy-hub [journeyFixedDay]="selectedJourneyDay" [hideEmbeddedHeader]="true"></app-gluck-buddy-hub>
       </div>
     </div>
 
     <div class="mc-journey-classes mc-day-section-card mc-day-section-card--classes">
       <div class="mc-journey-classes__head">
-        <h4>Live Classes</h4>
+        <h4>Časovi uživo</h4>
         <p>
-          Day {{ selectedJourneyDay }} classes:
-          {{ selectedDayUpcomingClasses.length }} upcoming,
-          {{ selectedDayLiveClasses.length }} live,
-          {{ selectedDayAttemptedClasses.length }} attempted
+          Dan {{ selectedJourneyDay }} časovi:
+          {{ selectedDayUpcomingClasses.length }} predstojeći,
+          {{ selectedDayLiveClasses.length }} uživo,
+          {{ selectedDayAttemptedClasses.length }} pokušano
         </p>
       </div>
       <div class="mc-jc-empty" *ngIf="!selectedDayAllClasses.length">
-        No classes for Day {{ selectedJourneyDay }}.
+        Nema časova za Dan {{ selectedJourneyDay }}.
       </div>
 
       <div class="mc-jc-table-wrap" *ngIf="selectedDayAllClasses.length">
         <table class="mc-jc-table">
           <thead>
             <tr>
-              <th>Class Title</th>
-              <th>Teacher</th>
-              <th>Date</th>
-              <th>Timing</th>
-              <th>Duration</th>
+              <th>Naziv časa</th>
+              <th>Nastavnik</th>
+              <th>Datum</th>
+              <th>Vreme</th>
+              <th>Trajanje</th>
               <th>Status</th>
-              <th>Action</th>
-              <th>Progress</th>
+              <th>Akcija</th>
+              <th>Napredak</th>
             </tr>
           </thead>
           <tbody>
@@ -746,9 +746,9 @@
               <td>
                 <span class="mc-jc-status" [class.live]="meeting.isOngoing"
                   [class.upcoming]="!meeting.isOngoing && !meeting.hasEnded"
-                  [class.done]="meeting.hasEnded && getMeetingAttendanceStatus(meeting) === 'Attended'"
-                  [class.warn]="meeting.hasEnded && getMeetingAttendanceStatus(meeting) === 'Not Attended'"
-                  [class.missed]="meeting.hasEnded && getMeetingAttendanceStatus(meeting) === 'Missed'">
+                  [class.done]="meeting.hasEnded && getMeetingAttendanceStatus(meeting) === 'Prisustvovao'"
+                  [class.warn]="meeting.hasEnded && getMeetingAttendanceStatus(meeting) === 'Nije prisustvovao'"
+                  [class.missed]="meeting.hasEnded && getMeetingAttendanceStatus(meeting) === 'Propustio'">
                   {{ meeting.hasEnded ? getMeetingAttendanceStatus(meeting) : getMeetingStateLabel(meeting) }}
                 </span>
               </td>
@@ -758,8 +758,8 @@
                   (click)="joinSelectedDayMeeting(meeting)">
                   {{
                   meeting.hasEnded
-                  ? 'Completed'
-                  : (meeting.canJoin ? (meeting.isOngoing ? 'Join Now' : 'Join') : getMeetingTimeUntilStart(meeting))
+                  ? 'Završeno'
+                  : (meeting.canJoin ? (meeting.isOngoing ? 'Pridruži se odmah' : 'Pridruži se') : getMeetingTimeUntilStart(meeting))
                   }}
                 </button>
               </td>
@@ -779,10 +779,10 @@
 
     <div class="mc-journey-recordings mc-day-section-card" *ngIf="isGoBatchStudent">
       <div class="mc-journey-recordings__head">
-        <h4>Class recordings</h4>
+        <h4>Snimci časova</h4>
         <p>
-          Lesson recordings for <strong>Day {{ selectedJourneyDay }}</strong> (same list as My class, filtered by
-          journey day).
+          Snimci lekcija za <strong>Dan {{ selectedJourneyDay }}</strong> (ista lista kao Moj čas, filtrirano po
+          danu putovanja).
         </p>
       </div>
       <app-student-recordings [embedded]="true" [courseDayFilter]="selectedJourneyDay" />
@@ -792,23 +792,23 @@
   <div class="mc-classes-layout" *ngIf="tabVisited.has('gluck-exam')" [hidden]="activeTab !== 'gluck-exam'" role="tabpanel">
     <div class="mc-classes-layout__main">
       <div class="mc-panel">
-        <div class="tab-row" role="tablist" aria-label="Gluck Exam type">
+        <div class="tab-row" role="tablist" aria-label="Vrsta Glück ispita">
           <button type="button" role="tab" class="tab-btn tab-btn--badged"
             [class.active]="gluckExamSubTab === 'weekly-test'"
             [attr.aria-selected]="gluckExamSubTab === 'weekly-test'" (click)="setGluckExamSubTab('weekly-test')">
-            Weekly Test
-            <span class="mc-tab-pending-badge" *ngIf="gluckExamWeeklyHasPending" aria-label="Pending weekly test">1</span>
+            Nedeljni test
+            <span class="mc-tab-pending-badge" *ngIf="gluckExamWeeklyHasPending" aria-label="Nedeljni test na čekanju">1</span>
           </button>
           <button type="button" role="tab" class="tab-btn tab-btn--badged" [class.active]="gluckExamSubTab === 'exams'"
             [attr.aria-selected]="gluckExamSubTab === 'exams'" (click)="setGluckExamSubTab('exams')">
-            Internal Exam
-            <span class="mc-tab-pending-badge" *ngIf="gluckExamInternalHasPending" aria-label="Pending internal exam">1</span>
+            Interni ispit
+            <span class="mc-tab-pending-badge" *ngIf="gluckExamInternalHasPending" aria-label="Interni ispit na čekanju">1</span>
           </button>
         </div>
 
         <div class="mc-gl-exam-body">
           <div class="mc-jc-empty" *ngIf="gluckExamLoading">
-            Loading Gluck Exam items…
+            Učitavanje stavki Gluck ispita…
           </div>
           <div class="mc-jc-empty" *ngIf="!gluckExamLoading && gluckExamLoadError">
             {{ gluckExamLoadError }}
@@ -819,9 +819,9 @@
             <div class="mc-day-section mc-day-section-card mc-day-section-card--exercises"
               *ngIf="(gluckExamSubTab === 'weekly-test' ? gluckExamWeeklyExercises.length : gluckExamExamExercises.length)">
               <div class="mc-day-section__head">
-                <h4>Digital exercises</h4>
+                <h4>Digitalne vežbe</h4>
                 <span class="mc-day-section__count mc-day-section__count--pending"
-                  *ngIf="gluckExamExercisesSectionHasPending()" aria-label="Pending exercises">1</span>
+                  *ngIf="gluckExamExercisesSectionHasPending()" aria-label="Vežbe na čekanju">1</span>
                 <span class="mc-day-section__count" *ngIf="!gluckExamExercisesSectionHasPending()">
                   {{ gluckExamSubTab === 'weekly-test' ? gluckExamWeeklyExercises.length : gluckExamExamExercises.length
                   }}
@@ -837,13 +837,13 @@
                 </div>
                 <div class="mc-day-item__status" [class.done]="gluckExamExerciseDone(ex)"
                   [class.pending]="!gluckExamExerciseDone(ex)">
-                  {{ gluckExamExerciseDone(ex) ? 'Completed' : 'Pending' }}
+                  {{ gluckExamExerciseDone(ex) ? 'Završeno' : 'Na čekanju' }}
                 </div>
                 <button type="button" class="mc-day-item__btn"
                   [class.mc-day-item__btn--start]="!gluckExamExerciseDone(ex)"
                   [class.mc-day-item__btn--retry]="gluckExamExerciseDone(ex)" (click)="openExercise(ex)">
                   <span class="material-icons">{{ gluckExamExerciseDone(ex) ? 'replay' : 'play_arrow' }}</span>
-                  {{ gluckExamExerciseDone(ex) ? 'Re-attempt' : 'Start' }}
+                  {{ gluckExamExerciseDone(ex) ? 'Ponovi' : 'Počni' }}
                 </button>
               </div>
             </div>
@@ -852,9 +852,9 @@
             <div class="mc-day-section mc-day-section-card mc-day-section-card--talkbuddy"
               *ngIf="(gluckExamSubTab === 'weekly-test' ? gluckExamWeeklyDgModules.length : gluckExamExamDgModules.length)">
               <div class="mc-day-section__head">
-                <h4>{{ gluckBuddySectionLabel }} modules</h4>
+                <h4>{{ gluckBuddySectionLabel }} moduli</h4>
                 <span class="mc-day-section__count mc-day-section__count--pending"
-                  *ngIf="gluckExamDgSectionHasPending()" aria-label="Pending modules">1</span>
+                  *ngIf="gluckExamDgSectionHasPending()" aria-label="Moduli na čekanju">1</span>
                 <span class="mc-day-section__count" *ngIf="!gluckExamDgSectionHasPending()">
                   {{ gluckExamSubTab === 'weekly-test' ? gluckExamWeeklyDgModules.length : gluckExamExamDgModules.length
                   }}
@@ -865,17 +865,17 @@
                 <div class="mc-day-item__main mc-day-item__main--clickable" tabindex="0"
                   [title]="getModuleHoverDetails(mod)" (click)="openModule(mod)" (keydown.enter)="openModule(mod)">
                   <div class="mc-day-item__title">{{ mod.title }}</div>
-                  <div class="mc-day-item__sub">{{ mod.level }} · {{ mod.language || 'German' }}</div>
+                  <div class="mc-day-item__sub">{{ mod.level }} · {{ mod.language || 'Nemački' }}</div>
                   <div class="mc-day-item__hover-hint">{{ getModuleHoverDetails(mod) }}</div>
                 </div>
                 <div class="mc-day-item__status" [class.done]="gluckExamDgDone(mod)"
                   [class.pending]="!gluckExamDgDone(mod)">
-                  {{ gluckExamDgDone(mod) ? 'Completed' : 'Pending' }}
+                  {{ gluckExamDgDone(mod) ? 'Završeno' : 'Na čekanju' }}
                 </div>
                 <button type="button" class="mc-day-item__btn" [class.mc-day-item__btn--open]="gluckExamDgDone(mod)"
                   [class.mc-day-item__btn--start]="!gluckExamDgDone(mod)" (click)="openModule(mod)">
                   <span class="material-icons">{{ gluckExamDgDone(mod) ? 'launch' : 'play_arrow' }}</span>
-                  {{ gluckExamDgDone(mod) ? 'Open' : 'Start' }}
+                  {{ gluckExamDgDone(mod) ? 'Otvori' : 'Počni' }}
                 </button>
               </div>
             </div>
@@ -884,9 +884,9 @@
             <div class="mc-day-section mc-day-section-card mc-day-section-card--modules"
               *ngIf="(gluckExamSubTab === 'weekly-test' ? gluckExamWeeklySprechen.length : gluckExamExamSprechen.length)">
               <div class="mc-day-section__head">
-                <h4>Sprechen exam</h4>
+                <h4>Sprechen ispit</h4>
                 <span class="mc-day-section__count mc-day-section__count--pending"
-                  *ngIf="gluckExamSprechenSectionHasPending()" aria-label="Pending sprechen exam">1</span>
+                  *ngIf="gluckExamSprechenSectionHasPending()" aria-label="Sprechen ispit na čekanju">1</span>
                 <span class="mc-day-section__count" *ngIf="!gluckExamSprechenSectionHasPending()">
                   {{ gluckExamSubTab === 'weekly-test' ? gluckExamWeeklySprechen.length : gluckExamExamSprechen.length
                   }}
@@ -897,17 +897,17 @@
                 <div class="mc-day-item__main mc-day-item__main--clickable" tabindex="0"
                   (click)="openSprechenExamModule(mod)" (keydown.enter)="openSprechenExamModule(mod)">
                   <div class="mc-day-item__title">{{ mod.title }}</div>
-                  <div class="mc-day-item__sub">{{ mod.level }} · Pass {{ mod.passThreshold || 10 }}/15</div>
+                  <div class="mc-day-item__sub">{{ mod.level }} · Prolaz {{ mod.passThreshold || 10 }}/15</div>
                 </div>
                 <div class="mc-day-item__status" [class.done]="gluckExamSprechenDone(mod)"
                   [class.pending]="!gluckExamSprechenDone(mod)">
-                  {{ gluckExamSprechenDone(mod) ? 'Completed' : 'Pending' }}
+                  {{ gluckExamSprechenDone(mod) ? 'Završeno' : 'Na čekanju' }}
                 </div>
                 <button type="button" class="mc-day-item__btn"
                   [class.mc-day-item__btn--open]="gluckExamSprechenDone(mod)"
                   [class.mc-day-item__btn--start]="!gluckExamSprechenDone(mod)" (click)="openSprechenExamModule(mod)">
                   <span class="material-icons">{{ gluckExamSprechenDone(mod) ? 'replay' : 'play_arrow' }}</span>
-                  {{ gluckExamSprechenDone(mod) ? 'Attempt again' : 'Start' }}
+                  {{ gluckExamSprechenDone(mod) ? 'Pokušaj ponovo' : 'Počni' }}
                 </button>
               </div>
             </div>
@@ -917,7 +917,7 @@
               ? (gluckExamWeeklyExercises.length + gluckExamWeeklyDgModules.length + gluckExamWeeklySprechen.length) === 0
               : (gluckExamExamExercises.length + gluckExamExamDgModules.length + gluckExamExamSprechen.length) === 0
           ">
-              Nothing assigned here yet.
+              Još ništa nije dodeljeno ovde.
             </div>
           </ng-container>
         </div>
@@ -927,7 +927,7 @@
     <aside class="mc-classes-layout__aside" aria-label="Exam scores">
       <!-- Last exam card -->
       <div class="mc-side-card mc-side-card--exam-last">
-        <p class="mc-side-card__eyebrow">Last exam</p>
+        <p class="mc-side-card__eyebrow">Poslednji ispit</p>
         <ng-container *ngIf="gluckExamLastItem as last; else noLastExam">
           <ng-container [ngSwitch]="last.type">
             <ng-container *ngSwitchCase="'sprechen'">
@@ -939,7 +939,7 @@
                 </div>
                 <div class="mc-exam-score__info">
                   <span class="mc-exam-score__pass" [class.pass]="last.scores?.passed" [class.fail]="!last.scores?.passed">
-                    {{ last.scores?.passed ? 'Passed' : 'Failed' }}
+                    {{ last.scores?.passed ? 'Položeno' : 'Palo' }}
                   </span>
                   <span class="mc-exam-score__module">{{ last.moduleTitle }}</span>
                 </div>
@@ -961,7 +961,7 @@
                   <span class="mc-exam-score__pass"
                     [class.pass]="last.passed"
                     [class.fail]="!last.passed">
-                    {{ last.passed ? 'Passed' : 'Failed' }}
+                    {{ last.passed ? 'Položeno' : 'Palo' }}
                   </span>
                   <span class="mc-exam-score__module">{{ last.title }}</span>
                 </div>
@@ -973,7 +973,7 @@
                   <span class="material-icons" style="font-size:24px">check_circle</span>
                 </div>
                 <div class="mc-exam-score__info">
-                  <span class="mc-exam-score__pass pass">Completed</span>
+                  <span class="mc-exam-score__pass pass">Završeno</span>
                   <span class="mc-exam-score__module">{{ last.title }}</span>
                 </div>
               </div>
@@ -981,60 +981,60 @@
           </ng-container>
         </ng-container>
         <ng-template #noLastExam>
-          <p class="mc-side-card__muted">No exams taken yet.</p>
+          <p class="mc-side-card__muted">Još nisu polagani ispiti.</p>
         </ng-template>
       </div>
 
       <!-- Overall analytics card -->
       <div class="mc-side-card mc-side-card--exam-ov">
-        <p class="mc-side-card__eyebrow">Overall</p>
+        <p class="mc-side-card__eyebrow">Ukupno</p>
         <ng-container *ngIf="gluckExamOverallAggregate as agg; else noExams">
           <div class="mc-exam-ov">
             <div class="mc-exam-ov__stat">
-              <span class="mc-exam-ov__label">Given</span>
+              <span class="mc-exam-ov__label">Dato</span>
               <strong class="mc-exam-ov__value">{{ agg.total }}</strong>
             </div>
             <div class="mc-exam-ov__stat">
-              <span class="mc-exam-ov__label">Completed</span>
+              <span class="mc-exam-ov__label">Završeno</span>
               <strong class="mc-exam-ov__value">{{ agg.completed }}</strong>
             </div>
             <div class="mc-exam-ov__stat">
-              <span class="mc-exam-ov__label">Missed</span>
+              <span class="mc-exam-ov__label">Propušteno</span>
               <strong class="mc-exam-ov__value">{{ agg.missed }}</strong>
             </div>
             <div class="mc-exam-ov__stat">
-              <span class="mc-exam-ov__label">Passed</span>
+              <span class="mc-exam-ov__label">Položeno</span>
               <strong class="mc-exam-ov__value">{{ agg.passed }}</strong>
             </div>
             <div class="mc-exam-ov__stat">
-              <span class="mc-exam-ov__label">Avg score</span>
+              <span class="mc-exam-ov__label">Prosečan rezultat</span>
               <strong class="mc-exam-ov__value">{{ agg.avgTotal }}/15</strong>
             </div>
             <div class="mc-exam-ov__stat">
-              <span class="mc-exam-ov__label">Best score</span>
+              <span class="mc-exam-ov__label">Najbolji rezultat</span>
               <strong class="mc-exam-ov__value">{{ agg.bestTotal }}/15</strong>
             </div>
           </div>
         </ng-container>
         <ng-template #noExams>
-          <p class="mc-side-card__muted">No exam data yet.</p>
+          <p class="mc-side-card__muted">Još nema podataka o ispitima.</p>
         </ng-template>
       </div>
 
       <!-- Previous exams list -->
       <ng-container *ngIf="gluckExamSummary?.sessions as sessions">
         <div class="mc-side-card mc-side-card--exam-list" *ngIf="sessions.length">
-          <p class="mc-side-card__eyebrow">History</p>
+          <p class="mc-side-card__eyebrow">Istorija</p>
           <div class="mc-exam-history">
             <div class="mc-exam-history__item" *ngFor="let s of sessions">
               <div class="mc-exam-history__main">
                 <span class="mc-exam-history__title">{{ s.moduleTitle }}</span>
-                <span class="mc-exam-history__day" *ngIf="s.courseDay != null">Day {{ s.courseDay }}</span>
+                <span class="mc-exam-history__day" *ngIf="s.courseDay != null">Dan {{ s.courseDay }}</span>
               </div>
               <div class="mc-exam-history__side">
                 <span class="mc-exam-history__score">{{ s.scores.total }}/15</span>
                 <span class="mc-exam-history__badge" [class.pass]="s.scores.passed" [class.fail]="!s.scores.passed">
-                  {{ s.scores.passed ? 'Passed' : 'Failed' }}
+                  {{ s.scores.passed ? 'Položeno' : 'Palo' }}
                 </span>
     </div>
   </div>
@@ -1056,7 +1056,7 @@
 <!-- Streak popup overlay -->
 <div class="sc-overlay" *ngIf="showStreakPopup" (click)="closeStreakPopup()">
   <div class="sc" (click)="$event.stopPropagation()">
-    <button class="sc-close" (click)="closeStreakPopup()" aria-label="Close">
+    <button class="sc-close" (click)="closeStreakPopup()" aria-label="Zatvori">
       <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
         <path d="M15 5L5 15M5 5l10 10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
       </svg>
@@ -1069,7 +1069,7 @@
     </div>
 
     <div class="sc-streak-num">{{ loginStreakData?.currentStreak }}</div>
-    <div class="sc-streak-label">Day Streak</div>
+    <div class="sc-streak-label">Dnevni niz</div>
 
     <div class="sc-week">
       <div class="sc-day" *ngFor="let d of streakDayLabels; let i = index"
@@ -1087,7 +1087,7 @@
     <div class="sc-trophies">
       <span class="sc-trophy-icon">🏆</span>
       <span class="sc-trophy-count">{{ loginStreakData?.totalTrophies }}</span>
-      <span class="sc-trophy-text">Trophies</span>
+      <span class="sc-trophy-text">Trofeje</span>
     </div>
 
     <div class="sc-reward" *ngIf="loginStreakData?.weeklyRewardTier">
@@ -1098,7 +1098,7 @@
 </div>
 
 <ng-template #mcLoading>
-  <div class="mc mc--skeleton" aria-busy="true" aria-label="Loading course">
+  <div class="mc mc--skeleton" aria-busy="true" aria-label="Učitavanje kursa">
     <!-- Hero skeleton (matches mc-hero layout) -->
     <div class="mc-sk-hero">
       <div class="mc-sk-hero__text">
@@ -1141,23 +1141,23 @@
       </div>
     </div>
 
-    <p class="mc-sk-hint">Loading your course…</p>
+    <p class="mc-sk-hint">Učitavanje kursa…</p>
   </div>
 </ng-template>
 
 <!-- ── Day Completion Modal ─────────────────────────────────────────────── -->
 <div class="mc-completion-overlay" *ngIf="showDayCompletionModal" (click)="closeDayCompletionModal()" role="dialog"
-  aria-modal="true" [attr.aria-label]="'Day ' + journeyCourseDay + ' incomplete tasks'">
+  aria-modal="true" [attr.aria-label]="'Dan ' + journeyCourseDay + ' — nedovršeni zadaci'">
   <div class="mc-completion-modal" (click)="$event.stopPropagation()">
     <div class="mc-completion-modal__head">
       <div class="mc-completion-modal__title-wrap">
         <span class="material-icons mc-completion-modal__title-icon">assignment_late</span>
         <h3 class="mc-completion-modal__title">
-          Day {{ journeyCourseDay }} — {{ dayCompletionModalHasIncomplete ? 'Still to do' : 'All done' }}
+          Dan {{ journeyCourseDay }} — {{ dayCompletionModalHasIncomplete ? 'Još treba uraditi' : 'Sve završeno' }}
         </h3>
       </div>
       <button type="button" class="mc-completion-modal__close" (click)="closeDayCompletionModal()"
-        aria-label="Close">&#10005;</button>
+        aria-label="Zatvori">&#10005;</button>
     </div>
 
     <div class="mc-completion-modal__body">
@@ -1174,7 +1174,7 @@
           </div>
           <button type="button" class="mc-completion-item__btn"
             (click)="setTab('exercises'); closeDayCompletionModal()">
-            <span class="material-icons">play_arrow</span> Open Exercises
+            <span class="material-icons">play_arrow</span> Otvorite vežbe
           </button>
         </div>
       </div>
@@ -1192,7 +1192,7 @@
             </span>
           </div>
           <button type="button" class="mc-completion-item__btn" (click)="openExercise(ex); closeDayCompletionModal()">
-            <span class="material-icons">play_arrow</span> Start
+            <span class="material-icons">play_arrow</span> Počni
           </button>
         </div>
       </div>
@@ -1209,7 +1209,7 @@
           </div>
           <button type="button" class="mc-completion-item__btn"
             (click)="setTab('talk-buddy'); closeDayCompletionModal()">
-            <span class="material-icons">play_arrow</span> Start
+            <span class="material-icons">play_arrow</span> Počni
           </button>
         </div>
       </div>
@@ -1226,7 +1226,7 @@
           </div>
           <button type="button" class="mc-completion-item__btn"
             (click)="setTab('talk-buddy'); closeDayCompletionModal()">
-            <span class="material-icons">play_arrow</span> Start
+            <span class="material-icons">play_arrow</span> Počni
           </button>
         </div>
       </div>
@@ -1245,7 +1245,7 @@
             </span>
           </div>
           <button type="button" class="mc-completion-item__btn" (click)="openGameSet(game); closeDayCompletionModal()">
-            <span class="material-icons">play_arrow</span> Play
+            <span class="material-icons">play_arrow</span> Igraj
           </button>
         </div>
       </div>
@@ -1254,15 +1254,15 @@
       <div class="mc-completion-section"
         *ngIf="isSilverGoStudentFrontend && serverIncompleteRecordings.length && !currentDayIncompleteRecs.length">
         <p class="mc-completion-section__label">
-          <span class="material-icons">videocam</span> Recorded Classes
+          <span class="material-icons">videocam</span> Snimljeni časovi
         </p>
         <div class="mc-completion-item" *ngFor="let r of serverIncompleteRecordings">
           <div class="mc-completion-item__info">
             <span class="mc-completion-item__title">{{ r.title }}</span>
-            <span class="mc-completion-item__sub">Watch at least 90% to complete this day</span>
+            <span class="mc-completion-item__sub">Gledajte najmanje 90% da biste završili ovaj dan</span>
           </div>
           <button type="button" class="mc-completion-item__btn" (click)="closeDayCompletionModal()">
-            <span class="material-icons">play_circle</span> Play
+            <span class="material-icons">play_circle</span> Reprodukuj
           </button>
         </div>
       </div>
@@ -1270,14 +1270,14 @@
       <!-- Recorded Classes -->
       <div class="mc-completion-section" *ngIf="currentDayIncompleteRecs.length">
         <p class="mc-completion-section__label">
-          <span class="material-icons">videocam</span> Recorded Classes
+          <span class="material-icons">videocam</span> Snimljeni časovi
         </p>
         <div class="mc-completion-item" *ngFor="let r of currentDayIncompleteRecs">
           <div class="mc-completion-item__info">
             <span class="mc-completion-item__title">{{ r.title }}</span>
           </div>
           <button type="button" class="mc-completion-item__btn" (click)="closeDayCompletionModal()">
-            <span class="material-icons">play_circle</span> Play
+            <span class="material-icons">play_circle</span> Reprodukuj
           </button>
         </div>
       </div>
@@ -1285,10 +1285,10 @@
       <!-- Nothing left (edge-case: modal opened but actually done) -->
       <p class="mc-completion-modal__empty"
         *ngIf="!dayCompletionModalHasIncomplete && dayHasTrackableContent">
-        All tasks for Day {{ journeyCourseDay }} are completed!
+        Svi zadaci za Dan {{ journeyCourseDay }} su završeni!
       </p>
       <p class="mc-completion-modal__empty" *ngIf="!dayHasTrackableContent && !dayCompletionLoading">
-        No exercises, Glück Buddy, or recordings are assigned to Day {{ journeyCourseDay }} yet.
+        Nema vežbi, Glück Buddy modula ili snimaka dodeljenih za Dan {{ journeyCourseDay }} još.
       </p>
     </div>
   </div>
@@ -1297,20 +1297,20 @@
 <!-- ── Recording access request — class list modal (center screen) ── -->
 <div class="mc-req-modal-overlay mc-req-modal-overlay--list"
   *ngIf="showRecordingReqPanel && isPlatinumStudent && !recordingReqConfirmTarget" (click)="closeRecordingReqPanel()"
-  role="dialog" aria-modal="true" aria-label="Request recording access for batch classes">
+  role="dialog" aria-modal="true" aria-label="Zatražite pristup snimcima za grupne časove">
   <div class="mc-req-modal mc-req-modal--list" (click)="$event.stopPropagation()">
     <div class="mc-req-modal__header">
       <div>
-        <h4 class="mc-req-modal__title">Request Recording Access</h4>
+        <h4 class="mc-req-modal__title">Zatražite pristup snimcima</h4>
         <p class="mc-req-modal__subtitle" *ngIf="recordingReqQuota">
-          Level <strong>{{ recordingReqQuota.level || levelShortLabel }}</strong> &mdash;
-          <strong>{{ recordingReqQuota.remaining }}</strong> of {{ recordingReqQuota.limit }} requests remaining
+          Nivo <strong>{{ recordingReqQuota.level || levelShortLabel }}</strong> &mdash;
+          <strong>{{ recordingReqQuota.remaining }}</strong> od {{ recordingReqQuota.limit }} zahteva preostalo
           <span *ngIf="!recordingReqLoading && recordingReqTotal">
-            &mdash; {{ recordingReqTotal }} class{{ recordingReqTotal !== 1 ? 'es' : '' }}
+            &mdash; {{ recordingReqTotal }} čas{{ recordingReqTotal !== 1 ? 'ova' : '' }}
           </span>
         </p>
       </div>
-      <button type="button" class="mc-req-modal__close" (click)="closeRecordingReqPanel()" aria-label="Close">
+      <button type="button" class="mc-req-modal__close" (click)="closeRecordingReqPanel()" aria-label="Zatvori">
         <span class="material-icons">close</span>
       </button>
     </div>
@@ -1324,15 +1324,14 @@
       <div class="mc-req-banner mc-req-banner--warn"
         *ngIf="recordingReqQuota && recordingReqQuota.remaining === 0 && !recordingReqLoading">
         <span class="material-icons">info</span>
-        You have used all {{ recordingReqQuota.limit }} recording requests for level {{ recordingReqQuota.level }}
-        (approved or declined).
+        Iskoristili ste svih {{ recordingReqQuota.limit }} zahteva za snimke za nivo {{ recordingReqQuota.level }}
+        (odobreno ili odbijeno).
       </div>
       <div class="mc-req-banner mc-req-banner--info"
         *ngIf="recordingReqQuota && recordingReqQuota.remaining > 0 && recordingReqQuota.slotsAvailable === 0 && !recordingReqLoading">
         <span class="material-icons">info</span>
-        You have {{ recordingReqQuota.pendingCount }} pending request{{ recordingReqQuota.pendingCount !== 1 ? 's' : ''
-        }}.
-        Cancel one to submit another, or wait for admin review.
+        Imate {{ recordingReqQuota.pendingCount }} zahtev{{ recordingReqQuota.pendingCount !== 1 ? 'a' : '' }} na čekanju.
+        Otkazite jedan da biste podneli drugi, ili sačekajte pregled admina.
       </div>
 
       <div class="mc-req-banner mc-req-banner--error" *ngIf="recordingReqError && !recordingReqLoading">
@@ -1340,15 +1339,15 @@
         {{ recordingReqError }}
       </div>
 
-      <div class="mc-req-list-modal" *ngIf="recordingReqLoading" aria-busy="true" aria-label="Loading classes">
+      <div class="mc-req-list-modal" *ngIf="recordingReqLoading" aria-busy="true" aria-label="Učitavanje časova">
         <table class="mc-req-table mc-req-table--skeleton">
           <thead>
             <tr>
-              <th>Class</th>
-              <th>Date</th>
-              <th>Teacher</th>
-              <th>Attendance</th>
-              <th class="mc-req-table__action-col">Action</th>
+              <th>Čas</th>
+              <th>Datum</th>
+              <th>Nastavnik</th>
+              <th>Prisustvo</th>
+              <th class="mc-req-table__action-col">Akcija</th>
             </tr>
           </thead>
           <tbody>
@@ -1376,19 +1375,19 @@
       </div>
 
       <div class="mc-req-list-modal" *ngIf="!recordingReqLoading && !recordingReqError">
-        <div class="mc-req-empty" *ngIf="!recordingReqClasses.length">
-          <span class="material-icons">event_busy</span>
-          No past classes found for your batch.
-        </div>
+          <div class="mc-req-empty" *ngIf="!recordingReqClasses.length">
+            <span class="material-icons">event_busy</span>
+            Nema prethodnih časova za vašu grupu.
+          </div>
 
         <table class="mc-req-table" *ngIf="recordingReqClasses.length">
           <thead>
             <tr>
-              <th>Class</th>
-              <th>Date</th>
-              <th>Teacher</th>
-              <th>Attendance</th>
-              <th class="mc-req-table__action-col">Action</th>
+              <th>Čas</th>
+              <th>Datum</th>
+              <th>Nastavnik</th>
+              <th>Prisustvo</th>
+              <th class="mc-req-table__action-col">Akcija</th>
             </tr>
           </thead>
           <tbody>
@@ -1399,37 +1398,37 @@
               <td>
                 <span class="mc-req-row__att"
                   [ngClass]="cls.attendanceStatus === 'Attended' ? 'att--attended' : 'att--missed'">
-                  {{ cls.attendanceStatus }}
+                  {{ formatAttendanceLabel(cls.attendanceStatus) }}
                 </span>
               </td>
               <td class="mc-req-table__action-col">
                 <div class="mc-req-table__actions">
                   <span class="mc-req-icon-btn mc-req-icon-btn--status mc-req-icon-btn--ok"
-                    *ngIf="cls.requestStatus === 'APPROVED'" title="Approved"
-                    aria-label="Approved">
+                    *ngIf="cls.requestStatus === 'APPROVED'" title="Odobreno"
+                    aria-label="Odobreno">
                     <span class="material-icons">verified</span>
                   </span>
                   <ng-container *ngIf="cls.requestStatus === 'PENDING'">
                     <span class="mc-req-icon-btn mc-req-icon-btn--status mc-req-icon-btn--pending"
-                      title="Pending review" aria-label="Pending review">
+                      title="Na čekanju pregleda" aria-label="Na čekanju pregleda">
                       <span class="material-icons">schedule</span>
                     </span>
                     <button type="button" class="mc-req-icon-btn mc-req-icon-btn--cancel"
                       *ngIf="cls.canCancel && cls.requestId" (click)="cancelRecordingRequest(cls)"
-                      [disabled]="recordingReqCancellingId === cls.requestId" title="Cancel request"
-                      aria-label="Cancel request">
+                      [disabled]="recordingReqCancellingId === cls.requestId" title="Otkaži zahtev"
+                      aria-label="Otkaži zahtev">
                       <span class="material-icons mc-req-spin"
                         *ngIf="recordingReqCancellingId === cls.requestId">autorenew</span>
                       <span class="material-icons" *ngIf="recordingReqCancellingId !== cls.requestId">undo</span>
                     </button>
                   </ng-container>
                   <button type="button" class="mc-req-icon-btn mc-req-icon-btn--request" *ngIf="cls.canRequest"
-                    (click)="openRecordingReqConfirm(cls)" title="Request access" aria-label="Request access">
+                    (click)="openRecordingReqConfirm(cls)" title="Zatraži pristup" aria-label="Zatraži pristup">
                     <span class="material-icons">playlist_add</span>
                   </button>
                   <span class="mc-req-icon-btn mc-req-icon-btn--status mc-req-icon-btn--muted"
                     *ngIf="cls.requestStatus !== 'APPROVED' && cls.requestStatus !== 'PENDING' && !cls.canRequest"
-                    title="Quota full" aria-label="Quota full">
+                    title="Kvota popunjena" aria-label="Kvota popunjena">
                     <span class="material-icons">block</span>
                   </span>
                 </div>
@@ -1441,14 +1440,14 @@
         <div class="mc-req-pagination" *ngIf="recordingReqTotalPages > 1 && !recordingReqLoading && !recordingReqError">
           <button type="button" class="mc-req-pagination__btn" (click)="goToRecordingReqPage(recordingReqPage - 1)"
             [disabled]="recordingReqPage <= 1 || recordingReqLoading">
-            <span class="material-icons">chevron_left</span> Previous
+            <span class="material-icons">chevron_left</span> Prethodno
           </button>
           <span class="mc-req-pagination__info">
-            Showing {{ recordingReqRangeStart() }}&ndash;{{ recordingReqRangeEnd() }} of {{ recordingReqTotal }}
+            Prikazuje {{ recordingReqRangeStart() }}&ndash;{{ recordingReqRangeEnd() }} od {{ recordingReqTotal }}
           </span>
           <button type="button" class="mc-req-pagination__btn" (click)="goToRecordingReqPage(recordingReqPage + 1)"
             [disabled]="recordingReqPage >= recordingReqTotalPages || recordingReqLoading">
-            Next <span class="material-icons">chevron_right</span>
+            Sledeće <span class="material-icons">chevron_right</span>
           </button>
         </div>
       </div>
@@ -1458,17 +1457,17 @@
 
 <!-- ── Recording access request — confirmation modal ── -->
 <div class="mc-req-modal-overlay mc-req-modal-overlay--confirm" *ngIf="recordingReqConfirmTarget"
-  (click)="closeRecordingReqConfirm()" role="dialog" aria-modal="true" aria-label="Confirm recording request">
+  (click)="closeRecordingReqConfirm()" role="dialog" aria-modal="true" aria-label="Potvrdi zahtev za snimak">
   <div class="mc-req-modal mc-req-modal--confirm" (click)="$event.stopPropagation()">
     <div class="mc-req-modal__header mc-req-modal__header--confirm">
       <div class="mc-req-modal__header-text">
         <span class="mc-req-modal__header-icon material-icons">videocam</span>
         <div>
-          <h4 class="mc-req-modal__title">Confirm request</h4>
-          <p class="mc-req-modal__subtitle">Review the class below before submitting</p>
+          <h4 class="mc-req-modal__title">Potvrdi zahtev</h4>
+          <p class="mc-req-modal__subtitle">Pregledajte čas ispod pre podnošenja</p>
         </div>
       </div>
-      <button type="button" class="mc-req-modal__close" (click)="closeRecordingReqConfirm()" aria-label="Close">
+      <button type="button" class="mc-req-modal__close" (click)="closeRecordingReqConfirm()" aria-label="Zatvori">
         <span class="material-icons">close</span>
       </button>
     </div>
@@ -1489,7 +1488,7 @@
             <span class="material-icons">how_to_reg</span>
             <span
               [ngClass]="recordingReqConfirmTarget.attendanceStatus === 'Attended' ? 'mc-req-confirm-card__att--ok' : 'mc-req-confirm-card__att--no'">
-              {{ recordingReqConfirmTarget.attendanceStatus }}
+              {{ formatAttendanceLabel(recordingReqConfirmTarget.attendanceStatus) }}
             </span>
           </li>
         </ul>
@@ -1497,28 +1496,28 @@
 
       <div class="mc-req-confirm-quota" *ngIf="recordingReqQuota">
         <div class="mc-req-confirm-quota__stat">
-          <span class="mc-req-confirm-quota__label">Request #</span>
+          <span class="mc-req-confirm-quota__label">Zahtev br.</span>
           <span class="mc-req-confirm-quota__value">{{ recordingReqOrdinal(recordingReqQuota.decidedCount +
             recordingReqQuota.pendingCount + 1) }}</span>
         </div>
         <div class="mc-req-confirm-quota__divider"></div>
         <div class="mc-req-confirm-quota__stat">
-          <span class="mc-req-confirm-quota__label">Level</span>
+          <span class="mc-req-confirm-quota__label">Nivo</span>
           <span class="mc-req-confirm-quota__value">{{ recordingReqQuota.level }}</span>
         </div>
         <div class="mc-req-confirm-quota__divider"></div>
         <div class="mc-req-confirm-quota__stat">
-          <span class="mc-req-confirm-quota__label">Slots left</span>
+          <span class="mc-req-confirm-quota__label">Preostala mesta</span>
           <span class="mc-req-confirm-quota__value">
-            {{ recordingReqQuota.remaining }} after review
+            {{ recordingReqQuota.remaining }} nakon pregleda
           </span>
         </div>
       </div>
 
       <p class="mc-req-confirm-note" *ngIf="recordingReqQuota">
-        You can submit up to {{ recordingReqQuota.limit }} recording requests per level.
-        Only approved or declined requests count toward your limit; pending requests can be cancelled.
-        We will notify you by email once your request is reviewed.
+        Možete podneti do {{ recordingReqQuota.limit }} zahteva za snimke po nivou.
+        Samo odobreni ili odbijeni zahtevi se računaju u vaš limit; zahtevi na čekanju mogu biti otkazani.
+        Obavestićemo vas e-mailom kada vaš zahtev bude pregledan.
       </p>
 
       <div class="mc-req-modal__fail" *ngIf="recordingReqFailMsg">
@@ -1529,13 +1528,13 @@
 
     <div class="mc-req-modal__footer mc-req-modal__footer--confirm">
       <button type="button" class="mc-req-modal__btn mc-req-modal__btn--cancel" (click)="closeRecordingReqConfirm()">
-        Cancel
+        Otkaži
       </button>
       <button type="button" class="mc-req-modal__btn mc-req-modal__btn--confirm" [disabled]="recordingReqSubmitting"
         (click)="confirmRecordingRequest()">
         <span class="material-icons mc-req-spin" *ngIf="recordingReqSubmitting">autorenew</span>
         <span class="material-icons" *ngIf="!recordingReqSubmitting">send</span>
-        {{ recordingReqSubmitting ? 'Submitting…' : 'Submit request' }}
+        {{ recordingReqSubmitting ? 'Slanje…' : 'Pošalji zahtev' }}
       </button>
     </div>
   </div>

@@ -4,11 +4,11 @@
   <div class="crm-tabs">
     <button class="crm-tab" [class.crm-tab--active]="activeTab === 'enrollment'" (click)="setTab('enrollment')">
       <span class="material-icons">assignment</span>
-      <span>Enrollment Board</span>
+      <span>Tabla za upis</span>
     </button>
     <button class="crm-tab" [class.crm-tab--active]="activeTab === 'language'" (click)="setTab('language')">
       <span class="material-icons">language</span>
-      <span>Language Team Board</span>
+      <span>Tabla jezičkog tima</span>
     </button>
     <button class="crm-tab" [class.crm-tab--active]="activeTab === 'whatsapp'" (click)="setTab('whatsapp')">
       <span class="material-icons">chat</span>
@@ -28,15 +28,15 @@
         <div class="crm-section-header">
           <span class="material-icons crm-section-icon">chat</span>
           <div>
-            <h2 class="crm-section-title">Send WhatsApp Message</h2>
-            <p class="crm-section-sub">Send a message via the Language Department WhatsApp number</p>
+            <h2 class="crm-section-title">Pošalji WhatsApp poruku</h2>
+            <p class="crm-section-sub">Pošalji poruku putem WhatsApp broja Jezičkog odeljenja</p>
           </div>
         </div>
 
         <div class="crm-wa-notice crm-wa-notice--warn" *ngIf="!waSendEnabled">
           <span class="material-icons">pause_circle</span>
           <div>
-            <strong>Manual WhatsApp sending is disabled</strong>
+            <strong>Ručno slanje WhatsApp poruka je onemogućeno</strong>
             <p>
               Set <code>WHATSAPP_MANUAL_SEND_ENABLED=true</code> in <code>.env</code> and restart <code>node app.js</code> to test sends from this form.
             </p>
@@ -46,7 +46,7 @@
         <div class="crm-wa-notice crm-wa-notice--info" *ngIf="waSendEnabled && !waAutomatedEnabled">
           <span class="material-icons">science</span>
           <div>
-            <strong>Testing mode — manual send only</strong>
+            <strong>Režim testiranja — samo ručno slanje</strong>
             <p>
               You can send from this form. Automated jobs (absence alerts, class reminders) stay <strong>off</strong>
               while <code>WHATSAPP_AUTOMATED_JOBS_ENABLED=false</code>.
@@ -57,7 +57,7 @@
         <div class="crm-wa-notice">
           <span class="material-icons">info</span>
           <div>
-            <strong>How delivery works</strong>
+            <strong>Kako funkcioniše isporuka</strong>
             <p>
               Messages are sent from the <strong>Glück Language Department WhatsApp business number</strong>,
               not from your personal phone. Check WhatsApp for a chat from that business account.
@@ -70,21 +70,21 @@
         <div class="crm-wa-form">
       <div class="crm-form-row">
         <div class="crm-field crm-field--half">
-          <label class="crm-label">Phone Number <span class="crm-required">*</span></label>
+          <label class="crm-label">Broj telefona <span class="crm-required">*</span></label>
           <input class="crm-input" type="tel" [(ngModel)]="wa.phoneNumber"
             placeholder="+94771234567 (E.164 format)" />
-          <small class="crm-hint">Must start with + followed by 7–19 digits</small>
+          <small class="crm-hint">Mora početi sa + a zatim 7–19 cifara</small>
         </div>
         <div class="crm-field crm-field--half">
-          <label class="crm-label">Student ID <span class="crm-optional">(optional)</span></label>
-          <input class="crm-input" type="number" [(ngModel)]="wa.studentId" placeholder="e.g. 12345" />
-          <small class="crm-hint">CRM student ID for audit logging</small>
+          <label class="crm-label">ID studenta <span class="crm-optional">(opciono)</span></label>
+          <input class="crm-input" type="number" [(ngModel)]="wa.studentId" placeholder="npr. 12345" />
+          <small class="crm-hint">CRM ID studenta za evidenciju</small>
         </div>
       </div>
 
       <div class="crm-form-row">
         <div class="crm-field crm-field--half">
-          <label class="crm-label">Department</label>
+          <label class="crm-label">Odeljenje</label>
           <select class="crm-select" [(ngModel)]="wa.department">
             <option value="Language">Language</option>
             <option value="Sales">Sales</option>
@@ -92,7 +92,7 @@
           </select>
         </div>
         <div class="crm-field crm-field--half">
-          <label class="crm-label">Character count</label>
+          <label class="crm-label">Broj karaktera</label>
           <div class="crm-char-count">
             <span [class.crm-char-warn]="wa.message.length > 3800">{{ wa.message.length }}</span> / 4096
           </div>
@@ -100,9 +100,9 @@
       </div>
 
       <div class="crm-field">
-        <label class="crm-label">Message <span class="crm-required">*</span></label>
+        <label class="crm-label">Poruka <span class="crm-required">*</span></label>
         <textarea class="crm-textarea" [(ngModel)]="wa.message"
-          placeholder="Type your message here…" rows="6" maxlength="4096"></textarea>
+          placeholder="Ukucajte poruku ovde…" rows="6" maxlength="4096"></textarea>
       </div>
 
       <!-- Result banner -->
@@ -143,7 +143,7 @@
           (click)="sendWhatsApp()">
           <span class="material-icons" *ngIf="!waSending">send</span>
           <span class="crm-spinner" *ngIf="waSending"></span>
-          {{ waSending ? 'Sending…' : 'Send Message' }}
+          {{ waSending ? 'Slanje…' : 'Pošalji poruku' }}
         </button>
       </div>
         </div>
@@ -153,8 +153,8 @@
         <div class="crm-wa-automations__header">
           <span class="material-icons">auto_awesome</span>
           <div>
-            <h3 class="crm-wa-automations__title">Automated reminders</h3>
-            <p class="crm-wa-automations__sub">Student messages sent on a schedule (Asia/Colombo)</p>
+            <h3 class="crm-wa-automations__title">Automatski podsetnici</h3>
+            <p class="crm-wa-automations__sub">Studentske poruke šalju se po rasporedu (Asia/Colombo)</p>
           </div>
         </div>
 
@@ -162,7 +162,7 @@
           [class.crm-wa-automations__status--on]="waAutomatedEnabled"
           [class.crm-wa-automations__status--off]="!waAutomatedEnabled">
           <span class="material-icons">{{ waAutomatedEnabled ? 'check_circle' : 'pause_circle' }}</span>
-          <span>{{ waAutomatedEnabled ? 'WhatsApp automations active' : 'WhatsApp automations paused' }}</span>
+          <span>{{ waAutomatedEnabled ? 'WhatsApp automatizacije aktivne' : 'WhatsApp automatizacije pauzirane' }}</span>
         </div>
 
         <div class="crm-wa-auto-list">
@@ -205,11 +205,11 @@
 
                 <div class="crm-batch-picker" *ngIf="openBatchPicker === item.automationType">
                   <div class="crm-batch-picker__header">
-                    <span class="crm-batch-picker__title">Target batches</span>
+                    <span class="crm-batch-picker__title">Ciljne grupe</span>
                     <div class="crm-batch-picker__actions">
-                      <button class="crm-batch-picker__link" (click)="selectAllBatches(item.automationType)">All</button>
+                      <button class="crm-batch-picker__link" (click)="selectAllBatches(item.automationType)">Sve</button>
                       <span class="crm-batch-picker__sep">·</span>
-                      <button class="crm-batch-picker__link" (click)="clearAllBatches(item.automationType)">None</button>
+                      <button class="crm-batch-picker__link" (click)="clearAllBatches(item.automationType)">Ništa</button>
                     </div>
                   </div>
                   <div class="crm-batch-picker__list">
@@ -225,9 +225,9 @@
                       [disabled]="getBatchSetting(item.automationType).saving"
                       (click)="saveBatchSettings(item.automationType)">
                       <span class="crm-spinner crm-spinner--sm" *ngIf="getBatchSetting(item.automationType).saving"></span>
-                      {{ getBatchSetting(item.automationType).saving ? 'Saving…' : 'Save' }}
+                      {{ getBatchSetting(item.automationType).saving ? 'Čuvanje…' : 'Sačuvaj' }}
                     </button>
-                    <button class="crm-btn crm-btn--ghost crm-btn--xs" (click)="closeBatchPicker()">Cancel</button>
+                    <button class="crm-btn crm-btn--ghost crm-btn--xs" (click)="closeBatchPicker()">Otkaži</button>
                   </div>
                 </div>
               </div>
@@ -251,9 +251,9 @@
         <span class="crm-dash-header__dot"></span>
         <div>
           <h2 class="crm-dash-header__title">
-            {{ board.type === 'enrollment' ? 'Enrollment Board' : 'Language Team Board' }}
+            {{ board.type === 'enrollment' ? 'Tabla za upis' : 'Tabla jezičkog tima' }}
           </h2>
-          <span class="crm-dash-header__sub">CRM live data · external database</span>
+          <span class="crm-dash-header__sub">CRM uživo podaci · eksterna baza podataka</span>
         </div>
       </div>
       <div class="crm-board-actions">
@@ -262,28 +262,28 @@
           [class.crm-btn--active]="salesDashboard.show"
           (click)="openSalesDashboard(board)"
           [disabled]="board.loading || salesDashboard.loading"
-          title="Counsellor enrollment activity (green / yellow / red)">
+          title="Aktivnost savetnika za upis (zeleno / žuto / crveno)">
           <span class="material-icons">trending_up</span>
-          Sales Dashboard
+          Prodajni izveštaj
         </button>
         <button class="crm-btn crm-btn--outline crm-btn--sm"
           [class.crm-btn--active]="board.showSimpleFilter"
           (click)="board.showSimpleFilter = !board.showSimpleFilter">
           <span class="material-icons">filter_list</span>
-          Filters
+          Filteri
           <span class="crm-filter-badge" *ngIf="getActiveFilterCount(board) > 0">{{ getActiveFilterCount(board) }}</span>
         </button>
         <button class="crm-btn crm-btn--outline crm-btn--sm"
           [class.crm-btn--active]="board.showAdvanced"
           (click)="toggleAdvanced(board)">
-          <span class="material-icons">tune</span> Advanced
+          <span class="material-icons">tune</span> Napredno
         </button>
         <button class="crm-btn crm-btn--compare crm-btn--sm"
           (click)="runPortalCompare(board)"
           [disabled]="board.loading || compare.loading"
-          title="Find CRM students not in the portal (matched by email)">
+          title="Pronađi CRM studente koji nisu u portalu (podudaranje po emailu)">
           <span class="material-icons">compare_arrows</span>
-          Compare
+          Uporedi
         </button>
         <button class="crm-btn crm-btn--ghost crm-btn--sm" (click)="refreshBoard(board)" [disabled]="board.loading">
           <span class="material-icons">refresh</span>
@@ -304,10 +304,10 @@
         <div class="crm-sales-panel__title">
           <span class="material-icons">trending_up</span>
           <div>
-            <strong>Sales Dashboard</strong>
+            <strong>Prodajni izveštaj</strong>
             <span class="crm-sales-panel__sub">
-              Counsellors by last enrollment date —
-              green last 3 days · yellow next 3 days · red older / none
+              Savetnici po datumu poslednjeg upisa —
+              zeleno poslednja 3 dana · žuto sledeća 3 dana · crveno starije / nema
             </span>
           </div>
         </div>
@@ -316,42 +316,42 @@
             [class.crm-btn--active]="salesWatchPickerOpen"
             (click)="toggleSalesWatchPicker()"
             [disabled]="salesDashboard.loading"
-            title="Choose which counsellors appear on the cards">
+            title="Odaberite koje savetnike prikazati na karticama">
             <span class="material-icons">group</span>
-            Counsellors
+            Savetnici
           </button>
           <button class="crm-btn crm-btn--outline crm-btn--sm"
             (click)="saveSalesDashboardImage()"
             [disabled]="salesDashboard.loading || salesImageSaving || salesChatSending"
-            title="Download dashboard cards as PNG image">
+            title="Preuzmi kartice kao PNG sliku">
             <span class="material-icons">image</span>
-            {{ salesImageSaving ? 'Saving…' : 'Save' }}
+            {{ salesImageSaving ? 'Čuvanje…' : 'Sačuvaj' }}
           </button>
           <button class="crm-btn crm-btn--outline crm-btn--sm"
             (click)="triggerSalesDashboardChat('morning', board)"
             [disabled]="salesDashboard.loading || salesImageSaving || salesChatSending"
-            title="Fetch CRM and send 10 AM weekly report to Google Chat">
+            title="Uzmi CRM podatke i pošalji izveštaj u 10:00 na Google Chat">
             <span class="material-icons">schedule</span>
-            {{ salesChatSending && salesChatTriggerPeriod === 'morning' ? 'Sending…' : '10 AM' }}
+            {{ salesChatSending && salesChatTriggerPeriod === 'morning' ? 'Slanje…' : '10:00' }}
           </button>
           <button class="crm-btn crm-btn--outline crm-btn--sm"
             (click)="triggerSalesDashboardChat('evening', board)"
             [disabled]="salesDashboard.loading || salesImageSaving || salesChatSending"
-            title="Fetch CRM and send 6 PM weekly report to Google Chat">
+            title="Uzmi CRM podatke i pošalji izveštaj u 18:00 na Google Chat">
             <span class="material-icons">nights_stay</span>
-            {{ salesChatSending && salesChatTriggerPeriod === 'evening' ? 'Sending…' : '6 PM' }}
+            {{ salesChatSending && salesChatTriggerPeriod === 'evening' ? 'Slanje…' : '18:00' }}
           </button>
           <button class="crm-btn crm-btn--outline crm-btn--sm"
             (click)="sendSalesDashboardToChat()"
             [disabled]="salesDashboard.loading || salesImageSaving || salesChatSending"
-            title="Send current dashboard snapshot (browser capture) to Google Chat">
+            title="Pošalji trenutni snimak izveštaja na Google Chat">
             <span class="material-icons">send</span>
-            {{ salesChatSending && !salesChatTriggerPeriod ? 'Sending…' : 'Send' }}
+            {{ salesChatSending && !salesChatTriggerPeriod ? 'Slanje…' : 'Pošalji' }}
           </button>
           <button class="crm-btn crm-btn--outline crm-btn--sm"
             (click)="openSalesDashboard(board)"
             [disabled]="salesDashboard.loading"
-            title="Refresh">
+            title="Osveži">
             <span class="material-icons">refresh</span>
           </button>
           <button class="crm-btn crm-btn--ghost crm-btn--sm" (click)="closeSalesDashboard()">
@@ -362,7 +362,7 @@
 
       <div class="crm-sales-panel__loading" *ngIf="salesDashboard.loading">
         <span class="crm-spinner crm-spinner--sm"></span>
-        Scanning enrollments for your saved counsellors…
+        Skeniranje upisa za sačuvane savetnike…
       </div>
 
       <div class="crm-sales-panel__error" *ngIf="!salesDashboard.loading && salesDashboard.error">
@@ -375,21 +375,21 @@
         <div class="crm-sales-watch" *ngIf="salesWatchPickerOpen">
           <div class="crm-sales-watch__head">
             <div>
-              <strong>Select counsellors</strong>
-              <span>Checked names are saved and used every time you open Sales Dashboard.</span>
+              <strong>Izaberite savetnike</strong>
+              <span>Označena imena se čuvaju i koriste svaki put kada otvorite Prodajni izveštaj.</span>
             </div>
-            <span class="crm-sales-watch__count">{{ salesWatchDraft.length }} selected</span>
+            <span class="crm-sales-watch__count">{{ salesWatchDraft.length }} izabrano</span>
           </div>
 
           <div class="crm-sales-watch__toolbar">
             <input class="crm-input crm-input--sm" type="search"
               [(ngModel)]="salesWatchFilter"
-              placeholder="Search counsellor…" />
+              placeholder="Pretraži savetnika…" />
             <button type="button" class="crm-btn crm-btn--ghost crm-btn--xs" (click)="selectAllVisibleCounsellors()">
-              Select visible
+              Izaberi vidljive
             </button>
             <button type="button" class="crm-btn crm-btn--ghost crm-btn--xs" (click)="clearWatchDraft()">
-              Clear
+              Očisti
             </button>
           </div>
 
@@ -403,7 +403,7 @@
               <span>{{ name }}</span>
             </label>
             <p class="crm-sales-watch__empty" *ngIf="filteredAvailableCounsellors.length === 0">
-              No counsellors match this search.
+              Nema savetnika koji odgovaraju pretrazi.
             </p>
           </div>
 
@@ -411,13 +411,13 @@
             <span class="crm-sales-watch__msg" *ngIf="salesWatchSaveMsg">{{ salesWatchSaveMsg }}</span>
             <button type="button" class="crm-btn crm-btn--ghost crm-btn--sm"
               (click)="salesWatchPickerOpen = false">
-              Cancel
+              Otkaži
             </button>
             <button type="button" class="crm-btn crm-btn--primary crm-btn--sm"
               (click)="saveSalesWatchlist(board)"
               [disabled]="salesWatchSaving">
               <span class="material-icons">save</span>
-              {{ salesWatchSaving ? 'Saving…' : 'Save & apply' }}
+              {{ salesWatchSaving ? 'Čuvanje…' : 'Sačuvaj i primeni' }}
             </button>
           </div>
         </div>
@@ -428,14 +428,14 @@
         <div #salesDashboardCapture class="crm-sales-capture">
         <div class="crm-sales-summary">
           <div class="crm-sales-summary__left">
-            <strong>Counsellor Performance Dashboard</strong>
+            <strong>Izveštaj o učinku savetnika</strong>
             <strong class="crm-sales-report-label" *ngIf="salesDashboard.reportWindow?.reportText">
               {{ salesDashboard.reportWindow?.reportText }}
             </strong>
             <span>
               {{ salesGeneratedLabel() || 'Live' }}
-              · {{ salesDashboard.totals.enrollmentsScanned | number }} Enrollments This Week
-              · {{ salesDashboard.totals.counsellors }} watched
+              · {{ salesDashboard.totals.enrollmentsScanned | number }} Upisa ove nedelje
+              · {{ salesDashboard.totals.counsellors }} praćeno
             </span>
           </div>
         </div>
@@ -445,7 +445,7 @@
           <section class="crm-perf crm-perf--green">
             <header class="crm-perf__banner">
               <div class="crm-perf__banner-main">
-                <h3>Excellence In Action</h3>
+                <h3>Izvrsnost u akciji</h3>
               </div>
               <div class="crm-perf__metric">
                 <span class="crm-perf__num">{{ salesDashboard.green.length }}</span>
@@ -460,9 +460,9 @@
               <table class="crm-perf-table" *ngIf="salesDashboard.green.length > 0; else emptyGreen">
                 <thead>
                   <tr>
-                    <th>Name</th>
-                    <th>Last</th>
-                    <th>Enrolled</th>
+                    <th>Ime</th>
+                    <th>Poslednji</th>
+                    <th>Upisano</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -480,7 +480,7 @@
                 </tbody>
               </table>
               <ng-template #emptyGreen>
-                <p class="crm-perf__empty">None in this bucket</p>
+                <p class="crm-perf__empty">Nema u ovoj kategoriji</p>
               </ng-template>
             </div>
           </section>
@@ -489,7 +489,7 @@
           <section class="crm-perf crm-perf--yellow">
             <header class="crm-perf__banner">
               <div class="crm-perf__banner-main">
-                <h3>Nurturing Required</h3>
+                <h3>Potrebno negovanje</h3>
               </div>
               <div class="crm-perf__metric">
                 <span class="crm-perf__num">{{ salesDashboard.yellow.length }}</span>
@@ -504,9 +504,9 @@
               <table class="crm-perf-table" *ngIf="salesDashboard.yellow.length > 0; else emptyYellow">
                 <thead>
                   <tr>
-                    <th>Name</th>
-                    <th>Last</th>
-                    <th>Enrolled</th>
+                    <th>Ime</th>
+                    <th>Poslednji</th>
+                    <th>Upisano</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -524,7 +524,7 @@
                 </tbody>
               </table>
               <ng-template #emptyYellow>
-                <p class="crm-perf__empty">None in this bucket</p>
+                <p class="crm-perf__empty">Nema u ovoj kategoriji</p>
               </ng-template>
             </div>
           </section>
@@ -533,7 +533,7 @@
           <section class="crm-perf crm-perf--red">
             <header class="crm-perf__banner">
               <div class="crm-perf__banner-main">
-                <h3>Critical Engagement</h3>
+                <h3>Kritični angažman</h3>
               </div>
               <div class="crm-perf__metric">
                 <span class="crm-perf__num">{{ salesDashboard.red.length }}</span>
@@ -548,9 +548,9 @@
               <table class="crm-perf-table" *ngIf="salesDashboard.red.length > 0; else emptyRed">
                 <thead>
                   <tr>
-                    <th>Name</th>
-                    <th>Risk</th>
-                    <th>Enrolled</th>
+                    <th>Ime</th>
+                    <th>Rizik</th>
+                    <th>Upisano</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -561,7 +561,7 @@
                         [class.crm-perf-risk--delayed]="c.riskType === 'Delayed'"
                         [class.crm-perf-risk--none]="c.riskType !== 'Delayed'">
                         <span class="material-icons">{{ c.riskType === 'Delayed' ? 'warning' : 'cancel' }}</span>
-                        {{ c.daysSince != null ? salesDaysLabel(c.daysSince) : (c.riskType || 'No activity') }}
+                        {{ c.daysSince != null ? salesDaysLabel(c.daysSince) : (c.riskType || 'Nema aktivnosti') }}
                       </span>
                     </td>
                     <td class="crm-perf-table__date">{{ formatSalesEnrollmentDate(c.lastEnrollment) }}</td>
@@ -569,7 +569,7 @@
                 </tbody>
               </table>
               <ng-template #emptyRed>
-                <p class="crm-perf__empty">None in this bucket</p>
+                <p class="crm-perf__empty">Nema u ovoj kategoriji</p>
               </ng-template>
             </div>
           </section>
@@ -584,10 +584,10 @@
         <div class="crm-compare-panel__title">
           <span class="material-icons">compare_arrows</span>
           <div>
-            <strong>CRM vs Portal</strong>
+            <strong>CRM nasuprot Portalu</strong>
             <span class="crm-compare-panel__sub">
-              Unique CRM students (by email) not found in the portal
-              <span *ngIf="getActiveFilterCount(board) > 0"> — using current filters</span>
+              Jedinstveni CRM studenti (po emailu) koji nisu pronađeni u portalu
+              <span *ngIf="getActiveFilterCount(board) > 0"> — koriste se trenutni filteri</span>
             </span>
           </div>
         </div>
@@ -597,7 +597,7 @@
             [disabled]="compareBulkInviting || compareInviteSending.size > 0"
             (click)="sendAllCompareSignupInvites()">
             <span class="material-icons">mail</span>
-            {{ compareBulkInviting ? 'Sending invites…' : 'Send signup to all (' + getCompareInviteTargets().length + ')' }}
+            {{ compareBulkInviting ? 'Slanje pozivnica…' : 'Pošalji pozivnicu svima (' + getCompareInviteTargets().length + ')' }}
           </button>
           <button class="crm-btn crm-btn--outline crm-btn--sm"
             *ngIf="!compare.loading && compare.missing.length > 0"
@@ -612,7 +612,7 @@
 
       <div class="crm-compare-panel__loading" *ngIf="compare.loading">
         <span class="crm-spinner"></span>
-        Loading all CRM records and comparing with portal students…
+        Učitavanje svih CRM zapisa i poređenje sa studentima u portalu…
       </div>
 
       <div class="crm-compare-panel__error" *ngIf="!compare.loading && compare.error">
@@ -624,26 +624,26 @@
         <div class="crm-compare-kpis">
           <div class="crm-compare-kpi">
             <span class="crm-compare-kpi__val">{{ compare.crmTotal | number }}</span>
-            <span class="crm-compare-kpi__lbl">On CRM board (unique)</span>
+            <span class="crm-compare-kpi__lbl">Na CRM tabli (jedinstveno)</span>
           </div>
           <div class="crm-compare-kpi crm-compare-kpi--ok">
             <span class="crm-compare-kpi__val">{{ compare.matchedInPortal | number }}</span>
-            <span class="crm-compare-kpi__lbl">In portal</span>
+            <span class="crm-compare-kpi__lbl">U portalu</span>
           </div>
           <div class="crm-compare-kpi crm-compare-kpi--warn">
             <span class="crm-compare-kpi__val">{{ compare.missingFromPortal | number }}</span>
-            <span class="crm-compare-kpi__lbl">Missing from portal</span>
+            <span class="crm-compare-kpi__lbl">Nedostaje u portalu</span>
           </div>
           <div class="crm-compare-kpi">
             <span class="crm-compare-kpi__val">{{ compare.portalTotal | number }}</span>
-            <span class="crm-compare-kpi__lbl">Portal students total</span>
+            <span class="crm-compare-kpi__lbl">Ukupno studenata u portalu</span>
           </div>
         </div>
 
         <p class="crm-compare-note" *ngIf="compare.crmDuplicatesSkipped > 0">
           <span class="material-icons">info</span>
-          {{ compare.crmDuplicatesSkipped | number }} duplicate CRM row(s) with the same email were merged
-          ({{ compare.crmRawTotal | number }} raw records → {{ compare.crmTotal | number }} unique).
+          {{ compare.crmDuplicatesSkipped | number }} duplikat(a) CRM redova sa istim emailom je spojeno
+          ({{ compare.crmRawTotal | number }} sirovih zapisa → {{ compare.crmTotal | number }} jedinstvenih).
         </p>
 
         <p class="crm-compare-note crm-compare-note--success" *ngIf="compareInviteBanner">
@@ -653,26 +653,26 @@
 
         <p class="crm-compare-note" *ngIf="compare.missingNoEmail > 0">
           <span class="material-icons">info</span>
-          {{ compare.missingNoEmail }} CRM record(s) have no email — listed below and cannot be matched automatically.
+          {{ compare.missingNoEmail }} CRM zapis(a) nema email — navedeni ispod i ne mogu se automatski podudariti.
         </p>
 
         <div class="crm-compare-empty" *ngIf="compare.missing.length === 0">
           <span class="material-icons">check_circle</span>
-          All CRM board students with an email appear to exist in the portal.
+          Svi studenti na CRM tabli sa emailom su pronađeni u portalu.
         </div>
 
         <div class="crm-compare-table-wrap" *ngIf="compare.missing.length > 0">
           <table class="crm-table crm-compare-table">
             <thead>
               <tr>
-                <th>Name</th>
+                <th>Ime</th>
                 <th>Email</th>
-                <th>Phone</th>
+                <th>Telefon</th>
                 <th>Status</th>
-                <th>Package</th>
-                <th>Enrolled</th>
-                <th>Counsellor</th>
-                <th>Action</th>
+                <th>Paket</th>
+                <th>Upisano</th>
+                <th>Savetnik</th>
+                <th>Akcija</th>
               </tr>
             </thead>
             <tbody>
@@ -701,15 +701,15 @@
                       *ngIf="!isCompareInviteSent(row.email)"
                       [disabled]="isCompareInviteSending(row.email) || compareBulkInviting"
                       (click)="sendCompareSignupInvite(row)"
-                      title="Send registration invite via email and WhatsApp">
+                      title="Pošalji pozivnicu za registraciju putem emaila i WhatsAppa">
                       <span class="material-icons">send</span>
-                      {{ isCompareInviteSending(row.email) ? 'Sending…' : 'Send signup' }}
+                      {{ isCompareInviteSending(row.email) ? 'Slanje…' : 'Pošalji pozivnicu' }}
                     </button>
                     <span class="crm-compare-sent" *ngIf="isCompareInviteSent(row.email)">
-                      <span class="material-icons">check</span> Sent
+                      <span class="material-icons">check</span> Poslato
                     </span>
                   </ng-container>
-                  <span class="crm-compare-muted" *ngIf="!row.email?.includes('@')">No email</span>
+                  <span class="crm-compare-muted" *ngIf="!row.email?.includes('@')">Nema emaila</span>
                 </td>
               </tr>
             </tbody>
@@ -724,28 +724,28 @@
         <span class="material-icons crm-kpi__icon">groups</span>
         <div class="crm-kpi__body">
           <span class="crm-kpi__val">{{ board.total | number }}</span>
-          <span class="crm-kpi__lbl">Total Matching</span>
+          <span class="crm-kpi__lbl">Ukupno pronađenih</span>
         </div>
       </div>
       <div class="crm-kpi crm-kpi--teal">
         <span class="material-icons crm-kpi__icon">view_list</span>
         <div class="crm-kpi__body">
           <span class="crm-kpi__val">{{ board.items.length | number }}</span>
-          <span class="crm-kpi__lbl">On This Page</span>
+          <span class="crm-kpi__lbl">Na ovoj strani</span>
         </div>
       </div>
       <div class="crm-kpi crm-kpi--purple">
         <span class="material-icons crm-kpi__icon">filter_alt</span>
         <div class="crm-kpi__body">
           <span class="crm-kpi__val">{{ getActiveFilterCount(board) }}</span>
-          <span class="crm-kpi__lbl">Active Filters</span>
+          <span class="crm-kpi__lbl">Aktivni filteri</span>
         </div>
       </div>
       <div class="crm-kpi crm-kpi--orange">
         <span class="material-icons crm-kpi__icon">layers</span>
         <div class="crm-kpi__body">
           <span class="crm-kpi__val">{{ board.page }} / {{ board.totalPages }}</span>
-          <span class="crm-kpi__lbl">Current Page</span>
+          <span class="crm-kpi__lbl">Trenutna strana</span>
         </div>
       </div>
     </div>
@@ -757,7 +757,7 @@
 
     <!-- Quick status filters -->
     <div class="crm-quick-status" *ngIf="!board.loading && board.mode === 'list'">
-      <span class="crm-quick-status__label">Quick status:</span>
+      <span class="crm-quick-status__label">Brzi status:</span>
       <button *ngFor="let status of getQuickStatuses(board)"
         class="crm-status-chip"
         [class.crm-status-chip--active]="isQuickStatusActive(board, status)"
@@ -769,7 +769,7 @@
 
     <!-- Page status breakdown -->
     <div class="crm-page-stats" *ngIf="!board.loading && board.mode === 'list' && board.items.length > 0">
-      <span class="crm-page-stats__label">This page breakdown:</span>
+      <span class="crm-page-stats__label">Pregled ove strane:</span>
       <span class="crm-page-stat" *ngFor="let s of getPageStatusCounts(board); trackBy: trackByStatus">
         <span class="crm-badge crm-badge--sm" [ngClass]="getStatusClass(s.status)">{{ s.status }}</span>
         <strong>{{ s.count }}</strong>
@@ -778,7 +778,7 @@
 
     <!-- Active filter tags -->
     <div class="crm-active-filters" *ngIf="getActiveFilterTags(board).length > 0">
-      <span class="crm-active-filters__label">Applied:</span>
+      <span class="crm-active-filters__label">Primenjeno:</span>
       <button class="crm-filter-tag" *ngFor="let tag of getActiveFilterTags(board)"
         (click)="removeFilterTag(board, tag.key)" title="Click to remove">
         <span class="crm-filter-tag__label">{{ tag.label }}:</span>
@@ -786,7 +786,7 @@
         <span class="material-icons">close</span>
       </button>
       <button class="crm-btn crm-btn--ghost crm-btn--sm" (click)="clearAllFilters(board)">
-        Clear all
+        Očisti sve
       </button>
     </div>
 
@@ -794,26 +794,26 @@
     <div class="crm-filter-panel" *ngIf="board.showSimpleFilter">
       <div class="crm-filter-panel__title">
         <span class="material-icons">search</span>
-        Search &amp; filter students
+        Pretraži i filtriraj studente
       </div>
       <div class="crm-filter-grid">
         <div class="crm-field crm-field--wide">
-          <label class="crm-label">Search</label>
+          <label class="crm-label">Pretraga</label>
           <div class="crm-input-icon">
             <span class="material-icons crm-input-icon__icon">search</span>
             <input class="crm-input crm-input--icon" type="text" [(ngModel)]="board.simpleQ"
-              placeholder="Name, email or phone…"
+              placeholder="Ime, email ili telefon…"
               (keyup.enter)="runSimpleSearch(board)" />
           </div>
         </div>
 
         <div class="crm-field">
-          <label class="crm-label">Date From</label>
+          <label class="crm-label">Datum od</label>
           <input class="crm-input" type="date" [(ngModel)]="board.simpleDateFrom" />
         </div>
 
         <div class="crm-field">
-          <label class="crm-label">Date To</label>
+          <label class="crm-label">Datum do</label>
           <input class="crm-input" type="date" [(ngModel)]="board.simpleDateTo" />
         </div>
 
@@ -821,17 +821,17 @@
           <div class="crm-field">
             <label class="crm-label">Status</label>
             <input class="crm-input" type="text" [(ngModel)]="board.simpleFilters['studentStatus']"
-              placeholder="e.g. Ongoing" />
+              placeholder="npr. Ongoing" />
           </div>
           <div class="crm-field">
-            <label class="crm-label">Batch</label>
+            <label class="crm-label">Grupa</label>
             <input class="crm-input" type="text" [(ngModel)]="board.simpleFilters['intake']"
-              placeholder="e.g. Batch 35" />
+              placeholder="npr. Batch 35" />
           </div>
           <div class="crm-field">
-            <label class="crm-label">Counsellor</label>
+            <label class="crm-label">Savetnik</label>
             <input class="crm-input" type="text" [(ngModel)]="board.simpleFilters['counsellor']"
-              placeholder="Counsellor name" />
+              placeholder="Ime savetnika" />
           </div>
         </ng-container>
 
@@ -839,27 +839,27 @@
           <div class="crm-field">
             <label class="crm-label">Status</label>
             <input class="crm-input" type="text" [(ngModel)]="board.simpleFilters['status']"
-              placeholder="e.g. Ongoing" />
+              placeholder="npr. Ongoing" />
           </div>
           <div class="crm-field">
-            <label class="crm-label">Batch</label>
+            <label class="crm-label">Grupa</label>
             <input class="crm-input" type="text" [(ngModel)]="board.simpleFilters['intake']"
-              placeholder="e.g. Batch 35" />
+              placeholder="npr. Batch 35" />
           </div>
           <div class="crm-field">
-            <label class="crm-label">Assignee</label>
+            <label class="crm-label">Zaduženi</label>
             <input class="crm-input" type="text" [(ngModel)]="board.simpleFilters['assignedStaff']"
-              placeholder="Language team member" />
+              placeholder="Član jezičkog tima" />
           </div>
         </ng-container>
       </div>
 
       <div class="crm-filter-actions">
         <button class="crm-btn crm-btn--primary crm-btn--sm" (click)="runSimpleSearch(board)">
-          <span class="material-icons">search</span> Apply filters
+          <span class="material-icons">search</span> Primeni filtere
         </button>
         <button class="crm-btn crm-btn--ghost crm-btn--sm" (click)="clearSimpleFilters(board)">
-          <span class="material-icons">clear</span> Reset
+          <span class="material-icons">clear</span> Resetuj
         </button>
       </div>
     </div>
@@ -868,21 +868,21 @@
     <div class="crm-advanced-panel" *ngIf="board.showAdvanced">
       <div class="crm-advanced-header">
         <div class="crm-adv-logic">
-          <span class="crm-adv-logic__label">Match</span>
+          <span class="crm-adv-logic__label">Podudaranje</span>
           <button class="crm-logic-btn" [class.crm-logic-btn--active]="board.filterLogic === 'and'"
-            (click)="board.filterLogic = 'and'">ALL (AND)</button>
+            (click)="board.filterLogic = 'and'">SVE (I)</button>
           <button class="crm-logic-btn" [class.crm-logic-btn--active]="board.filterLogic === 'or'"
-            (click)="board.filterLogic = 'or'">ANY (OR)</button>
-          <span class="crm-adv-logic__label">conditions</span>
+            (click)="board.filterLogic = 'or'">BILO KOJE (ILI)</button>
+          <span class="crm-adv-logic__label">uslova</span>
         </div>
         <button class="crm-btn crm-btn--ghost crm-btn--sm" (click)="addFilterRow(board)">
-          <span class="material-icons">add</span> Add Filter
+          <span class="material-icons">add</span> Dodaj filter
         </button>
       </div>
 
       <!-- Loading fields notice -->
       <div class="crm-adv-loading" *ngIf="!board.fieldsLoaded">
-        <span class="crm-spinner"></span> Loading available fields…
+        <span class="crm-spinner"></span> Učitavanje dostupnih polja…
       </div>
 
       <!-- Filter rows -->
@@ -892,7 +892,7 @@
           <!-- Field selector -->
           <select class="crm-select crm-select--field" [(ngModel)]="row.field"
             (ngModelChange)="onFieldChange(board, row)">
-            <option value="">— Select field —</option>
+            <option value="">— Izaberite polje —</option>
             <option *ngFor="let f of board.fields" [value]="f.key">{{ f.label }}</option>
           </select>
 
@@ -915,7 +915,7 @@
             <ng-container *ngIf="!isDateRelative(row.operator) && row.fieldMeta?.kind === 'text' && row.fieldValues && row.fieldValues.length > 0">
               <select class="crm-select crm-select--val" [(ngModel)]="row.value"
                 *ngIf="!row.isMulti">
-                <option value="">— Select value —</option>
+                <option value="">— Izaberite vrednost —</option>
                 <option *ngFor="let v of row.fieldValues" [value]="v">{{ v }}</option>
               </select>
             </ng-container>
@@ -929,36 +929,36 @@
             <input class="crm-input crm-input--val"
               *ngIf="!isDateRelative(row.operator) && (row.fieldMeta?.kind === 'number' || (!row.fieldValues && row.fieldMeta?.kind === 'text'))"
               [type]="row.fieldMeta?.kind === 'number' ? 'number' : 'text'"
-              [(ngModel)]="row.value" placeholder="Value" />
+              [(ngModel)]="row.value" placeholder="Vrednost" />
             <input class="crm-input crm-input--val"
               *ngIf="!isDateRelative(row.operator) && (row.fieldMeta?.kind === 'date' || row.fieldMeta?.kind === 'datetime')"
               type="date" [(ngModel)]="row.value" />
 
             <!-- Second value for "between" -->
             <ng-container *ngIf="needsSecondValue(row.operator)">
-              <span class="crm-adv-and">and</span>
+              <span class="crm-adv-and">i</span>
               <input class="crm-input crm-input--val"
                 [type]="row.fieldMeta?.kind === 'number' ? 'number' : 'date'"
-                [(ngModel)]="row.value2" placeholder="To value" />
+                [(ngModel)]="row.value2" placeholder="Do vrednosti" />
             </ng-container>
           </ng-container>
 
           <button class="crm-icon-btn crm-icon-btn--danger" (click)="removeFilterRow(board, i)"
-            title="Remove filter">
+            title="Ukloni filter">
             <span class="material-icons">delete_outline</span>
           </button>
         </div>
 
         <div class="crm-adv-empty" *ngIf="board.filterRows.length === 0">
-          No filters added. Click <strong>Add Filter</strong> to start.
+          Nema dodatih filtera. Kliknite <strong>Dodaj filter</strong> za početak.
         </div>
       </div>
 
       <!-- Group By -->
       <div class="crm-groupby" *ngIf="board.fieldsLoaded && board.fields.length > 0">
         <div class="crm-groupby__label">
-          <span class="material-icons">group_work</span> Group By
-          <small>(pick up to 3)</small>
+          <span class="material-icons">group_work</span> Grupiši po
+          <small>(do 3)</small>
         </div>
         <div class="crm-groupby__chips">
           <ng-container *ngFor="let f of board.fields">
@@ -975,10 +975,10 @@
 
       <div class="crm-advanced-actions">
         <button class="crm-btn crm-btn--primary crm-btn--sm" (click)="runAdvancedQuery(board)">
-          <span class="material-icons">play_arrow</span> Run Query
+          <span class="material-icons">play_arrow</span> Pokreni upit
         </button>
         <button class="crm-btn crm-btn--ghost crm-btn--sm" (click)="clearAdvancedFilters(board)">
-          <span class="material-icons">clear_all</span> Clear All
+          <span class="material-icons">clear_all</span> Očisti sve
         </button>
       </div>
     </div>
@@ -987,7 +987,7 @@
     <div class="crm-error" *ngIf="board.error">
       <span class="material-icons">error_outline</span>
       <span>{{ board.error }}</span>
-      <button class="crm-btn crm-btn--ghost crm-btn--sm" (click)="loadBoard(board)">Retry</button>
+      <button class="crm-btn crm-btn--ghost crm-btn--sm" (click)="loadBoard(board)">Pokušaj ponovo</button>
     </div>
 
     <!-- ── Loading ───────────────────────────────────────────── -->
@@ -1006,11 +1006,11 @@
       <div class="crm-table-card">
         <div class="crm-table-toolbar" *ngIf="board.items.length > 0">
           <span class="crm-table-toolbar__info">
-            Showing <strong>{{ getPageRange(board).start }}–{{ getPageRange(board).end }}</strong>
-            of <strong>{{ board.total | number }}</strong> students
+            Prikazano <strong>{{ getPageRange(board).start }}–{{ getPageRange(board).end }}</strong>
+            od <strong>{{ board.total | number }}</strong> studenata
           </span>
           <span class="crm-table-toolbar__meta" *ngIf="getActiveFilterCount(board) > 0">
-            {{ getActiveFilterCount(board) }} filter(s) applied
+            {{ getActiveFilterCount(board) }} filter(a) primenjen(o)
           </span>
         </div>
 
@@ -1048,10 +1048,10 @@
 
         <div class="crm-empty" *ngIf="board.items.length === 0">
           <span class="material-icons">inbox</span>
-          <p>No students found</p>
-          <small>Try adjusting your filters or clear all to see more results</small>
+          <p>Nema pronađenih studenata</p>
+          <small>Pokušajte prilagoditi filtere ili ih očistite sve da vidite više rezultata</small>
           <button class="crm-btn crm-btn--outline crm-btn--sm" *ngIf="getActiveFilterCount(board) > 0"
-            (click)="clearAllFilters(board)">Clear all filters</button>
+            (click)="clearAllFilters(board)">Očisti sve filtere</button>
         </div>
       </div>
 
@@ -1075,7 +1075,7 @@
         </button>
 
         <span class="crm-page-info">
-          Page {{ board.page }} of {{ board.totalPages }} &nbsp;·&nbsp; {{ board.total | number }} total
+          Strana {{ board.page }} od {{ board.totalPages }} &nbsp;·&nbsp; {{ board.total | number }} ukupno
         </span>
       </div>
     </ng-container>
@@ -1084,9 +1084,9 @@
     <ng-container *ngIf="!board.loading && !board.error && board.mode === 'grouped'">
       <div class="crm-grouped-summary">
         <span class="material-icons">group_work</span>
-        Grouped by: <strong>{{ board.groupByFields.join(', ') }}</strong>
-        &nbsp;·&nbsp; {{ board.total | number }} total records
-        &nbsp;·&nbsp; {{ board.groups.length }} groups
+        Grupisano po: <strong>{{ board.groupByFields.join(', ') }}</strong>
+        &nbsp;·&nbsp; {{ board.total | number }} ukupno zapisa
+        &nbsp;·&nbsp; {{ board.groups.length }} grupe
       </div>
 
       <div class="crm-group" *ngFor="let group of board.groups; trackBy: trackByKey">
@@ -1095,9 +1095,9 @@
             {{ isGroupCollapsed(board, group.key) ? 'expand_more' : 'expand_less' }}
           </span>
           <span class="crm-group__title">
-            {{ group.key === '__empty__' ? '(No value)' : group.key }}
+            {{ group.key === '__empty__' ? '(Bez vrednosti)' : group.key }}
           </span>
-          <span class="crm-group__count">{{ group.total | number }} records</span>
+          <span class="crm-group__count">{{ group.total | number }} zapisa</span>
         </button>
 
         <div class="crm-group__body" *ngIf="!isGroupCollapsed(board, group.key)">
@@ -1124,8 +1124,8 @@
               </tbody>
             </table>
             <p class="crm-group__more" *ngIf="group.total > (group.items?.length || 0)">
-              Showing {{ group.items?.length }} of {{ group.total }} in this group.
-              Use advanced filters to narrow down.
+              Prikazano {{ group.items?.length }} od {{ group.total }} u ovoj grupi.
+              Koristite napredne filtere za sužavanje.
             </p>
           </div>
         </div>
@@ -1133,7 +1133,7 @@
 
       <div class="crm-empty" *ngIf="board.groups.length === 0">
         <span class="material-icons">inbox</span>
-        <p>No groups returned</p>
+        <p>Nema vraćenih grupa</p>
       </div>
     </ng-container>
 

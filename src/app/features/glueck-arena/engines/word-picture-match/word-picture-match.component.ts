@@ -42,7 +42,7 @@ interface ImageCard {
           </div>
         </div>
         <div class="wpm__progress">
-          <span>{{ matchedCount }}/{{ totalPairsInRound }} matched</span>
+          <span>{{ matchedCount }}/{{ totalPairsInRound }} upareno</span>
         </div>
         <div class="wpm__timer" [class.wpm__timer--warn]="remainingSeconds <= 15">
           <mat-icon>timer</mat-icon>
@@ -58,7 +58,7 @@ interface ImageCard {
         <div class="wpm__word" [class.wpm__word--enter]="wordAnimState === 'enter'" [class.wpm__word--leave]="wordAnimState === 'leave'">
           <span class="wpm__word-text">{{ formatWord(currentWord) }}</span>
         </div>
-        <p class="wpm__hint">Click the matching picture</p>
+        <p class="wpm__hint">Klikni odgovarajuću sliku</p>
       </div>
 
       <div class="wpm__board" *ngIf="phase === 'playing'" (click)="audio.unlock()">
@@ -76,7 +76,7 @@ interface ImageCard {
       </div>
 
       <div class="wpm__empty" *ngIf="phase === 'playing' && cards.length === 0">
-        <p>Loading images...</p>
+        <p>Učitavanje slika...</p>
       </div>
 
       <app-xp-float [xp]="xpBurst" [trigger]="xpTrigger"></app-xp-float>

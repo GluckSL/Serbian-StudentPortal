@@ -11,7 +11,7 @@ export interface LearningModule {
   title: string;
   description: string;
   targetLanguage: 'English' | 'German';
-  nativeLanguage: 'English' | 'Tamil' | 'Sinhala';
+  nativeLanguage: 'Serbian' | 'English' | 'Tamil' | 'Sinhala';
   level: 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2';
   category: 'Grammar' | 'Vocabulary' | 'Conversation' | 'Reading' | 'Writing' | 'Listening';
   difficulty: 'Beginner' | 'Intermediate' | 'Advanced';
@@ -200,7 +200,7 @@ export class LearningModulesService {
   }
 
   getAvailableNativeLanguages(): string[] {
-    return ['English', 'Tamil', 'Sinhala'];
+    return ['Serbian', 'English', 'Tamil', 'Sinhala'];
   }
 
   markModuleCompleted(moduleId: string, sessionData?: any): Observable<any> {

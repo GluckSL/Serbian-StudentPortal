@@ -68,7 +68,7 @@ export class StudentAssignmentsComponent {
 
   submitAssignment() {
     if (this.selectedFiles.length === 0) {
-      this.error = 'Please select at least one file.';
+      this.error = 'Izaberite bar jednu datoteku.';
       this.message = '';
       return;
     }
@@ -91,7 +91,7 @@ export class StudentAssignmentsComponent {
       .subscribe({
         next: () => {
           this.loading = false;
-          this.message = 'Assignment uploaded successfully.';
+          this.message = 'Zadatak je uspešno otpremljen.';
           this.selectedFiles = [];
           this.title = '';
           this.courseId = '';
@@ -100,7 +100,7 @@ export class StudentAssignmentsComponent {
         },
         error: (err) => {
           this.loading = false;
-          this.error = err.error?.msg || 'Failed to upload assignment.';
+          this.error = err.error?.msg || 'Otpremanje zadatka nije uspelo.';
         },
       });
   }

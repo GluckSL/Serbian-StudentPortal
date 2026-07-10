@@ -54,7 +54,7 @@ async function sendJourneyReminders(studentIds, dayOverride) {
     return { results: [], sent: 0, skipped: 0, failed: 0 };
   }
 
-  const loginUrl = (process.env.FRONTEND_URL || 'https://gluckstudentsportal.com').replace(/\/$/, '');
+  const loginUrl = (process.env.PORTAL_URL || process.env.FRONTEND_URL || 'https://portal.serbia.gluckglobal.com').replace(/\/$/, '');
   const from = process.env.EMAIL_USER;
   const results = [];
   let sent = 0;
@@ -184,7 +184,7 @@ async function sendJourneyWeekReminders(studentIds) {
     return { results: [], sent: 0, skipped: 0, failed: 0 };
   }
 
-  const loginUrl = (process.env.FRONTEND_URL || 'https://gluckstudentsportal.com').replace(/\/$/, '');
+  const loginUrl = (process.env.PORTAL_URL || process.env.FRONTEND_URL || 'https://portal.serbia.gluckglobal.com').replace(/\/$/, '');
   const from = process.env.EMAIL_USER;
   const results = [];
   let sent = 0;

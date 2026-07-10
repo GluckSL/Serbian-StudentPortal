@@ -3,25 +3,25 @@
   <div class="ad-header">
     <div class="ad-header__left">
       <button class="ad-back" type="button" (click)="goBack()">
-        <i class="fa fa-arrow-left"></i> Zoom Reports
+        <i class="fa fa-arrow-left"></i> Zoom izveštaji
       </button>
       <div>
-        <h2 class="ad-header__title">Attendance Dashboard</h2>
-        <p class="ad-header__sub">Completed classes — student attendance scores (e.g. attended 6 of 7) and average %</p>
+        <h2 class="ad-header__title">Kontrolna tabla prisustva</h2>
+        <p class="ad-header__sub">Završeni časovi — rezultati prisustva učenika (npr. prisustvovao 6 od 7) i prosečan %</p>
       </div>
     </div>
     <div class="ad-header__actions">
       <button class="ad-btn ad-btn--ghost" type="button" (click)="loadDashboard()" [disabled]="loading || loadingPage">
-        <i class="fa fa-rotate-right" [class.fa-spin]="loadingPage"></i> Refresh
+        <i class="fa fa-rotate-right" [class.fa-spin]="loadingPage"></i> Osveži
       </button>
       <button class="ad-btn ad-btn--secondary" type="button" (click)="exportMeetingsCsv()" [disabled]="!meetings.length || loading">
-        <i class="fa fa-table"></i> Export Classes
+        <i class="fa fa-table"></i> Izvezi časove
       </button>
       <button class="ad-btn ad-btn--secondary" type="button" (click)="exportStudentsCsv()" [disabled]="!students.length || loading">
-        <i class="fa fa-users"></i> Export Students
+        <i class="fa fa-users"></i> Izvezi učenike
       </button>
       <button class="ad-btn ad-btn--primary" type="button" (click)="exportDetailCsv()" [disabled]="!selectedStudent?.classes?.length">
-        <i class="fa fa-download"></i> Export Student Detail
+        <i class="fa fa-download"></i> Izvezi detalje učenika
       </button>
     </div>
   </div>
@@ -30,23 +30,23 @@
   <div class="ad-stats" *ngIf="!loading; else statsSkeleton">
     <div class="ad-stat ad-stat--blue">
       <div class="ad-stat__val">{{ summary.totalMeetings }}</div>
-      <div class="ad-stat__lbl">Completed Classes</div>
+      <div class="ad-stat__lbl">Završeni časovi</div>
     </div>
     <div class="ad-stat ad-stat--green">
       <div class="ad-stat__val">{{ summary.totalStudents }}</div>
-      <div class="ad-stat__lbl">Students</div>
+      <div class="ad-stat__lbl">Učenici</div>
     </div>
     <div class="ad-stat ad-stat--purple">
       <div class="ad-stat__val">{{ summary.avgAttendanceRate }}%</div>
-      <div class="ad-stat__lbl">Avg Attendance Rate</div>
+      <div class="ad-stat__lbl">Prosečno prisustvo</div>
     </div>
     <div class="ad-stat ad-stat--teal">
       <div class="ad-stat__val">{{ summary.avgStudentScore }}%</div>
-      <div class="ad-stat__lbl">Avg Student Score</div>
+      <div class="ad-stat__lbl">Prosečan rezultat</div>
     </div>
     <div class="ad-stat ad-stat--orange">
       <div class="ad-stat__val">{{ summary.studentsBelow75 }}</div>
-      <div class="ad-stat__lbl">Below 75%</div>
+      <div class="ad-stat__lbl">Ispod 75%</div>
     </div>
   </div>
   <ng-template #statsSkeleton>
@@ -60,20 +60,20 @@
 
   <div class="ad-filters-wrap">
     <div class="ad-filters-head">
-      <span class="ad-filters-title">Filters</span>
-      <button class="ad-btn-clear" type="button" (click)="clearFilters()">Clear</button>
+      <span class="ad-filters-title">Filteri</span>
+      <button class="ad-btn-clear" type="button" (click)="clearFilters()">Obriši</button>
     </div>
     <div class="ad-filters">
       <input class="ad-input ad-input--search" type="text"
-             placeholder="Search class topic, teacher, batch…"
+             placeholder="Pretraži temu časa, nastavnika, grupu…"
              [(ngModel)]="searchQuery" (ngModelChange)="onSearchChange()">
 
       <input class="ad-input ad-input--search" type="text"
-             placeholder="Search student name or email…"
+             placeholder="Pretraži ime ili e-mail učenika…"
              [(ngModel)]="studentSearch" (ngModelChange)="onStudentSearchChange()">
 
       <select class="ad-select" [(ngModel)]="teacherFilter" (ngModelChange)="onFilterChange()" *ngIf="!isTeacherRole">
-        <option value="all">All Teachers</option>
+        <option value="all">Svi nastavnici</option>
         <option *ngFor="let t of teacherOptions" [value]="t">{{ t }}</option>
       </select>
 
@@ -88,7 +88,7 @@
         <div class="ad-multi-select__panel" *ngIf="batchDropdownOpen">
           <label class="ad-multi-select__item ad-multi-select__item--all">
             <input type="checkbox" [checked]="allBatchesSelected" (change)="selectAllBatches($event)">
-            <span>All Batches</span>
+            <span>Sve grupe</span>
           </label>
           <div class="ad-multi-select__divider"></div>
           <label class="ad-multi-select__item" *ngFor="let b of journeyBatchNames">
@@ -99,30 +99,30 @@
       </div>
 
       <select class="ad-select" [(ngModel)]="dateFilter" (ngModelChange)="onFilterChange()">
-        <option value="all">All Time</option>
-        <option value="today">Today</option>
-        <option value="week">Last 7 Days</option>
-        <option value="month">Last 30 Days</option>
-        <option value="custom">Custom Range</option>
+        <option value="all">Sve vreme</option>
+        <option value="today">Danas</option>
+        <option value="week">Poslejednjih 7 dana</option>
+        <option value="month">Poslejednjih 30 dana</option>
+        <option value="custom">Prilagođeni period</option>
       </select>
 
       <select class="ad-select" [(ngModel)]="scoreFilter" (ngModelChange)="onScoreFilterChange()">
-        <option value="all">All Scores</option>
-        <option value="below75">Below 75%</option>
-        <option value="above75">75% and above</option>
+        <option value="all">Svi rezultati</option>
+        <option value="below75">Ispod 75%</option>
+        <option value="above75">75% i više</option>
       </select>
 
       <select class="ad-select" [(ngModel)]="levelFilter" (ngModelChange)="onFilterChange()">
-        <option value="all">All Levels</option>
+        <option value="all">Svi nivoi</option>
         <option *ngFor="let l of levelOptions" [value]="l">{{ l }}</option>
       </select>
 
       <select class="ad-select" [(ngModel)]="statusFilter" (ngModelChange)="onFilterChange()">
-        <option value="ONGOING">Ongoing</option>
-        <option value="UNCERTAIN">Uncertain</option>
-        <option value="COMPLETED">Completed</option>
-        <option value="WITHDREW">Withdrew</option>
-        <option value="all">All Statuses</option>
+        <option value="ONGOING">U toku</option>
+        <option value="UNCERTAIN">Neizvesno</option>
+        <option value="COMPLETED">Završeno</option>
+        <option value="WITHDREW">Povukao se</option>
+        <option value="all">Svi statusi</option>
       </select>
 
       <ng-container *ngIf="dateFilter === 'custom'">
@@ -134,24 +134,24 @@
 
   <div class="ad-tabs">
     <button type="button" [class.active]="viewTab === 'students'" (click)="viewTab = 'students'">
-      <i class="fa fa-users"></i> Students
+      <i class="fa fa-users"></i> Učenici
     </button>
     <button type="button" [class.active]="viewTab === 'classes'" (click)="viewTab = 'classes'">
-      <i class="fa fa-chalkboard"></i> Classes
+      <i class="fa fa-chalkboard"></i> Časovi
     </button>
   </div>
 
   <div *ngIf="error && !loading" class="ad-error">
     <i class="fa fa-circle-exclamation"></i>
     <p>{{ error }}</p>
-    <button class="ad-btn ad-btn--primary" type="button" (click)="loadDashboard()">Retry</button>
+    <button class="ad-btn ad-btn--primary" type="button" (click)="loadDashboard()">Pokušaj ponovo</button>
   </div>
 
   <div class="ad-layout" *ngIf="!error && viewTab === 'students'">
     <section class="ad-panel" [class.ad-panel--loading]="loadingPage">
       <div class="ad-panel__head">
-        <h3>Student Attendance</h3>
-        <span class="ad-count" *ngIf="!loading">{{ totalItems }} students</span>
+        <h3>Prisustvo učenika</h3>
+        <span class="ad-count" *ngIf="!loading">{{ totalItems }} učenika</span>
       </div>
 
       <!-- Table skeleton -->
@@ -171,20 +171,20 @@
 
       <div *ngIf="!loading && !loadingPage && !students.length" class="ad-empty">
         <i class="fa fa-user-slash"></i>
-        <h4>No students found</h4>
-        <p>Adjust filters or ensure completed classes have attendance data.</p>
+        <h4>Nisu pronađeni učenici</h4>
+        <p>Prilagodite filtere ili osigurajte da završeni časovi imaju podatke o prisustvu.</p>
       </div>
 
       <div class="ad-table-wrap" *ngIf="!loading && students.length">
         <table class="ad-table">
           <thead>
             <tr>
-              <th>Student</th>
-              <th>Batch</th>
-              <th>Attended</th>
-              <th>Score</th>
-              <th>Avg %</th>
-              <th>Minutes</th>
+              <th>Učenik</th>
+              <th>Grupa</th>
+              <th>Prisustvo</th>
+              <th>Rezultat</th>
+              <th>Prosek %</th>
+              <th>Minuti</th>
             </tr>
           </thead>
           <tbody>
@@ -216,22 +216,22 @@
       <div class="ad-pagination" *ngIf="!loading && totalItems > 0">
         <div class="ad-pagination__info">
           <span class="ad-pagination__range">
-            <strong>{{ pageStartIndex }}–{{ pageEndIndex }}</strong> of <strong>{{ totalItems }}</strong> students
+            <strong>{{ pageStartIndex }}–{{ pageEndIndex }}</strong> od <strong>{{ totalItems }}</strong> učenika
           </span>
         </div>
         <div class="ad-pagination__controls">
           <label class="ad-pagination__label">
-            Rows
+            Redova
             <select class="ad-pagination__select" [(ngModel)]="pageSize" (ngModelChange)="onPageSizeChange()">
               <option *ngFor="let n of pageSizeOptions" [ngValue]="n">{{ n }}</option>
             </select>
           </label>
-          <span class="ad-pagination__page">Page {{ currentPage }} / {{ totalPages }}</span>
+          <span class="ad-pagination__page">Stranica {{ currentPage }} / {{ totalPages }}</span>
           <button type="button" class="ad-page-btn" (click)="goToPrevPage()" [disabled]="currentPage <= 1 || loadingPage">
-            <i class="fa fa-chevron-left"></i> Prev
+            <i class="fa fa-chevron-left"></i> Preth.
           </button>
           <button type="button" class="ad-page-btn" (click)="goToNextPage()" [disabled]="currentPage >= totalPages || loadingPage">
-            Next <i class="fa fa-chevron-right"></i>
+            Sled. <i class="fa fa-chevron-right"></i>
           </button>
         </div>
       </div>
@@ -251,25 +251,25 @@
         <div class="ad-panel__head ad-panel__head--detail">
           <div>
             <h3>{{ selectedStudent.name }}</h3>
-            <p>{{ selectedStudent.email }} · Batch {{ selectedStudent.batch || '—' }}</p>
+            <p>{{ selectedStudent.email }} · Grupa {{ selectedStudent.batch || '—' }}</p>
           </div>
           <div class="ad-detail-badges">
             <span [ngClass]="scoreClass(selectedStudent.attendanceScore)">
               {{ selectedStudent.progressText }} · {{ selectedStudent.attendanceScore }}%
             </span>
-            <span class="ad-pill ad-pill--info">Avg class {{ selectedStudent.avgAttendancePercent }}%</span>
+            <span class="ad-pill ad-pill--info">Prosek časa {{ selectedStudent.avgAttendancePercent }}%</span>
           </div>
         </div>
 
         <div class="ad-detail-summary">
           <div class="ad-detail-chip ad-detail-chip--ok">
-            <strong>{{ selectedStudent.attendedClasses }}</strong> attended
+            <strong>{{ selectedStudent.attendedClasses }}</strong> prisustvovalo
           </div>
           <div class="ad-detail-chip ad-detail-chip--miss">
-            <strong>{{ selectedStudent.absentClasses }}</strong> missed
+            <strong>{{ selectedStudent.absentClasses }}</strong> propušteno
           </div>
           <div class="ad-detail-chip">
-            <strong>{{ selectedStudent.totalClasses }}</strong> total
+            <strong>{{ selectedStudent.totalClasses }}</strong> ukupno
           </div>
         </div>
 
@@ -277,8 +277,8 @@
           <table class="ad-table ad-table--compact">
             <thead>
               <tr>
-                <th>Date</th>
-                <th>Class</th>
+                <th>Datum</th>
+                <th>Čas</th>
                 <th>Status</th>
                 <th>%</th>
                 <th>Min</th>
@@ -291,7 +291,7 @@
                 <td class="ad-td-muted">{{ formatDateTime(c.startTime) }}</td>
                 <td>
                   <div class="ad-class-topic">{{ c.topic }}</div>
-                  <div class="ad-class-meta">Batch {{ c.batch }} · {{ c.teacherName }}</div>
+                  <div class="ad-class-meta">Grupa {{ c.batch }} · {{ c.teacherName }}</div>
                 </td>
                 <td>
                   <span class="ad-pill" [class.ad-pill--good]="c.attended" [class.ad-pill--low]="!c.attended">
@@ -308,16 +308,16 @@
 
       <div *ngIf="!detailLoading && !selectedStudent" class="ad-empty ad-empty--detail">
         <i class="fa fa-hand-pointer"></i>
-        <h4>Select a student</h4>
-        <p>Click any row to see class-by-class attendance — who attended each session and their %.</p>
+        <h4>Izaberite učenika</h4>
+        <p>Kliknite na bilo koji red da vidite prisustvo po časovima — ko je prisustvovao svakoj sesiji i njihov %.</p>
       </div>
     </section>
   </div>
 
   <section class="ad-panel" *ngIf="!error && viewTab === 'classes'">
     <div class="ad-panel__head">
-      <h3>Completed Classes</h3>
-      <span class="ad-count" *ngIf="!loading">{{ meetings.length }} classes</span>
+      <h3>Završeni časovi</h3>
+      <span class="ad-count" *ngIf="!loading">{{ meetings.length }} časova</span>
     </div>
 
     <div *ngIf="loading" class="ad-table-skeleton ad-table-skeleton--classes">
@@ -330,13 +330,13 @@
       <table class="ad-table">
         <thead>
           <tr>
-            <th>Date</th>
-            <th>Topic</th>
-            <th>Teacher</th>
-            <th>Batch</th>
-            <th>Duration</th>
-            <th>Attendance</th>
-            <th>Rate</th>
+            <th>Datum</th>
+            <th>Tema</th>
+            <th>Nastavnik</th>
+            <th>Grupa</th>
+            <th>Trajanje</th>
+            <th>Prisustvo</th>
+            <th>Stopa</th>
           </tr>
         </thead>
         <tbody>
@@ -352,7 +352,7 @@
             </td>
           </tr>
           <tr *ngIf="!meetings.length">
-            <td colspan="7" class="ad-table-empty">No completed classes match your filters.</td>
+            <td colspan="7" class="ad-table-empty">Nema završenih časova koji odgovaraju vašim filterima.</td>
           </tr>
         </tbody>
       </table>

@@ -47,6 +47,6 @@ export class PaymentCurrencyOverdueTotalsComponent {
   fmtSince(iso: string): string {
     const d = new Date(iso);
     if (Number.isNaN(d.getTime())) return '';
-    return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    return d.toLocaleDateString('sr-Latn-RS', { day: '2-digit', month: 'short', year: 'numeric' });
   }
 }

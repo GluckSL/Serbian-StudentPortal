@@ -42,11 +42,11 @@ const LOG_PREFIX_DAY6 = '[Day6CompletionCheck]';
 // ─────────────────────────────────────────────────────────────
 
 function todayStr() {
-  return new Date().toLocaleDateString('en-CA', { timeZone: TZ }); // YYYY-MM-DD
+  return new Date().toLocaleDateString('sr-Latn-RS', { timeZone: TZ }); // YYYY-MM-DD
 }
 
 function reportDateLabel() {
-  return new Date().toLocaleDateString('en-IN', {
+  return new Date().toLocaleDateString('sr-Latn-RS', {
     weekday: 'long', day: '2-digit', month: 'long', year: 'numeric',
     timeZone: 'Asia/Kolkata',
   });

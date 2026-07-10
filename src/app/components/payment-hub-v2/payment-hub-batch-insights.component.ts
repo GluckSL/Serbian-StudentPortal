@@ -172,7 +172,7 @@ export class PaymentHubBatchInsightsComponent implements OnInit {
       y: {
         stacked: false,
         grid: { color: 'rgba(148,163,184,0.2)' },
-        ticks: { callback: (v) => Number(v).toLocaleString('en-IN') },
+        ticks: { callback: (v) => Number(v).toLocaleString('sr-Latn-RS') },
       },
     },
   };
@@ -597,7 +597,7 @@ export class PaymentHubBatchInsightsComponent implements OnInit {
   }
 
   fmt(n: number): string {
-    return (n ?? 0).toLocaleString('en-IN');
+    return (n ?? 0).toLocaleString('sr-Latn-RS');
   }
 
   fmtCompact = fmtPaymentAmountCompact;

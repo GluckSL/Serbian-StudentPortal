@@ -67,7 +67,7 @@ export class DgAdminModuleFormComponent implements OnInit {
   editDescription = '';
   editLevel = '';
   editLanguage = 'German';
-  editNativeLanguage = 'English';
+  editNativeLanguage = 'Serbian';
   editMinimumCompletionTime = 5;
   editMaxPracticeMinutes: number | null = null;
   editCourseDay = '';
@@ -270,7 +270,7 @@ export class DgAdminModuleFormComponent implements OnInit {
     this.editDescription = row.description || '';
     this.editLevel = row.level || '';
     this.editLanguage = row.language || 'German';
-    this.editNativeLanguage = row.nativeLanguage || 'English';
+    this.editNativeLanguage = row.nativeLanguage || 'Serbian';
     this.editMinimumCompletionTime =
       row.minimumCompletionTime != null ? row.minimumCompletionTime : 5;
     this.editMaxPracticeMinutes =
@@ -299,12 +299,12 @@ export class DgAdminModuleFormComponent implements OnInit {
   }
 
   private initNewModule(): void {
-    this.selected = { _id: '', title: 'New DG module', scenes: [] } as DgModuleSummary;
-    this.editTitle = 'New DG module';
+    this.selected = { _id: '', title: 'Novi DG modul', scenes: [] } as DgModuleSummary;
+    this.editTitle = 'Novi DG modul';
     this.editDescription = '';
     this.editLevel = '';
     this.editLanguage = 'German';
-    this.editNativeLanguage = 'English';
+    this.editNativeLanguage = 'Serbian';
     this.editMinimumCompletionTime = 5;
     this.editMaxPracticeMinutes = null;
     this.editCharacterId =
@@ -394,14 +394,14 @@ export class DgAdminModuleFormComponent implements OnInit {
       this.missingFieldLabels.push(label);
     };
 
-    if (!this.editTitle?.trim()) fail('title', 'Module title');
-    if (!this.editDescription?.trim()) fail('description', 'Description');
-    if (!this.editCharacterId) fail('char', 'Character');
+    if (!this.editTitle?.trim()) fail('title', 'Naziv modula');
+    if (!this.editDescription?.trim()) fail('description', 'Opis');
+    if (!this.editCharacterId) fail('char', 'Karakter');
 
     if (this.missingFieldLabels.length) {
       this.messageType = 'error';
       this.message =
-        'Before Beginner Mode, please fill: ' + this.missingFieldLabels.join(', ') + '.';
+        'Pre Početnog moda, popunite: ' + this.missingFieldLabels.join(', ') + '.';
       this.scrollToFirstMissingField();
       return false;
     }
@@ -430,7 +430,7 @@ export class DgAdminModuleFormComponent implements OnInit {
 
     if (!file.type.startsWith('image/')) {
       this.messageType = 'error';
-      this.message = 'Please choose an image file (JPG, PNG, GIF, WebP).';
+      this.message = 'Molimo izaberite sliku (JPG, PNG, GIF, WebP).';
       return;
     }
 
@@ -446,7 +446,7 @@ export class DgAdminModuleFormComponent implements OnInit {
       );
       this.editScenes[index].imageUrl = res.url || '';
       this.messageType = 'success';
-      this.message = 'Scene image uploaded.';
+      this.message = 'Slika scene je otpremljena.';
     } catch (e: any) {
       this.messageType = 'error';
       this.message = e?.error?.message || 'Image upload failed';
@@ -536,10 +536,10 @@ export class DgAdminModuleFormComponent implements OnInit {
       }
       this.messageType = added ? 'success' : 'info';
       this.message = added
-        ? `Imported ${added} new word(s) from your document (${rows.length} extracted). Review the list below, then save.`
+        ? `Uvezeno ${added} novih reči iz vašeg dokumenta (${rows.length} izdvojeno). Pregledajte listu ispod, zatim sačuvajte.`
         : rows.length
-          ? 'All words from the document were already in the AI vocabulary list.'
-          : 'No vocabulary rows returned. Try a file with a clearer word list or glossary.';
+          ? 'Sve reči iz dokumenta su već u listi AI rečnika.'
+          : 'Nije pronađena nijedna reč. Probajte fajl s jasnijom listom reči ili glosаrom.';
     } catch (e: any) {
       this.messageType = 'error';
       this.message = e?.error?.message || e?.message || 'Document import failed';
@@ -564,7 +564,7 @@ export class DgAdminModuleFormComponent implements OnInit {
       }
     }
     this.messageType = n ? 'success' : 'info';
-    this.message = n ? `Copied ${n} word(s) to AI vocabulary.` : 'Nothing to copy (empty or all already present).';
+    this.message = n ? `Kopirano ${n} reč(i) u AI rečnik.` : 'Nema šta da se kopira (prazno ili sve već prisutno).';
   }
 
   addGrammar(): void {
@@ -649,25 +649,25 @@ export class DgAdminModuleFormComponent implements OnInit {
     this.aiSceneCount = count;
 
     const blockingErrors: string[] = [];
-    if (!this.editRolePlay.situation?.trim()) blockingErrors.push('Situation');
-    if (!this.editRolePlay.studentRole?.trim()) blockingErrors.push('Student role');
-    if (!this.editRolePlay.aiRole?.trim()) blockingErrors.push('AI role');
+    if (!this.editRolePlay.situation?.trim()) blockingErrors.push('Situacija');
+    if (!this.editRolePlay.studentRole?.trim()) blockingErrors.push('Uloga studenta');
+    if (!this.editRolePlay.aiRole?.trim()) blockingErrors.push('Uloga AI');
     if (
       this.allowedVocabulary.length === 0 &&
       this.aiTutorVocabulary.length === 0
     ) {
-      blockingErrors.push('At least one vocabulary word (Student or AI Tutor)');
+      blockingErrors.push('Najmanje jedna reč iz rečnika (Student ili AI tutor)');
     }
     if (blockingErrors.length) {
       this.messageType = 'error';
       this.message =
-        'Before AI can build scenes, please fill: ' + blockingErrors.join(', ') + '.';
+        'Pre nego što AI može da generiše scene, popunite: ' + blockingErrors.join(', ') + '.';
       return;
     }
 
     this.aiGenerating = true;
     this.messageType = 'info';
-    this.message = `Generating ${count} scene${count === 1 ? '' : 's'} with AI…`;
+    this.message = `Generišem ${count} scen${count === 1 ? 'u' : 'e'} s AI…`;
 
     try {
       const res = await firstValueFrom(
@@ -705,7 +705,7 @@ export class DgAdminModuleFormComponent implements OnInit {
       }
       this.renumber();
       this.messageType = 'success';
-      this.message = `Generated ${generated.length} scene${generated.length === 1 ? '' : 's'} from your role-play context.`;
+      this.message = `Generisano ${generated.length} scen${generated.length === 1 ? 'a' : 'e'} iz vašeg scenarija igranja uloga.`;
     } catch (e: any) {
       this.messageType = 'error';
       this.message = e?.error?.message || e?.message || 'AI scene generation failed.';
@@ -794,32 +794,32 @@ export class DgAdminModuleFormComponent implements OnInit {
       this.missingFieldLabels.push(label);
     };
 
-    if (!this.editTitle?.trim()) fail('title', 'Module title');
-    if (!this.editDescription?.trim()) fail('description', 'Description');
-    if (!this.editLanguage?.trim()) fail('targetLang', 'Target language');
-    if (!this.editNativeLanguage?.trim()) fail('nativeLang', 'Native language');
-    if (!this.editLevel?.trim()) fail('cefrLevel', 'Level');
+    if (!this.editTitle?.trim()) fail('title', 'Naziv modula');
+    if (!this.editDescription?.trim()) fail('description', 'Opis');
+    if (!this.editLanguage?.trim()) fail('targetLang', 'Ciljni jezik');
+    if (!this.editNativeLanguage?.trim()) fail('nativeLang', 'Maternji jezik');
+    if (!this.editLevel?.trim()) fail('cefrLevel', 'Nivo');
     const duration = Number(this.editMinimumCompletionTime);
     if (Number.isNaN(duration) || duration < 2) {
-      fail('duration', 'Duration must be at least 2 minutes');
+      fail('duration', 'Trajanje mora biti najmanje 2 minuta');
     }
     if (this.editMaxPracticeMinutes != null) {
       const maxMin = Number(this.editMaxPracticeMinutes);
       if (Number.isNaN(maxMin) || maxMin < 5 || maxMin > 180) {
-        fail('maxTime', 'Maximum time must be between 5 and 180 minutes');
+        fail('maxTime', 'Maksimalno vreme mora biti između 5 i 180 minuta');
       } else if (!Number.isNaN(duration) && maxMin < duration) {
-        fail('maxTime', 'Maximum time must be ≥ duration');
+        fail('maxTime', 'Maksimalno vreme mora biti ≥ trajanje');
       }
     }
-    if (!this.editRolePlay.situation?.trim()) fail('rpsSit', 'Situation');
-    if (!this.editRolePlay.studentRole?.trim()) fail('rpsSr', 'Student role');
-    if (!this.editRolePlay.aiRole?.trim()) fail('rpsAr', 'AI role');
-    if (!this.editCharacterId) fail('char', 'Character');
+    if (!this.editRolePlay.situation?.trim()) fail('rpsSit', 'Situacija');
+    if (!this.editRolePlay.studentRole?.trim()) fail('rpsSr', 'Uloga studenta');
+    if (!this.editRolePlay.aiRole?.trim()) fail('rpsAr', 'Uloga AI');
+    if (!this.editCharacterId) fail('char', 'Karakter');
     const cdRaw = (this.editCourseDay || '').trim();
     if (cdRaw !== '') {
       const cd = Number(cdRaw);
       if (Number.isNaN(cd) || !isValidAdminCourseDay(cd)) {
-        fail('courseDay', 'Course day (0 = Trial, 1–200, or leave empty)');
+        fail('courseDay', 'Dan kursa (0 = Probni, 1–200, ili ostavite prazno)');
       }
     }
     if (this.missingFieldLabels.length) {
@@ -827,7 +827,7 @@ export class DgAdminModuleFormComponent implements OnInit {
       fetch('http://127.0.0.1:7522/ingest/8fbb1e5d-0f41-4182-9ec8-d3623ff105ab',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'578490'},body:JSON.stringify({sessionId:'578490',location:'dg-admin-module-form.ts:validation-blocked',message:'validation blocked save',data:{missingFields:Array.from(this.missingFields),missingLabels:this.missingFieldLabels},timestamp:Date.now(),hypothesisId:'H-A,H-C'})}).catch(()=>{});
       // #endregion
       this.messageType = 'error';
-      this.message = 'Please fill in the required fields highlighted below before saving.';
+      this.message = 'Molimo popunite obavezna polja označena ispod pre čuvanja.';
       this.scrollToFirstMissingField();
       return false;
     }
@@ -855,7 +855,7 @@ export class DgAdminModuleFormComponent implements OnInit {
         });
       } else {
         this.messageType = 'success';
-        this.message = 'Saved draft for preview.';
+        this.message = 'Nacrt sačuvan za pregled.';
       }
       return true;
     } catch (e: any) {
@@ -876,7 +876,7 @@ export class DgAdminModuleFormComponent implements OnInit {
       await firstValueFrom(this.dgApi.patchModuleVisibility(this.selected._id, visible));
       this.editVisible = visible;
       this.messageType = 'success';
-      this.message = visible ? 'Published.' : 'Unpublished.';
+      this.message = visible ? 'Objavljeno.' : 'Sklonjeno.';
     } catch (e: any) {
       this.messageType = 'error';
       this.message = e?.error?.message || 'Update failed';
@@ -947,7 +947,7 @@ export class DgAdminModuleFormComponent implements OnInit {
 
   async removeModule(): Promise<void> {
     if (!this.selected?._id) return;
-    if (!confirm('Archive this DG module?')) return;
+    if (!confirm('Arhivirati ovaj DG modul?')) return;
     try {
       await firstValueFrom(this.dgApi.deleteModule(this.selected._id));
       this.router.navigate([this.adminListRoute]);
@@ -960,7 +960,7 @@ export class DgAdminModuleFormComponent implements OnInit {
   async createCharacterQuick(): Promise<void> {
     if (!this.newCharName.trim()) {
       this.messageType = 'error';
-      this.message = 'Character name required';
+      this.message = 'Naziv karaktera je obavezan';
       return;
     }
     try {
@@ -979,7 +979,7 @@ export class DgAdminModuleFormComponent implements OnInit {
       this.newCharName = '';
       this.newCharAvatar = '';
       this.messageType = 'success';
-      this.message = 'Character created.';
+      this.message = 'Karakter kreiran.';
     } catch (e: any) {
       this.messageType = 'error';
       this.message = e?.error?.message || 'Character create failed';

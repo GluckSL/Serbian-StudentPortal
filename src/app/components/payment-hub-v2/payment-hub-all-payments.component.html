@@ -1,20 +1,20 @@
 <!-- Filters -->
 <section class="ph-surface ph-filters-panel">
-  <p class="ph-filters-heading">Filter students</p>
+  <p class="ph-filters-heading">Filtriraj učenike</p>
 
   <div class="ph-filters-row">
     <mat-form-field appearance="outline" class="ph-filter-field">
-      <mat-label>Batch</mat-label>
+      <mat-label>Grupa</mat-label>
       <mat-select [(ngModel)]="filterBatch">
-        <mat-option value="">All batches</mat-option>
+        <mat-option value="">Sve grupe</mat-option>
         <mat-option *ngFor="let b of batchOptions" [value]="b">{{ b }}</mat-option>
       </mat-select>
     </mat-form-field>
 
     <mat-form-field appearance="outline" class="ph-filter-field">
-      <mat-label>CEFR level</mat-label>
+      <mat-label>CEFR nivo</mat-label>
       <mat-select [(ngModel)]="filterLevel">
-        <mat-option value="">All levels</mat-option>
+        <mat-option value="">Svi nivoi</mat-option>
         <mat-option *ngFor="let l of levels" [value]="l">{{ l }}</mat-option>
       </mat-select>
     </mat-form-field>
@@ -27,7 +27,7 @@
     </mat-form-field>
 
     <mat-form-field appearance="outline" class="ph-filter-field">
-      <mat-label>Student status</mat-label>
+      <mat-label>Status učenika</mat-label>
       <mat-select [(ngModel)]="filterStudentStatus">
         <mat-option *ngFor="let o of studentStatusOptions" [value]="o.value">{{ o.label }}</mat-option>
       </mat-select>
@@ -36,29 +36,29 @@
 
   <div class="ph-filters-row ph-filters-row--secondary">
     <mat-form-field appearance="outline" class="ph-filter-field">
-      <mat-label>Language fee status</mat-label>
+      <mat-label>Status jezičke naknade</mat-label>
       <mat-select [(ngModel)]="filterLanguageFeeStatus">
         <mat-option *ngFor="let o of languageFeeStatusOptions" [value]="o.value">{{ o.label }}</mat-option>
       </mat-select>
     </mat-form-field>
 
     <mat-form-field appearance="outline" class="ph-filter-field">
-      <mat-label>Currency</mat-label>
+      <mat-label>Valuta</mat-label>
       <mat-select [(ngModel)]="filterCurrency">
-        <mat-option value="">All currencies</mat-option>
+        <mat-option value="">Sve valute</mat-option>
         <mat-option *ngFor="let c of currencies" [value]="c">{{ currencyLabel(c) }}</mat-option>
       </mat-select>
     </mat-form-field>
 
     <mat-form-field appearance="outline" class="ph-filter-field ph-filter-date">
-      <mat-label>From date</mat-label>
+      <mat-label>Od datuma</mat-label>
       <input matInput [matDatepicker]="pickerFrom" [(ngModel)]="filterDateFrom" />
       <mat-datepicker-toggle matSuffix [for]="pickerFrom"></mat-datepicker-toggle>
       <mat-datepicker #pickerFrom></mat-datepicker>
     </mat-form-field>
 
     <mat-form-field appearance="outline" class="ph-filter-field ph-filter-date">
-      <mat-label>To date</mat-label>
+      <mat-label>Do datuma</mat-label>
       <input matInput [matDatepicker]="pickerTo" [(ngModel)]="filterDateTo" />
       <mat-datepicker-toggle matSuffix [for]="pickerTo"></mat-datepicker-toggle>
       <mat-datepicker #pickerTo></mat-datepicker>
@@ -66,27 +66,27 @@
 
     <div
       class="ph-filter-test"
-      matTooltip="Test accounts are hidden by default. Turn on to include them in the student list and all summary numbers."
+      matTooltip="Test nalozi su podrazumevano skriveni. Uključite da biste ih videli u listi učenika i svim zbircima."
     >
       <mat-checkbox [(ngModel)]="includeTestAccounts" (change)="applyFilters()">
-        Include test accounts
+        Uključi test naloge
       </mat-checkbox>
     </div>
   </div>
 
   <p class="ph-filters-lang-hint">
     <mat-icon aria-hidden="true">info</mat-icon>
-    <span>Full paid = no language fee balance · Balance if journey day &lt; 10 · Due from day 10</span>
+    <span>Potpuno plaćeno = bez salda jezičke naknade · Saldo ako je dan puta &lt; 10 · Dospeva od dana 10</span>
   </p>
 
   <div class="ph-actions-row">
     <button mat-flat-button color="primary" type="button" class="ph-pill-btn ph-pill-btn-primary ph-anim-btn" (click)="applyFilters()">
       <mat-icon>filter_alt</mat-icon>
-      Apply filters
+      Primeni filtere
     </button>
     <button mat-stroked-button type="button" class="ph-pill-btn ph-pill-btn-muted ph-anim-btn" (click)="resetFilters()">
       <mat-icon>restart_alt</mat-icon>
-      Reset
+      Poništi
     </button>
     <button
       mat-stroked-button
@@ -95,18 +95,18 @@
       class="ph-pill-btn ph-pill-btn-warn ph-anim-btn"
       (click)="runOverdue()"
       [disabled]="runningOverdue"
-      matTooltip="Detect and mark overdue payments"
+      matTooltip="Detektuj i označi zakašnjela plaćanja"
     >
       <mat-icon>warning_amber</mat-icon>
-      {{ runningOverdue ? 'Running…' : 'Run overdue check' }}
+      {{ runningOverdue ? 'U toku…' : 'Proveri zakašnjela' }}
     </button>
-    <button mat-stroked-button color="primary" type="button" class="ph-pill-btn ph-pill-btn-outline ph-anim-btn" (click)="openLegacyMapper()" matTooltip="Manually map old Excel payment records into the portal">
+    <button mat-stroked-button color="primary" type="button" class="ph-pill-btn ph-pill-btn-outline ph-anim-btn" (click)="openLegacyMapper()" matTooltip="Ručno mapiraj stare Excel zapise o plaćanju u portal">
       <mat-icon>upload_file</mat-icon>
-      Map payment
+      Mapiraj plaćanje
     </button>
-    <button mat-flat-button color="accent" type="button" class="ph-pill-btn ph-pill-btn-accent ph-anim-btn" (click)="openExcelImport()" matTooltip="Upload an Excel sheet to bulk-import and map payments">
+    <button mat-flat-button color="accent" type="button" class="ph-pill-btn ph-pill-btn-accent ph-anim-btn" (click)="openExcelImport()" matTooltip="Otpremite Excel tabelu za masovni uvoz plaćanja">
       <mat-icon>table_chart</mat-icon>
-      Import from Excel
+      Uvezi iz Excela
     </button>
     <button
       mat-stroked-button
@@ -114,19 +114,19 @@
       class="ph-pill-btn ph-pill-btn-export ph-anim-btn"
       [matMenuTriggerFor]="exportMenu"
       [disabled]="exporting || total === 0"
-      matTooltip="Download student payment data as Excel or CSV (current filters)"
+      matTooltip="Preuzmite podatke o plaćanjima kao Excel ili CSV (trenutni filteri)"
     >
       <mat-icon>download</mat-icon>
-      {{ exporting ? 'Exporting…' : 'Export' }}
+      {{ exporting ? 'Izvozim…' : 'Izvezi' }}
     </button>
     <mat-menu #exportMenu="matMenu">
       <button mat-menu-item type="button" (click)="exportPayments('xlsx', 'all')" [disabled]="exporting || total === 0">
         <mat-icon>grid_on</mat-icon>
-        <span>Excel (.xlsx) — all matching ({{ total }})</span>
+        <span>Excel (.xlsx) — svi koji odgovaraju ({{ total }})</span>
       </button>
       <button mat-menu-item type="button" (click)="exportPayments('csv', 'all')" [disabled]="exporting || total === 0">
         <mat-icon>description</mat-icon>
-        <span>CSV — all matching ({{ total }})</span>
+        <span>CSV — svi koji odgovaraju ({{ total }})</span>
       </button>
       <button
         mat-menu-item
@@ -135,7 +135,7 @@
         [disabled]="exporting || selectedCount === 0"
       >
         <mat-icon>checklist</mat-icon>
-        <span>Excel (.xlsx) — selected ({{ selectedCount }})</span>
+        <span>Excel (.xlsx) — izabrani ({{ selectedCount }})</span>
       </button>
       <button
         mat-menu-item
@@ -144,16 +144,16 @@
         [disabled]="exporting || selectedCount === 0"
       >
         <mat-icon>checklist</mat-icon>
-        <span>CSV — selected ({{ selectedCount }})</span>
+        <span>CSV — izabrani ({{ selectedCount }})</span>
       </button>
     </mat-menu>
-    <button mat-stroked-button color="primary" type="button" class="ph-pill-btn ph-pill-btn-outline ph-anim-btn" (click)="openCorrectReceived()" [disabled]="selectedCount !== 1" matTooltip="Fix wrong approved amount for one selected student (updates student portal too)">
+    <button mat-stroked-button color="primary" type="button" class="ph-pill-btn ph-pill-btn-outline ph-anim-btn" (click)="openCorrectReceived()" [disabled]="selectedCount !== 1" matTooltip="Ispravite pogrešan odobreni iznos za jednog izabranog učenika">
       <mat-icon>edit</mat-icon>
-      Correct total received
+      Ispravi ukupno primljeno
     </button>
-    <button mat-stroked-button color="primary" type="button" class="ph-pill-btn ph-pill-btn-outline ph-anim-btn" (click)="openBulkLanguagePaid()" [disabled]="selectedCount === 0" matTooltip="Record full language fee for selected students (legacy approved rows)">
+    <button mat-stroked-button color="primary" type="button" class="ph-pill-btn ph-pill-btn-outline ph-anim-btn" (click)="openBulkLanguagePaid()" [disabled]="selectedCount === 0" matTooltip="Evidentiraj punu jezičku naknadu za izabrane učenike">
       <mat-icon>account_balance_wallet</mat-icon>
-      Set balance to zero
+      Postavi saldo na nulu
     </button>
     <button
       mat-stroked-button
@@ -162,10 +162,10 @@
       class="ph-pill-btn ph-pill-btn-warn ph-anim-btn"
       (click)="resetSelectedPayments()"
       [disabled]="selectedCount === 0 || resettingPayments"
-      matTooltip="Clear total received, pending, and overdue for selected students before Excel re-import"
+      matTooltip="Obriši ukupno primljeno, na čekanju i zakašnjelo za izabrane učenike pre ponovnog uvoza"
     >
       <mat-icon>delete_sweep</mat-icon>
-      {{ resettingPayments ? 'Resetting…' : 'Reset payments' }}
+      {{ resettingPayments ? 'Resetujem…' : 'Resetuj plaćanja' }}
     </button>
   </div>
 </section>
@@ -173,11 +173,11 @@
 <!-- Stat cards -->
 <div class="ph-cards-section" *ngIf="!loadingStats; else statsSpinner">
   <div class="ph-cards-scope" *ngIf="stats">
-    <span class="ph-cards-scope-label">Summary for</span>
+    <span class="ph-cards-scope-label">Pregled za</span>
     <span class="ph-cards-scope-value" [class.ph-cards-scope-value--filtered]="hasActiveFilters">
       {{ activeFilterLabel }}
     </span>
-    <span class="ph-cards-scope-hint" *ngIf="!hasActiveFilters">Apply filters above to see batch-specific totals</span>
+    <span class="ph-cards-scope-hint" *ngIf="!hasActiveFilters">Primenite filtere iznad da biste videli zbire za grupu</span>
   </div>
 
   <div class="ph-cards-grid" *ngIf="stats">
@@ -185,8 +185,8 @@
       <div class="ph-card-top">
         <div class="ph-card-icon ph-card-icon--indigo"><mat-icon>payments</mat-icon></div>
         <div class="ph-card-meta">
-          <span class="ph-card-title">Total Payment</span>
-          <span class="ph-card-desc">{{ stats.totalStudents }} students × level fee</span>
+          <span class="ph-card-title">Ukupno plaćanje</span>
+          <span class="ph-card-desc">{{ stats.totalStudents }} učenika × naknada za nivo</span>
         </div>
       </div>
       <mat-card-content class="ph-card-body ph-card-body--total-payment">
@@ -222,8 +222,8 @@
       <div class="ph-card-top">
         <div class="ph-card-icon ph-card-icon--green"><mat-icon>check_circle</mat-icon></div>
         <div class="ph-card-meta">
-          <span class="ph-card-title">Total Received</span>
-          <span class="ph-card-desc">All approved payments</span>
+          <span class="ph-card-title">Ukupno primljeno</span>
+          <span class="ph-card-desc">Sva odobrena plaćanja</span>
         </div>
       </div>
       <mat-card-content class="ph-card-body">
@@ -240,8 +240,8 @@
       <div class="ph-card-top">
         <div class="ph-card-icon ph-card-icon--amber"><mat-icon>hourglass_empty</mat-icon></div>
         <div class="ph-card-meta">
-          <span class="ph-card-title">Pending / Balance</span>
-          <span class="ph-card-desc">Outstanding on payment slots (matches table)</span>
+          <span class="ph-card-title">Na čekanju / Saldo</span>
+          <span class="ph-card-desc">Preostalo na slotovima plaćanja (odgovara tabeli)</span>
         </div>
       </div>
       <mat-card-content class="ph-card-body">
@@ -258,8 +258,8 @@
       <div class="ph-card-top">
         <div class="ph-card-icon ph-card-icon--red"><mat-icon>error_outline</mat-icon></div>
         <div class="ph-card-meta">
-          <span class="ph-card-title">Overdue</span>
-          <span class="ph-card-desc">Past due, not paid · {{ stats.overdueCount }} requests</span>
+          <span class="ph-card-title">Zakašnjelo</span>
+          <span class="ph-card-desc">Van roka, nije plaćeno · {{ stats.overdueCount }} zahteva</span>
         </div>
       </div>
       <mat-card-content class="ph-card-body">
@@ -274,7 +274,7 @@
   </div>
 
   <div class="ph-health-grid" *ngIf="stats">
-    <p class="ph-health-grid-heading">Student breakdown · click to filter table</p>
+    <p class="ph-health-grid-heading">Pregled učenika · kliknite da filtrirate tabelu</p>
     <div class="ph-health-cards">
       <button
         type="button"
@@ -283,7 +283,7 @@
         [class.ph-health-card--active]="isInsightActive(opt.value)"
         [disabled]="insightCount(opt.key) === 0 && opt.value !== ''"
         (click)="applyInsightFilter(opt.value)"
-        [matTooltip]="opt.hint + (opt.value ? ' · Click again to clear' : '')"
+        [matTooltip]="opt.hint + (opt.value ? ' · Kliknite ponovo za brisanje' : '')"
       >
         <div class="ph-health-card-icon">
           <mat-icon>{{ opt.icon }}</mat-icon>
@@ -291,9 +291,9 @@
         <div class="ph-health-card-body">
           <span class="ph-health-card-label">{{ opt.label }}</span>
           <span class="ph-health-card-value">{{ insightCount(opt.key) }}</span>
-          <span class="ph-health-card-hint" *ngIf="opt.key === 'all'">In current view</span>
+          <span class="ph-health-card-hint" *ngIf="opt.key === 'all'">U trenutnom prikazu</span>
           <span class="ph-health-card-hint" *ngIf="opt.key !== 'all'">
-            {{ studentPct(insightCount(opt.key), stats.totalStudents) }} of students
+            {{ studentPct(insightCount(opt.key), stats.totalStudents) }} učenika
           </span>
         </div>
         <mat-icon class="ph-health-card-chevron" *ngIf="isInsightActive(opt.value)">filter_alt</mat-icon>
@@ -309,15 +309,15 @@
 <section class="ph-table-section ph-surface" id="ph-students-table">
   <div class="ph-table-toolbar">
     <div class="ph-table-toolbar-left">
-      <h2 class="ph-section-title">Students</h2>
+      <h2 class="ph-section-title">Učenici</h2>
       <span class="ph-insight-filter-chip" *ngIf="hasTableInsightFilter">
         <mat-icon>filter_alt</mat-icon>
         {{ activeInsightLabel() }}
-        <button type="button" class="ph-insight-filter-clear" (click)="clearInsightFilter()" matTooltip="Clear category filter">
+        <button type="button" class="ph-insight-filter-clear" (click)="clearInsightFilter()" matTooltip="Obriši filter kategorije">
           <mat-icon>close</mat-icon>
         </button>
       </span>
-      <span class="ph-select-meta" *ngIf="selectedCount > 0">{{ selectedCount }} selected</span>
+      <span class="ph-select-meta" *ngIf="selectedCount > 0">{{ selectedCount }} izabrano</span>
       <button
         mat-button
         type="button"
@@ -325,18 +325,18 @@
         *ngIf="total > rows.length"
         (click)="selectAllMatchingFilter()"
         [disabled]="selectingAllMatching"
-        matTooltip="Select every student matching the current filters (all pages)"
+        matTooltip="Izaberi sve učenike koji odgovaraju filteru (sve stranice)"
       >
-        {{ selectingAllMatching ? 'Selecting…' : 'Select all ' + total + ' matching' }}
+        {{ selectingAllMatching ? 'Biram…' : 'Izaberi svih ' + total + ' koji odgovaraju' }}
       </button>
       <button mat-button type="button" class="ph-select-clear-btn" *ngIf="selectedCount > 0" (click)="clearSelection()">
-        Clear selection
+        Obriši izbor
       </button>
     </div>
     <mat-form-field appearance="outline" class="ph-search-field">
-      <mat-label>Search by name or email</mat-label>
+      <mat-label>Pretraži po imenu ili e-mailu</mat-label>
       <mat-icon matPrefix>search</mat-icon>
-      <input matInput [(ngModel)]="searchQuery" (ngModelChange)="onSearch()" placeholder="Type to search…" />
+      <input matInput [(ngModel)]="searchQuery" (ngModelChange)="onSearch()" placeholder="Upišite za pretragu…" />
     </mat-form-field>
   </div>
 
@@ -345,19 +345,19 @@
       <thead>
         <tr>
           <th class="ph-col-check">
-            <mat-checkbox [checked]="allOnPageSelected" [indeterminate]="someOnPageSelected" (change)="toggleSelectAllOnPage($event.checked)" matTooltip="Select all on this page"></mat-checkbox>
+            <mat-checkbox [checked]="allOnPageSelected" [indeterminate]="someOnPageSelected" (change)="toggleSelectAllOnPage($event.checked)" matTooltip="Izaberi sve na ovoj stranici"></mat-checkbox>
           </th>
-          <th>Student</th>
-          <th>Email</th>
-          <th>Batch</th>
-          <th>Level</th>
-          <th>Date joined</th>
-          <th class="ph-num ph-col-compact">Journey day</th>
-          <th class="ph-num">Total received</th>
-          <th class="ph-num">Pending</th>
-          <th class="ph-num">Overdue</th>
-          <th>Language fee</th>
-          <th class="ph-col-actions">Actions</th>
+          <th>Učenik</th>
+          <th>E-mail</th>
+          <th>Grupa</th>
+          <th>Nivo</th>
+          <th>Datum pristupanja</th>
+          <th class="ph-num ph-col-compact">Dan puta</th>
+          <th class="ph-num">Ukupno primljeno</th>
+          <th class="ph-num">Na čekanju</th>
+          <th class="ph-num">Zakašnjelo</th>
+          <th>Jezička naknada</th>
+          <th class="ph-col-actions">Akcije</th>
         </tr>
       </thead>
       <tbody>
@@ -413,7 +413,7 @@
           </td>
           <td class="ph-col-actions">
             <button mat-flat-button color="primary" class="ph-btn-row" type="button" (click)="openStudentDetail(row)">
-              <mat-icon>open_in_new</mat-icon> Payments
+              <mat-icon>open_in_new</mat-icon> Plaćanja
             </button>
           </td>
         </tr>
@@ -421,16 +421,16 @@
     </table>
 
     <ng-template #noData>
-      <div class="ph-empty">No students found matching the current filters.</div>
+      <div class="ph-empty">Nije pronađen nijedan učenik koji odgovara trenutnim filterima.</div>
     </ng-template>
 
     <div class="ph-pager">
       <button mat-button type="button" class="ph-pager-btn" (click)="prevPage()" [disabled]="page <= 1">
-        <mat-icon>chevron_left</mat-icon> Previous
+        <mat-icon>chevron_left</mat-icon> Prethodna
       </button>
-      <span class="ph-pager-info">Page {{ page }} — {{ total }} total students</span>
+      <span class="ph-pager-info">Stranica {{ page }} — {{ total }} učenika ukupno</span>
       <button mat-button type="button" class="ph-pager-btn" (click)="nextPage()" [disabled]="page * pageSize >= total">
-        Next <mat-icon>chevron_right</mat-icon>
+        Sledeća <mat-icon>chevron_right</mat-icon>
       </button>
     </div>
   </div>

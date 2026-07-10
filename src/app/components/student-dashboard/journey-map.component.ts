@@ -23,7 +23,7 @@ export class JourneyMapComponent implements OnInit {
   currentCheckpointIndex = -1;
 
   readonly checkpoints: Checkpoint[] = [
-    { level: 'A1', label: 'Start', day: 1, icon: 'flag' },
+    { level: 'A1', label: 'Početak', day: 1, icon: 'flag' },
     { level: 'A2', label: 'A1 geschafft!', day: 43, icon: 'menu_book' },
     { level: 'B1', label: 'A2 geschafft!', day: 85, icon: 'chat' },
     { level: 'B2', label: 'B1 geschafft!', day: 146, icon: 'emoji_events' },

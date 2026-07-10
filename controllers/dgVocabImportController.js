@@ -93,11 +93,11 @@ function normalizeEntries(arr) {
 async function importFromDocument(req, res) {
   const file = req.file;
   if (!file?.path) {
-    return res.status(400).json({ message: 'Missing file upload.' });
+    return res.status(400).json({ message: 'Nedostaje otpremanje datoteke.' });
   }
 
   const targetLanguage = String(req.body?.targetLanguage || 'German').trim() || 'German';
-  const nativeLanguage = String(req.body?.nativeLanguage || 'English').trim() || 'English';
+  const nativeLanguage = String(req.body?.nativeLanguage || 'Serbian').trim() || 'Serbian';
 
   const openai = dgOpenAi();
   if (!openai) {
@@ -105,7 +105,7 @@ async function importFromDocument(req, res) {
       fs.unlinkSync(file.path);
     } catch (_) {}
     return res.status(503).json({
-      message: 'AI import is not configured. Set DG_OPENAI_API_KEY or EXERCISES_OPENAI_API_KEY.',
+      message: 'AI uvoz nije konfigurisan. Postavite DG_OPENAI_API_KEY ili EXERCISES_OPENAI_API_KEY.',
     });
   }
 
@@ -116,7 +116,7 @@ async function importFromDocument(req, res) {
     try {
       fs.unlinkSync(file.path);
     } catch (_) {}
-    return res.status(400).json({ message: e?.message || 'Could not read document.' });
+    return res.status(400).json({ message: e?.message || 'Nije moguće pročitati dokument.' });
   } finally {
     try {
       fs.unlinkSync(file.path);
@@ -125,7 +125,7 @@ async function importFromDocument(req, res) {
 
   if (!extracted || extracted.length < 20) {
     return res.status(400).json({
-      message: 'Could not extract enough text from this file. Try another PDF/DOCX or copy text manually.',
+      message: 'Nije moguće izvući dovoljno teksta iz ove datoteke. Pokušajte sa drugim PDF/DOCX ili ručno kopirajte tekst.',
     });
   }
 
@@ -163,22 +163,22 @@ ${docSnippet}
     });
     const content = completion.choices?.[0]?.message?.content;
     if (!content) {
-      return res.status(502).json({ message: 'Empty response from AI.' });
+      return res.status(502).json({ message: 'Prazan odgovor od AI-a.' });
     }
     let parsed;
     try {
       parsed = parseJsonFromModelContent(content);
     } catch {
-      return res.status(502).json({ message: 'AI returned invalid JSON. Try again or use a simpler word list.' });
+      return res.status(502).json({ message: 'AI je vratio neispravan JSON. Pokušajte ponovo ili koristite jednostavniju listu reči.' });
     }
     const vocabulary = normalizeEntries(parsed.vocabulary || parsed.items || parsed.words);
     if (!vocabulary.length) {
-      return res.status(422).json({ message: 'No vocabulary could be extracted. Try a clearer word list or glossary in the file.' });
+      return res.status(422).json({ message: 'Nije moguće izvući rečnik. Pokušajte sa jasnijom listom reči ili rečnikom u datoteci.' });
     }
     return res.json({ vocabulary });
   } catch (e) {
     console.error('dgVocabImport AI error:', e?.message || e);
-    return res.status(502).json({ message: e?.message || 'AI extraction failed.' });
+    return res.status(502).json({ message: e?.message || 'Ekstrakcija AI-a nije uspela.' });
   }
 }
 

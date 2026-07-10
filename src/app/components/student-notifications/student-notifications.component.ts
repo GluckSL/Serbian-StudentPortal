@@ -49,7 +49,7 @@ export class StudentNotificationsComponent implements OnInit {
         },
         error: () => {
           this.loading = false;
-          this.error = 'Failed to load notifications.';
+          this.error = 'Nije moguće učitati obaveštenja.';
         },
       });
   }

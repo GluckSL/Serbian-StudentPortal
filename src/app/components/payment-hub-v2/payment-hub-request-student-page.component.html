@@ -23,7 +23,7 @@
       </div>
       <button mat-flat-button color="primary" class="req-btn" (click)="openReqDialog()">
         <mat-icon>send</mat-icon>
-        Req for Payment
+        Zahtev za plaćanje
       </button>
     </div>
 
@@ -36,7 +36,7 @@
             <mat-icon>paid</mat-icon>
           </div>
           <div class="card-body">
-            <div class="card-label">Total received</div>
+            <div class="card-label">Ukupno primljeno</div>
             <div class="card-value green card-value--currency">
               <app-payment-currency-totals
                 [lkr]="history.profile?.totalPaidLKR ?? 0"
@@ -58,16 +58,16 @@
             <mat-icon>event</mat-icon>
           </div>
           <div class="card-body">
-            <div class="card-label">Next Payment</div>
+            <div class="card-label">Sledeće plaćanje</div>
             <ng-container *ngIf="nextPayment; else noNext">
               <div class="card-value blue">
                 <app-payment-currency-amount [currency]="nextPayment.currency" [amount]="nextPayment.amount"></app-payment-currency-amount>
               </div>
-              <div class="card-sub">Due: {{ fmtDate(nextPayment.dueDate) }}</div>
+              <div class="card-sub">Dospeva: {{ fmtDate(nextPayment.dueDate) }}</div>
             </ng-container>
             <ng-template #noNext>
               <div class="card-value grey">—</div>
-              <div class="card-sub">No open requests</div>
+              <div class="card-sub">Nema otvorenih zahteva</div>
             </ng-template>
           </div>
         </mat-card-content>
@@ -79,12 +79,12 @@
             <mat-icon>account_balance_wallet</mat-icon>
           </div>
           <div class="card-body">
-            <div class="card-label">Balance / Due</div>
+            <div class="card-label">Saldo / Dugovanje</div>
             <div class="card-value" [class.red]="balanceDue > 0" [class.grey]="balanceDue === 0">
               {{ fmt(balanceDue) }}
             </div>
             <div class="card-sub" *ngIf="history.profile?.overdueCount">
-              {{ history.profile?.overdueCount }} overdue request(s)
+              {{ history.profile?.overdueCount }} zakasneli zahtev(i)
             </div>
           </div>
         </mat-card-content>
@@ -95,26 +95,26 @@
     <!-- Payment History Table -->
     <div class="history-section">
       <div class="section-header">
-        <h3>Payment History <span class="total-badge">{{ history.total }}</span></h3>
+        <h3>Istorija plaćanja <span class="total-badge">{{ history.total }}</span></h3>
       </div>
 
       <div *ngIf="!history.requests.length" class="empty-state">
         <mat-icon>receipt_long</mat-icon>
-        <p>No payment requests yet.</p>
+        <p>Nema zahteva za plaćanje.</p>
       </div>
 
       <div *ngIf="history.requests.length" class="history-table-wrap">
         <table class="history-table">
           <thead>
             <tr>
-              <th>Type</th>
-              <th>Purpose</th>
-              <th class="col-num">Amount</th>
-              <th class="col-num">Remaining</th>
-              <th>Due Date</th>
+              <th>Vrsta</th>
+              <th>Svrha</th>
+              <th class="col-num">Iznos</th>
+              <th class="col-num">Preostalo</th>
+              <th>Rok</th>
               <th>Status</th>
-              <th>Submissions &amp; proof</th>
-              <th class="col-actions">Actions</th>
+              <th>Podnošenja i dokazi</th>
+              <th class="col-actions">Akcije</th>
             </tr>
           </thead>
           <tbody>
@@ -124,7 +124,7 @@
                 <tr class="row-plan-summary">
                   <td>
                     {{ formatPaymentType(req.paymentType, req.customType) }}
-                    <span class="inst-badge">{{ sortedInst(req).length }} parts</span>
+                    <span class="inst-badge">{{ sortedInst(req).length }} delova</span>
                   </td>
                   <td>
                     <span *ngIf="req.remarks" class="remarks-text" matTooltip="{{ req.remarks }}">
@@ -141,21 +141,21 @@
                   <td>{{ fmtDate(req.dueDate) }}</td>
                   <td><span class="pill" [ngClass]="statusClass(req.status)">{{ req.status }}</span></td>
                   <td class="col-submissions">
-                    <span class="sub-hint">Proofs are listed per part below.</span>
+                      <span class="sub-hint">Dokazi su navedeni po delovima ispod.</span>
                   </td>
                   <td class="col-actions">
                     <button *ngIf="canEditInstallments(req)" mat-stroked-button type="button" color="primary"
-                      (click)="openEditInstallments(req)" matTooltip="Change amounts and due dates (no proofs in review)">
+                      (click)="openEditInstallments(req)" matTooltip="Promenite iznose i rokove (bez dokaza na pregledu)">
                       <mat-icon>edit_calendar</mat-icon>
-                      Edit schedule
+                      Izmeni raspored
                     </button>
-                    <span *ngIf="!canEditInstallments(req)" class="no-sub" matTooltip="Cannot edit while a proof is submitted or approved">—</span>
+                    <span *ngIf="!canEditInstallments(req)" class="no-sub" matTooltip="Nije moguće izmeniti dok je dokaz podnet ili odobren">—</span>
                   </td>
                 </tr>
                 <tr *ngFor="let inst of sortedInst(req)" class="row-inst-part">
                   <td class="cell-part">
                     <span class="part-indent"></span>
-                    Part {{ inst.installmentNumber }}
+                    Deo {{ inst.installmentNumber }}
                   </td>
                   <td><span class="no-remarks">—</span></td>
                   <td class="col-num">
@@ -175,11 +175,11 @@
                         <button mat-stroked-button type="button" class="view-proof-btn" color="primary"
                           (click)="viewSubmissionProof(sub)"
                           [disabled]="proofLoadingId === sub._id"
-                          matTooltip="Open proof for this instalment">
+                          matTooltip="Otvori dokaz za ovaj deo">
                           <mat-spinner *ngIf="proofLoadingId === sub._id" diameter="16" class="proof-spinner"></mat-spinner>
                           <ng-container *ngIf="proofLoadingId !== sub._id">
                             <mat-icon>image</mat-icon>
-                            View proof
+                            Pogledaj dokaz
                           </ng-container>
                         </button>
                       </div>
@@ -214,11 +214,11 @@
                       <button mat-stroked-button type="button" class="view-proof-btn" color="primary"
                         (click)="viewSubmissionProof(sub)"
                         [disabled]="proofLoadingId === sub._id"
-                        matTooltip="Open the payment screenshot or PDF the student uploaded">
+                        matTooltip="Otvori snimak ekrana ili PDF koji je učenik otpremio">
                         <mat-spinner *ngIf="proofLoadingId === sub._id" diameter="16" class="proof-spinner"></mat-spinner>
                         <ng-container *ngIf="proofLoadingId !== sub._id">
                           <mat-icon>image</mat-icon>
-                          View proof
+                          Pogledaj dokaz
                         </ng-container>
                       </button>
                     </div>

@@ -82,7 +82,7 @@ function formatDateOnly(value) {
   if (value === null || value === undefined || value === '') return '—';
   const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) return String(value);
-  return date.toLocaleDateString('en-IN', {
+  return date.toLocaleDateString('sr-Latn-RS', {
     timeZone: TZ,
     year: 'numeric',
     month: 'short',
@@ -189,7 +189,7 @@ async function loadTeacherNameMap(records) {
 
 function formatDateTime(date) {
   if (!date) return '—';
-  return new Date(date).toLocaleString('en-IN', {
+  return new Date(date).toLocaleString('sr-Latn-RS', {
     timeZone: TZ,
     year: 'numeric',
     month: 'short',
@@ -203,7 +203,7 @@ function formatDateTime(date) {
 function todayMidnightIST() {
   // Returns midnight of today in IST, expressed as a UTC Date
   const now = new Date();
-  const nowIST = new Date(now.toLocaleString('en-US', { timeZone: TZ }));
+  const nowIST = new Date(now.toLocaleString('sr-Latn-RS', { timeZone: TZ }));
   const midnightIST = new Date(nowIST);
   midnightIST.setHours(0, 0, 0, 0);
   const offsetMs = now - nowIST;
@@ -475,7 +475,7 @@ async function sendStudentDetailChangesReport({ from, rangeLabel } = {}) {
   try {
     const rows = await fetchChanges(from);
 
-    const reportDate = new Date().toLocaleDateString('en-IN', {
+    const reportDate = new Date().toLocaleDateString('sr-Latn-RS', {
       timeZone: TZ,
       weekday: 'long',
       year: 'numeric',
@@ -486,7 +486,7 @@ async function sendStudentDetailChangesReport({ from, rangeLabel } = {}) {
     const excelBuffer = await buildExcel(rows, reportDate);
     const html = buildEmailHtml(rows, reportDate);
 
-    const dateShort = new Date().toLocaleDateString('en-IN', {
+    const dateShort = new Date().toLocaleDateString('sr-Latn-RS', {
       timeZone: TZ,
       year: 'numeric',
       month: 'long',

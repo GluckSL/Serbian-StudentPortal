@@ -2223,7 +2223,7 @@ router.get('/:id', verifyToken, blockVisaDocsOnly, async (req, res) => {
       isDeleted: { $ne: true }
     }).populate('createdBy', 'name email').lean();
 
-    if (!exercise) return res.status(404).json({ error: 'Exercise not found' });
+    if (!exercise) return res.status(404).json({ error: 'Vežba nije pronađena' });
 
     // Normalize pair labels to plain text for all clients (prevents visible HTML tags).
     if (Array.isArray(exercise.questions)) {
@@ -2255,7 +2255,7 @@ router.get('/:id', verifyToken, blockVisaDocsOnly, async (req, res) => {
 
     // Students can only see published exercises
     if (req.user.role === 'STUDENT' && !exercise.visibleToStudents) {
-      return res.status(403).json({ error: 'Exercise not available' });
+      return res.status(403).json({ error: 'Vežba nije dostupna' });
     }
 
     // "Student view" used by the player UI: it strips correct answers and
@@ -2267,19 +2267,19 @@ router.get('/:id', verifyToken, blockVisaDocsOnly, async (req, res) => {
       const access = await getStudentExerciseAccess(req.user.id);
       if (!access.enabled) {
         return res.status(403).json({
-          error: 'Journey content is not enabled for your batch yet.',
+          error: 'Sadržaj putovanja još nije omogućen za vašu grupu.',
           code: 'JOURNEY_NOT_ACTIVE'
         });
       }
       if (access.learningEnabled === false) {
         return res.status(403).json({
-          error: 'Exercises are not available for your batch.',
+          error: 'Vežbe nisu dostupne za vašu grupu.',
           code: 'LEARNING_CONTENT_DISABLED'
         });
       }
       if (!exerciseUnlockedForStudentDay(exercise, access.courseDay, access.minAssignedContentDay ?? 1)) {
         return res.status(403).json({
-          error: 'This exercise unlocks on a later day of your course.',
+          error: 'Ova vežba se otključava kasnijeg dana vašeg kursa.',
           code: 'COURSE_DAY_LOCKED',
           studentCourseDay: access.courseDay,
           exerciseCourseDay: exercise.courseDay
@@ -2287,7 +2287,7 @@ router.get('/:id', verifyToken, blockVisaDocsOnly, async (req, res) => {
       }
       if (isContentBlockedForStudent(access.student, { courseDay: exercise.courseDay, level: exercise.level })) {
         return res.status(403).json({
-          error: 'This exercise is not available for your learning path.',
+          error: 'Ova vežba nije dostupna za vaš put učenja.',
           code: 'CONTENT_LEVEL_BLOCKED'
         });
       }
@@ -2295,7 +2295,7 @@ router.get('/:id', verifyToken, blockVisaDocsOnly, async (req, res) => {
       const seqLock = await checkSequenceLock(req.user.id, exercise, access);
       if (seqLock.locked) {
         return res.status(403).json({
-          error: `Complete exercise ${(seqLock.previousLetter || '').toUpperCase()} first before attempting this one.`,
+          error: `Najpre završite vežbu ${(seqLock.previousLetter || '').toUpperCase()} pre nego što pokušate ovu.`,
           code: 'SEQUENCE_LOCKED',
           previousLetter: seqLock.previousLetter,
           previousTitle: seqLock.previousTitle
@@ -2303,7 +2303,7 @@ router.get('/:id', verifyToken, blockVisaDocsOnly, async (req, res) => {
       }
       if (!exerciseLevelAllowedForStudent(exercise.level, access.accessibleLevels)) {
         return res.status(403).json({
-          error: 'This exercise is above your current language level.',
+          error: 'Ova vežba je iznad vašeg trenutnog jezičkog nivoa.',
           code: 'LEVEL_NOT_ALLOWED',
           studentLevel: access.studentLevel,
           exerciseLevel: exercise.level
@@ -2594,11 +2594,11 @@ router.patch('/:id/target-batches', verifyToken, checkRole(['ADMIN', 'TEACHER', 
   try {
     const { id } = req.params;
     if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ error: 'Invalid exercise id' });
+      return res.status(400).json({ error: 'Neispravan ID vežbe' });
     }
     const { targetBatches } = req.body;
     if (!Array.isArray(targetBatches)) {
-      return res.status(400).json({ error: 'targetBatches must be an array' });
+      return res.status(400).json({ error: 'targetBatches mora biti niz' });
     }
     const sanitized = targetBatches.map(b => String(b).trim()).filter(Boolean);
     const exercise = await DigitalExercise.findOneAndUpdate(
@@ -2607,7 +2607,7 @@ router.patch('/:id/target-batches', verifyToken, checkRole(['ADMIN', 'TEACHER', 
       { new: true }
     ).select('_id title version targetBatches');
     if (!exercise) {
-      return res.status(404).json({ error: 'v2 exercise not found' });
+      return res.status(404).json({ error: 'v2 vežba nije pronađena' });
     }
     res.json(exercise);
   } catch (err) {
@@ -2621,11 +2621,11 @@ router.post('/:id/copy-to-v2', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEAC
   try {
     const { id } = req.params;
     if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ error: 'Invalid exercise id' });
+      return res.status(400).json({ error: 'Neispravan ID vežbe' });
     }
     const source = await DigitalExercise.findOne({ _id: id, isDeleted: { $ne: true } }).lean();
     if (!source) {
-      return res.status(404).json({ error: 'Exercise not found' });
+      return res.status(404).json({ error: 'Vežba nije pronađena' });
     }
 
     // Prevent duplicate copies: one v2 copy per source exercise.
@@ -2638,7 +2638,7 @@ router.post('/:id/copy-to-v2', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEAC
       .lean();
     if (existingCopy) {
       return res.status(409).json({
-        error: 'This exercise is already in Online Exercises 2.0. Open it there to edit or assign batches.',
+        error: 'Ova vežba je već u Online Vežbama 2.0. Otvorite je tamo da biste je uredili ili dodelili grupama.',
         exerciseId: String(existingCopy._id)
       });
     }
@@ -2692,13 +2692,13 @@ router.post('/admin/bulk-delete', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMI
   try {
     const ids = req.body?.ids;
     if (!Array.isArray(ids) || ids.length === 0) {
-      return res.status(400).json({ error: 'ids must be a non-empty array' });
+      return res.status(400).json({ error: 'ids mora biti neprazan niz' });
     }
     const objectIds = ids
       .filter((id) => mongoose.Types.ObjectId.isValid(String(id)))
       .map((id) => new mongoose.Types.ObjectId(String(id)));
     if (objectIds.length === 0) {
-      return res.status(400).json({ error: 'No valid exercise ids' });
+      return res.status(400).json({ error: 'Nema ispravnih ID-ova vežbi' });
     }
     const result = await DigitalExercise.updateMany(
       {
@@ -2720,10 +2720,10 @@ router.patch('/admin/bulk-update', verifyToken, checkRole(['ADMIN', 'TEACHER', '
     const ids = req.body?.ids;
     const updates = req.body?.updates;
     if (!Array.isArray(ids) || ids.length === 0) {
-      return res.status(400).json({ error: 'ids must be a non-empty array' });
+      return res.status(400).json({ error: 'ids mora biti neprazan niz' });
     }
     if (!updates || typeof updates !== 'object') {
-      return res.status(400).json({ error: 'updates object required' });
+      return res.status(400).json({ error: 'Objekat ažuriranja je obavezan' });
     }
     const $set = {};
     for (const key of BULK_METADATA_KEYS) {
@@ -2732,14 +2732,14 @@ router.patch('/admin/bulk-update', verifyToken, checkRole(['ADMIN', 'TEACHER', '
       }
     }
     if (Object.keys($set).length === 0) {
-      return res.status(400).json({ error: 'No valid metadata fields to update' });
+      return res.status(400).json({ error: 'Nema ispravnih polja metapodataka za ažuriranje' });
     }
 
     const objectIds = ids
       .filter((id) => mongoose.Types.ObjectId.isValid(String(id)))
       .map((id) => new mongoose.Types.ObjectId(String(id)));
     if (objectIds.length === 0) {
-      return res.status(400).json({ error: 'No valid exercise ids' });
+      return res.status(400).json({ error: 'Nema ispravnih ID-ova vežbi' });
     }
 
     const filter = {
@@ -2792,11 +2792,11 @@ router.post(
     try {
       const source = await DigitalExercise.findById(req.params.id);
       if (!source || source.isDeleted) {
-        return res.status(404).json({ error: 'Exercise not found' });
+        return res.status(404).json({ error: 'Vežba nije pronađena' });
       }
 
       if (!(await teacherCanEditExercise(req.user, source))) {
-        return res.status(403).json({ error: 'Not authorized to edit this exercise' });
+        return res.status(403).json({ error: 'Nemate ovlašćenje da uređujete ovu vežbu' });
       }
 
       const rawIndices = Array.isArray(req.body.questionIndices) ? req.body.questionIndices : [];
@@ -2809,26 +2809,26 @@ router.post(
       const totalQ = source.questions?.length || 0;
 
       if (!sortedIndices.length) {
-        return res.status(400).json({ error: 'Select at least one question to move' });
+        return res.status(400).json({ error: 'Izaberite najmanje jedno pitanje za premeštanje' });
       }
       if (sortedIndices.some((i) => i >= totalQ)) {
-        return res.status(400).json({ error: 'Invalid question index' });
+        return res.status(400).json({ error: 'Neispravan indeks pitanja' });
       }
       if (sortedIndices.length >= totalQ) {
-        return res.status(400).json({ error: 'Leave at least one question in the source exercise' });
+        return res.status(400).json({ error: 'Ostavite najmanje jedno pitanje u izvornoj vežbi' });
       }
 
       const title = String(req.body.title || '').trim();
       const description = String(req.body.description || '').trim();
       if (!title || !description) {
-        return res.status(400).json({ error: 'Title and description are required for the new exercise' });
+        return res.status(400).json({ error: 'Naslov i opis su obavezni za novu vežbu' });
       }
 
       let courseDay = null;
       if (req.body.courseDay != null && req.body.courseDay !== '') {
         const cd = parseInt(req.body.courseDay, 10);
         if (!isValidAdminCourseDay(cd)) {
-          return res.status(400).json({ error: 'Journey day must be empty or a number from 0 (Trial) to 200' });
+          return res.status(400).json({ error: 'Dan putovanja mora biti prazan ili broj od 0 (Probni) do 200' });
         }
         courseDay = cd;
       }
@@ -2899,7 +2899,7 @@ router.post(
       });
     } catch (err) {
       console.error('POST /digital-exercises/:id/split-questions error:', err);
-      res.status(400).json({ error: err.message || 'Failed to split questions' });
+      res.status(400).json({ error: err.message || 'Deljenje pitanja nije uspelo' });
     }
   }
 );
@@ -2931,7 +2931,7 @@ router.post('/freemode', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_AD
     const { items, title, description, level, category, targetLanguage, nativeLanguage, difficulty, estimatedDuration, courseDay, tags, version, targetBatches, lockBrowser, noReattempt } = req.body;
 
     if (!items || !Array.isArray(items) || items.length === 0) {
-      return res.status(400).json({ error: 'At least one question item is required' });
+      return res.status(400).json({ error: 'Obavezan je najmanje jedan element pitanja' });
     }
 
     // Track current content block fields to inherit
@@ -3011,7 +3011,7 @@ router.post('/freemode', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_AD
     }
 
     if (questions.length === 0) {
-      return res.status(400).json({ error: 'At least one question is required' });
+      return res.status(400).json({ error: 'Obavezno je najmanje jedno pitanje' });
     }
 
     // Collect trailing content blocks (content items after the last question)
@@ -3040,7 +3040,7 @@ router.post('/freemode', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_AD
       level,
       category,
       targetLanguage: targetLanguage || 'German',
-      nativeLanguage: nativeLanguage || 'English',
+      nativeLanguage: nativeLanguage || 'Serbian',
       difficulty: difficulty || 'Beginner',
       estimatedDuration: estimatedDuration || 15,
       courseDay: courseDay != null ? courseDay : null,
@@ -3070,7 +3070,7 @@ router.post('/freemode', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_AD
     const exercise = new DigitalExercise(exerciseData);
     await exercise.save();
 
-    res.status(201).json({ exercise, message: 'Exercise saved successfully' });
+    res.status(201).json({ exercise, message: 'Vežba je uspešno sačuvana' });
   } catch (err) {
     console.error('POST /digital-exercises/freemode error:', err);
     res.status(400).json({ error: err.message });
@@ -3081,16 +3081,16 @@ router.post('/freemode', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_AD
 router.put('/freemode/:id', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
   try {
     const exercise = await DigitalExercise.findById(req.params.id);
-    if (!exercise) return res.status(404).json({ error: 'Exercise not found' });
+    if (!exercise) return res.status(404).json({ error: 'Vežba nije pronađena' });
 
     if (!(await teacherCanEditExercise(req.user, exercise))) {
-      return res.status(403).json({ error: 'Not authorized to edit this exercise' });
+      return res.status(403).json({ error: 'Nemate ovlašćenje da uređujete ovu vežbu' });
     }
 
     const { items, title, description, level, category, targetLanguage, nativeLanguage, difficulty, estimatedDuration, courseDay, tags, targetBatches, version, lockBrowser, noReattempt } = req.body;
 
     if (!items || !Array.isArray(items) || items.length === 0) {
-      return res.status(400).json({ error: 'At least one question item is required' });
+      return res.status(400).json({ error: 'Obavezan je najmanje jedan element pitanja' });
     }
 
     let currentContext = '';
@@ -3168,7 +3168,7 @@ router.put('/freemode/:id', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER
     }
 
     if (questions.length === 0) {
-      return res.status(400).json({ error: 'At least one question is required' });
+      return res.status(400).json({ error: 'Obavezno je najmanje jedno pitanje' });
     }
 
     // Collect trailing content blocks (content items after the last question)
@@ -3222,7 +3222,7 @@ router.put('/freemode/:id', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER
     await exercise.save();
 
     const updated = await DigitalExercise.findById(exercise._id).populate('createdBy', 'name email').lean();
-    res.json({ exercise: updated, message: 'Exercise updated successfully' });
+    res.json({ exercise: updated, message: 'Vežba je uspešno ažurirana' });
   } catch (err) {
     console.error('PUT /digital-exercises/freemode/:id error:', err);
     res.status(400).json({ error: err.message });
@@ -3246,11 +3246,11 @@ router.patch('/:id/visibility', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEA
       { $set: update },
       { new: true, runValidators: false }
     );
-    if (!exercise) return res.status(404).json({ error: 'Exercise not found' });
+    if (!exercise) return res.status(404).json({ error: 'Vežba nije pronađena' });
     res.json({ success: true, visibleToStudents: exercise.visibleToStudents });
   } catch (err) {
     console.error('PATCH /digital-exercises/:id/visibility error:', err);
-    res.status(500).json({ error: err.message || 'Failed to update visibility' });
+    res.status(500).json({ error: err.message || 'Ažuriranje vidljivosti nije uspelo' });
   }
 });
 
@@ -3262,11 +3262,11 @@ router.patch('/:id/tester-verified', verifyToken, checkRole(['ADMIN', 'TEACHER',
       { $set: { testerVerified: true, updatedAt: new Date() } },
       { new: true, runValidators: false }
     );
-    if (!exercise) return res.status(404).json({ error: 'Exercise not found' });
+    if (!exercise) return res.status(404).json({ error: 'Vežba nije pronađena' });
     res.json({ success: true, testerVerified: exercise.testerVerified });
   } catch (err) {
     console.error('PATCH /digital-exercises/:id/tester-verified error:', err);
-    res.status(500).json({ error: err.message || 'Failed to mark exercise as tested' });
+    res.status(500).json({ error: err.message || 'Označavanje vežbe kao testirane nije uspelo' });
   }
 });
 
@@ -3279,11 +3279,11 @@ router.patch('/:id/watch-only', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEA
       { $set: { watchOnlyMode, updatedAt: new Date() } },
       { new: true, runValidators: false }
     );
-    if (!exercise) return res.status(404).json({ error: 'Exercise not found' });
+    if (!exercise) return res.status(404).json({ error: 'Vežba nije pronađena' });
     res.json({ success: true, watchOnlyMode: exercise.watchOnlyMode });
   } catch (err) {
     console.error('PATCH /digital-exercises/:id/watch-only error:', err);
-    res.status(500).json({ error: err.message || 'Failed to update watch-only mode' });
+    res.status(500).json({ error: err.message || 'Ažuriranje režima samo za gledanje nije uspelo' });
   }
 });
 
@@ -3291,7 +3291,7 @@ router.patch('/:id/watch-only', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEA
 router.patch('/:id/toggle-active', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
   try {
     const exercise = await DigitalExercise.findById(req.params.id);
-    if (!exercise) return res.status(404).json({ error: 'Exercise not found' });
+    if (!exercise) return res.status(404).json({ error: 'Vežba nije pronađena' });
     exercise.isActive = !exercise.isActive;
     await exercise.save();
     res.json({ success: true, isActive: exercise.isActive });
@@ -3308,10 +3308,10 @@ router.post(
   async (req, res) => {
     try {
       const exercise = await DigitalExercise.findById(req.params.id);
-      if (!exercise) return res.status(404).json({ error: 'Exercise not found' });
+      if (!exercise) return res.status(404).json({ error: 'Vežba nije pronađena' });
 
       if (!(await teacherCanEditExercise(req.user, exercise))) {
-        return res.status(403).json({ error: 'Not authorized to edit this exercise' });
+        return res.status(403).json({ error: 'Nemate ovlašćenje da uređujete ovu vežbu' });
       }
 
       const { updatedCount, resolutions, missing } = await recoverExerciseMedia(exercise);
@@ -3337,7 +3337,7 @@ router.post(
       });
     } catch (err) {
       console.error('POST /digital-exercises/:id/recover-media error:', err);
-      res.status(500).json({ error: err.message || 'Media recovery failed' });
+      res.status(500).json({ error: err.message || 'Oporavak medija nije uspeo' });
     }
   }
 );
@@ -3346,10 +3346,10 @@ router.post(
 router.put('/:id', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_ADMIN']), async (req, res) => {
   try {
     const exercise = await DigitalExercise.findById(req.params.id);
-    if (!exercise) return res.status(404).json({ error: 'Exercise not found' });
+    if (!exercise) return res.status(404).json({ error: 'Vežba nije pronađena' });
 
     if (!(await teacherCanEditExercise(req.user, exercise))) {
-      return res.status(403).json({ error: 'Not authorized to edit this exercise' });
+      return res.status(403).json({ error: 'Nemate ovlašćenje da uređujete ovu vežbu' });
     }
 
     const mediaClears = req.body.mediaClears;
@@ -3396,8 +3396,8 @@ router.delete('/:id', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN']), async 
       { isDeleted: true, deletedAt: new Date(), isActive: false },
       { new: true }
     );
-    if (!exercise) return res.status(404).json({ error: 'Exercise not found' });
-    res.json({ success: true, message: 'Exercise deleted' });
+    if (!exercise) return res.status(404).json({ error: 'Vežba nije pronađena' });
+    res.json({ success: true, message: 'Vežba je obrisana' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -3416,31 +3416,31 @@ router.post('/:id/start', verifyToken, blockVisaDocsOnly, checkRole(['STUDENT', 
       ...(isStaff ? {} : { visibleToStudents: true }),
       isDeleted: { $ne: true }
     });
-    if (!exercise) return res.status(404).json({ error: 'Exercise not found or not available' });
+    if (!exercise) return res.status(404).json({ error: 'Vežba nije pronađena ili nije dostupna' });
 
     if (!isStaff) {
       const access = await getStudentExerciseAccess(req.user.id);
       if (!access.enabled) {
         return res.status(403).json({
-          error: 'Journey content is not enabled for your batch yet.',
+          error: 'Sadržaj putovanja još nije omogućen za vašu grupu.',
           code: 'JOURNEY_NOT_ACTIVE'
         });
       }
       if (access.learningEnabled === false) {
         return res.status(403).json({
-          error: 'Exercises are not available for your batch.',
+          error: 'Vežbe nisu dostupne za vašu grupu.',
           code: 'LEARNING_CONTENT_DISABLED'
         });
       }
       if (!exerciseUnlockedForStudentDay(exercise, access.courseDay, access.minAssignedContentDay ?? 1)) {
         return res.status(403).json({
-          error: 'This exercise unlocks on a later day of your course.',
+          error: 'Ova vežba se otključava kasnijeg dana vašeg kursa.',
           code: 'COURSE_DAY_LOCKED'
         });
       }
       if (isContentBlockedForStudent(access.student, { courseDay: exercise.courseDay, level: exercise.level })) {
         return res.status(403).json({
-          error: 'This exercise is not available for your learning path.',
+          error: 'Ova vežba nije dostupna za vaš put učenja.',
           code: 'CONTENT_LEVEL_BLOCKED'
         });
       }
@@ -3452,26 +3452,26 @@ router.post('/:id/start', verifyToken, blockVisaDocsOnly, checkRole(['STUDENT', 
       );
       if (seqLock.locked) {
         return res.status(403).json({
-          error: `Complete exercise ${(seqLock.previousLetter || '').toUpperCase()} first.`,
+          error: `Najpre završite vežbu ${(seqLock.previousLetter || '').toUpperCase()}.`,
           code: 'SEQUENCE_LOCKED',
           previousLetter: seqLock.previousLetter
         });
       }
       if (!exerciseLevelAllowedForStudent(exercise.level, access.accessibleLevels)) {
         return res.status(403).json({
-          error: 'This exercise is above your current language level.',
+          error: 'Ova vežba je iznad vašeg trenutnog jezičkog nivoa.',
           code: 'LEVEL_NOT_ALLOWED'
         });
       }
       if (!exerciseVersionAllowedForStudent(access.batchType, exercise, exerciseBatchMatchKeys(access.student?.batch))) {
         if (exercise.version === 'v2') {
           return res.status(403).json({
-            error: 'This exercise is not assigned to your batch.',
+            error: 'Ova vežba nije dodeljena vašoj grupi.',
             code: 'BATCH_NOT_ASSIGNED'
           });
         }
         return res.status(403).json({
-          error: 'This exercise is not available for your batch.',
+          error: 'Ova vežba nije dostupna za vašu grupu.',
           code: 'VERSION_NOT_ALLOWED'
         });
       }
@@ -3486,7 +3486,7 @@ router.post('/:id/start', verifyToken, blockVisaDocsOnly, checkRole(['STUDENT', 
       });
       if (existingCompleted) {
         return res.status(403).json({
-          error: 'You can only attempt this exercise once.',
+          error: 'Ovu vežbu možete pokušati samo jednom.',
           code: 'NO_REATTEMPT'
         });
       }
@@ -3539,19 +3539,19 @@ router.post('/:id/submit-question', verifyToken, blockVisaDocsOnly, checkRole(['
     const { attemptId, questionIndex, response, timeSpentSeconds } = req.body;
 
     const exercise = await DigitalExercise.findById(req.params.id).lean();
-    if (!exercise) return res.status(404).json({ error: 'Exercise not found' });
+    if (!exercise) return res.status(404).json({ error: 'Vežba nije pronađena' });
 
     const attempt = await ExerciseAttempt.findOne({
       _id: attemptId,
       studentId: req.user.id,
       exerciseId: req.params.id
     });
-    if (!attempt) return res.status(404).json({ error: 'Attempt not found' });
-    if (attempt.status === 'completed') return res.status(400).json({ error: 'Attempt already submitted' });
+    if (!attempt) return res.status(404).json({ error: 'Pokušaj nije pronađen' });
+    if (attempt.status === 'completed') return res.status(400).json({ error: 'Pokušaj je već predat' });
 
     const idx = parseInt(questionIndex, 10);
     if (isNaN(idx) || idx < 0 || idx >= exercise.questions.length) {
-      return res.status(400).json({ error: 'Invalid question index' });
+      return res.status(400).json({ error: 'Neispravan indeks pitanja' });
     }
 
     const q = exercise.questions[idx];
@@ -3880,15 +3880,15 @@ router.post('/:id/submit', verifyToken, blockVisaDocsOnly, checkRole(['STUDENT',
     const { attemptId, responses, timeSpentSeconds, autoSubmittedDueToLockBrowser } = req.body;
 
     const exercise = await DigitalExercise.findById(req.params.id).lean();
-    if (!exercise) return res.status(404).json({ error: 'Exercise not found' });
+    if (!exercise) return res.status(404).json({ error: 'Vežba nije pronađena' });
 
     const attempt = await ExerciseAttempt.findOne({
       _id: attemptId,
       studentId: req.user.id,
       exerciseId: req.params.id
     });
-    if (!attempt) return res.status(404).json({ error: 'Attempt not found' });
-    if (attempt.status === 'completed') return res.status(400).json({ error: 'Attempt already submitted' });
+    if (!attempt) return res.status(404).json({ error: 'Pokušaj nije pronađen' });
+    if (attempt.status === 'completed') return res.status(400).json({ error: 'Pokušaj je već predat' });
 
     // ── Fire all AI grading calls in parallel first ──────────────────────────
     // Pre-compute AI scores for every Q/A question simultaneously so we don't
@@ -4245,27 +4245,27 @@ router.get('/:id/my-review', verifyToken, async (req, res) => {
       _id: req.params.id,
       isDeleted: { $ne: true }
     }).lean();
-    if (!exercise) return res.status(404).json({ error: 'Exercise not found' });
+    if (!exercise) return res.status(404).json({ error: 'Vežba nije pronađena' });
 
     if (req.user.role === 'STUDENT') {
       if (!exercise.visibleToStudents) {
-        return res.status(403).json({ error: 'Exercise not available' });
+        return res.status(403).json({ error: 'Vežba nije dostupna' });
       }
       const access = await getStudentExerciseAccess(req.user.id);
       if (!access.enabled) {
-        return res.status(403).json({ error: 'Journey content is not enabled for your batch yet.' });
+        return res.status(403).json({ error: 'Sadržaj putovanja još nije omogućen za vašu grupu.' });
       }
       if (access.learningEnabled === false) {
-        return res.status(403).json({ error: 'Exercises are not available for your batch.' });
+        return res.status(403).json({ error: 'Vežbe nisu dostupne za vašu grupu.' });
       }
       if (!exerciseUnlockedForStudentDay(exercise, access.courseDay, access.minAssignedContentDay ?? 1)) {
-        return res.status(403).json({ error: 'This exercise unlocks on a later day of your course.' });
+        return res.status(403).json({ error: 'Ova vežba se otključava kasnijeg dana vašeg kursa.' });
       }
       if (isContentBlockedForStudent(access.student, { courseDay: exercise.courseDay, level: exercise.level })) {
-        return res.status(403).json({ error: 'This exercise is not available for your learning path.' });
+        return res.status(403).json({ error: 'Ova vežba nije dostupna za vaš put učenja.' });
       }
       if (!exerciseLevelAllowedForStudent(exercise.level, access.accessibleLevels)) {
-        return res.status(403).json({ error: 'This exercise is above your current language level.' });
+        return res.status(403).json({ error: 'Ova vežba je iznad vašeg trenutnog jezičkog nivoa.' });
       }
     }
 
@@ -4288,7 +4288,7 @@ router.get('/:id/my-review', verifyToken, async (req, res) => {
     }
 
     if (!attempt) {
-      return res.status(404).json({ error: 'No completed attempt yet' });
+      return res.status(404).json({ error: 'Još nema završenog pokušaja' });
     }
 
     const perQuestion = buildPerQuestionReview(exercise, attempt);
@@ -4327,7 +4327,7 @@ router.get('/:id/attempts/:attemptId', verifyToken, checkRole(['ADMIN', 'TEACHER
       _id: req.params.id,
       isDeleted: { $ne: true }
     }).lean();
-    if (!exercise) return res.status(404).json({ error: 'Exercise not found' });
+    if (!exercise) return res.status(404).json({ error: 'Vežba nije pronađena' });
 
     await assertTeacherCanViewExercise(req.user, exercise);
 
@@ -4339,7 +4339,7 @@ router.get('/:id/attempts/:attemptId', verifyToken, checkRole(['ADMIN', 'TEACHER
       .populate('studentId', 'name email batch level')
       .lean();
 
-    if (!attempt) return res.status(404).json({ error: 'Attempt not found' });
+    if (!attempt) return res.status(404).json({ error: 'Pokušaj nije pronađen' });
 
     const perQuestion = buildPerQuestionReview(exercise, attempt);
     const wrongCount = perQuestion.filter((r) => !r.isCorrect).length;
@@ -4373,13 +4373,13 @@ router.patch('/:id/attempts/:attemptId/questions/:questionIndex/override', verif
       _id: req.params.id,
       isDeleted: { $ne: true }
     }).lean();
-    if (!exercise) return res.status(404).json({ error: 'Exercise not found' });
+    if (!exercise) return res.status(404).json({ error: 'Vežba nije pronađena' });
 
     await assertTeacherOwnsExercise(req.user, exercise);
 
     const idx = Number.parseInt(req.params.questionIndex, 10);
     if (!Number.isFinite(idx) || idx < 0 || idx >= (exercise.questions || []).length) {
-      return res.status(400).json({ error: 'Invalid question index' });
+      return res.status(400).json({ error: 'Neispravan indeks pitanja' });
     }
 
     const attempt = await ExerciseAttempt.findOne({
@@ -4387,11 +4387,11 @@ router.patch('/:id/attempts/:attemptId/questions/:questionIndex/override', verif
       exerciseId: req.params.id,
       status: 'completed'
     });
-    if (!attempt) return res.status(404).json({ error: 'Attempt not found' });
+    if (!attempt) return res.status(404).json({ error: 'Pokušaj nije pronađen' });
 
     const targetResp = (attempt.responses || []).find((r) => Number(r.questionIndex) === idx);
     if (!targetResp) {
-      return res.status(404).json({ error: 'No submitted answer found for this question' });
+      return res.status(404).json({ error: 'Nije pronađen predati odgovor za ovo pitanje' });
     }
 
     const q = exercise.questions[idx];
@@ -4403,7 +4403,7 @@ router.patch('/:id/attempts/:attemptId/questions/:questionIndex/override', verif
 
     if (hasSubIndex) {
       if (!Number.isFinite(subQi) || subQi < 0 || subQi >= subs.length) {
-        return res.status(400).json({ error: 'Invalid sub-question index' });
+        return res.status(400).json({ error: 'Neispravan indeks potpitanja' });
       }
       const sq = subs[subQi];
       const maxSubPts = Number(sq?.points) ?? 1;
@@ -4507,7 +4507,7 @@ router.post('/:id/attempts/:attemptId/regrade', verifyToken, checkRole(['ADMIN',
       _id: req.params.id,
       isDeleted: { $ne: true }
     }).lean();
-    if (!exercise) return res.status(404).json({ error: 'Exercise not found' });
+    if (!exercise) return res.status(404).json({ error: 'Vežba nije pronađena' });
 
     await assertTeacherOwnsExercise(req.user, exercise);
 
@@ -4516,7 +4516,7 @@ router.post('/:id/attempts/:attemptId/regrade', verifyToken, checkRole(['ADMIN',
       exerciseId: req.params.id,
       status: 'completed'
     });
-    if (!attempt) return res.status(404).json({ error: 'Attempt not found' });
+    if (!attempt) return res.status(404).json({ error: 'Pokušaj nije pronađen' });
 
     await regradeCompletedAttempt(exercise, attempt);
     await attempt.save();
@@ -4555,7 +4555,7 @@ router.post('/:id/attempts/regrade-all', verifyToken, checkRole(['ADMIN', 'TEACH
       _id: req.params.id,
       isDeleted: { $ne: true }
     }).lean();
-    if (!exercise) return res.status(404).json({ error: 'Exercise not found' });
+    if (!exercise) return res.status(404).json({ error: 'Vežba nije pronađena' });
 
     await assertTeacherOwnsExercise(req.user, exercise);
 
@@ -4609,7 +4609,7 @@ router.get('/:id/completions', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEAC
       _id: req.params.id,
       isDeleted: { $ne: true }
     }).lean();
-    if (!exercise) return res.status(404).json({ error: 'Exercise not found' });
+    if (!exercise) return res.status(404).json({ error: 'Vežba nije pronađena' });
     await assertTeacherCanViewExercise(req.user, exercise);
 
     const { date, studentId, page = 1, limit = 50, all } = req.query;
@@ -4772,12 +4772,12 @@ router.post(
   attachmentUpload.single('attachment'),
   async (req, res) => {
     try {
-      if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+      if (!req.file) return res.status(400).json({ error: 'Nijedna datoteka nije otpremljena' });
 
       const mt = String(req.file.mimetype || '').toLowerCase();
       if (mt.startsWith('audio/')) {
         if (!req.file.buffer?.length) {
-          return res.status(400).json({ error: 'Empty audio upload' });
+          return res.status(400).json({ error: 'Prazno otpremanje zvuka' });
         }
         if (!isExerciseR2Configured()) {
           return res.status(503).json({
@@ -4849,12 +4849,12 @@ router.post(
 
       if (!hasAnyInput) {
         return res.status(400).json({
-          error: 'Provide questionText, storyParagraph, contextText, correctAnswer, or sampleAnswers'
+          error: 'Navedite questionText, storyParagraph, contextText, correctAnswer ili sampleAnswers'
         });
       }
 
       if (!process.env.EXERCISES_OPENAI_API_KEY) {
-        return res.status(503).json({ error: 'OpenAI not configured' });
+        return res.status(503).json({ error: 'OpenAI nije konfigurisan' });
       }
 
       const openai = new OpenAI({ apiKey: process.env.EXERCISES_OPENAI_API_KEY });
@@ -4909,7 +4909,7 @@ router.post(
         return res.status(400).json({ error: 'questions array is required' });
       }
       if (!process.env.EXERCISES_OPENAI_API_KEY) {
-        return res.status(503).json({ error: 'OpenAI not configured' });
+        return res.status(503).json({ error: 'OpenAI nije konfigurisan' });
       }
 
       const openai = new OpenAI({ apiKey: process.env.EXERCISES_OPENAI_API_KEY });
@@ -4964,7 +4964,7 @@ Include one object in "results" for every input question, using the same "index"
       try {
         parsed = JSON.parse(rawContent);
       } catch {
-        return res.status(500).json({ error: 'AI returned invalid JSON', raw: rawContent });
+        return res.status(500).json({ error: 'AI je vratio neispravan JSON', raw: rawContent });
       }
 
       const extractResultsArray = (p, inputQs) => {
@@ -5030,7 +5030,7 @@ router.post(
         return res.status(400).json({ error: 'targetType is required' });
       }
       if (!process.env.EXERCISES_OPENAI_API_KEY) {
-        return res.status(503).json({ error: 'OpenAI not configured' });
+        return res.status(503).json({ error: 'OpenAI nije konfigurisan' });
       }
 
       const openai = new OpenAI({ apiKey: process.env.EXERCISES_OPENAI_API_KEY });
@@ -5186,7 +5186,7 @@ Respond with ONLY the JSON object.`;
       try {
         converted = JSON.parse(rawContent);
       } catch {
-        return res.status(500).json({ error: 'AI returned invalid JSON', raw: rawContent });
+        return res.status(500).json({ error: 'AI je vratio neispravan JSON', raw: rawContent });
       }
 
       // Merge preserved meta fields (keep originals unless AI explicitly populated them)

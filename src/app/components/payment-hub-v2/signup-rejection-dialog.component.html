@@ -1,12 +1,12 @@
 <div class="pad-root">
   <div class="pad-header pad-header--reject">
     <div>
-      <h2 class="pad-title">Reject signup</h2>
+      <h2 class="pad-title">Odbij registraciju</h2>
       <p class="pad-sub" *ngIf="studentName">
-        Decline payment proof for <strong>{{ studentName }}</strong>. The student will receive a rejection email.
+        Odbijte dokaz o plaćanju za <strong>{{ studentName }}</strong>. Učenik će primiti email o odbijanju.
       </p>
     </div>
-    <button mat-icon-button type="button" (click)="cancel()" aria-label="Close">
+    <button mat-icon-button type="button" (click)="cancel()" aria-label="Zatvori">
       <mat-icon>close</mat-icon>
     </button>
   </div>
@@ -20,26 +20,26 @@
     </p>
 
     <p class="pad-hint">
-      Use this when the payment details or proof do not match. The student can re-submit a corrected proof from their signup link.
+      Koristite ovo kada detalji plaćanja ili dokaz ne odgovaraju. Učenik može ponovo podneti ispravljen dokaz putem svog linka za registraciju.
     </p>
 
     <mat-form-field appearance="outline" class="pad-span-2 pad-reject-wrap" subscriptSizing="dynamic">
-      <mat-label>Reason for rejection (optional)</mat-label>
+      <mat-label>Razlog odbijanja (opciono)</mat-label>
       <textarea
         matInput
         rows="3"
         [(ngModel)]="rejectionReason"
         #rejectionReasonInput
-        placeholder="e.g. Amount on screenshot does not match declared payment"></textarea>
-      <mat-hint>If provided, this will be included in the email to the student.</mat-hint>
+        placeholder="npr. Iznos na snimku ekrana ne odgovara deklarisanom plaćanju"></textarea>
+      <mat-hint>Ako je naveden, biće uključen u email učeniku.</mat-hint>
     </mat-form-field>
   </div>
 
   <div class="pad-footer pad-footer--reject">
-    <button mat-stroked-button type="button" (click)="cancel()">Cancel</button>
+    <button mat-stroked-button type="button" (click)="cancel()">Otkaži</button>
     <button mat-flat-button color="warn" type="button" class="pad-footer-btn pad-footer-btn--reject" (click)="confirm()">
       <mat-icon>block</mat-icon>
-      Reject signup
+      Odbij registraciju
     </button>
   </div>
 </div>

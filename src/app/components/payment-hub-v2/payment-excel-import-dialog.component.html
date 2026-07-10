@@ -6,8 +6,8 @@
         <mat-icon>account_balance</mat-icon>
       </div>
       <div>
-        <h1 class="ei-title">Bulk payment import</h1>
-        <p class="ei-subtitle">Upload, verify, and map legacy payments with safeguards</p>
+        <h1 class="ei-title">Grupni uvoz plaćanja</h1>
+        <p class="ei-subtitle">Otpremite, proverite i mapirajte stara plaćanja sa zaštitnim merama</p>
       </div>
     </div>
     <button type="button" class="ei-icon-btn" (click)="close()" aria-label="Close" *ngIf="step !== 'mapping'">
@@ -18,17 +18,17 @@
   <nav class="ei-stepper" *ngIf="!loadingStudents" aria-label="Import steps">
     <div class="ei-step" [class.ei-step-active]="step === 'upload'" [class.ei-step-done]="step === 'preview' || step === 'mapping'">
       <span class="ei-step-dot">1</span>
-      <span class="ei-step-text">Upload</span>
+      <span class="ei-step-text">Otpremite</span>
     </div>
     <div class="ei-step-line" [class.ei-step-line-active]="step === 'preview' || step === 'mapping'"></div>
     <div class="ei-step" [class.ei-step-active]="step === 'preview'" [class.ei-step-done]="step === 'mapping'">
       <span class="ei-step-dot">2</span>
-      <span class="ei-step-text">Preview</span>
+      <span class="ei-step-text">Pregled</span>
     </div>
     <div class="ei-step-line" [class.ei-step-line-active]="step === 'mapping'"></div>
     <div class="ei-step" [class.ei-step-active]="step === 'mapping'">
       <span class="ei-step-dot">3</span>
-      <span class="ei-step-text">Map</span>
+      <span class="ei-step-text">Mapa</span>
     </div>
   </nav>
 
@@ -37,35 +37,35 @@
 
     <div class="ei-loading" *ngIf="loadingStudents">
       <div class="ei-spinner-ring"></div>
-      <p>Syncing student directory…</p>
+      <p>Sinhronizacija direktorijuma učenika…</p>
     </div>
 
     <!-- UPLOAD -->
     <section class="ei-section" *ngIf="!loadingStudents && step === 'upload'">
       <div class="ei-glass-card ei-template-card">
         <div class="ei-template-copy">
-          <span class="ei-kicker">Template</span>
-          <h2>Structured import file</h2>
-          <p>Headers match the legacy sheet (Name, Lng Quoted / Lng Received, Doc Quoted / Doc Paid, Visa Quo / Visa Re, …) plus aliases like student_email. Batch, payment date, type, and note are optional. Currency falls back to each student’s profile when omitted; payment date defaults to today and type to Language when blank.</p>
+          <span class="ei-kicker">Šablon</span>
+          <h2>Strukturirana datoteka za uvoz</h2>
+          <p>Zaglavlja se podudaraju sa starim listom (Ime, Lng Quoted / Lng Received, Doc Quoted / Doc Paid, Visa Quo / Visa Re, …) plus aliasi poput student_email. Grupa, datum plaćanja, vrsta i napomena su opcioni. Valuta se preuzima iz profila učenika kada je izostavljena; datum plaćanja podrazumevano je danas, a vrsta Jezik kada je prazno.</p>
         </div>
         <button type="button" class="ei-btn ei-btn-secondary" (click)="downloadTemplate()">
           <mat-icon>download</mat-icon>
-          Download .xlsx
+          Preuzmite .xlsx
         </button>
       </div>
 
       <div class="ei-dropzone" (click)="fileInput.click()">
         <div class="ei-dropzone-glow"></div>
         <mat-icon class="ei-dropzone-icon">cloud_upload</mat-icon>
-        <p class="ei-dropzone-title">Drop your workbook here or browse</p>
-        <p class="ei-dropzone-hint">.xlsx only · First sheet is read</p>
+        <p class="ei-dropzone-title">Prevucite radnu svesku ovde ili pregledajte</p>
+        <p class="ei-dropzone-hint">Samo .xlsx · Čita se prvi list</p>
         <input #fileInput type="file" accept=".xlsx" hidden (change)="onFileChange($event)" />
       </div>
 
       <div class="ei-alert ei-alert-error" *ngIf="parseErrors.length">
         <mat-icon>gpp_maybe</mat-icon>
         <div>
-          <strong>{{ parseErrors.length }} issue(s)</strong>
+          <strong>{{ parseErrors.length }} problem(a)</strong>
           <ul>
             <li *ngFor="let e of parseErrors">{{ e }}</li>
           </ul>
@@ -79,27 +79,27 @@
       <div class="ei-summary-sticky">
         <div class="ei-summary-grid">
           <div class="ei-stat-card ei-stat-total">
-            <span class="ei-stat-label">Total rows</span>
+            <span class="ei-stat-label">Ukupno redova</span>
             <span class="ei-stat-value">{{ previewRows.length }}</span>
           </div>
           <div class="ei-stat-card ei-stat-ok">
-            <span class="ei-stat-label">Matched</span>
+            <span class="ei-stat-label">Podudareno</span>
             <span class="ei-stat-value">{{ matchedCount }}</span>
           </div>
           <div class="ei-stat-card ei-stat-warn">
-            <span class="ei-stat-label">Unmatched</span>
+            <span class="ei-stat-label">Nepodudareno</span>
             <span class="ei-stat-value">{{ unmatchedCount }}</span>
           </div>
           <div class="ei-stat-card ei-stat-warn2">
-            <span class="ei-stat-label">Warnings</span>
+            <span class="ei-stat-label">Upozorenja</span>
             <span class="ei-stat-value">{{ warningRowCount }}</span>
           </div>
           <div class="ei-stat-card ei-stat-dup">
-            <span class="ei-stat-label">Duplicates</span>
+            <span class="ei-stat-label">Duplikati</span>
             <span class="ei-stat-value">{{ duplicateRowCount }}</span>
           </div>
           <div class="ei-stat-card ei-stat-bad">
-            <span class="ei-stat-label">Invalid</span>
+            <span class="ei-stat-label">Nevažeće</span>
             <span class="ei-stat-value">{{ invalidCount }}</span>
           </div>
         </div>
@@ -121,11 +121,11 @@
       <div class="ei-preview-toolbar">
         <p class="ei-preview-hint">
           <mat-icon>touch_app</mat-icon>
-          Click any row to open full details
+          Kliknite na red za prikaz punih detalja
         </p>
         <button type="button" class="ei-btn ei-btn-secondary ei-see-full-btn" (click)="openFullPreviewTab()">
           <mat-icon>open_in_new</mat-icon>
-          See full
+          Vidi sve
         </button>
       </div>
 
@@ -134,14 +134,14 @@
           <table class="ei-table ei-table-compact">
             <thead>
               <tr>
-                <th>Row</th>
+                <th>Red</th>
                 <th>Status</th>
-                <th>Student</th>
+                <th>Učenik</th>
                 <th>Email</th>
-                <th>Type</th>
-                <th class="ei-num">Amount</th>
-                <th>CCY</th>
-                <th>Date</th>
+                <th>Vrsta</th>
+                <th class="ei-num">Iznos</th>
+                <th>Valuta</th>
+                <th>Datum</th>
                 <th class="ei-th-action"></th>
               </tr>
             </thead>
@@ -159,8 +159,8 @@
                 <td>
                   <div class="ei-chip-stack">
                     <span class="ei-pill" [ngClass]="rowStatusClass(row)">{{ rowStatusLabel(row) }}</span>
-                    <span class="ei-pill ei-pill-dup" *ngIf="row.possibleDuplicate">Duplicate</span>
-                    <span class="ei-pill ei-pill-ccy" *ngIf="row.currencyInferred">CCY*</span>
+                    <span class="ei-pill ei-pill-dup" *ngIf="row.possibleDuplicate">Duplikat</span>
+                    <span class="ei-pill ei-pill-ccy" *ngIf="row.currencyInferred">Val.*</span>
                   </div>
                 </td>
                 <td>
@@ -170,7 +170,7 @@
                   </span>
                 </td>
                 <td class="ei-ellipsis" [matTooltip]="row.email">{{ row.email || '—' }}</td>
-                <td><span class="ei-type" [ngClass]="'ei-type-' + (row.type | lowercase)">{{ row.type || 'Language' }}</span></td>
+                <td><span class="ei-type" [ngClass]="'ei-type-' + (row.type | lowercase)">{{ row.type || 'Jezik' }}</span></td>
                 <td class="ei-num">{{ fmt(row.amount) }}</td>
                 <td>{{ row.currency || row.effectiveCurrency }}</td>
                 <td>{{ fmtDate(row.dateOfPayment) }}</td>
@@ -186,7 +186,7 @@
       <div class="ei-alert ei-alert-error" *ngIf="parseErrors.length">
         <mat-icon>error_outline</mat-icon>
         <div>
-          <strong>Invalid rows are skipped on map</strong>
+          <strong>Nevažeći redovi se preskaču pri mapiranju</strong>
           <ul>
             <li *ngFor="let e of parseErrors">{{ e }}</li>
           </ul>
@@ -208,11 +208,11 @@
             <mat-icon>arrow_back</mat-icon>
           </button>
           <div>
-            <h2 id="ei-detail-title" class="ei-detail-title">Row {{ row.rowIndex }}</h2>
+            <h2 id="ei-detail-title" class="ei-detail-title">Red {{ row.rowIndex }}</h2>
             <div class="ei-chip-stack ei-detail-pills">
               <span class="ei-pill" [ngClass]="rowStatusClass(row)">{{ rowStatusLabel(row) }}</span>
-              <span class="ei-pill ei-pill-dup" *ngIf="row.possibleDuplicate">Possible duplicate</span>
-              <span class="ei-pill ei-pill-ccy" *ngIf="row.currencyInferred">Currency inferred</span>
+              <span class="ei-pill ei-pill-dup" *ngIf="row.possibleDuplicate">Mogući duplikat</span>
+              <span class="ei-pill ei-pill-ccy" *ngIf="row.currencyInferred">Valuta pretpostavljena</span>
             </div>
           </div>
         </div>
@@ -232,14 +232,14 @@
       <div class="ei-detail-body">
         <section class="ei-detail-section" *ngIf="rowHasExpandableIssues(row)">
           <h3 class="ei-detail-section-title">
-            <mat-icon>warning_amber</mat-icon> Issues &amp; warnings
+            <mat-icon>warning_amber</mat-icon> Problemi i upozorenja
           </h3>
           <div class="ei-detail-issues">
             <div class="ei-issue" *ngFor="let issue of issueDetails(row)">
               <mat-icon>lightbulb_outline</mat-icon>
               <div>
                 <div class="ei-issue-reason">{{ issue.reason }}</div>
-                <div class="ei-issue-fix"><strong>Suggested fix:</strong> {{ issue.fix }}</div>
+                <div class="ei-issue-fix"><strong>Predloženo rešenje:</strong> {{ issue.fix }}</div>
               </div>
             </div>
           </div>
@@ -247,15 +247,15 @@
 
         <section class="ei-detail-section">
           <h3 class="ei-detail-section-title">
-            <mat-icon>person</mat-icon> Student
+            <mat-icon>person</mat-icon> Učenik
           </h3>
           <dl class="ei-detail-grid">
             <div class="ei-detail-field">
-              <dt>Name (sheet)</dt>
+              <dt>Ime (list)</dt>
               <dd>{{ row.name || '—' }}</dd>
             </div>
             <div class="ei-detail-field">
-              <dt>Name (portal)</dt>
+              <dt>Ime (portal)</dt>
               <dd>{{ row.resolvedName || '—' }}</dd>
             </div>
             <div class="ei-detail-field ei-detail-field-wide">
@@ -263,11 +263,11 @@
               <dd class="ei-detail-break">{{ row.email || '—' }}</dd>
             </div>
             <div class="ei-detail-field">
-              <dt>Level (sheet)</dt>
+              <dt>Nivo (list)</dt>
               <dd>{{ row.level || '—' }}</dd>
             </div>
             <div class="ei-detail-field">
-              <dt>Level (portal)</dt>
+              <dt>Nivo (portal)</dt>
               <dd>{{ row.resolvedLevel || '—' }}</dd>
             </div>
           </dl>
@@ -275,26 +275,26 @@
 
         <section class="ei-detail-section">
           <h3 class="ei-detail-section-title">
-            <mat-icon>payments</mat-icon> Payment
+            <mat-icon>payments</mat-icon> Plaćanje
           </h3>
           <dl class="ei-detail-grid">
             <div class="ei-detail-field">
-              <dt>Type</dt>
-              <dd><span class="ei-type" [ngClass]="'ei-type-' + (row.type | lowercase)">{{ row.type || 'Language' }}</span></dd>
+              <dt>Vrsta</dt>
+              <dd><span class="ei-type" [ngClass]="'ei-type-' + (row.type | lowercase)">{{ row.type || 'Jezik' }}</span></dd>
             </div>
             <div class="ei-detail-field" *ngIf="row.customLabel">
-              <dt>Custom label</dt>
+              <dt>Prilagođena oznaka</dt>
               <dd>{{ row.customLabel }}</dd>
             </div>
             <div class="ei-detail-field">
-              <dt>Date</dt>
+              <dt>Datum</dt>
               <dd>{{ fmtDate(row.dateOfPayment) }}</dd>
             </div>
             <div class="ei-detail-field">
-              <dt>Currency</dt>
+              <dt>Valuta</dt>
               <dd>
                 {{ row.currency || row.effectiveCurrency }}
-                <span class="ei-detail-muted" *ngIf="row.currencyInferred">(from student profile)</span>
+                <span class="ei-detail-muted" *ngIf="row.currencyInferred">(iz profila učenika)</span>
               </dd>
             </div>
           </dl>
@@ -302,35 +302,35 @@
 
         <section class="ei-detail-section">
           <h3 class="ei-detail-section-title">
-            <mat-icon>account_balance_wallet</mat-icon> Amounts
+            <mat-icon>account_balance_wallet</mat-icon> Iznosi
           </h3>
           <dl class="ei-detail-grid">
             <div class="ei-detail-field">
-              <dt>Amount paid</dt>
+              <dt>Plaćeni iznos</dt>
               <dd class="ei-detail-amount">{{ fmt(row.amount) }}</dd>
             </div>
             <div class="ei-detail-field">
-              <dt>Total / quoted</dt>
+              <dt>Ukupno / navedeno</dt>
               <dd class="ei-detail-amount">{{ fmt(row.totalAmount) }}</dd>
             </div>
             <div class="ei-detail-field">
-              <dt>Balance</dt>
+              <dt>Saldo</dt>
               <dd class="ei-detail-amount">{{ fmt(row.balance) }}</dd>
             </div>
             <div class="ei-detail-field">
-              <dt>Doc quotation</dt>
+              <dt>Ponuda za dokumentaciju</dt>
               <dd class="ei-detail-amount">{{ fmt(row.documentQuotation) }}</dd>
             </div>
             <div class="ei-detail-field">
-              <dt>Doc received</dt>
+              <dt>Primljeni dokumenti</dt>
               <dd class="ei-detail-amount">{{ fmt(row.documentReceived) }}</dd>
             </div>
             <div class="ei-detail-field">
-              <dt>Visa quotation</dt>
+              <dt>Ponuda za vizu</dt>
               <dd class="ei-detail-amount">{{ fmt(row.visaQuotation) }}</dd>
             </div>
             <div class="ei-detail-field">
-              <dt>Visa received</dt>
+              <dt>Primljeno za vizu</dt>
               <dd class="ei-detail-amount">{{ fmt(row.visaReceived) }}</dd>
             </div>
           </dl>
@@ -338,7 +338,7 @@
 
         <section class="ei-detail-section" *ngIf="row.note">
           <h3 class="ei-detail-section-title">
-            <mat-icon>notes</mat-icon> Note
+            <mat-icon>notes</mat-icon> Napomena
           </h3>
           <p class="ei-detail-note">{{ row.note }}</p>
         </section>
@@ -351,17 +351,17 @@
         <div class="ei-spinner-ring ei-spinner-lg"></div>
         <mat-progress-bar mode="determinate" [value]="mappingProgressFraction() * 100" class="ei-progress"></mat-progress-bar>
         <p class="ei-map-title">
-          Mapping {{ mappingPaymentRowsSucceeded + mappingPaymentRowsFailed }} / {{ totalPaymentRowsQueued() }} payments…
+          Mapiranje {{ mappingPaymentRowsSucceeded + mappingPaymentRowsFailed }} / {{ totalPaymentRowsQueued() }} plaćanja…
         </p>
-        <p class="ei-map-sub">Student groups {{ mappingCompletedSteps }} / {{ mappingTotalSteps }}</p>
+        <p class="ei-map-sub">Grupe učenika {{ mappingCompletedSteps }} / {{ mappingTotalSteps }}</p>
         <p class="ei-map-current" *ngIf="mappingCurrentStudentName">
           <mat-icon>person</mat-icon> {{ mappingCurrentStudentName }}
         </p>
         <div class="ei-map-counts">
-          <span class="ei-count-ok"><mat-icon>check_circle</mat-icon> {{ mappingSuccessCount }} ok</span>
-          <span class="ei-count-bad"><mat-icon>cancel</mat-icon> {{ mappingFailCount }} failed</span>
+          <span class="ei-count-ok"><mat-icon>check_circle</mat-icon> {{ mappingSuccessCount }} uspešno</span>
+          <span class="ei-count-bad"><mat-icon>cancel</mat-icon> {{ mappingFailCount }} neuspešno</span>
         </div>
-        <p class="ei-map-hint">Keep this window open until the run finishes.</p>
+        <p class="ei-map-hint">Ostavite ovaj prozor otvoren dok se operacija ne završi.</p>
       </div>
     </section>
   </div>
@@ -371,13 +371,13 @@
     <ng-container *ngIf="step === 'upload'">
       <span class="ei-footer-meta" *ngIf="fileName">{{ fileName }}</span>
       <span class="ei-footer-spacer"></span>
-      <button type="button" class="ei-btn ei-btn-ghost" (click)="close()">Cancel</button>
+      <button type="button" class="ei-btn ei-btn-ghost" (click)="close()">Otkaži</button>
     </ng-container>
 
     <ng-container *ngIf="step === 'preview'">
-      <button type="button" class="ei-btn ei-btn-ghost" (click)="close()" [disabled]="saving">Cancel</button>
+      <button type="button" class="ei-btn ei-btn-ghost" (click)="close()" [disabled]="saving">Otkaži</button>
       <button type="button" class="ei-btn ei-btn-secondary" (click)="backToUpload()" [disabled]="saving">
-        <mat-icon>arrow_back</mat-icon> Back
+        <mat-icon>arrow_back</mat-icon> Nazad
       </button>
       <span class="ei-footer-spacer"></span>
       <button
@@ -385,10 +385,10 @@
         class="ei-btn ei-btn-primary"
         (click)="mapPayments()"
         [disabled]="!canMap"
-        [matTooltip]="validMappableRows.length === 0 ? 'No matched rows to map' : ''"
+        [matTooltip]="validMappableRows.length === 0 ? 'Nema podudarenih redova za mapiranje' : ''"
       >
         <mat-icon>bolt</mat-icon>
-        Map {{ validMappableRows.length }} payment{{ validMappableRows.length !== 1 ? 's' : '' }}
+        Mapiraj {{ validMappableRows.length }} plaćanj{{ validMappableRows.length !== 1 ? 'a' : 'e' }}
       </button>
     </ng-container>
   </footer>

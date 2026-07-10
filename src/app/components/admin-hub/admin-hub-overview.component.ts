@@ -1,4 +1,4 @@
-import { Component, HostListener, OnDestroy, OnInit } from '@angular/core';
+﻿import { Component, HostListener, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
@@ -1217,7 +1217,7 @@ export class AdminHubOverviewComponent implements OnInit, OnDestroy {
     try {
       const d = new Date(dateStr);
       if (isNaN(d.getTime())) return '—';
-      return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+      return d.toLocaleDateString('sr-Latn-RS', { day: 'numeric', month: 'short' });
     } catch { return '—'; }
   }
 

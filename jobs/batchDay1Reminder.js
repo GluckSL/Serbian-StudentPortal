@@ -36,7 +36,7 @@ const LOG_PREFIX = '[BatchDay1Reminder]';
 
 /** Returns YYYY-MM-DD string for a Date in the given timezone. */
 function toDateStr(date, tz = TZ) {
-  return date.toLocaleDateString('en-CA', { timeZone: tz }); // en-CA → YYYY-MM-DD
+  return date.toLocaleDateString('sr-Latn-RS', { timeZone: tz }); // en-CA → YYYY-MM-DD
 }
 
 /** Adds (or subtracts) whole days to a YYYY-MM-DD string without timezone drift. */
@@ -49,7 +49,7 @@ function shiftDateStr(dateStr, days) {
 /** Human-readable date for email body e.g. "30 June 2026". */
 function formatDisplayDate(dateStr) {
   const [y, m, d] = dateStr.split('-').map(Number);
-  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('en-GB', {
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('sr-Latn-RS', {
     day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC',
   });
 }

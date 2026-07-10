@@ -36,7 +36,7 @@ interface MatchPair {
       </header>
 
       <div class="mc__board" *ngIf="phase === 'playing'">
-        <p class="mc__instruction">Match each item on the left with the correct item on the right</p>
+        <p class="mc__instruction">Poveži svaki element s leve strane sa ispravnim elementom s desne</p>
 
         <div class="mc__pairs" *ngFor="let pair of pairs; let i = index">
           <div class="mc__left">{{ pair.left }}</div>
@@ -49,7 +49,7 @@ interface MatchPair {
             [value]="pair.selectedRight || ''"
             (change)="selectMatch(i, $event)"
             [disabled]="pair.isCorrect !== null">
-            <option value="" disabled>Choose translation</option>
+            <option value="" disabled>Izaberite prevod</option>
             <option *ngFor="let opt of rightOptions" [value]="opt">{{ opt }}</option>
           </select>
 
@@ -58,30 +58,30 @@ interface MatchPair {
         <div class="mc__actions">
           <button mat-raised-button color="primary" (click)="checkAll()"
             [disabled]="!allSelected || phase !== 'playing' || checked">
-            <mat-icon>check</mat-icon> Check All
+            <mat-icon>check</mat-icon> Proveri sve
           </button>
           <button mat-raised-button color="accent" class="mc__continue-btn"
             *ngIf="checked" (click)="finish()">
-            <mat-icon>arrow_forward</mat-icon> Continue
+            <mat-icon>arrow_forward</mat-icon> Nastavi
           </button>
         </div>
       </div>
 
       <div class="mc__complete" *ngIf="phase === 'complete'">
         <mat-icon class="mc__complete-icon">emoji_events</mat-icon>
-        <h3>Matching Complete!</h3>
+        <h3>Uparivanje završeno!</h3>
         <div class="mc__stats">
           <div class="mc__stat">
             <span class="mc__stat-val">{{ score }}</span>
-            <span class="mc__stat-lbl">Score</span>
+            <span class="mc__stat-lbl">Rezultat</span>
           </div>
           <div class="mc__stat">
             <span class="mc__stat-val">{{ accuracy }}%</span>
-            <span class="mc__stat-lbl">Accuracy</span>
+            <span class="mc__stat-lbl">Tačnost</span>
           </div>
           <div class="mc__stat">
             <span class="mc__stat-val">{{ correctCount }}/{{ totalPairs }}</span>
-            <span class="mc__stat-lbl">Matched</span>
+            <span class="mc__stat-lbl">Upareno</span>
           </div>
         </div>
       </div>

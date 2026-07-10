@@ -40,19 +40,19 @@
     <div class="lb-left">
       <div class="lb-section-label">
         <span class="material-icons">bolt</span>
-        Batch Activity {{ subTab === 'today' ? 'Today' : subTab === 'weekly' ? 'This Week' : 'Overall' }}
+        Aktivnost grupe — {{ subTab === 'today' ? 'Danas' : subTab === 'weekly' ? 'Ova nedelja' : 'Ukupno' }}
       </div>
 
       <!-- No batch fallback -->
       <div class="lb-empty" *ngIf="!batch">
         <span class="material-icons lb-empty__icon">group_off</span>
-        <p class="lb-empty__msg">No batch assigned to your account.</p>
+        <p class="lb-empty__msg">Nema dodeljene grupe na vašem nalogu.</p>
       </div>
 
       <!-- Empty activity -->
       <div class="lb-empty lb-empty--sm" *ngIf="batch && visibleLeaderboard.length === 0">
         <span class="material-icons lb-empty__icon">emoji_events</span>
-        <p class="lb-empty__msg">Be the first to learn today!<br>Complete exercises, Buddy, or Arena.</p>
+        <p class="lb-empty__msg">Budite prvi koji uči danas!<br>Završite vežbe, Buddy ili Arenu.</p>
       </div>
 
       <!-- Activity rows -->
@@ -81,7 +81,7 @@
           <div class="lb-row__body">
             <p class="lb-row__name">
               {{ entry.name }}
-              <span class="lb-row__you-tag" *ngIf="entry.studentId === myStats?.studentId">You</span>
+              <span class="lb-row__you-tag" *ngIf="entry.studentId === myStats?.studentId">Vi</span>
             </p>
             <p class="lb-row__activity">{{ getActivityLabel(entry) }}</p>
             <div class="lb-row__tasks" *ngIf="getEntryTaskChips(entry) as chips">
@@ -113,7 +113,7 @@
       <!-- ── Podium: top 3 ───────────────────────────────────────────── -->
       <div class="lb-section-label">
         <span class="material-icons">emoji_events</span>
-        Glück Exam Ranking
+        Rang lista Glück ispita
       </div>
       <div class="lb-podium" *ngIf="topThree.length >= 3">
 
@@ -170,11 +170,11 @@
 
       </div>
 
-      <!-- ── Other Students (ranks 4+) ──────────────────────────────── -->
+      <!-- ── Ostali učenici (ranks 4+) ──────────────────────────────── -->
       <div class="lb-others" *ngIf="restOfLeaderboard.length">
         <div class="lb-others__header">
           <span class="material-icons">leaderboard</span>
-          Other Students
+          Ostali učenici
         </div>
         <div class="lb-others__list">
           <div
@@ -197,25 +197,25 @@
         </div>
       </div>
 
-      <!-- ── Your Position card ──────────────────────────────────────── -->
+      <!-- ── Vir Position card ──────────────────────────────────────── -->
       <div class="lb-right" *ngIf="myStats">
         <div class="lb-pos-title">
-          <span class="material-icons">bolt</span> Your Position
+          <span class="material-icons">bolt</span> Vaša pozicija
           <span class="material-icons">bolt</span>
         </div>
 
-        <!-- Top row: Rank + Time + Day -->
+        <!-- Top row: Rang + Vreme + Dan -->
         <div class="lb-pos-grid lb-pos-grid--3">
           <div class="lb-pos-cell lb-pos-cell--rank">
-            <span class="lb-pos-cell__label">Rank</span>
+            <span class="lb-pos-cell__label">Rang</span>
             <span class="lb-pos-cell__rank">#{{ myRank }}</span>
           </div>
           <div class="lb-pos-cell lb-pos-cell--time">
-            <span class="lb-pos-cell__label">Time</span>
+            <span class="lb-pos-cell__label">Vreme</span>
             <span class="lb-pos-cell__val lb-pos-cell__val--green">{{ myEngagementLabel }}</span>
           </div>
           <div class="lb-pos-cell">
-            <span class="lb-pos-cell__label">Day</span>
+            <span class="lb-pos-cell__label">Dan</span>
             <span class="lb-pos-cell__val lb-pos-cell__val--dark">{{ todayTasks?.courseDay ?? myStats.currentCourseDay }}</span>
           </div>
         </div>
@@ -240,7 +240,7 @@
           </div>
         </div>
 
-        <!-- Rank-up progress -->
+        <!-- Rang-up progress -->
         <div class="lb-pos-rankup" *ngIf="myRank && myRank > 1 && getRankUpHint() as rankHint">
           <div class="lb-pos-rankup__bar-wrap">
             <div class="lb-pos-rankup__bar">
@@ -256,25 +256,25 @@
           <span class="lb-pos-moved__clock">⏰</span>
           <div class="lb-pos-moved__text">
             <strong>{{ activeMatesLabel }}</strong>
-            <span>More learning time moves you up</span>
+            <span>Više vremena učenja pomera vas naviše</span>
           </div>
         </div>
 
         <!-- #1 card -->
         <div class="lb-pos-top1" *ngIf="myRank === 1">
           <span class="lb-pos-top1__trophy">🏆</span>
-          <strong>You're leading!</strong>
-          <span>Keep it up</span>
+          <strong>Vi ste u vodstvu!</strong>
+          <span>Nastavite tako</span>
         </div>
       </div>
 
       <!-- Right placeholder when no stats -->
       <div class="lb-right lb-right--empty" *ngIf="!myStats && batch">
         <div class="lb-pos-title">
-          <span class="material-icons">bolt</span> Your Position
+          <span class="material-icons">bolt</span> Vaša pozicija
           <span class="material-icons">bolt</span>
         </div>
-        <p class="lb-right-empty-msg">Start learning today to get ranked!</p>
+        <p class="lb-right-empty-msg">Počnite da učite danas da biste se rangirali!</p>
       </div>
 
     </div>
@@ -284,7 +284,7 @@
   <div class="lb-empty" *ngIf="error && !loading">
     <span class="material-icons lb-empty__icon">error_outline</span>
     <p class="lb-empty__msg">{{ error }}</p>
-    <button class="lb-retry-btn" (click)="reload()">Retry</button>
+    <button class="lb-retry-btn" (click)="reload()">Pokušaj ponovo</button>
   </div>
 
 </div>

@@ -1193,12 +1193,12 @@ export class PaymentExcelImportDialogComponent implements OnInit {
     if (!iso) return '—';
     const d = new Date(iso);
     if (isNaN(d.getTime())) return iso;
-    return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    return d.toLocaleDateString('sr-Latn-RS', { day: '2-digit', month: 'short', year: 'numeric' });
   }
 
   fmt(n: number | null): string {
     if (n === null || n === undefined) return '—';
-    return n.toLocaleString('en-IN', { maximumFractionDigits: 0 });
+    return n.toLocaleString('sr-Latn-RS', { maximumFractionDigits: 0 });
   }
 
   totalPaymentRowsQueued(): number {

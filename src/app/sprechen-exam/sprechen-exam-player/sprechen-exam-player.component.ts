@@ -112,7 +112,7 @@ export class SprechenExamPlayerComponent implements OnInit, OnDestroy {
     this.isMobile = window.innerWidth < 900;
     const moduleId = this.route.snapshot.paramMap.get('moduleId');
     if (!moduleId) {
-      this.error = 'Missing module.';
+      this.error = 'Modul nedostaje.';
       this.loading = false;
       return;
     }
@@ -245,7 +245,7 @@ export class SprechenExamPlayerComponent implements OnInit, OnDestroy {
         done: false,
       });
     } catch (e: any) {
-      this.error = e?.error?.message || e?.message || 'Failed to start exam.';
+      this.error = e?.error?.message || e?.message || 'Nije moguće pokrenuti ispit.';
       this.loading = false;
     }
   }

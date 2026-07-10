@@ -63,7 +63,7 @@ async function checkPendingItems() {
 }
 
 function buildEmailHtml(rows, dateHeader, totalRows, pendingCount) {
-  const today = new Date().toLocaleDateString('en-IN', {
+  const today = new Date().toLocaleDateString('sr-Latn-RS', {
     timeZone: TZ,
     weekday: 'long',
     year: 'numeric',
@@ -166,7 +166,7 @@ async function processPendingTracker() {
     const recipientEmail = process.env.DAILY_TRACKER_RECIPIENT_EMAIL || 'prabhat@gluckglobal.com';
 
     const html = buildEmailHtml(rows, lastCol, totalRows, pendingCount);
-    const today = new Date().toLocaleDateString('en-IN', {
+    const today = new Date().toLocaleDateString('sr-Latn-RS', {
       timeZone: TZ,
       year: 'numeric',
       month: 'long',

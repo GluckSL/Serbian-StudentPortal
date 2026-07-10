@@ -28,7 +28,7 @@ export class DigitalExerciseReviewComponent implements OnInit {
   ngOnInit(): void {
     this.exerciseId = this.route.snapshot.paramMap.get('id') || '';
     if (!this.exerciseId) {
-      this.error = 'Exercise not found';
+      this.error = 'Vežba nije pronađena';
       this.loading = false;
       return;
     }
@@ -40,7 +40,7 @@ export class DigitalExerciseReviewComponent implements OnInit {
       },
       error: (err) => {
         this.loading = false;
-        this.error = err?.error?.error || 'Could not load your results';
+        this.error = err?.error?.error || 'Nije moguće učitati vaše rezultate';
       }
     });
   }
@@ -62,7 +62,7 @@ export class DigitalExerciseReviewComponent implements OnInit {
 
   formatDate(d: string | undefined): string {
     if (!d) return '—';
-    return new Date(d).toLocaleString(undefined, {
+    return new Date(d).toLocaleString('sr-Latn-RS', {
       dateStyle: 'medium',
       timeStyle: 'short'
     });

@@ -102,7 +102,7 @@ function isPartsInRange(parts, start, end) {
 
 function formatReportDateParts(parts) {
   const d = new Date(Date.UTC(parts.y, parts.m - 1, parts.d));
-  return d.toLocaleDateString('en-GB', {
+  return d.toLocaleDateString('sr-Latn-RS', {
     timeZone: 'UTC',
     day: 'numeric',
     month: 'long',

@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+﻿import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
@@ -254,8 +254,8 @@ export class PaymentHubStudentPortalComponent implements OnInit {
     const req = this.levelPaymentRequest();
     if (!req) {
       this.snack.open(
-        'No open payment request is linked to your level yet. When your coordinator sends a request, set its custom label or notes to include your level (e.g. A1), or use Upload on that request below.',
-        'Dismiss',
+        'Još nema otvorenog zahteva za plaćanje povezanog sa vašim nivoom. Kada koordinator pošalje zahtev, postavite prilagođenu oznaku ili napomenu sa vašim nivoom (npr. A1), ili koristite Otpremi na tom zahtevu ispod.',
+        'Zatvori',
         { duration: 8000 },
       );
       return;
@@ -274,7 +274,7 @@ export class PaymentHubStudentPortalComponent implements OnInit {
       },
       error: () => {
         this.loading = false;
-        this.snack.open('Could not load your payments', 'Dismiss', { duration: 4000 });
+        this.snack.open('Učitavanje plaćanja nije uspelo', 'Zatvori', { duration: 4000 });
       },
     });
   }
@@ -475,11 +475,11 @@ export class PaymentHubStudentPortalComponent implements OnInit {
       if (!formData) return;
       this.api.submitPaymentFormData(formData).subscribe({
         next: () => {
-          this.snack.open('Uploaded successfully! Admin will review shortly.', 'OK', { duration: 5000 });
+          this.snack.open('Uspešno otpremljeno! Admin će uskoro pregledati.', 'U redu', { duration: 5000 });
           this.load();
         },
         error: (e) => {
-          this.snack.open(e?.error?.message || 'Upload failed. Please try again.', 'Dismiss', { duration: 5000 });
+          this.snack.open(e?.error?.message || 'Otpremanje nije uspelo. Pokušajte ponovo.', 'Zatvori', { duration: 5000 });
         },
       });
     });
@@ -595,7 +595,7 @@ export class PaymentHubStudentPortalComponent implements OnInit {
   getReuploadNote(req: PaymentRequest): string {
     const subs = (req.submissions as Array<{ status: string; reuploadNote?: string }>) || [];
     const sub = subs.find(s => s.status === 'REUPLOAD_REQUIRED');
-    return sub?.reuploadNote || 'Please upload a clearer screenshot.';
+    return sub?.reuploadNote || 'Otpremite jasniji snimak ekrana.';
   }
 
   prevPage(): void {
@@ -608,9 +608,9 @@ export class PaymentHubStudentPortalComponent implements OnInit {
 
   actionLabel(req: PaymentRequest): string {
     const map: Record<string, string> = {
-      REQUESTED: 'Upload Screenshot',
-      REJECTED: 'Re-upload',
-      OVERDUE: 'Upload Now',
+      REQUESTED: 'Otpremi snimak',
+      REJECTED: 'Ponovo otpremi',
+      OVERDUE: 'Otpremi odmah',
     };
     const subs = (req.submissions as Array<{ status: string }>) || [];
     if (subs.some(s => s.status === 'REUPLOAD_REQUIRED')) return 'Re-upload';
@@ -660,12 +660,12 @@ export class PaymentHubStudentPortalComponent implements OnInit {
 
   fmt(val: number | undefined | null): string {
     if (val === undefined || val === null) return '0';
-    return val.toLocaleString('en-IN');
+    return val.toLocaleString('sr-Latn-RS');
   }
 
   fmtDate(d: string | undefined | null): string {
     if (!d) return '—';
-    return new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+    return new Date(d).toLocaleDateString('sr-Latn-RS', { day: '2-digit', month: 'short', year: 'numeric' });
   }
 
   isPastDue(req: PaymentRequest): boolean {
@@ -759,7 +759,7 @@ export class PaymentHubStudentPortalComponent implements OnInit {
       await generatePdfFromHtml(html, `${invoiceNumber}.pdf`);
       this.snack.open('Proforma invoice downloaded', 'OK', { duration: 3000 });
     } catch {
-      this.snack.open('Could not generate invoice. Please try again.', 'Dismiss', { duration: 5000 });
+      this.snack.open('Generisanje fakture nije uspelo. Pokušajte ponovo.', 'Zatvori', { duration: 5000 });
     } finally {
       this.downloadingInvoiceId = null;
     }

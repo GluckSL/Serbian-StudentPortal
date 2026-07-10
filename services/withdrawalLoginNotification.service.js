@@ -23,7 +23,7 @@ function getFromAddress() {
 function formatIstDate(dateInput) {
   const d = dateInput ? new Date(dateInput) : new Date();
   if (Number.isNaN(d.getTime())) return 'N/A';
-  return d.toLocaleString('en-IN', {
+  return d.toLocaleString('sr-Latn-RS', {
     timeZone: 'Asia/Kolkata',
     year: 'numeric',
     month: 'long',

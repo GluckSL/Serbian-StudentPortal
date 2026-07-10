@@ -117,7 +117,7 @@ export class PaymentCorrectReceivedDialogComponent {
   }
 
   fmt(n: number): string {
-    return (n ?? 0).toLocaleString('en-IN');
+    return (n ?? 0).toLocaleString('sr-Latn-RS');
   }
 
   currencyLabel(currency: string | null | undefined): string {

@@ -49,7 +49,7 @@ interface InstallmentRow {
   template: `
 <h2 mat-dialog-title>
   <mat-icon>send</mat-icon>
-  Request Payment
+  Zatraži plaćanje
   <span *ngIf="data.studentName" class="student-name-chip">{{ data.studentName }}</span>
 </h2>
 
@@ -57,29 +57,29 @@ interface InstallmentRow {
   <!-- Mode tabs -->
   <div class="mode-tabs">
     <button type="button" class="mode-tab" [class.active]="!installmentMode" (click)="installmentMode = false">
-      <mat-icon>payments</mat-icon>Single payment
+      <mat-icon>payments</mat-icon>Jednokratno plaćanje
     </button>
     <button type="button" class="mode-tab" [class.active]="installmentMode" (click)="setInstallmentMode(true)">
-      <mat-icon>date_range</mat-icon>Installment plan
+      <mat-icon>date_range</mat-icon>Plan rata
     </button>
   </div>
 
   <!-- Shared top fields -->
   <div class="form-grid">
     <mat-form-field appearance="outline" *ngIf="!installmentMode">
-      <mat-label>Amount</mat-label>
-      <input matInput type="number" [(ngModel)]="amount" placeholder="e.g. 35000" min="1" />
+      <mat-label>Iznos</mat-label>
+      <input matInput type="number" [(ngModel)]="amount" placeholder="npr. 35000" min="1" />
     </mat-form-field>
 
     <mat-form-field appearance="outline" *ngIf="!installmentMode">
-      <mat-label>Due Date</mat-label>
+      <mat-label>Rok</mat-label>
       <input matInput [matDatepicker]="singlePicker" [(ngModel)]="singleDueDate" />
       <mat-datepicker-toggle matSuffix [for]="singlePicker"></mat-datepicker-toggle>
       <mat-datepicker #singlePicker></mat-datepicker>
     </mat-form-field>
 
     <mat-form-field appearance="outline">
-      <mat-label>Currency</mat-label>
+      <mat-label>Valuta</mat-label>
       <mat-select [(ngModel)]="currency">
         <mat-option value="LKR">LKR</mat-option>
         <mat-option value="INR">INR</mat-option>
@@ -88,28 +88,28 @@ interface InstallmentRow {
     </mat-form-field>
 
     <mat-form-field appearance="outline">
-      <mat-label>Payment Type</mat-label>
+      <mat-label>Vrsta plaćanja</mat-label>
       <mat-select [(ngModel)]="paymentType">
-        <mat-option value="Monthly Fee">Monthly Fee</mat-option>
-        <mat-option value="Registration">Registration</mat-option>
-        <mat-option value="Exam Fee">Exam Fee</mat-option>
-        <mat-option value="Custom">Custom</mat-option>
-        <mat-option value="Other">Other</mat-option>
+        <mat-option value="Monthly Fee">Mesečna naknada</mat-option>
+        <mat-option value="Registration">Registracija</mat-option>
+        <mat-option value="Exam Fee">Naknada za ispit</mat-option>
+        <mat-option value="Custom">Prilagođeno</mat-option>
+        <mat-option value="Other">Ostalo</mat-option>
       </mat-select>
     </mat-form-field>
 
     <mat-form-field appearance="outline" *ngIf="paymentType === 'Custom'" class="span-two">
-      <mat-label>Custom Label</mat-label>
-      <input matInput [(ngModel)]="customType" placeholder="e.g. Book Deposit" />
+      <mat-label>Prilagođena oznaka</mat-label>
+      <input matInput [(ngModel)]="customType" placeholder="npr. Depozit za knjige" />
     </mat-form-field>
   </div>
 
   <!-- Installment rows -->
   <ng-container *ngIf="installmentMode">
     <div class="inst-header">
-      <span class="inst-title">Installment schedule</span>
+      <span class="inst-title">Raspored rata</span>
       <span class="inst-total" [class.inst-total--ok]="installmentTotal > 0">
-      Total: {{ currency === 'USD' ? 'EURO' : currency }} {{ installmentTotal | number:'1.0-2' }}
+      Ukupno: {{ currency === 'USD' ? 'EURO' : currency }} {{ installmentTotal | number:'1.0-2' }}
       </span>
     </div>
 
@@ -117,13 +117,13 @@ interface InstallmentRow {
       <span class="inst-num">{{ i + 1 }}</span>
 
       <mat-form-field appearance="outline" class="inst-amount">
-        <mat-label>Amount</mat-label>
+        <mat-label>Iznos</mat-label>
         <input matInput type="number" [(ngModel)]="row.amount" min="1"
                (ngModelChange)="onInstallmentChange()" placeholder="0" />
       </mat-form-field>
 
       <mat-form-field appearance="outline" class="inst-date">
-        <mat-label>Due Date</mat-label>
+        <mat-label>Rok</mat-label>
         <input matInput [matDatepicker]="ip" [(ngModel)]="row.dueDate" />
         <mat-datepicker-toggle matSuffix [for]="ip"></mat-datepicker-toggle>
         <mat-datepicker #ip></mat-datepicker>
@@ -131,33 +131,33 @@ interface InstallmentRow {
 
       <button mat-icon-button type="button" color="warn" class="inst-remove"
               [disabled]="installmentRows.length <= 1"
-              (click)="removeRow(i)" matTooltip="Remove">
+              (click)="removeRow(i)" matTooltip="Ukloni">
         <mat-icon>remove_circle_outline</mat-icon>
       </button>
     </div>
 
     <button mat-stroked-button type="button" class="add-row-btn" (click)="addRow()">
-      <mat-icon>add</mat-icon>Add installment
+      <mat-icon>add</mat-icon>Dodaj ratu
     </button>
   </ng-container>
 
   <mat-form-field appearance="outline" class="full-width">
-    <mat-label>Description / Purpose</mat-label>
+    <mat-label>Opis / Svrha</mat-label>
     <textarea matInput rows="3" [(ngModel)]="remarks"
-      placeholder="What is this payment for? This will be shown to the student in bold and highlighted."></textarea>
+      placeholder="Za šta je ovo plaćanje? Ovo će biti prikazano učeniku podebljano i istaknuto."></textarea>
   </mat-form-field>
 
   <mat-slide-toggle [(ngModel)]="notificationToggle" color="primary" style="margin-top:4px;">
-    Send Email Notification to Student
+    Pošalji email obaveštenje učeniku
   </mat-slide-toggle>
 </mat-dialog-content>
 
 <mat-dialog-actions align="end">
-  <button mat-stroked-button [mat-dialog-close]="false">Cancel</button>
+  <button mat-stroked-button [mat-dialog-close]="false">Otkaži</button>
   <button mat-flat-button color="primary" (click)="send()" [disabled]="sending">
     <mat-spinner *ngIf="sending" diameter="14" style="display:inline-block;margin-right:6px;"></mat-spinner>
     <mat-icon *ngIf="!sending">send</mat-icon>
-    {{ sending ? 'Sending…' : (installmentMode ? 'Schedule ' + installmentRows.length + ' installment(s)' : 'Send Request') }}
+    {{ sending ? 'Slanje…' : (installmentMode ? 'Zakaži ' + installmentRows.length + ' ratu/e' : 'Pošalji zahtev') }}
   </button>
 </mat-dialog-actions>
   `,
@@ -255,15 +255,15 @@ export class ReqForPaymentDialogComponent {
 
   private sendSingle(): void {
     if (!this.amount || this.amount <= 0) {
-      this.snack.open('Enter a valid amount', 'OK', { duration: 3000 });
+      this.snack.open('Unesite važeći iznos', 'OK', { duration: 3000 });
       return;
     }
     if (!this.singleDueDate) {
-      this.snack.open('Select a due date', 'OK', { duration: 3000 });
+      this.snack.open('Izaberite rok', 'OK', { duration: 3000 });
       return;
     }
     if (this.paymentType === 'Custom' && !this.customType.trim()) {
-      this.snack.open('Enter a custom label', 'OK', { duration: 3000 });
+      this.snack.open('Unesite prilagođenu oznaku', 'OK', { duration: 3000 });
       return;
     }
 
@@ -280,12 +280,12 @@ export class ReqForPaymentDialogComponent {
     }).subscribe({
       next: () => {
         this.sending = false;
-        this.snack.open('Payment request sent!', 'OK', { duration: 3000 });
+        this.snack.open('Zahtev za plaćanje poslat!', 'OK', { duration: 3000 });
         this.dialogRef.close(true);
       },
       error: (e) => {
         this.sending = false;
-        this.snack.open(e?.error?.message || 'Failed to send request', 'Dismiss', { duration: 5000 });
+        this.snack.open(e?.error?.message || 'Nije uspelo slanje zahteva', 'Zatvori', { duration: 5000 });
       },
     });
   }
@@ -295,16 +295,16 @@ export class ReqForPaymentDialogComponent {
     for (let i = 0; i < this.installmentRows.length; i++) {
       const r = this.installmentRows[i];
       if (!r.amount || r.amount <= 0) {
-        this.snack.open(`Installment ${i + 1}: enter a valid amount`, 'OK', { duration: 3000 });
+        this.snack.open(`Rata ${i + 1}: unesite važeći iznos`, 'OK', { duration: 3000 });
         return;
       }
       if (!r.dueDate) {
-        this.snack.open(`Installment ${i + 1}: select a due date`, 'OK', { duration: 3000 });
+        this.snack.open(`Rata ${i + 1}: izaberite rok`, 'OK', { duration: 3000 });
         return;
       }
     }
     if (this.paymentType === 'Custom' && !this.customType.trim()) {
-      this.snack.open('Enter a custom label', 'OK', { duration: 3000 });
+      this.snack.open('Unesite prilagođenu oznaku', 'OK', { duration: 3000 });
       return;
     }
 
@@ -329,12 +329,12 @@ export class ReqForPaymentDialogComponent {
     }).subscribe({
       next: () => {
         this.sending = false;
-        this.snack.open(`Installment plan created (${scheduledInstallments.length} payments)!`, 'OK', { duration: 4000 });
+        this.snack.open(`Plan rata kreiran (${scheduledInstallments.length} plaćanja)!`, 'OK', { duration: 4000 });
         this.dialogRef.close(true);
       },
       error: (e) => {
         this.sending = false;
-        this.snack.open(e?.error?.message || 'Failed to create installment plan', 'Dismiss', { duration: 5000 });
+        this.snack.open(e?.error?.message || 'Nije uspelo kreiranje plana rata', 'Zatvori', { duration: 5000 });
       },
     });
   }

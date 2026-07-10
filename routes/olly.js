@@ -391,7 +391,7 @@ router.post('/escalate', async (req, res) => {
           <hr/>
           <h4>Recent Chat:</h4>
           <pre style="background:#f5f5f5;padding:12px;border-radius:8px;font-size:12px">${recentMsgs}</pre>
-          <p><a href="${process.env.PORTAL_URL || 'https://gluckstudentsportal.com'}/admin/olly-chat">→ Open Admin Chat Panel</a></p>
+          <p><a href="${process.env.PORTAL_URL || process.env.FRONTEND_URL || 'https://portal.serbia.gluckglobal.com'}/admin/olly-chat">→ Open Admin Chat Panel</a></p>
         `
       });
     } catch (mailErr) {

@@ -15,7 +15,7 @@ const ollySessionSchema = new mongoose.Schema({
   userName: { type: String, default: 'Guest' },
   userEmail: { type: String, default: '' },
   userRole: { type: String, default: 'GUEST' },
-  language: { type: String, enum: ['en', 'ta', 'si'], default: 'en' },
+  language: { type: String, enum: ['en', 'ta', 'si', 'sr'], default: 'sr' },
   issueType: { type: String, default: '' },
   initialQuestion: { type: String, default: '' },
   intakeComplete: { type: Boolean, default: false },

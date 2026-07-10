@@ -8,14 +8,14 @@
             <i class="fas fa-robot"></i>
             {{ isV2 ? 'DG Bot Modules 2.0' : 'DG Bot modules' }}
           </h1>
-          <p class="admin-subtitle" *ngIf="!isV2">Manage digital guide modules, teaching context, and guided scenes</p>
-          <p class="admin-subtitle" *ngIf="isV2">Copy DG Bot modules from v1, then assign each one to specific batches.</p>
+          <p class="admin-subtitle" *ngIf="!isV2">Upravljajte modulima digitalnog vodiča, nastavnim kontekstom i vođenim scenama</p>
+          <p class="admin-subtitle" *ngIf="isV2">Kopirajte DG Bot module iz v1, zatim dodelite svaki specifičnim grupama.</p>
         </div>
         <div class="col-md-4 text-end" *ngIf="!loading">
           <div class="admin-stats-quick">
             <div class="stat-item">
               <span class="stat-number">{{ dgStatTotal }}</span>
-              <span class="stat-label">Total modules</span>
+              <span class="stat-label">Ukupno modula</span>
             </div>
           </div>
         </div>
@@ -54,10 +54,10 @@
       <div class="dg-v2-info-banner" *ngIf="isV2 && !loading">
         <i class="fas fa-info-circle me-2"></i>
         <span>
-          <strong>DG Bot Modules 2.0</strong> are batch-specific copies of DG Bot modules.
-          Go to <strong>DG Bot Modules</strong> and click
-          <span class="dg-copy-badge-inline"><i class="fas fa-copy"></i> Copy to 2.0</span>
-          on any module to create a v2 copy, then assign batches in the editor.
+          <strong>DG Bot Modules 2.0</strong> su kopije DG Bot modula specifične za grupe.
+          Idite na <strong>DG Bot Modules</strong> i kliknite
+          <span class="dg-copy-badge-inline"><i class="fas fa-copy"></i> Kopiraj u 2.0</span>
+          na bilo kom modulu da kreirate v2 kopiju, zatim dodelite grupe u editoru.
         </span>
       </div>
 
@@ -133,11 +133,11 @@
               <div class="dg-mm-actions">
                 <button class="btn btn-primary btn-add-module" type="button" (click)="goCreate()">
                   <i class="fas fa-plus"></i>
-                  {{ isV2 ? 'Create v2 Module' : 'Create New Module' }}
+                  {{ isV2 ? 'Kreiraj v2 Modul' : 'Kreiraj novi modul' }}
                 </button>
                 <a class="btn btn-trash-module" routerLink="/admin-trash">
                   <i class="fas fa-trash"></i>
-                  Trash
+                  Smeće
                 </a>
               </div>
             </div>
@@ -150,14 +150,14 @@
                     [(ngModel)]="listFilter"
                     (ngModelChange)="resetListPage()"
                     name="dgSearchMm"
-                    placeholder="Search by title…"
+                    placeholder="Pretraži po naslovu…"
                   />
                 </div>
                 <div class="filter-options dg-mm-filter-wrap">
                   <select class="form-select" [(ngModel)]="statusFilter" (ngModelChange)="resetListPage()" name="dgStatusFilter">
-                    <option value="all">All Modules</option>
-                    <option value="live">Live only</option>
-                    <option value="draft">Draft only</option>
+                    <option value="all">Svi moduli</option>
+                    <option value="live">Samo aktivni</option>
+                    <option value="draft">Samo nacrti</option>
                   </select>
                 </div>
               </div>
@@ -173,7 +173,7 @@
                 <div class="stat-icon"><i class="fas fa-layer-group"></i></div>
                 <div class="stat-content">
                   <h3>{{ dgStatTotal }}</h3>
-                  <p>Total</p>
+                  <p>Ukupno</p>
                 </div>
               </div>
             </div>
@@ -182,7 +182,7 @@
                 <div class="stat-icon"><i class="fas fa-eye"></i></div>
                 <div class="stat-content">
                   <h3>{{ dgStatLive }}</h3>
-                  <p>Live</p>
+                  <p>Aktivni</p>
                 </div>
               </div>
             </div>
@@ -191,7 +191,7 @@
                 <div class="stat-icon"><i class="fas fa-file-alt"></i></div>
                 <div class="stat-content">
                   <h3>{{ dgStatDraft }}</h3>
-                  <p>Draft</p>
+                  <p>Nacrti</p>
                 </div>
               </div>
             </div>
@@ -200,7 +200,7 @@
                 <div class="stat-icon"><i class="fas fa-language"></i></div>
                 <div class="stat-content">
                   <h3>{{ dgStatGerman }}</h3>
-                  <p>German</p>
+                  <p>Nemački</p>
                 </div>
               </div>
             </div>
@@ -209,7 +209,7 @@
                 <div class="stat-icon"><i class="fas fa-globe"></i></div>
                 <div class="stat-content">
                   <h3>{{ dgStatEnglish }}</h3>
-                  <p>English</p>
+                  <p>Engleski</p>
                 </div>
               </div>
             </div>
@@ -218,7 +218,7 @@
                 <div class="stat-icon"><i class="fas fa-check-circle"></i></div>
                 <div class="stat-content">
                   <h3>{{ dgStatTotal - dgStatUnassigned }}</h3>
-                  <p>Batch assigned</p>
+                  <p>Dodeljeno grupi</p>
                 </div>
               </div>
             </div>
@@ -227,7 +227,7 @@
                 <div class="stat-icon"><i class="fas fa-hourglass-half"></i></div>
                 <div class="stat-content">
                   <h3>{{ dgStatUnassigned }}</h3>
-                  <p>No batch yet</p>
+                  <p>Bez grupe</p>
                 </div>
               </div>
             </div>
@@ -238,11 +238,11 @@
           <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
             <div class="results-info">
               <span class="results-count">{{ filteredModules.length }}</span>
-              <span class="results-text">modules found</span>
-              <span class="results-text text-muted">· {{ modules.length }} total</span>
+              <span class="results-text">modula pronađeno</span>
+              <span class="results-text text-muted">· {{ modules.length }} ukupno</span>
             </div>
             <p class="dg-mm-list-hint small text-muted mb-0">
-              List loads titles and settings only; scenes and full content load when you open <strong>Preview</strong> or <strong>Edit</strong>.
+              Lista učitava samo naslove i podešavanja; scene i pun sadržaj se učitavaju kada otvorite <strong>Pregled</strong> ili <strong>Izmeni</strong>.
             </p>
           </div>
         </div>
@@ -254,14 +254,14 @@
                 <table class="table table-hover mb-0">
                   <thead class="table-dark">
                     <tr>
-                      <th>Module</th>
-                      <th>Level/Category</th>
-                      <th>Journey day</th>
-                      <th>{{ isV2 ? 'Target Batches' : 'Batches' }}</th>
-                      <th>Language</th>
+                      <th>Modul</th>
+                      <th>Nivo/Kategorija</th>
+                      <th>Dan putovanja</th>
+                      <th>{{ isV2 ? 'Ciljne grupe' : 'Grupe' }}</th>
+                      <th>Jezik</th>
                       <th>Status</th>
-                      <th class="text-center dg-mm-col-visibility">Student view</th>
-                      <th class="text-center">Actions</th>
+                      <th class="text-center dg-mm-col-visibility">Prikaz studentima</th>
+                      <th class="text-center">Akcije</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -270,7 +270,7 @@
                         <div class="module-info">
                           <div class="module-title">{{ m.title }}</div>
                           <span class="badge dg-mm-badge-beginner mt-1" *ngIf="isBeginnerMode(m)">
-                            <i class="fas fa-seedling me-1"></i> Beginner mode
+                            <i class="fas fa-seedling me-1"></i> Početni mod
                           </span>
                           <span class="badge dg-mm-badge-v2 mt-1" *ngIf="isV2">
                             <i class="fas fa-star me-1"></i> v2
@@ -288,7 +288,7 @@
                       </td>
                       <td>
                         <div class="journey-day-cell">
-                          <span class="badge journey-day-badge" *ngIf="m.courseDay != null">{{ m.courseDay === 0 ? 'Trial' : ('Day ' + m.courseDay) }}</span>
+                          <span class="badge journey-day-badge" *ngIf="m.courseDay != null">{{ m.courseDay === 0 ? 'Probni' : ('Dan ' + m.courseDay) }}</span>
                           <span class="text-muted journey-day-pool" *ngIf="m.courseDay == null">—</span>
                         </div>
                       </td>
@@ -296,33 +296,33 @@
                         <span
                           class="badge bg-light text-dark border"
                           *ngIf="showsAllBatches(m) && !isV2"
-                          title="Visible to all batches with active journey + GO Students"
+                          title="Vidljivo svim grupama sa aktivnim putovanjem + GO studentima"
                         >
-                          All active batches
+                          Sve aktivne grupe
                         </span>
                         <span
                           class="badge bg-warning text-dark"
                           *ngIf="showsAllBatches(m) && isV2"
-                          title="No batch assigned yet — students cannot see this module"
+                          title="Još nije dodeljena nijedna grupa — studenti ne mogu videti ovaj modul"
                         >
-                          <i class="fas fa-exclamation-triangle me-1"></i> Not assigned
+                          <i class="fas fa-exclamation-triangle me-1"></i> Nije dodeljeno
                         </span>
                         <div class="dg-mm-batch-list" *ngIf="!showsAllBatches(m)">
                           <span
                             *ngFor="let b of targetBatchLabels(m)"
                             class="badge bg-primary dg-mm-batch-pill"
-                            [title]="'Visible to batch ' + b"
+                            [title]="'Vidljivo grupi ' + b"
                           >
                             {{ b }}
                           </span>
                         </div>
                       </td>
                       <td>
-                        <span class="text-muted small">{{ m.language || 'German' }}</span>
+                        <span class="text-muted small">{{ m.language || 'Nemački' }}</span>
                       </td>
                       <td>
                         <span class="badge" [class.mm-badge-live]="m.visibleToStudents" [class.mm-badge-draft]="!m.visibleToStudents">
-                          {{ m.visibleToStudents ? 'Live' : 'Draft' }}
+                          {{ m.visibleToStudents ? 'Aktivni' : 'Nacrt' }}
                         </span>
                       </td>
                       <td class="text-center dg-mm-col-visibility">
@@ -335,8 +335,8 @@
                           (click)="toggleStudentVisibility(m)"
                           [title]="
                             m.visibleToStudents
-                              ? 'Students see this once journey day reaches the assigned day. Click to hide.'
-                              : 'Hidden from students. Click to show (still gated by journey day).'
+                              ? 'Studenti vide ovo kada dan putovanja dostigne dodeljeni dan. Kliknite da sakrijete.'
+                              : 'Skriveno od studenata. Kliknite da prikažete (još uvek ograničeno danom putovanja).'
                           "
                         >
                           <i class="fas" [ngClass]="m.visibleToStudents ? 'fa-eye' : 'fa-eye-slash'"></i>
@@ -351,7 +351,7 @@
                             class="btn btn-sm btn-copy-v2 me-1"
                             (click)="copyToV2(m)"
                             [disabled]="!m._id || copyingV2Id === m._id"
-                            title="Copy to DG Bot Modules 2.0"
+                            title="Kopiraj u DG Bot Modules 2.0"
                           >
                             <i class="fas" [ngClass]="copyingV2Id === m._id ? 'fa-spinner fa-spin' : 'fa-copy'"></i>
                             <span class="ms-1 d-none d-xl-inline">2.0</span>
@@ -361,7 +361,7 @@
                             class="btn btn-sm btn-outline-purple me-1"
                             (click)="goAnalytics(m)"
                             [disabled]="!m._id"
-                            title="Session analytics — time, completion, chat"
+                            title="Analitika sesija — vreme, završenost, razgovor"
                           >
                             <i class="fas fa-chart-bar"></i>
                           </button>
@@ -370,7 +370,7 @@
                             class="btn btn-sm btn-outline-primary me-1"
                             (click)="goEdit(m)"
                             [disabled]="!m._id"
-                            title="Edit"
+                            title="Izmeni"
                           >
                             <i class="fas fa-edit"></i>
                           </button>
@@ -379,7 +379,7 @@
                             class="btn btn-sm btn-outline-success me-1"
                             (click)="goPreview(m)"
                             [disabled]="!m._id"
-                            title="Preview"
+                            title="Pregled"
                           >
                             <i class="fas fa-play"></i>
                           </button>
@@ -388,7 +388,7 @@
                             class="btn btn-sm btn-outline-danger"
                             (click)="archiveModule(m)"
                             [disabled]="!m._id"
-                            title="Archive module"
+                            title="Arhiviraj modul"
                           >
                             <i class="fas fa-trash"></i>
                           </button>
@@ -415,18 +415,18 @@
         <div class="mm-empty-card" *ngIf="modules.length === 0 && !isV2">
           <div class="empty-state">
             <div class="empty-state-icon">🦊</div>
-            <h3>No DG modules yet</h3>
-            <p>Create your first module with <strong>Create New Module</strong>.</p>
+            <h3>Još nema DG modula</h3>
+            <p>Kreirajte prvi modul sa <strong>Kreiraj novi modul</strong>.</p>
           </div>
         </div>
 
         <div class="mm-empty-card" *ngIf="modules.length === 0 && isV2">
           <div class="empty-state">
             <div class="empty-state-icon">⭐</div>
-            <h3>No DG Bot Modules 2.0 yet</h3>
+            <h3>Još nema DG Bot Modules 2.0</h3>
             <p>
-              Go to <a routerLink="/admin/dg-modules" class="text-primary fw-bold">DG Bot Modules</a>
-              and click <strong>Copy to 2.0</strong> on any module to create a batch-specific copy.
+              Idite na <a routerLink="/admin/dg-modules" class="text-primary fw-bold">DG Bot Modules</a>
+              i kliknite <strong>Kopiraj u 2.0</strong> na bilo kom modulu da kreirate kopiju specifičnu za grupu.
             </p>
           </div>
         </div>
@@ -434,14 +434,14 @@
         <div class="mm-empty-card" *ngIf="modules.length > 0 && filteredModules.length === 0">
           <div class="empty-state">
             <div class="empty-state-icon">🔍</div>
-            <h3>No matches</h3>
-            <p>Try another search or filter.</p>
+            <h3>Nema rezultata</h3>
+            <p>Pokušajte drugu pretragu ili filter.</p>
             <button
               class="btn btn-sm btn-outline-secondary mt-2"
               type="button"
               (click)="listFilter = ''; statusFilter = 'all'; resetListPage()"
             >
-              Reset filters
+              Resetuj filtere
             </button>
           </div>
         </div>

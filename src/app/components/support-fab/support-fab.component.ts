@@ -71,7 +71,7 @@ export class SupportFabComponent implements OnInit, OnDestroy {
   ollyLoading = false;
   ollyError = '';
   ollySessionId: string | null = null;
-  ollyLanguage: 'en' | 'ta' | 'si' = 'en';
+  ollyLanguage: 'en' | 'ta' | 'si' | 'sr' = 'sr';
   ollyMediaFile: File | null = null;
   ollyMediaPreview: string | null = null;
 
@@ -84,36 +84,36 @@ export class SupportFabComponent implements OnInit, OnDestroy {
   private readonly legacyOllySessionKey = 'olly_session_id';
 
   // ── Language labels ──────────────────────────────────────────────────────
-  readonly langLabels = { en: 'English', ta: 'தமிழ்', si: 'සිංහල' };
+  readonly langLabels = { en: 'English', ta: 'தமிழ்', si: 'සිංහල', sr: 'Srpski' };
 
   // ── Ticket categories/priorities ─────────────────────────────────────────
   readonly categories = [
-    { value: 'login', label: 'Login / Access Issue' },
-    { value: 'payment', label: 'Payment Problem' },
-    { value: 'class', label: 'Class / Meeting Issue' },
-    { value: 'video', label: 'Video / Audio Issue' },
-    { value: 'course', label: 'Course Material' },
-    { value: 'technical', label: 'Technical Error' },
-    { value: 'account', label: 'Account Settings' },
-    { value: 'other', label: 'Other' }
+    { value: 'login', label: 'Prijava / Problem s pristupom' },
+    { value: 'payment', label: 'Problem s plaćanjem' },
+    { value: 'class', label: 'Problem s časom / sastankom' },
+    { value: 'video', label: 'Problem s videom / zvukom' },
+    { value: 'course', label: 'Materijal kursa' },
+    { value: 'technical', label: 'Tehnička greška' },
+    { value: 'account', label: 'Podešavanja naloga' },
+    { value: 'other', label: 'Ostalo' }
   ];
 
   readonly priorities = [
-    { value: 'low', label: 'Low – General query' },
-    { value: 'medium', label: 'Medium – Impacting work' },
-    { value: 'high', label: 'High – Urgent issue' }
+    { value: 'low', label: 'Nisko – Opšti upit' },
+    { value: 'medium', label: 'Srednje – Utiče na rad' },
+    { value: 'high', label: 'Visoko – Hitno' }
   ];
 
   readonly ollyIssueTypes = [
-    { value: 'technical', label: 'Technical Issue' },
-    { value: 'language', label: 'Language / Course Help' },
-    { value: 'payment', label: 'Payment & Subscription' },
-    { value: 'login', label: 'Login & Access' },
-    { value: 'class', label: 'Class / Zoom / Meeting' },
-    { value: 'course', label: 'Course Materials' },
-    { value: 'account', label: 'Account & Profile' },
-    { value: 'documents', label: 'Documents & Visa' },
-    { value: 'other', label: 'Other' }
+    { value: 'technical', label: 'Tehnički problem' },
+    { value: 'language', label: 'Jezik / Pomoć s kursom' },
+    { value: 'payment', label: 'Plaćanje i pretplata' },
+    { value: 'login', label: 'Prijava i pristup' },
+    { value: 'class', label: 'Čas / Zoom / Sastanak' },
+    { value: 'course', label: 'Materijali kursa' },
+    { value: 'account', label: 'Nalog i profil' },
+    { value: 'documents', label: 'Dokumenti i viza' },
+    { value: 'other', label: 'Ostalo' }
   ];
 
   get showAnnouncementsTab(): boolean {
@@ -410,12 +410,12 @@ export class SupportFabComponent implements OnInit, OnDestroy {
           this.clearIntakeMedia();
           this.scrollOllyToBottom();
         } else {
-          this.ollyError = res?.message || 'Unable to start chat.';
+          this.ollyError = res?.message || 'Nije moguće pokrenuti razgovor.';
         }
       },
       error: (err) => {
         this.ollyIntakeSubmitting = false;
-        this.ollyError = err?.error?.message || 'Unable to start chat. Please try again.';
+        this.ollyError = err?.error?.message || 'Nije moguće pokrenuti razgovor. Pokušajte ponovo.';
       }
     });
   }
@@ -426,7 +426,7 @@ export class SupportFabComponent implements OnInit, OnDestroy {
     const text = this.ollyInput.trim();
     if (!text && !this.ollyMediaFile) return;
     if (this.ollyLoading) return;
-    if (!this.ollySessionId) { this.ollyError = 'Session not ready. Please wait.'; return; }
+    if (!this.ollySessionId) { this.ollyError = 'Sesija nije spremna. Molimo sačekajte.'; return; }
 
     // Upload media first if present
     if (this.ollyMediaFile) {
@@ -557,7 +557,7 @@ export class SupportFabComponent implements OnInit, OnDestroy {
 
   // ── Language switch ───────────────────────────────────────────────────────
 
-  switchLanguage(lang: 'en' | 'ta' | 'si'): void {
+  switchLanguage(lang: 'en' | 'ta' | 'si' | 'sr'): void {
     this.ollyLanguage = lang;
     if (this.ollySessionId) {
       // Persist language in session on next chat call; also update locally
@@ -625,12 +625,12 @@ export class SupportFabComponent implements OnInit, OnDestroy {
           if (this.currentUser) this.ticketForm.patchValue({ name: this.currentUser.name, email: this.currentUser.email });
           if (this.isLoggedIn) this.loadMyTickets();
         } else {
-          this.submitError = res?.message || 'Failed to submit ticket.';
+          this.submitError = res?.message || 'Slanje zahteva nije uspelo.';
         }
         this.submitting = false;
       },
       error: (err) => {
-        this.submitError = err?.error?.message || 'Unable to submit ticket. Please try again.';
+        this.submitError = err?.error?.message || 'Nije moguće podneti zahtev. Pokušajte ponovo.';
         this.submitting = false;
       }
     });

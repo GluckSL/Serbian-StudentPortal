@@ -83,7 +83,7 @@ async function processConsecutiveAbsences() {
         phone,
         name: student.name,
         type: NOTIFICATION_TYPES.CONSECUTIVE_ABSENCE,
-        message: `Hi ${student.name}, absent ${streak} classes in a row (Batch ${student.batch}). Please contact your teacher — we miss you!`,
+        message: `Zdravo ${student.name}, odsutni ste sa ${streak} uzastopnih časova (Grupa ${student.batch}). Molimo kontaktirajte vašeg nastavnika — nedostajete nam!`,
         data: {
           studentId: student._id,
           batch: student.batch,
@@ -103,7 +103,7 @@ async function processConsecutiveAbsences() {
             phone: teacherPhone,
             name: teacher.name,
             type: NOTIFICATION_TYPES.CONSECUTIVE_ABSENCE,
-            message: `Hi ${teacher.name}, ${student.name} (Batch ${student.batch}) missed ${streak} classes in a row. Please follow up.`,
+            message: `Zdravo ${teacher.name}, ${student.name} (Grupa ${student.batch}) propustio/la je ${streak} uzastopnih časova. Molimo pratite studenta.`,
             data: {
               studentId: student._id,
               studentName: student.name,

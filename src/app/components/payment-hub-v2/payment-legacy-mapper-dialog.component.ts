@@ -370,7 +370,7 @@ export class PaymentLegacyMapperDialogComponent implements OnInit, OnDestroy {
   // ── Utils ──────────────────────────────────────────────────────────────────
 
   fmt(n: number | null | undefined): string {
-    return (n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+    return (n ?? 0).toLocaleString('sr-Latn-RS', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
   }
 
   currencyLabel(currency: string | null | undefined): string {

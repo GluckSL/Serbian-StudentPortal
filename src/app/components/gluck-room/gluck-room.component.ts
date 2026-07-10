@@ -1440,7 +1440,7 @@ export class GluckRoomRoomComponent implements OnInit, OnDestroy, AfterViewInit 
 
   formatDate(d: string | Date): string {
     if (!d) return '-';
-    return new Date(d).toLocaleString('en-US', {
+    return new Date(d).toLocaleString('sr-Latn-RS', {
       month: 'short', day: 'numeric', year: 'numeric',
       hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata'
     });

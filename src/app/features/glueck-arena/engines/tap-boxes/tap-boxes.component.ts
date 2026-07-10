@@ -101,7 +101,7 @@ function layoutRowSizes(count: number): number[] {
                   (click)="openBox(box)"
                   (mouseenter)="hoverId = box.id"
                   (mouseleave)="hoverId = null"
-                  [attr.aria-label]="box.revealed ? 'Opened: ' + box.phrase : 'Open box ' + box.number"
+                  [attr.aria-label]="box.revealed ? 'Otvoreno: ' + box.phrase : 'Otvori kutiju ' + box.number"
                 >
                   <!-- Closed: Wordwall-style pill + peel sticker -->
                   <ng-container *ngIf="!box.revealed">
@@ -166,14 +166,14 @@ function layoutRowSizes(count: number): number[] {
 
           <div class="tb__done" *ngIf="phase === 'done'">
           <mat-icon>emoji_events</mat-icon>
-          <h2>All boxes opened!</h2>
-          <p>Score <strong>{{ score }}</strong></p>
+          <h2>Sve kutije su otvorene!</h2>
+          <p>Rezultat <strong>{{ score }}</strong></p>
         </div>
 
           <footer class="tb__bar" *ngIf="phase === 'reveal'">
             <button type="button" class="tb__bar-btn" (click)="backToGrid()">
               <mat-icon>apps</mat-icon>
-              Back to grid
+              Nazad na mrežu
             </button>
           </footer>
         </div>
@@ -772,11 +772,11 @@ export class TapBoxesComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   get hudHint(): string {
-    if (this.phase === 'reveal') return 'Tap one to open';
+    if (this.phase === 'reveal') return 'Tapni jednu da otvoriš';
     if (this.revealedCount > 0 && this.revealedCount < this.boxes.length) {
-      return 'Tap one to open';
+      return 'Tapni jednu da otvoriš';
     }
-    return 'Tap one to open';
+    return 'Tapni jednu da otvoriš';
   }
 
   get gridPanelStyle(): Record<string, string> {

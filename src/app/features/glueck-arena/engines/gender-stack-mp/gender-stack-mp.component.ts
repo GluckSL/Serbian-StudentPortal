@@ -61,7 +61,7 @@ import {
           <mat-icon>check_circle</mat-icon> +{{ lastPoints }} pts
         </div>
         <div class="gsmp__feedback gsmp__feedback--wrong" *ngIf="feedback === 'wrong'">
-          <mat-icon>cancel</mat-icon> {{ revealAnswer || 'Wrong' }}
+          <mat-icon>cancel</mat-icon> {{ revealAnswer || 'Netačno' }}
         </div>
       </div>
 

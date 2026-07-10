@@ -39,7 +39,7 @@ function formatClassTime(startTime, timeZone = TZ) {
 
 /** End of the current day in IST (Asia/Colombo is +05:30 year-round). */
 function endOfTodayIST(now = new Date()) {
-  const dateStr = now.toLocaleDateString('en-CA', { timeZone: TZ }); // YYYY-MM-DD
+  const dateStr = now.toLocaleDateString('sr-Latn-RS', { timeZone: TZ }); // YYYY-MM-DD
   return new Date(`${dateStr}T23:59:59.999+05:30`);
 }
 

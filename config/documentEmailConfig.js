@@ -49,7 +49,7 @@ function getDocumentTransporter() {
 async function sendDocumentReuploadEmail({ studentName, studentEmail, documentName, reason, isAgreement = false }) {
   if (!isDocumentEmailConfigured() || !studentEmail) return false;
 
-  const portalUrl = (process.env.FRONTEND_URL || 'https://gluckstudentsportal.com').replace(/\/$/, '');
+  const portalUrl = (process.env.PORTAL_URL || process.env.FRONTEND_URL || 'https://portal.gluckglobal.rs').replace(/\/$/, '');
   const docsUrl = `${portalUrl}/student-documents`;
   const safeReason = String(reason || 'Please upload a clearer or complete document.').trim();
   const safeName = String(studentName || 'Student').trim();
@@ -93,7 +93,7 @@ async function sendDocumentReuploadEmail({ studentName, studentEmail, documentNa
 async function sendDocumentApprovedEmail({ studentName, studentEmail, documentName, isAgreement = false }) {
   if (!isDocumentEmailConfigured() || !studentEmail) return false;
 
-  const portalUrl = (process.env.FRONTEND_URL || 'https://gluckstudentsportal.com').replace(/\/$/, '');
+  const portalUrl = (process.env.PORTAL_URL || process.env.FRONTEND_URL || 'https://portal.gluckglobal.rs').replace(/\/$/, '');
   const docsUrl = `${portalUrl}/student-documents`;
   const safeName = String(studentName || 'Student').trim();
   const safeDoc = String(documentName || 'document').trim();
@@ -136,7 +136,7 @@ async function sendDocumentApprovedEmail({ studentName, studentEmail, documentNa
 async function sendDocumentAddedByAdminEmail({ studentName, studentEmail, documentName }) {
   if (!isDocumentEmailConfigured() || !studentEmail) return false;
 
-  const portalUrl = (process.env.FRONTEND_URL || 'https://gluckstudentsportal.com').replace(/\/$/, '');
+  const portalUrl = (process.env.PORTAL_URL || process.env.FRONTEND_URL || 'https://portal.gluckglobal.rs').replace(/\/$/, '');
   const docsUrl = `${portalUrl}/student-documents`;
   const safeName = String(studentName || 'Student').trim();
   const safeDoc = String(documentName || 'document').trim();

@@ -598,7 +598,7 @@ function getTeacherAnalyticsMonth(queryMonth) {
   const from = new Date(Date.UTC(safeYear, safeMonthIndex, 1, 0, 0, 0, 0));
   const to = new Date(Date.UTC(safeYear, safeMonthIndex + 1, 1, 0, 0, 0, 0));
   const month = `${from.getUTCFullYear()}-${String(from.getUTCMonth() + 1).padStart(2, '0')}`;
-  const monthLabel = from.toLocaleString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+  const monthLabel = from.toLocaleString('sr-Latn-RS', { month: 'long', year: 'numeric', timeZone: 'UTC' });
   return { month, monthLabel, from, to };
 }
 

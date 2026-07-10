@@ -3,11 +3,11 @@
     <div class="ph-insights-header-inner">
       <a routerLink="/admin/payment-hub" class="ph-insights-back">
         <mat-icon>arrow_back</mat-icon>
-        Back to hub
+        Nazad na centar
       </a>
-      <h1 class="ph-insights-title">Journey timeline</h1>
+      <h1 class="ph-insights-title">Vremenski okvir putovanja</h1>
       <p class="ph-insights-sub">
-        Total journey days follow each student’s level (A1→42 … B2→200); the current journey day uses their portal course day.
+        Ukupno dana putovanja prati nivo svakog učenika (A1→42 … B2→200); trenutni dan putovanja koristi dan kursa na portalu.
       </p>
     </div>
   </div>
@@ -15,15 +15,15 @@
   <div class="ph-insights-body">
     <div class="ph-insights-filters">
       <mat-form-field appearance="outline" class="ph-filter">
-        <mat-label>Level</mat-label>
+        <mat-label>Nivo</mat-label>
         <mat-select [(ngModel)]="filterLevel" (selectionChange)="applyFilters()">
           <mat-option *ngFor="let lv of levels; let i = index" [value]="lv">{{ levelLabels[i] }}</mat-option>
         </mat-select>
       </mat-form-field>
       <mat-form-field appearance="outline" class="ph-filter">
-        <mat-label>Batch</mat-label>
+        <mat-label>Grupa</mat-label>
         <mat-select [(ngModel)]="filterBatch" (selectionChange)="applyFilters()">
-          <mat-option value="">All batches</mat-option>
+          <mat-option value="">Sve grupe</mat-option>
           <mat-option *ngFor="let b of batchOptions" [value]="b">{{ b }}</mat-option>
         </mat-select>
       </mat-form-field>
@@ -32,38 +32,38 @@
     <ng-container *ngIf="!loading; else spin">
       <div class="ph-insights-cards">
         <div class="ph-insight-card">
-          <div class="ph-insight-card-label">Students in view</div>
+          <div class="ph-insight-card-label">Učenici u prikazu</div>
           <div class="ph-insight-card-value">{{ views.length }}</div>
         </div>
         <div class="ph-insight-card">
-          <div class="ph-insight-card-label">Avg journey progress</div>
+          <div class="ph-insight-card-label">Prosečan napredak putovanja</div>
           <div class="ph-insight-card-value">{{ avgProgressPercent != null ? avgProgressPercent + '%' : '—' }}</div>
         </div>
         <div class="ph-insight-card">
-          <div class="ph-insight-card-label">Past total journey days</div>
+          <div class="ph-insight-card-label">Prošlo ukupno dana putovanja</div>
           <div class="ph-insight-card-value ph-warn">{{ studentsPastJourney }}</div>
-          <div class="ph-insight-card-hint">Current day &gt; level plan</div>
+          <div class="ph-insight-card-hint">Trenutni dan &gt; plan nivoa</div>
         </div>
         <div class="ph-insight-card">
-          <div class="ph-insight-card-label">No enrollment date</div>
+          <div class="ph-insight-card-label">Nema datuma upisa</div>
           <div class="ph-insight-card-value">{{ missingEnrollment }}</div>
         </div>
       </div>
 
       <div class="ph-insights-split">
         <div class="ph-insights-panel">
-          <h2 class="ph-insights-panel-title">Distribution of journey progress</h2>
+          <h2 class="ph-insights-panel-title">Raspodela napretka putovanja</h2>
           <div class="ph-insights-chart-wrap">
             <canvas *ngIf="views.length" baseChart [data]="barData" [options]="barOptions" type="bar"></canvas>
-            <p *ngIf="!views.length" class="ph-empty-note">No students for this filter.</p>
+            <p *ngIf="!views.length" class="ph-empty-note">Nema učenika za ovaj filter.</p>
           </div>
         </div>
         <div class="ph-insights-panel">
-          <h2 class="ph-insights-panel-title">Notes</h2>
+          <h2 class="ph-insights-panel-title">Napomene</h2>
           <ul class="ph-bullets">
-            <li><strong>Total journey days</strong> follow the level map (A1: 42, A2: 84, B1: 145, B2: 200).</li>
-            <li><strong>Current journey day</strong> is the student’s portal course day (or enrollment estimate if unset).</li>
-            <li>Use batch / level filters to mirror the operational spreadsheet view.</li>
+            <li><strong>Ukupno dana putovanja</strong> prate mapu nivoa (A1: 42, A2: 84, B1: 145, B2: 200).</li>
+            <li><strong>Trenutni dan putovanja</strong> je dan kursa učenika na portalu (ili procena upisa ako nije postavljeno).</li>
+            <li>Koristite filtere grupe / nivoa da biste zrcalili prikaz operativne tabele.</li>
           </ul>
         </div>
       </div>
@@ -72,12 +72,12 @@
         <table class="ph-insights-table">
           <thead>
             <tr>
-              <th>Student</th>
-              <th>Batch</th>
-              <th>Level</th>
-              <th class="ph-num">Journey day</th>
-              <th class="ph-num">Days remaining</th>
-              <th class="ph-num">Progress</th>
+              <th>Učenik</th>
+              <th>Grupa</th>
+              <th>Nivo</th>
+              <th class="ph-num">Dan putovanja</th>
+              <th class="ph-num">Preostali dani</th>
+              <th class="ph-num">Napredak</th>
             </tr>
           </thead>
           <tbody>

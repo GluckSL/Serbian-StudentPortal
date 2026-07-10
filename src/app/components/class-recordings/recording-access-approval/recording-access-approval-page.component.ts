@@ -407,7 +407,7 @@ export class RecordingAccessApprovalPageComponent implements OnInit, OnDestroy {
 
   formatDate(d: string | null | undefined): string {
     if (!d) return '—';
-    return new Date(d).toLocaleDateString('en-GB', {
+    return new Date(d).toLocaleDateString('sr-Latn-RS', {
       day: 'numeric',
       month: 'short',
       year: 'numeric',
@@ -423,7 +423,7 @@ export class RecordingAccessApprovalPageComponent implements OnInit, OnDestroy {
 
   formatReviewedAt(d: string | null | undefined): string {
     if (!d) return '—';
-    return new Date(d).toLocaleString('en-GB', {
+    return new Date(d).toLocaleString('sr-Latn-RS', {
       day: 'numeric',
       month: 'short',
       year: 'numeric',
@@ -438,7 +438,7 @@ export class RecordingAccessApprovalPageComponent implements OnInit, OnDestroy {
 
   formatRequestedAt(d: string | null | undefined): string {
     if (!d) return '—';
-    return new Date(d).toLocaleString('en-GB', {
+    return new Date(d).toLocaleString('sr-Latn-RS', {
       day: 'numeric',
       month: 'short',
       hour: '2-digit',

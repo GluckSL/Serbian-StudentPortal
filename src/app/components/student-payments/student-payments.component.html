@@ -10,22 +10,22 @@
     <div class="sp-card__head">
       <span class="sp-card__title">
         <span class="material-icons sp-card__icon">payments</span>
-        Payment Summary
+        Pregled plaćanja
       </span>
       <span class="sp-badge sp-badge--blue">{{ currency }}</span>
     </div>
 
     <div class="sp-summary-grid">
       <div class="sp-summary-box sp-summary-box--total">
-        <div class="sp-summary-box__label">Total Amount</div>
+        <div class="sp-summary-box__label">Ukupan iznos</div>
         <div class="sp-summary-box__val">{{ formatCurrency(totalAmount) }}</div>
       </div>
       <div class="sp-summary-box sp-summary-box--paid">
-        <div class="sp-summary-box__label">Paid Amount</div>
+        <div class="sp-summary-box__label">Plaćeni iznos</div>
         <div class="sp-summary-box__val">{{ formatCurrency(paidAmount) }}</div>
       </div>
       <div class="sp-summary-box sp-summary-box--balance">
-        <div class="sp-summary-box__label">Balance</div>
+        <div class="sp-summary-box__label">Saldo</div>
         <div class="sp-summary-box__val">{{ formatCurrency(balance) }}</div>
       </div>
     </div>
@@ -33,12 +33,12 @@
     <div class="sp-bar sp-bar--lg" style="margin-top:14px;">
       <div class="sp-bar__fill sp-bar__fill--green" [style.width.%]="payPct"></div>
     </div>
-    <div class="sp-bar-label">{{ payPct }}% paid</div>
+    <div class="sp-bar-label">{{ payPct }}% plaćeno</div>
 
     <div class="sp-details" *ngIf="ledger.serviceOpted || ledger.batchNumber">
-      <div class="sp-kv-row" *ngIf="ledger.serviceOpted"><span>Service</span><span class="sp-kv-val">{{ ledger.serviceOpted }}</span></div>
-      <div class="sp-kv-row" *ngIf="ledger.batchNumber"><span>Batch</span><span class="sp-kv-val">{{ ledger.batchNumber }}</span></div>
-      <div class="sp-kv-row"><span>Total Invoiced</span><span class="sp-kv-val">{{ formatCurrency(liveTotals?.totalInvoiced ?? ledger.totalInvoiced) }}</span></div>
+      <div class="sp-kv-row" *ngIf="ledger.serviceOpted"><span>Usluga</span><span class="sp-kv-val">{{ ledger.serviceOpted }}</span></div>
+      <div class="sp-kv-row" *ngIf="ledger.batchNumber"><span>Grupa</span><span class="sp-kv-val">{{ ledger.batchNumber }}</span></div>
+      <div class="sp-kv-row"><span>Ukupno fakturisano</span><span class="sp-kv-val">{{ formatCurrency(liveTotals?.totalInvoiced ?? ledger.totalInvoiced) }}</span></div>
     </div>
   </div>
 
@@ -47,15 +47,15 @@
     <div class="sp-card__head">
       <span class="sp-card__title">
         <span class="material-icons sp-card__icon">payments</span>
-        Payments
+        Plaćanja
       </span>
     </div>
     <div class="sp-empty-state">
       <div class="sp-empty-state__icon">
         <span class="material-icons">inbox</span>
       </div>
-      <div class="sp-empty-state__text">No payment records found yet.</div>
-      <div class="sp-empty-state__sub">Contact the admin team if you believe this is an error.</div>
+      <div class="sp-empty-state__text">Još nema zapisa o plaćanjima.</div>
+      <div class="sp-empty-state__sub">Kontaktirajte administrativni tim ako smatrate da je ovo greška.</div>
     </div>
   </div>
 
@@ -64,9 +64,9 @@
     <div class="sp-card__head">
       <span class="sp-card__title">
         <span class="material-icons sp-card__icon">description</span>
-        Invoices
+        Fakture
       </span>
-      <span class="sp-card__meta">{{ invoices.length }} invoice(s)</span>
+      <span class="sp-card__meta">{{ invoices.length }} faktura</span>
     </div>
 
     <div *ngIf="invoices.length; else noInvoices">
@@ -78,10 +78,10 @@
               <div class="sp-invoice-num sp-mono">{{ inv.invoice_number }}</div>
               <div class="sp-invoice-desc">{{ inv.items?.length ? inv.items[0].description || inv.items[0].service : '—' }}</div>
               <div class="sp-invoice-dates">
-                <span>Issued: {{ inv.invoice_date || '—' }}</span>
+                <span>Izdato: {{ inv.invoice_date || '—' }}</span>
                 <span *ngIf="inv.due_date"
                   [class.sp-overdue-text]="inv.payment_status !== 'paid' && isOverdue(inv.due_date)">
-                  &nbsp;· Due: {{ inv.due_date }}
+                  &nbsp;· Dospeće: {{ inv.due_date }}
                 </span>
               </div>
             </div>
@@ -92,7 +92,7 @@
                 [class.sp-status-badge--overdue]="inv.payment_status !== 'paid' && isOverdue(inv.due_date)"
                 [class.sp-status-badge--unpaid]="inv.payment_status !== 'paid' && !isOverdue(inv.due_date)">
                 <span class="material-icons sp-status-badge__icon" *ngIf="inv.payment_status === 'paid'">check</span>
-                {{ inv.payment_status === 'paid' ? 'Paid' : (isOverdue(inv.due_date) ? 'Overdue' : 'Unpaid') }}
+                {{ inv.payment_status === 'paid' ? 'Plaćeno' : (isOverdue(inv.due_date) ? 'Zakasnelo' : 'Neplaćeno') }}
               </span>
             </div>
           </div>
@@ -113,35 +113,35 @@
               (click)="payWithRazorpay(inv)">
               <ng-container *ngIf="!payActionLoading[inv._id]">
                 <span class="material-icons">credit_card</span>
-                <span>Pay via Razorpay</span>
+                <span>Platite putem Razorpay</span>
               </ng-container>
-              <span *ngIf="payActionLoading[inv._id]">Loading payment...</span>
+              <span *ngIf="payActionLoading[inv._id]">Učitavanje plaćanja...</span>
             </button>
             <button
               class="sp-btn sp-btn--manual"
               [disabled]="payActionLoading[inv._id]"
               (click)="openManualModal(inv)">
               <span class="material-icons">file_upload</span>
-              <span>Submit Payment Proof</span>
+              <span>Predajte dokaz o plaćanju</span>
             </button>
           </div>
 
           <!-- Already has active submission -->
           <div class="sp-pending-note" *ngIf="inv.payment_status !== 'paid' && hasActiveSubmission(inv._id)">
-            Your payment submission is under review. We'll notify you by email once confirmed.
+            Vaša prijava plaćanja je pod pregledom. Obavestićemo vas e-poštom kada bude potvrđena.
           </div>
         </div>
       </div>
 
       <!-- Table totals -->
       <div class="sp-invoice-totals">
-        <span>Total: <strong>{{ formatCurrency(invoiceTotal) }}</strong></span>
-        <span class="sp-status-badge sp-status-badge--paid" style="margin-left:10px;">Paid: {{ formatCurrency(invoicePaid) }}</span>
+        <span>Ukupno: <strong>{{ formatCurrency(invoiceTotal) }}</strong></span>
+        <span class="sp-status-badge sp-status-badge--paid" style="margin-left:10px;">Plaćeno: {{ formatCurrency(invoicePaid) }}</span>
       </div>
     </div>
 
     <ng-template #noInvoices>
-      <div class="sp-empty-msg">No invoices found yet.</div>
+      <div class="sp-empty-msg">Još nema pronađenih faktura.</div>
     </ng-template>
   </div>
 
@@ -150,19 +150,19 @@
     <div class="sp-card__head">
       <span class="sp-card__title">
         <span class="material-icons sp-card__icon">outbox</span>
-        My Payment Submissions
+        Moje prijave plaćanja
       </span>
-      <span class="sp-card__meta">{{ submissions.length }} submission(s)</span>
+      <span class="sp-card__meta">{{ submissions.length }} prijava</span>
     </div>
     <!-- BEFORE: this table could overflow on 412px screens without a visible horizontal scroll area. -->
-    <div class="sp-table-scroll" tabindex="0" aria-label="Payment submissions table">
+    <div class="sp-table-scroll" tabindex="0" aria-label="Tabela poslatih uplata">
     <table class="sp-table-full">
       <thead>
         <tr>
-          <th>Invoice #</th>
-          <th>Amount</th>
-          <th>Type</th>
-          <th>Submitted</th>
+          <th>Faktura br.</th>
+          <th>Iznos</th>
+          <th>Vrsta</th>
+          <th>Predato</th>
           <th>Status</th>
         </tr>
       </thead>
@@ -194,20 +194,20 @@
     <div class="sp-card__head">
       <span class="sp-card__title">
         <span class="material-icons sp-card__icon">history</span>
-        Payment History
+        Istorija plaćanja
       </span>
-      <span class="sp-card__meta">{{ paymentHistory.length }} payment(s)</span>
+      <span class="sp-card__meta">{{ paymentHistory.length }} plaćanja</span>
     </div>
     <!-- BEFORE: this table could clip payment history columns on mobile. -->
-    <div class="sp-table-scroll" tabindex="0" aria-label="Payment history table">
+    <div class="sp-table-scroll" tabindex="0" aria-label="Tabela istorije plaćanja">
     <table class="sp-table-full">
       <thead>
         <tr>
-          <th>Date</th>
-          <th>Amount</th>
-          <th>Method</th>
-          <th>Note</th>
-          <th>Recorded By</th>
+          <th>Datum</th>
+          <th>Iznos</th>
+          <th>Metoda</th>
+          <th>Beleška</th>
+          <th>Zabeležio</th>
         </tr>
       </thead>
       <tbody>
@@ -295,7 +295,7 @@
         <div class="sp-skeleton-block" style="height:11px;width:60px;background:#e2e8f0;border-radius:4px;"></div>
       </div>
       <!-- BEFORE: loading table skeletons used the same non-scrollable table layout as the real tables. -->
-      <div class="sp-table-scroll" tabindex="0" aria-label="Loading payment submissions table">
+      <div class="sp-table-scroll" tabindex="0" aria-label="Učitavanje tabele poslatih uplata">
       <table class="sp-table-full">
         <thead>
           <tr>
@@ -325,7 +325,7 @@
         <div class="sp-skeleton-block" style="height:14px;width:120px;background:#e2e8f0;border-radius:4px;"></div>
         <div class="sp-skeleton-block" style="height:11px;width:50px;background:#e2e8f0;border-radius:4px;"></div>
       </div>
-      <div class="sp-table-scroll" tabindex="0" aria-label="Loading payment history table">
+      <div class="sp-table-scroll" tabindex="0" aria-label="Učitavanje tabele istorije plaćanja">
       <table class="sp-table-full">
         <thead>
           <tr>
@@ -357,7 +357,7 @@
     <div class="sp-modal__head">
       <h3 class="sp-modal__title">
         <span class="material-icons sp-modal-title__icon">file_upload</span>
-        Submit Payment Proof
+        Predajte dokaz o plaćanju
       </h3>
       <button class="sp-modal__close" (click)="closeManualModal()">
         <span class="material-icons">close</span>
@@ -365,26 +365,26 @@
     </div>
 
     <div class="sp-modal__invoice-info" *ngIf="selectedInvoice">
-      <span>Invoice: <strong>{{ selectedInvoice.invoice_number }}</strong></span>
-      <span>Amount: <strong>₹ {{ formatCurrency(selectedInvoice.total_payable) }}</strong></span>
+      <span>Faktura: <strong>{{ selectedInvoice.invoice_number }}</strong></span>
+      <span>Iznos: <strong>₹ {{ formatCurrency(selectedInvoice.total_payable) }}</strong></span>
     </div>
 
-    <p class="sp-modal__hint">If you've already paid via bank transfer, UPI, or any other method, fill in the details below and upload a screenshot as proof.</p>
+    <p class="sp-modal__hint">Ako ste već platili bankovnim transferom, UPI-jem ili na drugi način, ispunite detalje ispod i otpremite snimak ekrana kao dokaz.</p>
 
     <div class="sp-form">
       <div class="sp-form-group">
-        <label class="sp-label">Amount Paid <span class="sp-required">*</span></label>
+        <label class="sp-label">Plaćeni iznos <span class="sp-required">*</span></label>
         <input
           class="sp-input"
           type="number"
           [(ngModel)]="manualForm.amount"
-          placeholder="Enter amount"
+          placeholder="Unesite iznos"
           min="1"
           required>
       </div>
 
       <div class="sp-form-group">
-        <label class="sp-label">Time of Payment</label>
+        <label class="sp-label">Vreme plaćanja</label>
         <input
           class="sp-input"
           type="datetime-local"
@@ -392,12 +392,12 @@
       </div>
 
       <div class="sp-form-group">
-        <label class="sp-label">Payment Screenshot <span class="sp-hint-text">(JPG, PNG, PDF — max 5MB)</span></label>
+        <label class="sp-label">Snimak ekrana plaćanja <span class="sp-hint-text">(JPG, PNG, PDF — maks 5MB)</span></label>
         <label class="sp-file-upload" for="studentPaymentProofFile">
           <input id="studentPaymentProofFile" type="file" accept="image/jpeg,image/jpg,image/png,image/webp,image/heic,image/heif,application/pdf,.pdf,image/*" class="sp-file-input-offscreen" (change)="onProofFileChange($event)">
           <ng-container *ngIf="!manualForm.proofFile">
             <span class="material-icons sp-file-upload__icon">attach_file</span>
-            <span>Click to upload screenshot</span>
+            <span>Kliknite za otpremanje snimka ekrana</span>
           </ng-container>
           <span *ngIf="manualForm.proofFile" class="sp-file-name">
             <span class="material-icons">check</span>
@@ -407,12 +407,12 @@
       </div>
 
       <div class="sp-form-group">
-        <label class="sp-label">Note / Reference ID <span class="sp-hint-text">(optional)</span></label>
+        <label class="sp-label">Beleška / Referentni ID <span class="sp-hint-text">(opciono)</span></label>
         <textarea
           class="sp-input sp-textarea"
           [(ngModel)]="manualForm.note"
           rows="2"
-          placeholder="e.g. UPI transaction ID, bank reference...">
+          placeholder="npr. UPI ID transakcije, bankovna referenca...">
         </textarea>
       </div>
 
@@ -421,9 +421,9 @@
           class="sp-btn sp-btn--submit"
           [disabled]="manualSubmitting || !manualForm.amount"
           (click)="submitManualPayment()">
-          {{ manualSubmitting ? 'Submitting...' : 'Submit for Review' }}
+          {{ manualSubmitting ? 'Predavanje...' : 'Predajte na pregled' }}
         </button>
-        <button class="sp-btn sp-btn--cancel" (click)="closeManualModal()">Cancel</button>
+        <button class="sp-btn sp-btn--cancel" (click)="closeManualModal()">Otkaži</button>
       </div>
     </div>
   </div>

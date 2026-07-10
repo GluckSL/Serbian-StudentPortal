@@ -1,11 +1,11 @@
 <!-- src/app/components/student-notifications/student-notifications.component.html -->
 <div class="student-notifications-card">
   <div class="header">
-    <h3>Notifications</h3>
-    <button class="btn btn-sm btn-link" (click)="markAllAsRead()">Mark all as read</button>
+    <h3>Obaveštenja</h3>
+    <button class="btn btn-sm btn-link" (click)="markAllAsRead()">Označi sve kao pročitano</button>
   </div>
 
-  <div *ngIf="loading">Loading notifications...</div>
+  <div *ngIf="loading">Učitavanje obaveštenja...</div>
   <p class="text-danger" *ngIf="error">{{ error }}</p>
 
   <ul class="notification-list" *ngIf="!loading && notifications.length">
@@ -19,16 +19,16 @@
       </div>
       <div class="meta">
         <span *ngIf="n.actorId">
-          From: {{ n.actorId.name }}
+          Od: {{ n.actorId.name }}
         </span>
         <span class="time">
-          {{ n.createdAt | date:'short' }}
+          {{ n.createdAt | date:'short':'':'sr-Latn-RS' }}
         </span>
       </div>
     </li>
   </ul>
 
   <p *ngIf="!loading && !notifications.length">
-    No notifications yet.
+    Još nema obaveštenja.
   </p>
 </div>

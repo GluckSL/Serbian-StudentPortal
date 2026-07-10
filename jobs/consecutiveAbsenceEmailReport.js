@@ -78,7 +78,7 @@ async function collectMissedClassesForStudent(student, since) {
     if (isContentBlockedForStudent(student, { courseDay: meeting.courseDay, level: student.level })) {
       continue;
     }
-    const dayKey = new Date(meeting.startTime).toLocaleDateString('en-CA', {
+    const dayKey = new Date(meeting.startTime).toLocaleDateString('sr-Latn-RS', {
       timeZone: 'Asia/Colombo',
     });
     batchDays.add(dayKey);
@@ -175,7 +175,7 @@ async function processConsecutiveAbsenceEmailReport() {
       batchNumber(a.batch) - batchNumber(b.batch) || String(a.name).localeCompare(String(b.name))
   );
 
-  const reportDate = new Date().toLocaleDateString('en-IN', {
+  const reportDate = new Date().toLocaleDateString('sr-Latn-RS', {
     weekday: 'long',
     day: '2-digit',
     month: 'long',

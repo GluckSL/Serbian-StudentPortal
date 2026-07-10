@@ -2,12 +2,12 @@
 
   <div class="ha-header">
     <div class="ha-title">
-      <h1><i class="fas fa-headset"></i> Support Tickets</h1>
-      <p>Manage and respond to user support requests.</p>
+      <h1><i class="fas fa-headset"></i> Tiketi za podršku</h1>
+      <p>Upravljajte i odgovarajte na zahteve za podršku korisnika.</p>
     </div>
     <button class="ha-refresh" (click)="loadTickets()" [disabled]="loading">
       <i class="fas" [class.fa-sync-alt]="!loading" [class.fa-spinner]="loading" [class.fa-spin]="loading"></i>
-      {{ loading ? 'Refreshing…' : 'Refresh' }}
+      {{ loading ? 'Osvežavanje...' : 'Osvežite' }}
     </button>
   </div>
 
@@ -16,23 +16,23 @@
     <div class="ecr-panel__header">
       <div class="ecr-panel__title">
         <i class="fas fa-user-edit"></i>
-        Email Change Requests
+        Zahtevi za promenu e-maila
         <span class="ecr-badge" *ngIf="emailChangeRequests.length > 0">{{ emailChangeRequests.length }}</span>
       </div>
       <button class="ha-refresh ecr-refresh-btn" (click)="loadEmailChangeRequests()" [disabled]="emailChangeLoading">
         <i class="fas" [class.fa-sync-alt]="!emailChangeLoading" [class.fa-spinner]="emailChangeLoading" [class.fa-spin]="emailChangeLoading"></i>
-        Refresh
+        Osvežite
       </button>
     </div>
 
     <div *ngIf="emailChangeError" class="ha-error" style="margin:8px 0 0;"><i class="fas fa-exclamation-circle"></i> {{ emailChangeError }}</div>
 
     <div *ngIf="emailChangeLoading && emailChangeRequests.length === 0" class="ecr-empty">
-      <span class="wd-spinner"></span> Loading…
+      <span class="wd-spinner"></span> Učitavanje...
     </div>
 
     <div *ngIf="!emailChangeLoading && emailChangeRequests.length === 0" class="ecr-empty">
-      <i class="fas fa-check-circle" style="color:#16a34a;"></i> No pending email change requests.
+      <i class="fas fa-check-circle" style="color:#16a34a;"></i> Nema zahteva za promenu e-maila.
     </div>
 
     <div *ngIf="emailChangeRequests.length > 0" class="ecr-list">
@@ -43,11 +43,11 @@
             <span class="ecr-reg">{{ req.regNo }}</span>
           </div>
           <div class="ecr-card__emails">
-            <span class="ecr-email-label">Current:</span> <span class="ecr-email-val">{{ req.currentEmail }}</span>
+            <span class="ecr-email-label">Trenutni:</span> <span class="ecr-email-val">{{ req.currentEmail }}</span>
             <span class="ecr-arrow">→</span>
-            <span class="ecr-email-label">New:</span> <span class="ecr-email-val ecr-email-val--new">{{ req.newEmail }}</span>
+            <span class="ecr-email-label">Novi:</span> <span class="ecr-email-val ecr-email-val--new">{{ req.newEmail }}</span>
           </div>
-          <div class="ecr-card__date">Requested {{ req.createdAt | date:'medium' }}</div>
+          <div class="ecr-card__date">Zahtevano {{ req.createdAt | date:'medium' }}</div>
         </div>
         <div class="ecr-card__actions">
           <button
@@ -56,14 +56,14 @@
             (click)="approveEmailChange(req)"
           >
             <i class="fas fa-check"></i>
-            {{ processingEcrId === req._id ? 'Processing…' : 'Approve' }}
+            {{ processingEcrId === req._id ? 'Obrada...' : 'Odobri' }}
           </button>
           <button
             class="ecr-btn ecr-btn--reject"
             [disabled]="processingEcrId === req._id"
             (click)="rejectEmailChange(req)"
           >
-            <i class="fas fa-times"></i> Reject
+            <i class="fas fa-times"></i> Odbij
           </button>
         </div>
       </div>
@@ -73,27 +73,27 @@
   <!-- KPI Strip -->
   <div class="ha-kpis" *ngIf="!loading">
     <div class="ha-kpi">
-      <span>Open</span>
+      <span>Otvoreno</span>
       <strong>{{ openCount }}</strong>
     </div>
     <div class="ha-kpi ha-kpi--yellow">
-      <span>In Progress</span>
+      <span>U toku</span>
       <strong>{{ inProgressCount }}</strong>
     </div>
     <div class="ha-kpi ha-kpi--green">
-      <span>Resolved</span>
+      <span>Rešeno</span>
       <strong>{{ resolvedCount }}</strong>
     </div>
     <div class="ha-kpi ha-kpi--red">
-      <span>High Priority (Open)</span>
+      <span>Visok prioritet (Otvoreno)</span>
       <strong>{{ highPriorityCount }}</strong>
     </div>
     <div class="ha-kpi ha-kpi--slate">
-      <span>Closed</span>
+      <span>Zatvoreno</span>
       <strong>{{ closedCount }}</strong>
     </div>
     <div class="ha-kpi ha-kpi--neutral">
-      <span>Total</span>
+      <span>Ukupno</span>
       <strong>{{ tickets.length }}</strong>
     </div>
   </div>
@@ -110,18 +110,18 @@
     <div class="ha-search-wrap">
       <i class="fas fa-search"></i>
       <input type="text" [(ngModel)]="searchQuery" (ngModelChange)="onSearchOrFilterChange()"
-             placeholder="Search by name, email, student ID, batch, subject or ticket number…"
+             placeholder="Pretražite po imenu, e-mailu, ID-u učenika, grupi, predmetu ili broju tiketa..."
              [disabled]="loading">
     </div>
     <select [(ngModel)]="filterStatus" (ngModelChange)="onSearchOrFilterChange()" [disabled]="loading">
-      <option value="">All Statuses</option>
+      <option value="">Svi statusi</option>
       <option *ngFor="let s of statuses" [value]="s">{{ s | titlecase }}</option>
     </select>
     <select [(ngModel)]="filterPriority" (ngModelChange)="onSearchOrFilterChange()" [disabled]="loading">
-      <option value="">All Priorities</option>
-      <option value="high">High</option>
-      <option value="medium">Medium</option>
-      <option value="low">Low</option>
+      <option value="">Svi prioriteti</option>
+      <option value="high">Visok</option>
+      <option value="medium">Srednji</option>
+      <option value="low">Nizak</option>
     </select>
     <select class="ha-page-size" [ngModel]="pageSize" (ngModelChange)="onPageSizeChange($event)" [disabled]="loading">
       <option *ngFor="let n of pageSizeOptions" [ngValue]="n">{{ n }} / page</option>
@@ -134,20 +134,20 @@
   </div>
 
   <!-- Skeleton table -->
-  <div *ngIf="loading" class="ha-table-wrap ha-table-wrap--skeleton" aria-busy="true" aria-label="Loading tickets">
+  <div *ngIf="loading" class="ha-table-wrap ha-table-wrap--skeleton" aria-busy="true" aria-label="Učitavanje tiketa">
     <table class="ha-table">
       <thead>
         <tr>
-          <th>Ticket #</th>
-          <th>Submitter</th>
-          <th>Student ID</th>
-          <th>Batch</th>
-          <th>Subject</th>
-          <th>Category</th>
-          <th>Priority</th>
+          <th>Tiket #</th>
+          <th>Podnosilac</th>
+          <th>ID učenika</th>
+          <th>Grupa</th>
+          <th>Predmet</th>
+          <th>Kategorija</th>
+          <th>Prioritet</th>
           <th>Status</th>
-          <th>Date</th>
-          <th>Actions</th>
+          <th>Datum</th>
+          <th>Akcije</th>
         </tr>
       </thead>
       <tbody>
@@ -173,7 +173,7 @@
   <!-- Empty -->
   <div *ngIf="!loading && !error && filteredTickets.length === 0" class="ha-empty">
     <i class="fas fa-inbox"></i>
-    <p>No tickets found.</p>
+    <p>Nema tiketa.</p>
   </div>
 
   <!-- Tickets Table -->
@@ -182,16 +182,16 @@
       <table class="ha-table">
         <thead>
           <tr>
-            <th>Ticket #</th>
-            <th>Submitter</th>
-            <th>Student ID</th>
-            <th>Batch</th>
-            <th>Subject</th>
-            <th>Category</th>
-            <th>Priority</th>
+            <th>Tiket #</th>
+            <th>Podnosilac</th>
+            <th>ID učenika</th>
+            <th>Grupa</th>
+            <th>Predmet</th>
+            <th>Kategorija</th>
+            <th>Prioritet</th>
             <th>Status</th>
-            <th>Date</th>
-            <th>Actions</th>
+            <th>Datum</th>
+            <th>Akcije</th>
           </tr>
         </thead>
         <tbody>
@@ -238,27 +238,27 @@
               <td colspan="10">
                 <div class="ha-expand-content">
                   <div class="ha-expand-ids" *ngIf="ticket.regNo || ticket.batch || ticket.displayPassword || ticket.url">
-                    <span *ngIf="ticket.regNo"><i class="fas fa-id-card"></i> Student ID: <strong>{{ ticket.regNo }}</strong><span *ngIf="ticket.displayPassword"> · Password: <strong>{{ ticket.displayPassword }}</strong></span></span>
-                    <span *ngIf="ticket.batch"><i class="fas fa-users"></i> Batch: <strong>{{ ticket.batch }}</strong></span>
+                    <span *ngIf="ticket.regNo"><i class="fas fa-id-card"></i> ID učenika: <strong>{{ ticket.regNo }}</strong><span *ngIf="ticket.displayPassword"> · Lozinka: <strong>{{ ticket.displayPassword }}</strong></span></span>
+                    <span *ngIf="ticket.batch"><i class="fas fa-users"></i> Grupa: <strong>{{ ticket.batch }}</strong></span>
                     <span *ngIf="ticket.url"><i class="fas fa-link"></i> URL: <a [href]="ticket.url" target="_blank" rel="noreferrer">{{ ticket.url }}</a></span>
                   </div>
-                  <h4>Description</h4>
+                  <h4>Opis</h4>
                   <p>{{ ticket.description }}</p>
 
                   <div class="ha-shot" *ngIf="ticket.screenshot?.url">
-                    <h4 style="margin-top:14px;">Screenshot</h4>
+                    <h4 style="margin-top:14px;">Snimak ekrana</h4>
                     <a class="ha-shot__link" [href]="ticket.screenshot?.url" target="_blank" rel="noreferrer">
-                      <i class="fas fa-external-link-alt"></i> Open screenshot
+                      <i class="fas fa-external-link-alt"></i> Otvorite snimak ekrana
                       <span *ngIf="ticket.screenshot?.originalName">({{ ticket.screenshot?.originalName }})</span>
                     </a>
-                    <img class="ha-shot__img" [src]="ticket.screenshot?.url" alt="Ticket screenshot" (error)="onScreenshotError(ticket)" *ngIf="!screenshotHasError(ticket)">
+                    <img class="ha-shot__img" [src]="ticket.screenshot?.url" alt="Snimak ekrana tiketa" (error)="onScreenshotError(ticket)" *ngIf="!screenshotHasError(ticket)">
                     <div class="ha-shot__fallback" *ngIf="screenshotHasError(ticket)">
-                      <i class="fas fa-image"></i> Screenshot unavailable
+                      <i class="fas fa-image"></i> Snimak ekrana nije dostupan
                     </div>
                   </div>
 
                   <div class="ha-replies" *ngIf="ticket.replies?.length">
-                    <h4 style="margin-top:14px;">Replies</h4>
+                    <h4 style="margin-top:14px;">Odgovori</h4>
                     <div class="ha-reply" *ngFor="let r of ticket.replies">
                       <div class="ha-reply__meta">
                         <strong>{{ r.authorRole }}</strong>
@@ -270,7 +270,7 @@
 
                   <div class="ha-replybox">
                     <div class="ha-replybox__head">
-                      <label>Reply to user</label>
+                      <label>Odgovorite korisniku</label>
                       <button
                         type="button"
                         class="ha-ai-btn"
@@ -278,22 +278,22 @@
                         [disabled]="aiGeneratingId === ticket._id || replyingId === ticket._id"
                         [title]="(replyDraft[ticket._id!] || '').trim() ? 'Polish your draft with AI' : 'Generate a formal reply with AI'">
                         <i class="fas" [class.fa-wand-magic-sparkles]="aiGeneratingId !== ticket._id" [class.fa-spinner]="aiGeneratingId === ticket._id" [class.fa-spin]="aiGeneratingId === ticket._id"></i>
-                        {{ aiGeneratingId === ticket._id ? 'Generating…' : 'Use AI' }}
+                        {{ aiGeneratingId === ticket._id ? 'Generisanje...' : 'Koristite AI' }}
                       </button>
                     </div>
                     <div *ngIf="replyError" class="ha-error ha-error--inline" style="margin-bottom:8px;">
                       <i class="fas fa-exclamation-circle"></i> {{ replyError }}
                     </div>
-                    <textarea [(ngModel)]="replyDraft[ticket._id!]" rows="5" placeholder="Write a reply…"></textarea>
+                    <textarea [(ngModel)]="replyDraft[ticket._id!]" rows="5" placeholder="Napišite odgovor..."></textarea>
                     <button class="ha-refresh" style="margin-top:10px;"
                             (click)="sendReply(ticket)"
                             [disabled]="replyingId === ticket._id || aiGeneratingId === ticket._id || !(replyDraft[ticket._id!] || '').trim()">
-                      <span *ngIf="replyingId !== ticket._id"><i class="fas fa-paper-plane"></i> Send Reply</span>
-                      <span *ngIf="replyingId === ticket._id"><i class="fas fa-spinner fa-spin"></i> Sending…</span>
+                      <span *ngIf="replyingId !== ticket._id"><i class="fas fa-paper-plane"></i> Pošaljite odgovor</span>
+                      <span *ngIf="replyingId === ticket._id"><i class="fas fa-spinner fa-spin"></i> Slanje...</span>
                     </button>
                   </div>
                   <div class="ha-expand-meta">
-                    <span *ngIf="ticket.updatedAt"><i class="fas fa-edit"></i> Last updated: {{ ticket.updatedAt | date:'medium' }}</span>
+                    <span *ngIf="ticket.updatedAt"><i class="fas fa-edit"></i> Poslednje ažuriranje: {{ ticket.updatedAt | date:'medium' }}</span>
                   </div>
                 </div>
               </td>
@@ -307,13 +307,13 @@
       <span class="ha-pagination__label">{{ paginationLabel }}</span>
       <div class="ha-pagination__nav">
         <button type="button" class="ha-page-btn" (click)="goToPage(currentPage - 1)"
-                [disabled]="currentPage <= 1" aria-label="Previous page">
-          <i class="fas fa-chevron-left"></i> Prev
+                [disabled]="currentPage <= 1" aria-label="Prethodna stranica">
+          <i class="fas fa-chevron-left"></i> Prethodno
         </button>
-        <span class="ha-pagination__pages">Page {{ currentPage }} of {{ totalPages }}</span>
+        <span class="ha-pagination__pages">Stranica {{ currentPage }} od {{ totalPages }}</span>
         <button type="button" class="ha-page-btn" (click)="goToPage(currentPage + 1)"
-                [disabled]="currentPage >= totalPages" aria-label="Next page">
-          Next <i class="fas fa-chevron-right"></i>
+                [disabled]="currentPage >= totalPages" aria-label="Sledeća stranica">
+          Sledeće <i class="fas fa-chevron-right"></i>
         </button>
       </div>
     </div>

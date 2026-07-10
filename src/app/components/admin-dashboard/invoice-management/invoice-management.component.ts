@@ -128,6 +128,6 @@ export class InvoiceManagementComponent implements OnInit {
   closeProof(): void { this.showProofModal = false; this.proofUrl = ''; }
 
   isOverdue(dateStr: string): boolean { return dateStr ? new Date() > new Date(dateStr + 'T00:00:00') : false; }
-  formatCurrency(amount: number): string { if (!amount && amount !== 0) return '0'; return 'LKR ' + amount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 }); }
-  formatDate(d: string | Date): string { if (!d) return '—'; return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }); }
+  formatCurrency(amount: number): string { if (!amount && amount !== 0) return '0'; return 'LKR ' + amount.toLocaleString('sr-Latn-RS', { minimumFractionDigits: 0, maximumFractionDigits: 0 }); }
+  formatDate(d: string | Date): string { if (!d) return '—'; return new Date(d).toLocaleDateString('sr-Latn-RS', { day: '2-digit', month: 'short', year: 'numeric' }); }
 }
