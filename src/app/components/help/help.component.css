@@ -734,7 +734,7 @@
   font-size: clamp(1.8rem, 3vw, 2.3rem);
   line-height: 1.05;
   letter-spacing: -0.04em;
-  color: var(--help-primary);
+  color: #ffffff;
 }
 
 .section-header p {
