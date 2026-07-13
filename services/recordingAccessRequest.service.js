@@ -27,7 +27,7 @@ function escapeHtml(value = '') {
 
 function formatDateEnGb(date) {
   if (!date) return 'N/A';
-  return new Date(date).toLocaleDateString('sr-Latn-RS', {
+  return new Date(date).toLocaleDateString('en-GB', {
     day: 'numeric',
     month: 'short',
     year: 'numeric',
@@ -406,7 +406,7 @@ async function sendDeclineEmail(request, declineReason) {
   if (!studentEmail) return;
 
   const dateStr = classDate
-    ? new Date(classDate).toLocaleDateString('sr-Latn-RS', {
+    ? new Date(classDate).toLocaleDateString('en-GB', {
         day: 'numeric', month: 'short', year: 'numeric',
       })
     : 'N/A';
@@ -454,7 +454,7 @@ async function sendApproveEmail(request) {
   if (!studentEmail) return;
 
   const dateStr = classDate
-    ? new Date(classDate).toLocaleDateString('sr-Latn-RS', {
+    ? new Date(classDate).toLocaleDateString('en-GB', {
         day: 'numeric', month: 'short', year: 'numeric',
       })
     : 'N/A';

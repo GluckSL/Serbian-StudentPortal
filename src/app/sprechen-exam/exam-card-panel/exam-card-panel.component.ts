@@ -37,9 +37,9 @@ import type { SprechenCard, SprechenA2TimetableSlot } from '../sprechen-exam.typ
       <!-- A2 timetable card -->
       <div class="exam-card-panel__a2-timetable" *ngIf="card.type === 'a2_timetable'">
         <p class="exam-card-panel__a2-timetable-date" *ngIf="card.dateLabel">{{ card.dateLabel }}</p>
-        <button *ngIf="hasImage" type="button" class="exam-card-panel__img-btn" (click)="openLightbox()" aria-label="Prikaži raspored na celom ekranu">
-          <img [src]="imageSrc" alt="Raspored učenika" class="exam-card-panel__img exam-card-panel__img--timetable" />
-          <span class="exam-card-panel__zoom-hint"><mat-icon>zoom_in</mat-icon> Tapnite za uvećanje</span>
+        <button *ngIf="hasImage" type="button" class="exam-card-panel__img-btn" (click)="openLightbox()" aria-label="View timetable full screen">
+          <img [src]="imageSrc" alt="Student timetable" class="exam-card-panel__img exam-card-panel__img--timetable" />
+          <span class="exam-card-panel__zoom-hint"><mat-icon>zoom_in</mat-icon> Tap to enlarge</span>
         </button>
         <ul class="exam-card-panel__a2-slots" *ngIf="timetableSlots.length">
           <li *ngFor="let s of timetableSlots" [class.exam-card-panel__a2-slot--busy]="s.busy">
@@ -55,12 +55,12 @@ import type { SprechenCard, SprechenA2TimetableSlot } from '../sprechen-exam.typ
         type="button"
         class="exam-card-panel__img-btn"
         (click)="openLightbox()"
-        [attr.aria-label]="'Otvori sliku kartice na celom ekranu'"
+        [attr.aria-label]="'Open card image full screen'"
       >
         <img [src]="imageSrc" [alt]="cardAlt" class="exam-card-panel__img" />
         <span class="exam-card-panel__zoom-hint">
           <mat-icon>zoom_in</mat-icon>
-          Tapnite za uvećanje
+          Tap to enlarge
         </span>
       </button>
 

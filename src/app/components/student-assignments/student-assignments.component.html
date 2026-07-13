@@ -3,31 +3,32 @@
 <div class="student-assignments-container">
 
   <div class="assignment-upload-card">
-    <h3>Pošaljite list odgovora</h3>
+    <h3>Submit Answer Sheet</h3>
 
     <div class="form-group">
-      <label>Naslov (opciono)</label>
-      <input type="text" [(ngModel)]="title" class="form-control" placeholder="Naslov zadatka">
+      <label>Title (optional)</label>
+      <input type="text" [(ngModel)]="title" class="form-control" placeholder="Assignment title">
+    </div>
+
+    <!-- Optional: course / module selectors; for now simple text inputs -->
+    <div class="form-group">
+      <label>Course ID (optional)</label>
+      <input type="text" [(ngModel)]="courseId" class="form-control" placeholder="CourseId">
     </div>
 
     <div class="form-group">
-      <label>ID kursa (opciono)</label>
-      <input type="text" [(ngModel)]="courseId" class="form-control" placeholder="ID kursa">
+      <label>Module ID (optional)</label>
+      <input type="text" [(ngModel)]="moduleId" class="form-control" placeholder="LearningModule ID">
     </div>
 
     <div class="form-group">
-      <label>ID modula (opciono)</label>
-      <input type="text" [(ngModel)]="moduleId" class="form-control" placeholder="ID modula učenja">
-    </div>
-
-    <div class="form-group">
-      <label>Izaberite datoteke</label>
+      <label>Select files</label>
       <input type="file" (change)="onFileChange($event)" class="form-control" multiple>
-      <small *ngIf="selectedFiles.length">Izabrano: {{ selectedFiles.length }} datoteka</small>
+      <small *ngIf="selectedFiles.length">Selected: {{ selectedFiles.length }} file(s)</small>
     </div>
 
     <button class="btn btn-primary" (click)="submitAssignment()" [disabled]="loading">
-      {{ loading ? 'Otpremanje...' : 'Pošaljite zadatak' }}
+      {{ loading ? 'Uploading...' : 'Submit assignment' }}
     </button>
 
     <p class="text-success" *ngIf="message">{{ message }}</p>
@@ -35,27 +36,27 @@
   </div>
 
   <div class="assignment-list-card">
-    <h3>Vaše prijave</h3>
+    <h3>Your submissions</h3>
 
-    <div *ngIf="loadingSubmissions">Učitavanje prijava...</div>
+    <div *ngIf="loadingSubmissions">Loading submissions...</div>
 
     <div *ngIf="!loadingSubmissions && submissions.length === 0">
-      Još niste poslali nijedan zadatak.
+      No assignments submitted yet.
     </div>
 
     <table *ngIf="!loadingSubmissions && submissions.length" class="table table-striped">
       <thead>
         <tr>
-          <th>Naslov</th>
+          <th>Title</th>
           <th>Status</th>
-          <th>Nastavnik</th>
-          <th>Poslato</th>
-          <th>Datoteke</th>
+          <th>Teacher</th>
+          <th>Submitted at</th>
+          <th>Files</th>
         </tr>
       </thead>
       <tbody>
         <tr *ngFor="let s of submissions">
-          <td>{{ s.title || 'Bez naslova' }}</td>
+          <td>{{ s.title || 'Untitled' }}</td>
           <td>{{ s.status }}</td>
           <td>{{ s.teacherId?.name }} ({{ s.teacherId?.regNo }})</td>
           <td>{{ s.createdAt | date:'short' }}</td>

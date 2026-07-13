@@ -35,18 +35,18 @@ const REPORT_RECIPIENTS     = ['aiswarya@gluckglobal.com', 'sourav@gluckglobal.c
 // ─────────────────────────────────────────────────────────────
 
 function todayStr() {
-  return new Date().toLocaleDateString('sr-Latn-RS', { timeZone: TZ });
+  return new Date().toLocaleDateString('en-CA', { timeZone: TZ });
 }
 
 function shortDateLabel(date) {
-  return new Date(date).toLocaleDateString('sr-Latn-RS', {
+  return new Date(date).toLocaleDateString('en-GB', {
     weekday: 'short', day: '2-digit', month: 'short', year: 'numeric',
     timeZone: TZ,
   });
 }
 
 function fullDateLabel() {
-  return new Date().toLocaleDateString('sr-Latn-RS', {
+  return new Date().toLocaleDateString('en-IN', {
     weekday: 'long', day: '2-digit', month: 'long', year: 'numeric',
     timeZone: 'Asia/Kolkata',
   });

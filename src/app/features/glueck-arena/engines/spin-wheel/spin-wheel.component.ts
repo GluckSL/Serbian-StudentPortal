@@ -48,28 +48,28 @@ const WHEEL_PALETTE: { base: string; dark: string }[] = [
             <span class="sw__hud-icon sw__hud-icon--segments"><mat-icon>donut_large</mat-icon></span>
             <div>
               <span class="sw__hud-val">{{ activeCount }}</span>
-              <span class="sw__hud-lbl">na točku</span>
+              <span class="sw__hud-lbl">on wheel</span>
             </div>
           </div>
           <div class="sw__hud-item">
             <span class="sw__hud-icon sw__hud-icon--score"><mat-icon>star</mat-icon></span>
             <div>
               <span class="sw__hud-val">{{ score }}</span>
-              <span class="sw__hud-lbl">rezultat</span>
+              <span class="sw__hud-lbl">score</span>
             </div>
           </div>
           <div class="sw__hud-item" *ngIf="totalSegments">
             <span class="sw__hud-icon sw__hud-icon--progress"><mat-icon>check_circle</mat-icon></span>
             <div>
               <span class="sw__hud-val">{{ eliminateCount }}/{{ totalSegments - 1 }}</span>
-              <span class="sw__hud-lbl">eliminisano</span>
+              <span class="sw__hud-lbl">eliminated</span>
             </div>
           </div>
           <div class="sw__hud-item" *ngIf="sessionLimitSeconds">
             <span class="sw__hud-icon sw__hud-icon--timer"><mat-icon>timer</mat-icon></span>
             <div>
               <span class="sw__hud-val" [class.sw__hud-val--warn]="remainingSeconds <= 10">{{ formatTime(remainingSeconds) }}</span>
-              <span class="sw__hud-lbl">preostalo vreme</span>
+              <span class="sw__hud-lbl">time left</span>
             </div>
           </div>
         </header>
@@ -157,7 +157,7 @@ const WHEEL_PALETTE: { base: string; dark: string }[] = [
                 [class.sw__hub--clickable]="phase === 'idle' && activeCount > 1"
                 role="button"
                 [attr.tabindex]="phase === 'idle' && activeCount > 1 ? 0 : -1"
-                [attr.aria-label]="'Zavrti točak'"
+                [attr.aria-label]="'Spin the wheel'"
                 (click)="spin()"
                 (keydown.enter)="spin()"
                 (keydown.space)="$event.preventDefault(); spin()"
@@ -170,22 +170,22 @@ const WHEEL_PALETTE: { base: string; dark: string }[] = [
 
           <div class="sw__idle-hint" *ngIf="phase === 'idle' && activeCount > 1">
             <mat-icon>touch_app</mat-icon>
-            <span>Tapni <strong>Vrti</strong> ili centar za nasumičnu frazu</span>
+            <span>Tap <strong>Spin</strong> or the center to pick a random phrase</span>
           </div>
 
           <div class="sw__result-overlay" *ngIf="phase === 'result' && selectedSegment">
             <div class="sw__result-modal">
-              <span class="sw__result-chip" [style.background]="selectedSegment.color">Palo na</span>
+              <span class="sw__result-chip" [style.background]="selectedSegment.color">Landed</span>
               <p class="sw__result-phrase">{{ selectedSegment.phrase }}</p>
-              <p class="sw__result-hint">Zadrži ovu frazu na točku ili je ukloni?</p>
+              <p class="sw__result-hint">Keep this phrase on the wheel or remove it?</p>
               <div class="sw__result-actions">
                 <button type="button" class="sw__btn sw__btn--resume" (click)="resume()">
-                  <span class="sw__btn-row"><mat-icon>replay</mat-icon> Nastavi</span>
-                  <small>Zadrži na točku</small>
+                  <span class="sw__btn-row"><mat-icon>replay</mat-icon> Resume</span>
+                  <small>Keep on wheel</small>
                 </button>
                 <button type="button" class="sw__btn sw__btn--eliminate" (click)="eliminate()" [disabled]="activeCount <= 1">
-                  <span class="sw__btn-row"><mat-icon>close</mat-icon> Eliminiši</span>
-                  <small>Ukloni frazu</small>
+                  <span class="sw__btn-row"><mat-icon>close</mat-icon> Eliminate</span>
+                  <small>Remove phrase</small>
                 </button>
               </div>
             </div>
@@ -196,10 +196,10 @@ const WHEEL_PALETTE: { base: string; dark: string }[] = [
         <div class="sw__winner" *ngIf="phase === 'done'">
           <div class="sw__winner-glow"></div>
           <mat-icon>emoji_events</mat-icon>
-          <h2>Bravo!</h2>
-          <p class="sw__winner-sub">Poslednja fraza na točku</p>
+          <h2>Great job!</h2>
+          <p class="sw__winner-sub">Last phrase on the wheel</p>
           <p class="sw__winner-phrase" *ngIf="lastSegment">{{ lastSegment.phrase }}</p>
-          <p class="sw__winner-score">Krajnji rezultat: <strong>{{ score }}</strong></p>
+          <p class="sw__winner-score">Final score: <strong>{{ score }}</strong></p>
         </div>
 
         <footer class="sw__controls" *ngIf="phase !== 'result'">
@@ -210,7 +210,7 @@ const WHEEL_PALETTE: { base: string; dark: string }[] = [
             (click)="spin()"
             [disabled]="phase !== 'idle'"
           >
-            <span class="sw__btn-row"><mat-icon>casino</mat-icon> {{ phase === 'spinning' ? 'Vrtim...' : 'Vrti' }}</span>
+            <span class="sw__btn-row"><mat-icon>casino</mat-icon> {{ phase === 'spinning' ? 'Spinning' : 'Spin' }}</span>
           </button>
         </footer>
       </div>

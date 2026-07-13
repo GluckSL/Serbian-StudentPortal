@@ -73,17 +73,17 @@ export interface FJResult {
             <ng-container [ngSwitch]="phase">
               <ng-container *ngSwitchCase="'idle'">
                 <h2>Flapjugation</h2>
-                <p>Tapni za let! Leti do tačne konjugacije.</p>
-                <button mat-raised-button color="primary" (click)="startGame()">Počni</button>
+                <p>Tap to flap! Fly into the correct conjugation.</p>
+                <button mat-raised-button color="primary" (click)="startGame()">Start</button>
               </ng-container>
               <ng-container *ngSwitchCase="'gameover'">
-                <h2>Igra završena</h2>
-                <p>Rezultat: {{ score }}</p>
-                <button mat-raised-button color="primary" (click)="startGame()">Igraj ponovo</button>
+                <h2>Game Over</h2>
+                <p>Score: {{ score }}</p>
+                <button mat-raised-button color="primary" (click)="startGame()">Play Again</button>
               </ng-container>
               <ng-container *ngSwitchCase="'complete'">
-                <h2>Završeno!</h2>
-                <p>Rezultat: {{ score }} &middot; Tačnost: {{ accuracy }}%</p>
+                <h2>Complete!</h2>
+                <p>Score: {{ score }} &middot; Accuracy: {{ accuracy }}%</p>
               </ng-container>
             </ng-container>
           </div>

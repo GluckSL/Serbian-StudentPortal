@@ -22,27 +22,27 @@ function pushLog(session, entry) {
 exports.start = async (req, res) => {
   try {
     const { moduleId } = req.body;
-    if (!moduleId) return res.status(400).json({ message: 'moduleId je obavezan' });
+    if (!moduleId) return res.status(400).json({ message: 'moduleId required' });
 
     const mod = await DGModule.findById(moduleId);
     if (!mod || !mod.isActive) {
-      return res.status(404).json({ message: 'Modul nije pronađen' });
+      return res.status(404).json({ message: 'Module not found' });
     }
     if (req.user.role === 'STUDENT' && !mod.visibleToStudents) {
-      return res.status(403).json({ message: 'Modul nije dostupan' });
+      return res.status(403).json({ message: 'Module not available' });
     }
 
     if (req.user.role === 'STUDENT') {
       const access = await getStudentDgJourneyAccess(req.user.id);
       if (!access.enabled) {
         return res.status(403).json({
-          message: 'Sadržaj putovanja još nije omogućen za vašu grupu.',
+          message: 'Journey content is not enabled for your batch yet.',
           code: 'JOURNEY_NOT_ACTIVE',
         });
       }
       if (access.dgBotEnabled === false) {
         return res.status(403).json({
-          message: 'DG moduli nisu dostupni za vašu grupu.',
+          message: 'DG modules are not available for your batch.',
           code: 'LEARNING_CONTENT_DISABLED',
         });
       }
@@ -52,7 +52,7 @@ exports.start = async (req, res) => {
           return res.status(403).json(weekLock);
         }
         return res.status(403).json({
-          message: 'Ovaj modul se otključava kasnijeg dana vašeg kursa.',
+          message: 'This module unlocks on a later day of your course.',
           code: 'COURSE_DAY_LOCKED',
           studentCourseDay: access.courseDay,
           moduleCourseDay: mod.courseDay,
@@ -76,7 +76,7 @@ exports.start = async (req, res) => {
       currentSceneIndex: session.currentSceneIndex,
     });
   } catch (e) {
-    res.status(500).json({ message: e.message || 'Pokretanje nije uspelo' });
+    res.status(500).json({ message: e.message || 'Start failed' });
   }
 };
 
@@ -96,15 +96,15 @@ exports.update = async (req, res) => {
     } = req.body;
 
     if (!sessionId || !event) {
-      return res.status(400).json({ message: 'sessionId i event su obavezni' });
+      return res.status(400).json({ message: 'sessionId and event required' });
     }
 
     const session = await DGSession.findById(sessionId);
     if (!session || session.studentId.toString() !== req.user.id) {
-      return res.status(404).json({ message: 'Sesija nije pronađena' });
+      return res.status(404).json({ message: 'Session not found' });
     }
     if (session.completed) {
-      return res.status(400).json({ message: 'Sesija je već završena' });
+      return res.status(400).json({ message: 'Session already completed' });
     }
 
     const idx = sceneIndex != null ? Number(sceneIndex) : session.currentSceneIndex;
@@ -152,18 +152,18 @@ exports.update = async (req, res) => {
       },
     });
   } catch (e) {
-    res.status(500).json({ message: e.message || 'Ažuriranje nije uspelo' });
+    res.status(500).json({ message: e.message || 'Update failed' });
   }
 };
 
 exports.complete = async (req, res) => {
   try {
     const { sessionId, finalScore, moduleCompletionPercent, naturalConversationComplete } = req.body;
-    if (!sessionId) return res.status(400).json({ message: 'sessionId je obavezan' });
+    if (!sessionId) return res.status(400).json({ message: 'sessionId required' });
 
     const session = await DGSession.findById(sessionId);
     if (!session || session.studentId.toString() !== req.user.id) {
-      return res.status(404).json({ message: 'Sesija nije pronađena' });
+      return res.status(404).json({ message: 'Session not found' });
     }
 
     session.completed = true;
@@ -239,7 +239,7 @@ exports.complete = async (req, res) => {
       ...(journeyAdvanced ? { previousCourseDay, newCourseDay } : {})
     });
   } catch (e) {
-    res.status(500).json({ message: e.message || 'Završavanje nije uspelo' });
+    res.status(500).json({ message: e.message || 'Complete failed' });
   }
 };
 
@@ -255,7 +255,7 @@ exports.getMySessions = async (req, res) => {
       .lean();
     res.json({ sessions: rows });
   } catch (e) {
-    res.status(500).json({ message: e.message || 'Listanje nije uspelo' });
+    res.status(500).json({ message: e.message || 'List failed' });
   }
 };
 
@@ -265,7 +265,7 @@ exports.listByModuleAdmin = async (req, res) => {
     const { moduleId } = req.params;
     const mod = await DGModule.findById(moduleId).lean();
     if (!mod || !mod.isActive) {
-      return res.status(404).json({ message: 'Modul nije pronađen' });
+      return res.status(404).json({ message: 'Module not found' });
     }
     const canView = await teacherCanAccessOwnedOrAssignedTab(
       req,
@@ -274,7 +274,7 @@ exports.listByModuleAdmin = async (req, res) => {
       'view'
     );
     if (!canView) {
-      return res.status(403).json({ message: 'Zabranjeno' });
+      return res.status(403).json({ message: 'Forbidden' });
     }
 
     const limit = Math.min(200, Math.max(1, parseInt(req.query.limit, 10) || 120));
@@ -334,6 +334,6 @@ exports.listByModuleAdmin = async (req, res) => {
       sessions,
     });
   } catch (e) {
-    res.status(500).json({ message: e.message || 'Učitavanje nije uspelo' });
+    res.status(500).json({ message: e.message || 'Load failed' });
   }
 };

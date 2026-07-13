@@ -10,17 +10,17 @@
 
     <div class="text-center py-5" *ngIf="loading">
       <div class="spinner-border text-primary" role="status"></div>
-      <p class="mt-3 text-muted small">Učitavanje…</p>
+      <p class="mt-3 text-muted small">Loading…</p>
     </div>
 
     <div class="card dg-adm-rp-card" *ngIf="!loading && selected">
       <div class="card-header d-flex flex-wrap justify-content-between align-items-start gap-2">
         <div>
-          <h4 class="mb-0">🗣️ {{ isCreateMode ? 'Kreiraj' : 'Izmeni' }} A2 Sprechen Model Test</h4>
-          <small class="text-muted d-block mt-1">Goethe A2 ispit govora — 3 Teile: dijalog · monolog · zakazivanje termina</small>
+          <h4 class="mb-0">🗣️ {{ isCreateMode ? 'Create' : 'Edit' }} A2 Sprechen Model Test</h4>
+          <small class="text-muted d-block mt-1">Goethe A2 speaking exam — 3 Teile: dialogue · monologue · timetable scheduling</small>
         </div>
         <button type="button" class="btn btn-secondary" (click)="goBack()">
-          <i class="fas fa-arrow-left"></i> Nazad
+          <i class="fas fa-arrow-left"></i> Back
         </button>
       </div>
 
@@ -28,111 +28,111 @@
 
         <!-- ── Basic Information ───────────────────────────────────────── -->
         <div class="row mb-4">
-          <div class="col-12"><h5 class="border-bottom pb-2">📝 Osnovne informacije</h5></div>
+          <div class="col-12"><h5 class="border-bottom pb-2">📝 Basic Information</h5></div>
           <div class="col-md-8 mb-3">
-            <label class="form-label">Naslov modula *</label>
+            <label class="form-label">Module Title *</label>
             <input type="text" class="form-control"
               [class.is-invalid]="isInvalid('title')"
               [(ngModel)]="editTitle" (ngModelChange)="onFieldInput('title')"
               placeholder="e.g. Goethe A2 Sprechen — Modellsatz 1" />
           </div>
           <div class="col-md-4 mb-3">
-            <label class="form-label">Nivo</label>
+            <label class="form-label">Level</label>
             <input type="text" class="form-control" value="A2" disabled />
           </div>
           <div class="col-12 mb-3">
-            <label class="form-label">Opis *</label>
+            <label class="form-label">Description *</label>
             <textarea class="form-control" rows="2"
               [(ngModel)]="editDescription"
               [class.is-invalid]="isInvalid('description')"></textarea>
           </div>
           <div class="col-md-3 mb-3">
-            <label class="form-label">Prag prolaza (/15)</label>
+            <label class="form-label">Pass threshold (/15)</label>
             <input type="number" class="form-control" min="0" max="15" [(ngModel)]="editPassThreshold" />
           </div>
           <div class="col-md-3 mb-3">
-            <label class="form-label">Dan putovanja</label>
-            <input type="number" class="form-control" min="1" max="200" [(ngModel)]="editCourseDay" placeholder="npr. 40" />
-            <small class="text-muted">Prazno = bilo koji dan</small>
+            <label class="form-label">Journey day</label>
+            <input type="number" class="form-control" min="1" max="200" [(ngModel)]="editCourseDay" placeholder="e.g. 40" />
+            <small class="text-muted">Empty = any day</small>
           </div>
           <div class="col-md-4 mb-3">
-            <label class="form-label">Karakter tutora *</label>
+            <label class="form-label">Tutor character *</label>
             <select class="form-select" [(ngModel)]="editCharacterId" [class.is-invalid]="isInvalid('characterId')">
-              <option value="">Izaberite karakter</option>
-              <option *ngFor="let c of characters" [value]="c._id">{{ c.name }}{{ c.isDefault ? ' (podrazumevano)' : '' }}</option>
+              <option value="">Select character</option>
+              <option *ngFor="let c of characters" [value]="c._id">{{ c.name }}{{ c.isDefault ? ' (default)' : '' }}</option>
             </select>
-            <small class="text-muted">Koristite <strong>Olly Tutor</strong> za module ispita.</small>
+            <small class="text-muted">Use <strong>Olly Tutor</strong> for exam modules.</small>
           </div>
           <div class="col-md-2 mb-3 d-flex align-items-end">
             <div class="form-check">
               <input class="form-check-input" type="checkbox" [(ngModel)]="editVisible" id="a2Visible" />
-              <label class="form-check-label" for="a2Visible">Vidljivo učenicima</label>
+              <label class="form-check-label" for="a2Visible">Live for students</label>
             </div>
           </div>
           <div class="col-12 mb-2">
-            <label class="form-label">Gluck Exam kategorija</label>
+            <label class="form-label">Gluck Exam bucket</label>
             <div class="d-flex flex-wrap gap-4 align-items-center">
               <div class="form-check form-switch">
                 <input class="form-check-input" type="checkbox" id="a2WeeklyTest"
                   [ngModel]="editWeeklyTestEnabled" (ngModelChange)="onWeeklyTestToggle($event)" />
-                <label class="form-check-label" for="a2WeeklyTest">Nedeljni test</label>
+                <label class="form-check-label" for="a2WeeklyTest">Weekly Test</label>
               </div>
               <div class="form-check form-switch">
                 <input class="form-check-input" type="checkbox" id="a2Exam"
                   [ngModel]="editExamEnabled" (ngModelChange)="onExamToggle($event)" />
-                <label class="form-check-label" for="a2Exam">Ispit</label>
+                <label class="form-check-label" for="a2Exam">Exam</label>
               </div>
             </div>
-            <small class="text-muted">Samo jedno može biti UKLJUČENO. Podrazumevano su oba ISKLJUČENA.</small>
+            <small class="text-muted">Only one can be ON. Default is both OFF.</small>
           </div>
         </div>
 
         <!-- ── Batch targeting ────────────────────────────────────────── -->
         <div class="row mb-4">
-          <div class="col-12"><h5 class="border-bottom pb-2">🎯 Ciljanje grupe</h5></div>
+          <div class="col-12"><h5 class="border-bottom pb-2">🎯 Batch targeting</h5></div>
           <div class="col-md-6 mb-2">
             <select class="form-select" [(ngModel)]="batchToAdd" (change)="onBatchDropdownChange()">
-              <option value="">Dodaj grupu…</option>
+              <option value="">Add batch…</option>
               <option *ngFor="let b of batches" [value]="b.batchName">{{ b.batchName }}</option>
             </select>
           </div>
           <div class="col-12">
             <span *ngFor="let b of targetBatches" class="badge bg-primary me-1 mb-1" style="cursor:pointer" (click)="toggleBatch(b)">{{ b }} ×</span>
-            <span class="text-muted small" *ngIf="!targetBatches.length">Sve grupe (kada je prazno)</span>
+            <span class="text-muted small" *ngIf="!targetBatches.length">All batches (when empty)</span>
           </div>
         </div>
 
         <!-- ── Teil 1: Question-card dialogue ─────────────────────────── -->
         <div class="row mb-4">
           <div class="col-12 d-flex justify-content-between align-items-center border-bottom pb-2 mb-2">
-            <h5 class="mb-0">1️⃣ Teil 1 — Fragen zur Person (dijalog)</h5>
+            <h5 class="mb-0">1️⃣ Teil 1 — Fragen zur Person (dialogue)</h5>
             <button type="button" class="btn btn-sm btn-outline-primary" (click)="addT1Card()">+ Card</button>
           </div>
           <div class="col-12 mb-3">
-            <label class="form-label small">Uputstvo za Teil 1 (govori lisac)</label>
+            <label class="form-label small">Teil 1 instruction (spoken by fox)</label>
             <textarea class="form-control" rows="2" [(ngModel)]="t1InstructionDe" (input)="markDirty()"></textarea>
           </div>
           <div class="col-12 mb-2">
             <p class="text-muted small mb-2">
-              Svaka kartica se koristi <strong>dvaput</strong> — učenik pita prvi, zatim bot pita (Goethe A2 standard). Admin otprema sliku kartice ili samo unosi ključnu reč (npr. <em>Geburtstag?</em>).
+              Each card is used <strong>twice</strong> — student asks first, then bot asks (Goethe A2 standard). Admin uploads the card image or just types the prompt keyword (e.g. <em>Geburtstag?</em>).
             </p>
           </div>
           <div class="col-12 mb-3" *ngFor="let c of t1Cards; let i = index">
             <div class="card p-3 bg-light">
               <div class="row g-2 align-items-end">
                 <div class="col-md-4">
-                  <label class="form-label small">Prompt kartice *</label>
-                  <input class="form-control form-control-sm" [(ngModel)]="c.prompt" (input)="markDirty()" placeholder="npr. Geburtstag?" />
+                  <label class="form-label small">Card prompt *</label>
+                  <input class="form-control form-control-sm" [(ngModel)]="c.prompt" (input)="markDirty()" placeholder="e.g. Geburtstag?" />
                 </div>
                 <div class="col-md-3">
-                  <label class="form-label small">Podnaziv</label>
+                  <label class="form-label small">Sublabel</label>
                   <input class="form-control form-control-sm" [(ngModel)]="c.sublabel" (input)="markDirty()" placeholder="Fragen zur Person" />
                 </div>
                 <div class="col-md-4">
-                  <label class="form-label small">Slika kartice (opciono)</label>
+                  <label class="form-label small">Card image (optional)</label>
                   <input type="file" class="form-control form-control-sm" accept="image/*"
                     (change)="onT1CardImage($event, i)" [disabled]="t1CardUploading[i]" />
-                  <small class="text-muted" *ngIf="t1CardUploading[i]">Otpremanje…</small>
+                  <small class="text-muted" *ngIf="t1CardUploading[i]">Uploading…</small>
                   <img *ngIf="c.imageUrl" [src]="getImagePreviewUrl(c.imageUrl)" alt="card preview" class="mt-1" style="max-height:48px;border-radius:6px" />
                 </div>
                 <div class="col-md-1 d-flex align-items-end">
@@ -141,87 +141,87 @@
               </div>
             </div>
           </div>
-          <div class="col-12 text-muted small" *ngIf="!t1Cards.length">Nema kartica — kliknite + Kartica da dodate.</div>
+          <div class="col-12 text-muted small" *ngIf="!t1Cards.length">No cards yet — click + Card to add.</div>
         </div>
 
         <!-- ── Teil 2: Monologue cards ─────────────────────────────────── -->
         <div class="row mb-4">
           <div class="col-12 d-flex justify-content-between align-items-center border-bottom pb-2 mb-2">
-            <h5 class="mb-0">2️⃣ Teil 2 — Von sich erzählen (monolog)</h5>
+            <h5 class="mb-0">2️⃣ Teil 2 — Von sich erzählen (monologue)</h5>
             <button type="button" class="btn btn-sm btn-outline-primary" (click)="addT2Card()">+ Card</button>
           </div>
           <div class="col-12 mb-3">
-            <label class="form-label small">Uputstvo za Teil 2 (govori lisac)</label>
+            <label class="form-label small">Teil 2 instruction (spoken by fox)</label>
             <textarea class="form-control" rows="2" [(ngModel)]="t2InstructionDe" (input)="markDirty()"></textarea>
           </div>
           <div class="col-12 mb-2">
             <p class="text-muted small mb-2">
-              Učenik dobija jednu karticu, govori slobodno o temi, zatim pritisne <strong>Fertig</strong> kada završi. Pod-promptovi vode učenika, ali nisu obavezni.
+              Student gets one card, speaks freely about the topic, then presses <strong>Fertig</strong> when done. Sub-prompts guide the student but are not mandatory.
             </p>
           </div>
           <div class="col-12 mb-3" *ngFor="let card of t2Cards; let ci = index">
             <div class="card p-3">
-              <p class="small fw-bold mb-2">Kartica {{ ci + 1 }}</p>
+              <p class="small fw-bold mb-2">Card {{ ci + 1 }}</p>
               <div class="row g-2">
                 <div class="col-md-6">
-                  <label class="form-label small">Naslov centralne teme *</label>
+                  <label class="form-label small">Central topic title *</label>
                   <input class="form-control form-control-sm" [(ngModel)]="card.title" (input)="markDirty()"
-                    placeholder="npr. Was machen Sie mit Ihrem Geld?" />
+                    placeholder="e.g. Was machen Sie mit Ihrem Geld?" />
                 </div>
                 <div class="col-md-6">
-                  <label class="form-label small">Slika kartice (opciono)</label>
+                  <label class="form-label small">Card image (optional)</label>
                   <input type="file" class="form-control form-control-sm" accept="image/*"
                     (change)="onT2CardImage($event, ci)" [disabled]="t2CardUploading[ci]" />
-                  <small class="text-muted" *ngIf="t2CardUploading[ci]">Otpremanje…</small>
+                  <small class="text-muted" *ngIf="t2CardUploading[ci]">Uploading…</small>
                   <img *ngIf="card.imageUrl" [src]="getImagePreviewUrl(card.imageUrl)" alt="card" class="mt-1" style="max-height:48px;border-radius:6px" />
                 </div>
                 <div class="col-12 mt-2">
-                  <label class="form-label small">Pod-promptovi (strelice na kartici)</label>
+                  <label class="form-label small">Sub-prompts (arrows on card)</label>
                   <div class="d-flex flex-wrap gap-2 align-items-center">
                     <div *ngFor="let sp of card.subPrompts; let pi = index" class="d-flex gap-1 align-items-center">
                       <input class="form-control form-control-sm" style="width:160px"
                         [(ngModel)]="card.subPrompts[pi]" (input)="markDirty()" placeholder="Kleidung?" />
                       <button type="button" class="btn btn-sm btn-outline-danger" (click)="removeSubPrompt(card, pi)">✕</button>
                     </div>
-                    <button type="button" class="btn btn-sm btn-outline-secondary" (click)="addSubPrompt(card)">+ Pod-prompt</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" (click)="addSubPrompt(card)">+ Sub-prompt</button>
                   </div>
                 </div>
               </div>
-              <button type="button" class="btn btn-sm btn-outline-danger mt-2" (click)="removeT2Card(ci)">Ukloni karticu</button>
+              <button type="button" class="btn btn-sm btn-outline-danger mt-2" (click)="removeT2Card(ci)">Remove card</button>
             </div>
           </div>
-          <div class="col-12 text-muted small" *ngIf="!t2Cards.length">Nema kartica — kliknite + Kartica da dodate.</div>
+          <div class="col-12 text-muted small" *ngIf="!t2Cards.length">No cards yet — click + Card to add.</div>
         </div>
 
         <!-- ── Teil 3: Timetable scheduling dialogue ──────────────────── -->
         <div class="row mb-4">
-          <div class="col-12"><h5 class="border-bottom pb-2 mb-3">3️⃣ Teil 3 — Termin finden (dijalog rasporeda)</h5></div>
+          <div class="col-12"><h5 class="border-bottom pb-2 mb-3">3️⃣ Teil 3 — Termin finden (timetable dialogue)</h5></div>
           <div class="col-md-8 mb-3">
-            <label class="form-label">Scenario (govori lisac pre prikazivanja rasporeda) *</label>
+            <label class="form-label">Scenario (spoken by fox before showing timetable) *</label>
             <textarea class="form-control" rows="2" [(ngModel)]="t3ScenarioDe" (input)="markDirty()"
               placeholder="Ihr Freund Patrick hat Geburtstag…"></textarea>
           </div>
           <div class="col-md-4 mb-3">
-            <label class="form-label">Oznaka datuma</label>
+            <label class="form-label">Date label</label>
             <input class="form-control" [(ngModel)]="t3DateLabel" (input)="markDirty()" placeholder="Samstag, 17. Mai" />
           </div>
 
           <!-- Student timetable -->
           <div class="col-12 mb-2">
             <div class="border rounded p-3">
-              <h6 class="fw-bold mb-2">📅 Raspored učenika</h6>
-              <p class="text-muted small mb-2">Otpremite sliku rasporeda (prikazuje se učeniku na ekranu). Zatim dodajte strukturirane termine kako bi bot mogao da zaključuje o dostupnosti.</p>
+              <h6 class="fw-bold mb-2">📅 Student's timetable</h6>
+              <p class="text-muted small mb-2">Upload the schedule image (displayed to the student on screen). Then add structured slots so the bot can reason about availability.</p>
               <div class="d-flex flex-wrap align-items-start gap-3 mb-3">
                 <div>
                   <input type="file" class="form-control form-control-sm" accept="image/*"
                     (change)="onStudentTimetableImage($event)" [disabled]="studentTimetableUploading" />
-                  <small class="text-muted" *ngIf="studentTimetableUploading">Otpremanje…</small>
+                  <small class="text-muted" *ngIf="studentTimetableUploading">Uploading…</small>
                 </div>
                 <img *ngIf="studentTimetableImageUrl" [src]="getImagePreviewUrl(studentTimetableImageUrl)"
                   alt="student timetable" style="max-height:100px;border-radius:6px;border:1px solid #dee2e6" />
               </div>
               <table class="table table-sm table-bordered mb-2" *ngIf="studentSlots.length">
-                <thead><tr><th>Od</th><th>Do</th><th>Aktivnost</th><th>Zauzet</th><th></th></tr></thead>
+                <thead><tr><th>From</th><th>To</th><th>Activity</th><th>Busy</th><th></th></tr></thead>
                 <tbody>
                   <tr *ngFor="let s of studentSlots; let si = index">
                     <td><input class="form-control form-control-sm" [(ngModel)]="s.start" (input)="markDirty()" placeholder="09:00" style="width:80px" /></td>
@@ -234,26 +234,26 @@
                   </tr>
                 </tbody>
               </table>
-              <button type="button" class="btn btn-sm btn-outline-primary" (click)="addStudentSlot()">+ Termin</button>
+              <button type="button" class="btn btn-sm btn-outline-primary" (click)="addStudentSlot()">+ Slot</button>
             </div>
           </div>
 
           <!-- Bot timetable -->
           <div class="col-12 mb-3">
             <div class="border rounded p-3">
-              <h6 class="fw-bold mb-2">🤖 Raspored bota (samo zauzeti termini)</h6>
-              <p class="text-muted small mb-2">Bot koristi ove termine da odluči kada je zauzet i predloži slobodne alternative. Slika je opciona (ne prikazuje se učeniku).</p>
+              <h6 class="fw-bold mb-2">🤖 Bot's timetable (busy slots only)</h6>
+              <p class="text-muted small mb-2">The bot uses these slots to decide when it is busy and propose free alternatives. An image is optional (not shown to student).</p>
               <div class="d-flex flex-wrap align-items-start gap-3 mb-3">
                 <div>
                   <input type="file" class="form-control form-control-sm" accept="image/*"
                     (change)="onBotTimetableImage($event)" [disabled]="botTimetableUploading" />
-                  <small class="text-muted" *ngIf="botTimetableUploading">Otpremanje…</small>
+                  <small class="text-muted" *ngIf="botTimetableUploading">Uploading…</small>
                 </div>
                 <img *ngIf="botTimetableImageUrl" [src]="getImagePreviewUrl(botTimetableImageUrl)"
                   alt="bot timetable" style="max-height:80px;border-radius:6px;border:1px solid #dee2e6" />
               </div>
               <table class="table table-sm table-bordered mb-2" *ngIf="botSlots.length">
-                <thead><tr><th>Od</th><th>Do</th><th>Aktivnost</th><th>Zauzet</th><th></th></tr></thead>
+                <thead><tr><th>From</th><th>To</th><th>Activity</th><th>Busy</th><th></th></tr></thead>
                 <tbody>
                   <tr *ngFor="let s of botSlots; let si = index">
                     <td><input class="form-control form-control-sm" [(ngModel)]="s.start" (input)="markDirty()" placeholder="09:00" style="width:80px" /></td>
@@ -266,7 +266,7 @@
                   </tr>
                 </tbody>
               </table>
-              <button type="button" class="btn btn-sm btn-outline-primary" (click)="addBotSlot()">+ Termin</button>
+              <button type="button" class="btn btn-sm btn-outline-primary" (click)="addBotSlot()">+ Slot</button>
             </div>
           </div>
         </div>
@@ -274,12 +274,12 @@
         <!-- ── Save ────────────────────────────────────────────────────── -->
         <div class="d-flex flex-wrap gap-2 mt-4">
           <button type="button" class="btn btn-primary" [disabled]="saving" (click)="save()">
-            <i class="fas fa-save"></i> {{ saving ? 'Čuvanje…' : 'Sačuvaj modul' }}
+            <i class="fas fa-save"></i> {{ saving ? 'Saving…' : 'Save module' }}
           </button>
           <button type="button" class="btn btn-outline-success" *ngIf="!isCreateMode" (click)="preview()">
-            <i class="fas fa-play"></i> Pregled ispita
+            <i class="fas fa-play"></i> Preview exam
           </button>
-          <button type="button" class="btn btn-secondary" (click)="goBack()">Otkaži</button>
+          <button type="button" class="btn btn-secondary" (click)="goBack()">Cancel</button>
         </div>
 
       </div>

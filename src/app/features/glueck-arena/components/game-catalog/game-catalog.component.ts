@@ -1,4 +1,4 @@
-﻿import { Component, OnInit } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
@@ -30,8 +30,8 @@ function xpForLevel(level: number): number {
 
       <div *ngIf="accessChecked && !hasArenaAccess" class="arena__locked">
         <div class="arena__locked-icon"><mat-icon>lock</mat-icon></div>
-        <h2>GlückArena još nije otvorena za vašu grupu</h2>
-        <p>Vaš nastavnik još nije dodelio igre vašoj grupi. Videćete ovu oblast kada igra bude objavljena za vas.</p>
+        <h2>GlückArena isn’t open for your class yet</h2>
+        <p>Your teacher hasn’t assigned any games to your batch. You’ll see this area once a game is published for you.</p>
       </div>
 
       <ng-container *ngIf="hasArenaAccess">
@@ -45,7 +45,7 @@ function xpForLevel(level: number): number {
               <span class="arena-hero__logo"><mat-icon>sports_esports</mat-icon></span>
               <div>
                 <h1>GlückArena</h1>
-                <p>Unapredite vaš nemački — izazovite sebe, zarađujte XP, napredujte na rang listi</p>
+                <p>Level up dein Deutsch — challenge yourself, earn XP, climb the ranks</p>
               </div>
             </div>
             <div class="arena-hero__right">
@@ -61,7 +61,7 @@ function xpForLevel(level: number): number {
               <app-streak-fire *ngIf="myStats" [streak]="myStats.currentStreak"></app-streak-fire>
               <a class="arena-hero__nav-link" routerLink="/glueck-arena/leaderboard">
                 <mat-icon>leaderboard</mat-icon>
-                <span>Rang lista</span>
+                <span>Leaderboard</span>
               </a>
             </div>
           </div>
@@ -79,7 +79,7 @@ function xpForLevel(level: number): number {
         <div class="arena-left-col">
           <div class="podium-card">
             <div class="podium-heading">
-              <mat-icon>emoji_events</mat-icon> Najbolji učenici
+              <mat-icon>emoji_events</mat-icon> Top Students
             </div>
             <div class="podium">
               <div class="podium__place podium__place--2">
@@ -118,8 +118,8 @@ function xpForLevel(level: number): number {
               </div>
             </div>
             <div class="podium__my-rank" *ngIf="myRank && myRank > 3">
-              Vi ste #{{ myRank }} ukupno —
-              <a [routerLink]="['/glueck-arena/leaderboard']">vidi celu tabelu</a>
+              You're #{{ myRank }} overall —
+              <a [routerLink]="['/glueck-arena/leaderboard']">see full board</a>
             </div>
           </div>
         <app-daily-challenges-widget></app-daily-challenges-widget>
@@ -131,7 +131,7 @@ function xpForLevel(level: number): number {
             <div class="arena-filters__search">
               <mat-icon>search</mat-icon>
               <input type="search" [(ngModel)]="filters.search" (ngModelChange)="onSearch()"
-                placeholder="Pretraži igre…" aria-label="Pretraži igre">
+                placeholder="Search games…" aria-label="Search games">
             </div>
             <div class="arena-filters__dropdown-wrap">
               <div class="arena-filters__dropdown" (click)="typeOpen = !typeOpen">
@@ -139,7 +139,7 @@ function xpForLevel(level: number): number {
                 <mat-icon>expand_more</mat-icon>
               </div>
               <div class="arena-filters__dropdown-menu" *ngIf="typeOpen">
-                <div class="arena-filters__dropdown-item" (click)="setType('')">Svi tipovi</div>
+                <div class="arena-filters__dropdown-item" (click)="setType('')">All types</div>
                 <div class="arena-filters__dropdown-item" (click)="setType('scramble_rush')">Scramble Rush</div>
                 <div class="arena-filters__dropdown-item" (click)="setType('sentence_builder')">Sentence Builder</div>
                 <div class="arena-filters__dropdown-item" (click)="setType('matching')">Matching</div>
@@ -164,7 +164,7 @@ function xpForLevel(level: number): number {
                 <mat-icon>expand_more</mat-icon>
               </div>
               <div class="arena-filters__dropdown-menu" *ngIf="levelOpen">
-                <div class="arena-filters__dropdown-item" (click)="setLevel('')">Svi nivoi</div>
+                <div class="arena-filters__dropdown-item" (click)="setLevel('')">All levels</div>
                 <div class="arena-filters__dropdown-item" *ngFor="let l of cefrLevels" (click)="setLevel(l)">{{ l }}</div>
               </div>
             </div>
@@ -174,10 +174,10 @@ function xpForLevel(level: number): number {
                 <mat-icon>expand_more</mat-icon>
               </div>
               <div class="arena-filters__dropdown-menu" *ngIf="diffOpen">
-                <div class="arena-filters__dropdown-item" (click)="setDiff('')">Sve</div>
-                <div class="arena-filters__dropdown-item" (click)="setDiff('Beginner')">Početnik</div>
-                <div class="arena-filters__dropdown-item" (click)="setDiff('Intermediate')">Srednji</div>
-                <div class="arena-filters__dropdown-item" (click)="setDiff('Advanced')">Napredni</div>
+                <div class="arena-filters__dropdown-item" (click)="setDiff('')">All</div>
+                <div class="arena-filters__dropdown-item" (click)="setDiff('Beginner')">Beginner</div>
+                <div class="arena-filters__dropdown-item" (click)="setDiff('Intermediate')">Intermediate</div>
+                <div class="arena-filters__dropdown-item" (click)="setDiff('Advanced')">Advanced</div>
               </div>
             </div>
           </div>
@@ -194,7 +194,7 @@ function xpForLevel(level: number): number {
                 <img *ngIf="getThumbnailUrl(set) && !brokenThumbnails.has(set._id)" [src]="getThumbnailUrl(set)" alt="" class="arena-card__img" (error)="onThumbnailError(set)">
                 <mat-icon *ngIf="!getThumbnailUrl(set) || brokenThumbnails.has(set._id)" class="arena-card__glyph">{{ set.icon || 'sports_esports' }}</mat-icon>
                 <span class="arena-card__xp">+{{ set.xpReward }} XP</span>
-                <span class="arena-card__new" *ngIf="isNew(set)">NOVO</span>
+                <span class="arena-card__new" *ngIf="isNew(set)">NEW</span>
                 <span class="arena-card__play-ring" *ngIf="set.studentProgress?.bestScore">
                   <svg viewBox="0 0 36 36" width="24" height="24">
                     <path d="M18 2.0845a15.9155 15.9155 0 0 1 0 31.831a15.9155 15.9155 0 0 1 0-31.831"
@@ -219,20 +219,20 @@ function xpForLevel(level: number): number {
                 </div>
                 <div class="arena-card__record" *ngIf="set.studentProgress?.timesPlayed">
                   <mat-icon>workspace_premium</mat-icon>
-                  Rekord {{ set.studentProgress?.bestScore ?? 0 }} poena · {{ set.studentProgress?.timesPlayed }}× odigrano
+                  Best {{ set.studentProgress?.bestScore ?? 0 }} pts · {{ set.studentProgress?.timesPlayed }}× played
                 </div>
               </div>
               <button type="button" class="arena-card__play" (click)="$event.stopPropagation(); playGame(set)">
-                <mat-icon>play_arrow</mat-icon> Igraj
+                <mat-icon>play_arrow</mat-icon> Play now
               </button>
             </article>
           </div>
 
           <div *ngIf="!loading && !sets.length" class="arena-empty">
             <mat-icon>extension</mat-icon>
-            <h3>Nema igara koje odgovaraju vašim filterima</h3>
-            <p>Pokušajte da obrišete filtere ili se vratite kasnije za nove module.</p>
-            <button mat-stroked-button (click)="clearFilters()">Obriši filtere</button>
+            <h3>No games match your filters</h3>
+            <p>Try clearing filters or check back later for new modules.</p>
+            <button mat-stroked-button (click)="clearFilters()">Clear filters</button>
           </div>
 
           <mat-paginator
@@ -771,9 +771,9 @@ export class GameCatalogComponent implements OnInit {
     return ((this.myStats.totalXp - prev) / (cur - prev)) * 100;
   }
 
-  getTypeLabel(v: string | undefined): string { return v ? this.formatType(v as GameType) : 'Tip'; }
-  getLevelLabel(v: string | undefined): string { return v || 'Nivo'; }
-  getDiffLabel(v: string | undefined): string { return v || 'Težina'; }
+  getTypeLabel(v: string | undefined): string { return v ? this.formatType(v as GameType) : 'Type'; }
+  getLevelLabel(v: string | undefined): string { return v || 'Level'; }
+  getDiffLabel(v: string | undefined): string { return v || 'Difficulty'; }
   setType(v: string) { this.filters.gameType = v as GameType; this.typeOpen = false; this.load(); }
   setLevel(v: string) { this.filters.level = (v || undefined) as 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2' | undefined; this.levelOpen = false; this.load(); }
   setDiff(v: string) { this.filters.difficulty = v as 'Beginner' | 'Intermediate' | 'Advanced' | undefined; this.diffOpen = false; this.load(); }
@@ -805,8 +805,8 @@ export class GameCatalogComponent implements OnInit {
               const unclaimed = ch.filter((c: any) => c.isCompleted && !c.isClaimed);
               const active = ch.filter((c: any) => !c.isCompleted);
               this.eventsBanner = [];
-              if (unclaimed.length) this.eventsBanner.push({ icon: 'auto_awesome', text: `${unclaimed.length} nagrada čeka na preuzimanje!` });
-              if (active.length) this.eventsBanner.push({ icon: 'track_changes', text: `${active.length} dnevnih zadataka${active.length > 1 ? '' : ''} u toku` });
+              if (unclaimed.length) this.eventsBanner.push({ icon: 'auto_awesome', text: `${unclaimed.length} reward${unclaimed.length > 1 ? 's' : ''} ready to claim!` });
+              if (active.length) this.eventsBanner.push({ icon: 'track_changes', text: `${active.length} daily quest${active.length > 1 ? 's' : ''} in progress` });
             }
           });
         }

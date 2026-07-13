@@ -1,4 +1,4 @@
-﻿import {
+import {
 
   Component, Input, Output, EventEmitter, OnInit, OnDestroy,
 
@@ -122,7 +122,7 @@ const DEADLINE_Y = 88;
 
           <mat-icon>arrow_downward</mat-icon>
 
-          {{ displayFallSeconds }}s za ovu reč
+          {{ displayFallSeconds }}s for this word
 
         </span>
 
@@ -168,7 +168,7 @@ const DEADLINE_Y = 88;
 
           <div class="sr__line" aria-hidden="true">
 
-            <span class="sr__line-label">Odgovori pre linije</span>
+            <span class="sr__line-label">Answer before the line</span>
 
           </div>
 
@@ -225,13 +225,13 @@ const DEADLINE_Y = 88;
 
           <div class="sr__feedback sr__feedback--correct" *ngIf="feedbackState === 'correct'">
 
-            <mat-icon>check_circle</mat-icon> Tačno!
+            <mat-icon>check_circle</mat-icon> Correct!
 
           </div>
 
           <div class="sr__feedback sr__feedback--wrong" *ngIf="feedbackState === 'wrong'">
 
-            <mat-icon>cancel</mat-icon> Netačno!
+            <mat-icon>cancel</mat-icon> Wrong!
 
           </div>
 
@@ -239,7 +239,7 @@ const DEADLINE_Y = 88;
 
           <div class="sr__level-banner" *ngIf="levelBanner">
 
-            Nivo {{ levelBanner }}
+            Level {{ levelBanner }}
 
           </div>
 
@@ -255,11 +255,11 @@ const DEADLINE_Y = 88;
 
               </mat-icon>
 
-              <h2>{{ phase === 'complete' ? 'Nivo završen!' : 'Igra završena' }}</h2>
+              <h2>{{ phase === 'complete' ? 'Level Complete!' : 'Game Over' }}</h2>
 
               <div class="sr__overlay-calc">
                 <mat-icon class="sr__overlay-spinner">hourglass_top</mat-icon>
-                <span>Računanje rezultata…</span>
+                <span>Calculating results…</span>
               </div>
 
             </div>
@@ -294,7 +294,7 @@ const DEADLINE_Y = 88;
 
             spellcheck="false"
 
-            [placeholder]="'Upiši složenu reč (' + displayFallSeconds + 's)…'"
+            [placeholder]="'Type the unscrambled word (' + displayFallSeconds + 's)…'"
 
             inputmode="text"
 
@@ -306,7 +306,7 @@ const DEADLINE_Y = 88;
 
             [disabled]="!typedWord.trim() || phase !== 'playing'"
 
-            aria-label="Pošalji reč">
+            aria-label="Submit word">
 
             <mat-icon>send</mat-icon>
 

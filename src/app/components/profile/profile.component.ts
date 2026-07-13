@@ -82,7 +82,7 @@ export class ProfileComponent implements OnInit {
     event.preventDefault();
 
     if (!this.selectedFile) {
-      this.uploadError = 'Prvo izaberite fotografiju.';
+      this.uploadError = 'Please select a photo first.';
       return;
     }
 
@@ -92,7 +92,7 @@ export class ProfileComponent implements OnInit {
     this.authService.uploadProfilePhoto(this.selectedFile).subscribe({
       next: (res: any) => {
         this.uploading = false;
-        this.notify.success('Profilna fotografija je uspešno otpremljena!');
+        this.notify.success('Profile photo uploaded successfully!');
 
         if (res.profilePhoto) {
           this.userProfile.profilePhoto = this.getFullPhotoUrl(res.profilePhoto);
@@ -105,7 +105,7 @@ export class ProfileComponent implements OnInit {
       error: (err) => {
         this.uploading = false;
         console.error('Error uploading photo:', err);
-        this.uploadError = 'Otpremanje fotografije nije uspelo. Pokušajte ponovo.';
+        this.uploadError = 'Failed to upload photo. Please try again.';
       }
     });
   }
@@ -120,7 +120,7 @@ export class ProfileComponent implements OnInit {
     }
 
     // Otherwise, build a full URL with your domain
-    return `${environment.apiUrl || 'https://portal.gluckglobal.rs'}${relativePath}`;
+    return `https://gluckstudentsportal.com${relativePath}`;
   }
 
   getLevelPercent(): number {
@@ -131,16 +131,16 @@ export class ProfileComponent implements OnInit {
   }
 
   deleteAccount(userId: string) {
-    this.notify.confirm('Obriši nalog', 'Da li ste sigurni da želite da obrišete ovaj nalog? Ova radnja se ne može poništiti.', 'Da, obriši', 'Otkaži').subscribe(ok => {
+    this.notify.confirm('Delete Account', 'Are you sure you want to delete this account? This action cannot be undone.', 'Yes, Delete', 'Cancel').subscribe(ok => {
       if (!ok) return;
       this.authService.deleteUser(userId).subscribe({
         next: () => {
-          this.notify.success('Nalog je uspešno obrisan.');
+          this.notify.success('Account deleted successfully.');
           this.router.navigate(['/login']);
         },
         error: (err) => {
           console.error('Error deleting account:', err);
-          this.notify.error('Brisanje naloga nije uspelo. Pokušajte ponovo.');
+          this.notify.error('Failed to delete account. Please try again.');
         }
       });
     });
@@ -159,15 +159,15 @@ export class ProfileComponent implements OnInit {
     this.pwError = '';
     this.pwSuccess = '';
     if (!this.pwCurrent || !this.pwNew || !this.pwConfirm) {
-      this.pwError = 'Sva polja su obavezna.';
+      this.pwError = 'All fields are required.';
       return;
     }
     if (this.pwNew.length < 8) {
-      this.pwError = 'Nova lozinka mora imati najmanje 8 karaktera.';
+      this.pwError = 'New password must be at least 8 characters.';
       return;
     }
     if (this.pwNew !== this.pwConfirm) {
-      this.pwError = 'Nove lozinke se ne poklapaju.';
+      this.pwError = 'New passwords do not match.';
       return;
     }
     this.pwLoading = true;
@@ -178,7 +178,7 @@ export class ProfileComponent implements OnInit {
     }).subscribe({
       next: () => {
         this.pwLoading = false;
-        this.pwSuccess = 'Lozinka je uspešno ažurirana!';
+        this.pwSuccess = 'Password updated successfully!';
         this.pwCurrent = '';
         this.pwNew = '';
         this.pwConfirm = '';
@@ -186,7 +186,7 @@ export class ProfileComponent implements OnInit {
       },
       error: (err: any) => {
         this.pwLoading = false;
-        this.pwError = err?.error?.msg || 'Ažuriranje lozinke nije uspelo. Pokušajte ponovo.';
+        this.pwError = err?.error?.msg || 'Failed to update password. Please try again.';
       },
     });
   }

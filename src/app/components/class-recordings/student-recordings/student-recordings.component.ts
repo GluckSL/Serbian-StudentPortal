@@ -422,13 +422,13 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
 
   formatResourceDate(d: string | Date | null): string {
     if (!d) return '—';
-    return new Date(d).toLocaleDateString('sr-Latn-RS', { month: 'short', day: 'numeric', year: 'numeric' });
+    return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   }
 
   playRecording(recording: DisplayRecording): void {
     if (!this.canPlayRecording(recording)) return;
     if (!getAuthToken()) {
-      this.playerError = 'Sesija je istekla. Prijavite se ponovo.';
+      this.playerError = 'Session expired. Please login again.';
       void this.router.navigate(['/login'], { queryParams: { session: 'expired' } });
       return;
     }
@@ -452,12 +452,12 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
       if (recording.manualSourceType === 'HLS_UPLOAD') {
         if (recording.manualStatus === 'processing') {
           this.playerLoading = false;
-          this.playerError = 'Snimak se još obrađuje. Proverite ponovo uskoro.';
+          this.playerError = 'Recording upload is still being processed. Please check again shortly.';
           return;
         }
         if (recording.manualStatus === 'failed') {
           this.playerLoading = false;
-          this.playerError = recording.manualErrorMessage || 'Konverzija snimka nije uspela. Kontaktirajte podršku.';
+          this.playerError = recording.manualErrorMessage || 'Recording conversion failed. Please contact support.';
           return;
         }
         this.playerLoading = false;
@@ -469,7 +469,7 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
       const manualUrl = recording.videoUrl || '';
       if (!manualUrl) {
         this.playerLoading = false;
-        this.playerError   = 'URL videa nedostaje za ovaj snimak.';
+        this.playerError   = 'Video URL is missing for this recording.';
         return;
       }
       if (this.isDirectVideoFile(manualUrl)) {
@@ -486,7 +486,7 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
 
     if (!recording.meetingLinkId) {
       this.playerLoading = false;
-      this.playerError   = 'Informacije o času nedostaju.';
+      this.playerError   = 'Meeting information is missing.';
       return;
     }
 
@@ -541,7 +541,7 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
 
   private initHlsOnElement(video: HTMLVideoElement, hlsUrl: string, resumeAtSec: number | null): void {
     if (!getAuthToken()) {
-      this.playerError = 'Sesija je istekla. Prijavite se ponovo.';
+      this.playerError = 'Session expired. Please login again.';
       this.playerHlsUrl = null;
       this.videoBuffering = false;
       void this.router.navigate(['/login'], { queryParams: { session: 'expired' } });
@@ -610,7 +610,7 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
           return;
         }
         this.videoBuffering = false;
-        this.playerError = 'Greška pri reprodukciji. Osvežite stranicu i pokušajte ponovo.';
+        this.playerError = 'Playback error. Please refresh and try again.';
         this.playerHlsUrl = null;
       });
     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
@@ -674,7 +674,7 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
 
   onVideoError(): void {
     this.videoBuffering = false;
-    this.playerError    = 'Nije moguće reprodukovati video. Pokušajte ponovo.';
+    this.playerError    = 'Unable to play this video. Please try again.';
     this.playerVideoUrl = null;
   }
 
@@ -708,11 +708,11 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
         this.playerLoading = false;
         const msg: string = err.error?.message || '';
         if (err.status === 202) {
-          this.playerError = 'Snimak se još obrađuje. Proverite ponovo uskoro.';
+          this.playerError = 'Recording is still being processed. Please check back shortly.';
         } else if (err.status === 403) {
-          this.playerError = 'Ovaj snimak je sakriven ili nije dostupan za vašu grupu.';
+          this.playerError = 'This recording is hidden or not available for your batch.';
         } else {
-          this.playerError = msg || 'Nije moguće učitati snimak. Pokušajte ponovo.';
+          this.playerError = msg || 'Unable to load recording. Please try again.';
         }
       },
     });
@@ -919,13 +919,13 @@ export class StudentRecordingsComponent implements OnInit, OnDestroy, AfterViewC
   }
 
   formatDate(d: string): string {
-    return new Date(d).toLocaleDateString('sr-Latn-RS', {
+    return new Date(d).toLocaleDateString('en-US', {
       weekday: 'short', year: 'numeric', month: 'short', day: 'numeric',
     });
   }
 
   formatTime(d: string): string {
-    return new Date(d).toLocaleTimeString('sr-Latn-RS', { hour: '2-digit', minute: '2-digit' });
+    return new Date(d).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
   }
 
   formatJourneyDay(r: DisplayRecording): string {

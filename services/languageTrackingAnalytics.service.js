@@ -108,7 +108,7 @@ async function aggregateDGSeconds(from, to, studentIds) {
     const at = s.createdAt ? new Date(s.createdAt) : null;
     if (at && (!byStudent[sid].lastAt || at > byStudent[sid].lastAt)) byStudent[sid].lastAt = at;
 
-    const key = new Date(s.createdAt).toLocaleDateString('sr-Latn-RS', { timeZone: TZ });
+    const key = new Date(s.createdAt).toLocaleDateString('en-CA', { timeZone: TZ });
     byDay[key] = (byDay[key] || 0) + secs;
   }
 

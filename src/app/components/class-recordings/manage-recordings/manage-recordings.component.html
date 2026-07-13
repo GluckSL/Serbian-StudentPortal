@@ -5,9 +5,9 @@
     <!-- ── Page Header ── -->
     <div class="cr-header">
       <div class="cr-header__text">
-        <h2 class="cr-header__title">Snimci časova</h2>
+        <h2 class="cr-header__title">Class Recordings</h2>
         <p class="cr-header__sub">
-          {{ totalCount }} gotov{{ totalCount !== 1 ? 'ih snimaka' : ' snimak' }}
+          {{ totalCount }} ready recording{{ totalCount !== 1 ? 's' : '' }}
           <span *ngIf="backfillStatusMessage" class="cr-header__status"> · {{ backfillStatusMessage }}</span>
         </p>
       </div>
@@ -15,7 +15,7 @@
         <button class="cr-btn cr-btn--success" (click)="publishSelectedForStudents()"
                 [disabled]="publishLoading || selectedPublishCount() === 0">
           <i class="fa fa-upload"></i>
-          {{ publishLoading ? 'Objavljivanje…' : ('Objavi (' + selectedPublishCount() + ')') }}
+          {{ publishLoading ? 'Publishing…' : ('Publish (' + selectedPublishCount() + ')') }}
         </button>
         <button
           class="cr-btn cr-btn--req-approval"
@@ -23,30 +23,30 @@
           type="button"
           (click)="openApprovalInNewTab()">
           <i class="fa fa-inbox"></i>
-          Zahtev za odobrenje<span *ngIf="pendingCount > 0" class="cr-req-approval-count"> ({{ pendingCount }})</span>
+          Req approval<span *ngIf="pendingCount > 0" class="cr-req-approval-count"> ({{ pendingCount }})</span>
         </button>
         <button
           class="cr-btn cr-btn--access-recording"
           type="button"
           (click)="openAccessRecordingTab()">
           <i class="fa fa-share-nodes"></i>
-          Sopstveni tempo
+          Self Pace
         </button>
         <button class="cr-btn cr-btn--ghost" (click)="openWebhookAudit()">
-          <i class="fa fa-wave-square"></i> Webhook revizija
+          <i class="fa fa-wave-square"></i> Webhook Audit
         </button>
         <input
           class="cr-input cr-input--meeting-ids"
           type="text"
           [(ngModel)]="backfillMeetingIdsInput"
-          placeholder="ID-ovi sastanaka (razdvojeni zarezom)"
+          placeholder="Meeting IDs (comma separated)"
           [disabled]="backfillLoading" />
         <button class="cr-btn cr-btn--dark" type="button" (click)="runZoomBackfill()" [disabled]="backfillLoading">
           <i class="fa fa-rotate" [class.fa-spin]="backfillLoading"></i>
-          {{ backfillLoading ? 'Popunjavanje…' : 'Popuni' }}
+          {{ backfillLoading ? 'Backfilling…' : 'Backfill' }}
         </button>
         <button class="cr-btn cr-btn--primary" (click)="openForm()">
-          <i class="fa fa-plus"></i> Dodaj snimak
+          <i class="fa fa-plus"></i> Add Recording
         </button>
       </div>
     </div>
@@ -55,19 +55,19 @@
     <div class="cr-stats">
       <div class="cr-stat cr-stat--blue">
         <div class="cr-stat__val">{{ recordingsWithMediaCount }}</div>
-        <div class="cr-stat__lbl">Spreman</div>
+        <div class="cr-stat__lbl">Ready</div>
       </div>
       <div class="cr-stat cr-stat--green">
         <div class="cr-stat__val">{{ getTotalViews() }}</div>
-        <div class="cr-stat__lbl">Ukupno pregleda</div>
+        <div class="cr-stat__lbl">Total Views</div>
       </div>
       <div class="cr-stat cr-stat--purple">
         <div class="cr-stat__val">{{ getTotalStudents() }}</div>
-        <div class="cr-stat__lbl">Jedinstveni učenici</div>
+        <div class="cr-stat__lbl">Unique Students</div>
       </div>
       <div class="cr-stat cr-stat--orange">
         <div class="cr-stat__val">{{ readyToPlayCount }}</div>
-        <div class="cr-stat__lbl">Reproducibilno</div>
+        <div class="cr-stat__lbl">Playable</div>
       </div>
     </div>
 
@@ -75,22 +75,22 @@
     <div class="cr-upload-history">
       <div class="cr-upload-history__head">
         <div>
-          <h3 class="cr-upload-history__title">Istorija ručnog otpremanja</h3>
+          <h3 class="cr-upload-history__title">Manual Upload History</h3>
           <p class="cr-upload-history__sub">
-            Nedavno otpremanje fajlova i status HLS konverzije. Neuspeli redovi prikazuju grešku.
+            Recent file uploads and HLS conversion status. Failed rows show the backend error.
           </p>
         </div>
         <div class="cr-upload-history__actions">
           <span class="cr-upload-summary" *ngIf="manualUploadHistorySummary['processing']">
-            {{ manualUploadHistorySummary['processing'] }} konvertuje se
+            {{ manualUploadHistorySummary['processing'] }} converting
           </span>
           <span class="cr-upload-summary cr-upload-summary--failed" *ngIf="manualUploadHistorySummary['failed']">
-            {{ manualUploadHistorySummary['failed'] }} neuspelo
+            {{ manualUploadHistorySummary['failed'] }} failed
           </span>
           <button class="cr-btn cr-btn--outline" type="button" (click)="loadManualUploadHistory()"
                   [disabled]="manualUploadHistoryLoading">
             <i class="fa fa-rotate" [class.fa-spin]="manualUploadHistoryLoading"></i>
-            Osveži
+            Refresh
           </button>
         </div>
       </div>
@@ -100,7 +100,7 @@
       </div>
 
       <div *ngIf="!manualUploadHistoryLoading && !manualUploadHistory.length" class="cr-upload-history__empty">
-        Još uvek nema istorije ručnog otpremanja.
+        No manual upload history found yet.
       </div>
 
       <div class="cr-upload-history__list" *ngIf="!manualUploadHistoryLoading && manualUploadHistory.length">
@@ -128,26 +128,26 @@
     <!-- ── Filters ── -->
     <div class="cr-filters-wrap">
       <div class="cr-filters-head">
-        <span class="cr-filters-title">Filteri</span>
-        <button class="cr-btn-clear" type="button" (click)="clearFilters()">Obriši sve</button>
+        <span class="cr-filters-title">Filters</span>
+        <button class="cr-btn-clear" type="button" (click)="clearFilters()">Clear all</button>
       </div>
       <div class="cr-filters">
         <div class="cr-search-wrap">
           <i class="fa fa-search cr-search-icon"></i>
           <input class="cr-input cr-input--search" type="text"
-                 placeholder="Pretraži naslov, opis, ID sastanka ili grupu…"
+                 placeholder="Search title, description, meeting ID, or batch…"
                  [(ngModel)]="searchQuery"
                  (keyup.enter)="applySearch()">
         </div>
         <button class="cr-btn cr-btn--filter-search" type="button" (click)="applySearch()">
-          Pretraži
+          Search
         </button>
         <select class="cr-select" [(ngModel)]="filterLevel" (change)="applyFilters()">
-          <option value="ALL">Svi nivoi</option>
+          <option value="ALL">All Levels</option>
           <option *ngFor="let l of levels" [value]="l">{{ l }}</option>
         </select>
         <select class="cr-select" [(ngModel)]="filterBatch" (change)="applyFilters()">
-          <option value="ALL">Sve grupe</option>
+          <option value="ALL">All Batches</option>
           <option *ngFor="let b of availableBatches" [value]="b">{{ b }}</option>
         </select>
       </div>
@@ -162,11 +162,11 @@
 
       <div *ngIf="!tableLoading && !totalCount" class="cr-empty">
         <i class="fa fa-video cr-empty__icon"></i>
-        <h3>Nema gotovih snimaka</h3>
-        <p *ngIf="!appliedSearchQuery">Ovde se prikazuju samo potpuno obrađeni snimci sa medijima.</p>
+        <h3>No ready recordings</h3>
+        <p *ngIf="!appliedSearchQuery">Only fully processed recordings with media appear here.</p>
         <p *ngIf="appliedSearchQuery">
-          Nijedan <strong>gotov</strong> snimak ne odgovara ovoj pretrazi. Ako je sastanak zaglavljen u obradi ili nije uspeo,
-          pokrenite <strong>Popuni</strong> sa ID-om sastanka (prisilni ponovni pokušaj je omogućen za ciljane ID-ove).
+          No <strong>ready</strong> recording matches this search. If a meeting is stuck in processing or failed,
+          run <strong>Backfill</strong> with the meeting ID (force retry is enabled for targeted IDs).
         </p>
       </div>
 
@@ -174,16 +174,16 @@
         <thead>
           <tr>
             <th class="cr-th--check"></th>
-            <th>Tip</th>
-            <th>ID sastanka</th>
-            <th>Naslov</th>
-            <th>Trajanje</th>
+            <th>Type</th>
+            <th>Meeting ID</th>
+            <th>Title</th>
+            <th>Duration</th>
             <th>Plan</th>
-            <th>Grupe</th>
-            <th>Pristup</th>
-            <th>Otpremljeno</th>
-            <th>Od</th>
-            <th class="cr-th--actions">Akcije</th>
+            <th>Batches</th>
+            <th>Access</th>
+            <th>Uploaded</th>
+            <th>By</th>
+            <th class="cr-th--actions">Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -196,7 +196,7 @@
             </td>
             <td>
               <span class="cr-type-chip" [class.cr-type-chip--zoom]="isZoomRecording(r)">
-                {{ isZoomRecording(r) ? 'Zoom' : 'Ručno' }}
+                {{ isZoomRecording(r) ? 'Zoom' : 'Manual' }}
               </span>
             </td>
             <td>
@@ -211,7 +211,7 @@
                 {{ getProcessingElapsedText(r) }} · {{ getProcessingEtaText(r) }}
               </span>
               <span class="cr-status-chip cr-status-chip--failed" *ngIf="r.status === 'failed'">
-                Obrada nije uspela — koristite Popuni za ponovni pokušaj
+                Processing failed — use Backfill to retry
               </span>
             </td>
             <td>
@@ -234,7 +234,7 @@
               <span class="cr-published-chip"
                     [class.cr-published-chip--yes]="r.isPublished !== false"
                     [class.cr-published-chip--no]="r.isPublished === false">
-                {{ r.isPublished !== false ? 'Vidljivo' : 'Skriveno' }}
+                {{ r.isPublished !== false ? 'Visible' : 'Hidden' }}
               </span>
             </td>
             <td>
@@ -253,26 +253,26 @@
                         [class.cr-icon-btn--blue]="r.isPublished === false"
                         [disabled]="!canToggleStudentVisibility(r) || publishLoadingId === visibilityActionKey(r)"
                         (click)="toggleStudentVisibility(r); $event.stopPropagation()"
-                        [title]="canToggleStudentVisibility(r) ? (r.isPublished !== false ? 'Sakrij od učenika' : 'Prikaži učenicima') : 'Dostupno kada je snimak spreman'">
+                        [title]="canToggleStudentVisibility(r) ? (r.isPublished !== false ? 'Hide from students' : 'Show to students') : 'Available when recording is ready'">
                   <i class="fa" [class.fa-eye-slash]="r.isPublished !== false" [class.fa-eye]="r.isPublished === false"></i>
                 </button>
                 <button type="button" class="cr-icon-btn cr-icon-btn--blue"
                         (click)="viewRecordingAction(r); $event.stopPropagation()"
-                        title="Analitika">
+                        title="Analytics">
                   <i class="fa fa-chart-bar"></i>
                 </button>
                 <button type="button" class="cr-icon-btn cr-icon-btn--violet"
                         [disabled]="!canPlayRecording(r)"
                         (click)="playRecordingAction(r); $event.stopPropagation()"
-                        [title]="canPlayRecording(r) ? 'Reprodukuj u novoj kartici' : 'Snimak nije spreman'">
+                        [title]="canPlayRecording(r) ? 'Play in new tab' : 'Recording not ready'">
                   <i class="fa fa-play"></i>
                 </button>
                 <button type="button" class="cr-icon-btn cr-icon-btn--green"
-                        (click)="editRecordingAction(r); $event.stopPropagation()" title="Uredi">
+                        (click)="editRecordingAction(r); $event.stopPropagation()" title="Edit">
                   <i class="fa fa-pen"></i>
                 </button>
                 <button type="button" class="cr-icon-btn cr-icon-btn--red"
-                        (click)="deleteRecordingAction(r); $event.stopPropagation()" title="Obriši">
+                        (click)="deleteRecordingAction(r); $event.stopPropagation()" title="Delete">
                   <i class="fa fa-trash"></i>
                 </button>
               </div>
@@ -283,7 +283,7 @@
 
       <div *ngIf="totalCount" class="cr-footer">
         <span class="cr-footer__range">
-          Prikazivanje <strong>{{ paginationStart }}–{{ paginationEnd }}</strong> od <strong>{{ totalCount }}</strong>
+          Showing <strong>{{ paginationStart }}–{{ paginationEnd }}</strong> of <strong>{{ totalCount }}</strong>
         </span>
         <mat-paginator
           class="cr-paginator"
@@ -293,7 +293,7 @@
           [pageSizeOptions]="pageSizeOptions"
           (page)="onPageChange($event)"
           showFirstLastButtons
-          aria-label="Straničenje snimaka">
+          aria-label="Recordings pagination">
         </mat-paginator>
       </div>
     </div>
@@ -325,7 +325,7 @@
 <div class="cr-overlay" *ngIf="showWebhookAuditModal" (click)="closeWebhookAudit()">
   <div class="cr-modal cr-modal--wide cr-modal--audit" (click)="$event.stopPropagation()">
     <div class="cr-modal__head">
-      <h3><i class="fa fa-wave-square"></i> Zoom Webhook revizija</h3>
+      <h3><i class="fa fa-wave-square"></i> Zoom Webhook Audit</h3>
       <button class="cr-modal__close" type="button" (click)="closeWebhookAudit()">✕</button>
     </div>
     <div class="cr-modal__body">
@@ -341,19 +341,19 @@
 
       <div *ngIf="!webhookAuditLoading && !webhookAuditRows.length" class="cr-empty cr-empty--sm">
         <i class="fa fa-inbox cr-empty__icon cr-empty__icon--sm"></i>
-        <p>Nisu pronađeni zapisi revizije webhook-a.</p>
+        <p>No webhook audit logs found.</p>
       </div>
 
       <table class="cr-table" *ngIf="!webhookAuditLoading && webhookAuditRows.length">
         <thead>
           <tr>
-            <th>Vreme</th>
+            <th>Time</th>
             <th>Status</th>
-            <th>Događaj</th>
-            <th>ID sastanka</th>
-            <th>Fajlovi</th>
-            <th>Tip</th>
-            <th>Greška</th>
+            <th>Event</th>
+            <th>Meeting ID</th>
+            <th>Files</th>
+            <th>Type</th>
+            <th>Error</th>
           </tr>
         </thead>
         <tbody>
@@ -376,10 +376,10 @@
 <div class="cr-overlay" *ngIf="showForm" (click)="uploadPhase !== 'uploading' && closeForm()">
   <div class="cr-modal" (click)="$event.stopPropagation()">
     <div class="cr-modal__head">
-      <h3>{{ editing ? 'Uredi snimak' : 'Dodaj snimak' }}</h3>
+      <h3>{{ editing ? 'Edit Recording' : 'Add Recording' }}</h3>
       <button class="cr-modal__close" type="button"
               [disabled]="uploadPhase === 'uploading'"
-              [title]="uploadPhase === 'converting' ? 'Pošalji konverziju u pozadinu' : 'Zatvori'"
+              [title]="uploadPhase === 'converting' ? 'Send conversion to background' : 'Close'"
               (click)="closeForm()">✕</button>
     </div>
 
@@ -399,48 +399,48 @@
       <!-- Cancel button during upload phase -->
       <div class="cr-upload-progress__actions" *ngIf="uploadPhase === 'uploading'">
         <button class="cr-btn cr-btn--ghost cr-btn--sm" type="button" (click)="cancelUpload()">
-          Otkaži otpremanje
+          Cancel Upload
         </button>
       </div>
 
       <!-- Background button during conversion phase -->
       <div class="cr-upload-progress__actions" *ngIf="uploadPhase === 'converting'">
         <button class="cr-btn cr-btn--ghost cr-btn--sm" type="button" (click)="sendToBackground()">
-          <i class="fa fa-arrow-circle-down"></i> Nastavi u pozadini
+          <i class="fa fa-arrow-circle-down"></i> Continue in Background
         </button>
-        <p class="cr-upload-progress__bg-hint">Zatvorite ovaj panel i nastavite s radom — dobićete obaveštenje kada video bude spreman.</p>
+        <p class="cr-upload-progress__bg-hint">Close this panel and keep working — you'll get a notification when the video is ready.</p>
       </div>
     </div>
 
     <div class="cr-modal__body" [class.cr-modal__body--dimmed]="uploadInProgress">
       <div class="cr-field">
-        <label>Naslov *</label>
-        <input class="cr-input" type="text" [(ngModel)]="form.title" placeholder="npr. A1 Lekcija gramatike 3" [disabled]="uploadInProgress">
+        <label>Title *</label>
+        <input class="cr-input" type="text" [(ngModel)]="form.title" placeholder="e.g. A1 Grammar Lesson 3" [disabled]="uploadInProgress">
       </div>
       <div class="cr-field">
-        <label>Otpremite video <span class="cr-hint-inline">(MP4/MOV/M4V/WEBM/OGG)</span></label>
+        <label>Upload Video <span class="cr-hint-inline">(MP4/MOV/M4V/WEBM/OGG)</span></label>
         <input class="cr-input" type="file" accept="video/*,.mp4,.mov,.m4v,.webm,.ogg" (change)="onVideoFileSelected($event)" [disabled]="!!editing || uploadInProgress">
-        <p class="cr-hint" *ngIf="selectedVideoFile">Izabrano: {{ selectedVideoFile.name }}</p>
-        <p class="cr-hint" *ngIf="editing">Otpremanje video fajla dostupno je pri kreiranju novih snimaka.</p>
+        <p class="cr-hint" *ngIf="selectedVideoFile">Selected: {{ selectedVideoFile.name }}</p>
+        <p class="cr-hint" *ngIf="editing">Video file upload is available while creating new recordings.</p>
       </div>
       <div class="cr-field" *ngIf="!editing || editing.sourceType !== 'HLS_UPLOAD'">
-        <label>URL videa <span class="cr-hint-inline">(YouTube ili Google Drive)</span></label>
+        <label>Video URL <span class="cr-hint-inline">(YouTube or Google Drive)</span></label>
         <input class="cr-input" type="text" [(ngModel)]="form.videoUrl" placeholder="https://youtube.com/watch?v=..." [disabled]="!!selectedVideoFile || uploadInProgress">
-        <p class="cr-hint" *ngIf="selectedVideoFile">URL videa se zanemaruje jer je izabrano otpremanje fajla.</p>
+        <p class="cr-hint" *ngIf="selectedVideoFile">Video URL is ignored because a file upload is selected.</p>
       </div>
       <div class="cr-field">
-        <label>Opis</label>
-        <textarea class="cr-input cr-textarea" [(ngModel)]="form.description" rows="3" placeholder="Opcioni opis" [disabled]="uploadInProgress"></textarea>
+        <label>Description</label>
+        <textarea class="cr-input cr-textarea" [(ngModel)]="form.description" rows="3" placeholder="Optional description" [disabled]="uploadInProgress"></textarea>
       </div>
       <div class="cr-field">
-        <label>ID sastanka <span class="cr-hint-inline">(opciono)</span></label>
+        <label>Meeting ID <span class="cr-hint-inline">(optional)</span></label>
         <input class="cr-input" type="text" [(ngModel)]="form.zoomMeetingId"
-               placeholder="npr. 87197015828" [disabled]="uploadInProgress">
-        <p class="cr-hint">Zoom ID sastanka za ovaj čas, ako je poznat. Prikazuje se u tabeli snimaka.</p>
+               placeholder="e.g. 87197015828" [disabled]="uploadInProgress">
+        <p class="cr-hint">Zoom meeting ID for this class, if known. Shown in the recordings table.</p>
       </div>
       <div class="cr-field-row">
         <div class="cr-field">
-          <label>Nivo *</label>
+          <label>Level *</label>
           <select class="cr-select" [(ngModel)]="form.level">
             <option *ngFor="let l of levels" [value]="l">{{ l }}</option>
           </select>
@@ -453,13 +453,13 @@
         </div>
       </div>
       <div class="cr-field">
-        <label>Dan putovanja</label>
+        <label>Journey Day</label>
         <input class="cr-input" type="number" min="1" max="200" step="1"
-               [(ngModel)]="form.courseDay" placeholder="Ostavite prazno za bez dana zaključavanja" />
-        <p class="cr-hint">Učenici mogu pristupiti ovom snimku tek kada njihov trenutni dan putovanja dostigne ovu vrednost.</p>
+               [(ngModel)]="form.courseDay" placeholder="Leave empty for no day lock" />
+        <p class="cr-hint">Students can access this recording only when their current journey day reaches this value.</p>
       </div>
       <div class="cr-field">
-        <label>Grupe * <span class="cr-hint-inline">(izaberite jednu ili više)</span></label>
+        <label>Batches * <span class="cr-hint-inline">(select one or more)</span></label>
         <div class="cr-batch-grid">
           <label class="cr-batch-chip" *ngFor="let b of availableBatches"
                  [class.cr-batch-chip--active]="form.batches.includes(b)">
@@ -467,21 +467,21 @@
             {{ b }}
           </label>
         </div>
-        <p class="cr-hint" *ngIf="!availableBatches.length">Grupe nisu pronađene. Učenici treba da imaju dodeljenu grupu.</p>
+        <p class="cr-hint" *ngIf="!availableBatches.length">No batches found. Students need a batch assigned.</p>
       </div>
     </div>
     <div class="cr-modal__foot">
       <button class="cr-btn cr-btn--ghost" type="button"
               [disabled]="uploadPhase === 'uploading'"
               (click)="uploadPhase === 'converting' ? sendToBackground() : closeForm()">
-        {{ uploadPhase === 'converting' ? 'Pozadina' : 'Otkaži' }}
+        {{ uploadPhase === 'converting' ? 'Background' : 'Cancel' }}
       </button>
       <button class="cr-btn cr-btn--primary" type="button" (click)="save()" [disabled]="saving">
         <i class="fa fa-spinner fa-spin" *ngIf="uploadInProgress"></i>
         {{
           uploadInProgress
-            ? (uploadPhase === 'converting' ? 'Konvertovanje…' : 'Otpremanje…')
-            : (saving ? 'Čuvanje…' : (editing ? 'Ažuriraj' : 'Kreiraj'))
+            ? (uploadPhase === 'converting' ? 'Converting…' : 'Uploading…')
+            : (saving ? 'Saving…' : (editing ? 'Update' : 'Create'))
         }}
       </button>
     </div>
@@ -497,30 +497,30 @@
     </div>
     <div class="cr-modal__body">
       <div class="cr-audit-summary" *ngIf="viewsMeta.totalStudents">
-        <span class="cr-audit-pill">Ukupno učenika: {{ viewsMeta.totalStudents }}</span>
-        <span class="cr-audit-pill">Pogledano: {{ viewsMeta.watchedCount || 0 }}</span>
-        <span class="cr-audit-pill">Nije pogledano: {{ viewsMeta.notWatchedCount || 0 }}</span>
-        <span class="cr-audit-pill">Ukupno gledanja: {{ formatDuration(viewsMeta.totalWatchSeconds || 0) }}</span>
-        <span class="cr-audit-pill">Veličina videa: {{ formatBytes(viewsMeta.videoSizeBytes) }}</span>
+        <span class="cr-audit-pill">Total Students: {{ viewsMeta.totalStudents }}</span>
+        <span class="cr-audit-pill">Watched: {{ viewsMeta.watchedCount || 0 }}</span>
+        <span class="cr-audit-pill">Not Watched: {{ viewsMeta.notWatchedCount || 0 }}</span>
+        <span class="cr-audit-pill">Total Watch: {{ formatDuration(viewsMeta.totalWatchSeconds || 0) }}</span>
+        <span class="cr-audit-pill">Video Size: {{ formatBytes(viewsMeta.videoSizeBytes) }}</span>
       </div>
       <div *ngIf="loadingViews" class="cr-modal-loading">
         <div class="cr-spinner"></div>
       </div>
       <div *ngIf="!loadingViews && !viewsList.length" class="cr-empty cr-empty--sm">
         <i class="fa fa-eye-slash cr-empty__icon cr-empty__icon--sm"></i>
-        <p>Još uvek nisu zabeleženi pregledi.</p>
+        <p>No views recorded yet.</p>
       </div>
       <table class="cr-table" *ngIf="!loadingViews && viewsList.length">
         <thead>
           <tr>
-            <th>Učenik</th>
+            <th>Student</th>
             <th>Email</th>
-            <th>Grupa</th>
-            <th>Nivo</th>
-            <th>Pogledano</th>
-            <th>Početo u</th>
-            <th>Trajanje gledanja</th>
-            <th>Poslednja aktivnost</th>
+            <th>Batch</th>
+            <th>Level</th>
+            <th>Viewed</th>
+            <th>Started At</th>
+            <th>Watch Duration</th>
+            <th>Last Active</th>
           </tr>
         </thead>
         <tbody>
@@ -528,13 +528,13 @@
             <td>
               <div class="cr-teacher">
                 <div class="cr-avatar">{{ (v.student?.name || '?').charAt(0).toUpperCase() }}</div>
-                <span class="cr-cell-main">{{ v.student?.name || 'Nepoznato' }}</span>
+                <span class="cr-cell-main">{{ v.student?.name || 'Unknown' }}</span>
               </div>
             </td>
             <td><span class="cr-cell-sub">{{ v.student?.email || '—' }}</span></td>
             <td><span class="cr-level-chip">{{ v.student?.batch || '—' }}</span></td>
             <td><span class="cr-level-chip">{{ v.student?.level || '—' }}</span></td>
-            <td><span class="cr-level-chip">{{ (v.viewed === false || !v.watchDuration) ? 'Ne' : 'Da' }}</span></td>
+            <td><span class="cr-level-chip">{{ (v.viewed === false || !v.watchDuration) ? 'No' : 'Yes' }}</span></td>
             <td><span class="cr-cell-sub">{{ formatDateTime(v.startedAt) }}</span></td>
             <td><span class="cr-duration">{{ formatDuration(v.watchDuration) }}</span></td>
             <td><span class="cr-cell-sub">{{ formatDateTime(v.lastUpdatedAt) }}</span></td>
@@ -549,18 +549,18 @@
 <div class="cr-overlay" *ngIf="showZoomEditModal" (click)="closeZoomEdit()">
   <div class="cr-modal" (click)="$event.stopPropagation()">
     <div class="cr-modal__head">
-      <h3>Uredi Zoom snimak</h3>
+      <h3>Edit Zoom Recording</h3>
       <button class="cr-modal__close" type="button" (click)="closeZoomEdit()">✕</button>
     </div>
     <div class="cr-modal__body">
       <div class="cr-field">
-        <label>Naslov *</label>
-        <input class="cr-input" type="text" [(ngModel)]="zoomEditForm.title" placeholder="Naslov snimka">
+        <label>Title *</label>
+        <input class="cr-input" type="text" [(ngModel)]="zoomEditForm.title" placeholder="Recording title">
       </div>
       <div class="cr-field">
-        <label>Nivo</label>
+        <label>Level</label>
         <select class="cr-select" [(ngModel)]="zoomEditForm.level">
-          <option value="">Svi nivoi</option>
+          <option value="">All Levels</option>
           <option *ngFor="let l of levels" [value]="l">{{ l }}</option>
         </select>
       </div>
@@ -571,13 +571,13 @@
         </select>
       </div>
       <div class="cr-field">
-        <label>Dan putovanja</label>
+        <label>Journey Day</label>
         <input class="cr-input" type="number" min="1" max="200" step="1"
-               [(ngModel)]="zoomEditForm.courseDay" placeholder="Ostavite prazno za bez dana zaključavanja" />
-        <p class="cr-hint">Učenici mogu pristupiti ovom snimku tek kada njihov trenutni dan putovanja dostigne ovu vrednost.</p>
+               [(ngModel)]="zoomEditForm.courseDay" placeholder="Leave empty for no day lock" />
+        <p class="cr-hint">Students can access this recording only when their current journey day reaches this value.</p>
       </div>
       <div class="cr-field">
-        <label>Grupe * <span class="cr-hint-inline">(izaberite jednu ili više)</span></label>
+        <label>Batches * <span class="cr-hint-inline">(select one or more)</span></label>
         <div class="cr-batch-grid">
           <label class="cr-batch-chip" *ngFor="let b of availableBatches"
                  [class.cr-batch-chip--active]="zoomEditForm.batches.includes(b)">
@@ -587,16 +587,16 @@
         </div>
       </div>
       <div class="cr-field">
-        <label>Nastavnik</label>
+        <label>Teacher</label>
         <select class="cr-select" [(ngModel)]="zoomEditForm.teacherId">
-          <option value="">Zadrži postojećeg nastavnika</option>
+          <option value="">Keep existing teacher</option>
           <option *ngFor="let t of zoomTeachers" [value]="t._id">{{ t.name }} ({{ t.email }})</option>
         </select>
       </div>
     </div>
     <div class="cr-modal__foot">
-      <button class="cr-btn cr-btn--ghost" type="button" (click)="closeZoomEdit()">Otkaži</button>
-      <button class="cr-btn cr-btn--primary" type="button" (click)="saveZoomEdit()">Sačuvaj</button>
+      <button class="cr-btn cr-btn--ghost" type="button" (click)="closeZoomEdit()">Cancel</button>
+      <button class="cr-btn cr-btn--primary" type="button" (click)="saveZoomEdit()">Save</button>
     </div>
   </div>
 </div>

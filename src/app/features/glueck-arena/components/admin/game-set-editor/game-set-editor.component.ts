@@ -52,24 +52,24 @@ import { parseAdminCourseDayOrNull } from '../../../../../utils/journey-day.util
         <button mat-icon-button routerLink="/admin/glueck-arena">
           <mat-icon>arrow_back</mat-icon>
         </button>
-        <h1>{{ isEdit ? 'Izmeni set igre' : 'Novi set igre' }}</h1>
+        <h1>{{ isEdit ? 'Edit Game Set' : 'New Game Set' }}</h1>
       </div>
 
       <mat-progress-bar *ngIf="saving || loading" mode="indeterminate"></mat-progress-bar>
 
       <mat-tab-group *ngIf="!loading">
         <!-- Tab 1: Metadata -->
-        <mat-tab label="Detalji igre">
+        <mat-tab label="Game Details">
           <form [formGroup]="form" (ngSubmit)="save()" class="ga-editor__form">
             <div class="ga-editor__row">
               <mat-form-field appearance="outline" class="ga-editor__field ga-editor__field--wide">
-                <mat-label>Naslov *</mat-label>
+                <mat-label>Title *</mat-label>
                 <input matInput formControlName="title">
-                <mat-error *ngIf="form.get('title')?.hasError('required')">Obavezno</mat-error>
+                <mat-error *ngIf="form.get('title')?.hasError('required')">Required</mat-error>
               </mat-form-field>
 
               <mat-form-field appearance="outline" class="ga-editor__field">
-                <mat-label>Tip igre *</mat-label>
+                <mat-label>Game Type *</mat-label>
                 <mat-select formControlName="gameType">
                   <mat-option value="scramble_rush">Scramble Rush</mat-option>
                   <mat-option value="sentence_builder">Sentence Builder</mat-option>
@@ -92,30 +92,30 @@ import { parseAdminCourseDayOrNull } from '../../../../../utils/journey-day.util
             </div>
 
             <mat-form-field appearance="outline" class="ga-editor__field ga-editor__field--full">
-                <mat-label>Opis</mat-label>
+              <mat-label>Description</mat-label>
               <textarea matInput formControlName="description" rows="3"></textarea>
             </mat-form-field>
 
             <div class="ga-editor__row">
               <mat-form-field appearance="outline" class="ga-editor__field">
-                <mat-label>Težina *</mat-label>
+                <mat-label>Difficulty *</mat-label>
                 <mat-select formControlName="difficulty">
-                  <mat-option value="Beginner">Početnik</mat-option>
-                  <mat-option value="Intermediate">Srednji</mat-option>
-                  <mat-option value="Advanced">Napredni</mat-option>
+                  <mat-option value="Beginner">Beginner</mat-option>
+                  <mat-option value="Intermediate">Intermediate</mat-option>
+                  <mat-option value="Advanced">Advanced</mat-option>
                 </mat-select>
               </mat-form-field>
 
               <mat-form-field appearance="outline" class="ga-editor__field">
-                <mat-label>CEFR Nivo</mat-label>
+                <mat-label>CEFR Level</mat-label>
                 <mat-select formControlName="level">
-                  <mat-option value="">Nijedno</mat-option>
+                  <mat-option value="">None</mat-option>
                   <mat-option *ngFor="let l of cefrLevels" [value]="l">{{ l }}</mat-option>
                 </mat-select>
               </mat-form-field>
 
               <mat-form-field appearance="outline" class="ga-editor__field">
-                <mat-label>Kategorija</mat-label>
+                <mat-label>Category</mat-label>
                 <mat-select formControlName="category">
                   <mat-option *ngFor="let c of categories" [value]="c">{{ c }}</mat-option>
                 </mat-select>
@@ -124,17 +124,17 @@ import { parseAdminCourseDayOrNull } from '../../../../../utils/journey-day.util
 
             <div class="ga-editor__row">
               <mat-form-field appearance="outline" class="ga-editor__field">
-                <mat-label>XP Nagrada</mat-label>
+                <mat-label>XP Reward</mat-label>
                 <input matInput type="number" formControlName="xpReward" min="0">
               </mat-form-field>
 
               <mat-form-field appearance="outline" class="ga-editor__field">
-                <mat-label>Procenj. trajanje (min)</mat-label>
+                <mat-label>Est. Duration (min)</mat-label>
                 <input matInput type="number" formControlName="estimatedDurationMinutes" min="1">
               </mat-form-field>
 
               <mat-form-field appearance="outline" class="ga-editor__field">
-                <mat-label>Materijal ikona</mat-label>
+                <mat-label>Material Icon</mat-label>
                 <input matInput formControlName="icon" placeholder="sports_esports">
                 <mat-icon matSuffix>{{ form.get('icon')?.value }}</mat-icon>
               </mat-form-field>
@@ -145,17 +145,17 @@ import { parseAdminCourseDayOrNull } from '../../../../../utils/journey-day.util
               <div class="ga-card__head">
                 <mat-icon>groups</mat-icon>
                 <div>
-                  <h3>Ciljne grupe</h3>
-                  <p>Dodelite ovu igru Journey grupama. GlückArena se prikazuje studentima samo kada njihova grupa ima barem jednu objavljenu igru.</p>
+                  <h3>Target batches</h3>
+                  <p>Assign this game to Journey batches. GlückArena appears for students only when their batch has at least one published game.</p>
                 </div>
               </div>
               <mat-form-field appearance="outline" class="ga-editor__field ga-editor__field--full">
-                <mat-label>Dodaj grupu</mat-label>
+                <mat-label>Add batch</mat-label>
                 <mat-select [(ngModel)]="batchToAdd" [ngModelOptions]="{standalone: true}" (selectionChange)="onBatchDropdownChange()">
-                  <mat-option value="">Izaberite grupu…</mat-option>
+                  <mat-option value="">Select batch…</mat-option>
                   <mat-option *ngFor="let b of batches" [value]="b.batchName">{{ b.batchName }}</mat-option>
                 </mat-select>
-                <mat-hint>Ostavite prazno za sve grupe.</mat-hint>
+                <mat-hint>Leave empty to allow all batches.</mat-hint>
               </mat-form-field>
               <div *ngIf="targetBatches.length; else noBatches" class="ga-batch-chips">
                 <mat-chip-set>
@@ -164,10 +164,10 @@ import { parseAdminCourseDayOrNull } from '../../../../../utils/journey-day.util
                     <button matChipRemove><mat-icon>cancel</mat-icon></button>
                   </mat-chip>
                 </mat-chip-set>
-                <button type="button" mat-button (click)="clearBatches()">Obriši sve</button>
+                <button type="button" mat-button (click)="clearBatches()">Clear all</button>
               </div>
               <ng-template #noBatches>
-                <p class="ga-batch-empty">Nema izabrane grupe — vidljivo za <strong>sve</strong> grupe kada se objavi.</p>
+                <p class="ga-batch-empty">No batch selected — visible to <strong>all</strong> batches when published.</p>
               </ng-template>
             </div>
 
@@ -176,40 +176,40 @@ import { parseAdminCourseDayOrNull } from '../../../../../utils/journey-day.util
               <div class="ga-card__head">
                 <mat-icon>route</mat-icon>
                 <div>
-                  <h3>Putovanje i vidljivost</h3>
-                  <p>Kontrole za dan kursa i objavljivanje.</p>
+                  <h3>Journey &amp; visibility</h3>
+                  <p>Course day unlock and publish controls.</p>
                 </div>
               </div>
             <div class="ga-editor__row">
               <mat-form-field appearance="outline" class="ga-editor__field">
-                <mat-label>Dan putovanja</mat-label>
+                <mat-label>Journey day</mat-label>
                 <input matInput type="number" formControlName="courseDay" min="0" max="200">
-                <mat-hint>0 = Proba. Mapira se na Journey to Germany (Moj kurs). Ostavite prazno za samo-arena.</mat-hint>
+                <mat-hint>0 = Trial. Maps to Journey to Germany (My Course). Leave empty for arena-only.</mat-hint>
               </mat-form-field>
 
               <div class="ga-toggle-group">
                 <mat-slide-toggle formControlName="visibleToStudents" color="primary">
-                  Vidljivo studentima
+                  Visible to Students
                 </mat-slide-toggle>
                 <mat-slide-toggle formControlName="isPublished" color="accent">
-                  Objavljeno
+                  Published
                 </mat-slide-toggle>
               </div>
             </div>
             </div>
 
             <!-- Timer settings -->
-            <div class="ga-section-title">Podešavanja tajmera</div>
+            <div class="ga-section-title">Timer Settings</div>
             <div class="ga-editor__row">
               <mat-form-field appearance="outline" class="ga-editor__field">
-                <mat-label>Vremensko ograničenje sesije (sek)</mat-label>
+                <mat-label>Session Limit (sec)</mat-label>
                 <input matInput type="number" formControlName="sessionLimitSeconds" min="10">
-                <mat-hint>Ostavite prazno bez tajmera sesije</mat-hint>
+                <mat-hint>Leave empty for no session timer</mat-hint>
               </mat-form-field>
               <mat-form-field appearance="outline" class="ga-editor__field">
-                <mat-label>Limit po pitanju (sek)</mat-label>
+                <mat-label>Per-Question Limit (sec)</mat-label>
                 <input matInput type="number" formControlName="perQuestionSeconds" min="5">
-                <mat-hint>Ostavite prazno bez tajmera po pitanju</mat-hint>
+                <mat-hint>Leave empty for no per-question timer</mat-hint>
               </mat-form-field>
             </div>
 
@@ -217,20 +217,20 @@ import { parseAdminCourseDayOrNull } from '../../../../../utils/journey-day.util
               <div class="ga-card__head">
                 <mat-icon>layers</mat-icon>
                 <div>
-                  <h3>Igranje Gender Stack-a</h3>
-                  <p>Koliko često se pojavljuju nove reči i koliko brzo padaju do linije police.</p>
+                  <h3>Gender Stack gameplay</h3>
+                  <p>How often new words appear and how fast they fall to the shelf line.</p>
                 </div>
               </div>
               <div class="ga-editor__row">
                 <mat-form-field appearance="outline" class="ga-editor__field">
-                  <mat-label>Interval pojave (sek)</mat-label>
+                  <mat-label>Spawn interval (sec)</mat-label>
                   <input matInput type="number" formControlName="gsSpawnIntervalSeconds" min="3" max="5" step="1">
-                  <mat-hint>Nova reč svakih 3–5 sekundi</mat-hint>
+                  <mat-hint>New word every 3–5 seconds</mat-hint>
                 </mat-form-field>
                 <mat-form-field appearance="outline" class="ga-editor__field">
-                  <mat-label>Trajanje pada (sek)</mat-label>
+                  <mat-label>Fall duration (sec)</mat-label>
                   <input matInput type="number" formControlName="gsFallDurationSeconds" min="0.5" max="3" step="0.1">
-                  <mat-hint>Vreme do police</mat-hint>
+                  <mat-hint>Time to reach the shelf</mat-hint>
                 </mat-form-field>
               </div>
             </div>
@@ -239,12 +239,12 @@ import { parseAdminCourseDayOrNull } from '../../../../../utils/journey-day.util
               <div class="ga-card__head">
                 <mat-icon>casino</mat-icon>
                 <div>
-                  <h3>Točak sreće</h3>
-                  <p>Oznaka prikazana u centru točka tokom igre.</p>
+                  <h3>Spin Wheel</h3>
+                  <p>Label shown in the center of the wheel during play.</p>
                 </div>
               </div>
               <mat-form-field appearance="outline" class="ga-editor__field ga-editor__field--full">
-                <mat-label>Oznaka centra</mat-label>
+                <mat-label>Center label</mat-label>
                 <input matInput formControlName="swCenterLabel" placeholder="ergänze den Satz!">
               </mat-form-field>
             </div>
@@ -253,8 +253,8 @@ import { parseAdminCourseDayOrNull } from '../../../../../utils/journey-day.util
               <div class="ga-card__head">
                 <mat-icon>wallpaper</mat-icon>
                 <div>
-                  <h3>Tapni kutije — pozadina igre</h3>
-                  <p>Zamenjuje podrazumevanu zelenu tablu iza numerisanih kutija. JPG, PNG ili WebP se preporučuje (široki pejzaž je najbolji).</p>
+                  <h3>Tap the Boxes — play background</h3>
+                  <p>Replaces the default green board behind the numbered boxes. JPG, PNG, or WebP recommended (wide landscape works best).</p>
                 </div>
               </div>
               <div class="ga-tb-bg-row">
@@ -263,7 +263,7 @@ import { parseAdminCourseDayOrNull } from '../../../../../utils/journey-day.util
                 </div>
                 <div class="ga-tb-bg-actions">
                   <button type="button" mat-stroked-button (click)="tbBgInput.click()" [disabled]="!isEdit">
-                    <mat-icon>upload</mat-icon> Otpremi pozadinu
+                    <mat-icon>upload</mat-icon> Upload background
                   </button>
                   <button
                     type="button"
@@ -273,28 +273,28 @@ import { parseAdminCourseDayOrNull } from '../../../../../utils/journey-day.util
                     [disabled]="!isEdit || clearingTapBoxesBg"
                     (click)="clearTapBoxesBackground()"
                   >
-                    <mat-icon>delete</mat-icon> Ukloni
+                    <mat-icon>delete</mat-icon> Remove
                   </button>
-                  <p class="ga-tb-bg-hint" *ngIf="!isEdit">Prvo sačuvajte set igre, zatim otpremite pozadinu.</p>
+                  <p class="ga-tb-bg-hint" *ngIf="!isEdit">Save the game set first, then upload a background.</p>
                 </div>
                 <input #tbBgInput type="file" accept="image/*" style="display:none" (change)="onTapBoxesBackgroundFile($event)">
               </div>
             </div>
 
             <!-- Thumbnail -->
-            <div class="ga-section-title">Sličica</div>
+            <div class="ga-section-title">Thumbnail</div>
             <div class="ga-thumb-row">
               <img *ngIf="thumbnailPreview" [src]="thumbnailPreview" class="ga-thumb-preview">
               <button type="button" mat-stroked-button (click)="thumbInput.click()">
-                <mat-icon>image</mat-icon> Otpremi sličicu
+                <mat-icon>image</mat-icon> Upload Thumbnail
               </button>
               <input #thumbInput type="file" accept="image/*" style="display:none" (change)="onThumbnailFile($event)">
             </div>
 
             <div class="ga-editor__actions">
-              <button type="button" mat-stroked-button routerLink="/admin/glueck-arena">Otkaži</button>
+              <button type="button" mat-stroked-button routerLink="/admin/glueck-arena">Cancel</button>
               <button type="submit" mat-raised-button color="primary" [disabled]="saving || form.invalid">
-                <mat-icon>save</mat-icon> {{ saving ? 'Čuvam…' : 'Sačuvaj set igre' }}
+                <mat-icon>save</mat-icon> {{ saving ? 'Saving…' : 'Save Game Set' }}
               </button>
             </div>
           </form>
@@ -321,17 +321,17 @@ import { parseAdminCourseDayOrNull } from '../../../../../utils/journey-day.util
             <app-word-search-question-form *ngSwitchCase="'word_search'" #wordSearchForm [gameSetId]="setId || ''"></app-word-search-question-form>
             <div *ngSwitchDefault class="ga-placeholder-tab">
               <mat-icon>construction</mat-icon>
-              <p>Upravljanje pitanjima za <strong>{{ form.get('gameType')?.value }}</strong> dolazi uskoro.</p>
+              <p>Question management for <strong>{{ form.get('gameType')?.value }}</strong> coming soon.</p>
             </div>
           </div>
         </mat-tab>
 
         <!-- Tab 3: Levels (Scramble Rush only) -->
-        <mat-tab label="Nivoi" [disabled]="!setId || form.get('gameType')?.value !== 'scramble_rush'">
+        <mat-tab label="Levels" [disabled]="!setId || form.get('gameType')?.value !== 'scramble_rush'">
           <app-level-editor *ngIf="setId" [gameSetId]="setId!"></app-level-editor>
         </mat-tab>
 
-        <mat-tab label="Uvezi" [disabled]="!setId">
+        <mat-tab label="Import" [disabled]="!setId">
           <app-game-import-panel
             [gameSetId]="setId || ''"
             [gameType]="form.get('gameType')?.value"
@@ -417,7 +417,7 @@ export class GameSetEditorComponent implements OnInit {
 
   get questionsLabel(): string {
     const count = this.form.get('questionCount')?.value || 0;
-    return `Pitanja (${count})`;
+    return `Questions (${count})`;
   }
 
   constructor(

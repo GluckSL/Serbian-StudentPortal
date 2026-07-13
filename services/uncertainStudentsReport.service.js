@@ -47,7 +47,7 @@ function formatActivityDate(value) {
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return '';
   const day = d.getDate();
-  const month = d.toLocaleString('sr-Latn-RS', { month: 'long' });
+  const month = d.toLocaleString('en-GB', { month: 'long' });
   return `${day} ${month}`;
 }
 
@@ -87,7 +87,7 @@ function formatPendingAmount(totals) {
   const parts = [];
   for (const currency of ['LKR', 'INR', 'USD']) {
     const amount = Math.round(Number(totals[currency] || 0));
-    if (amount > 0) parts.push(`${currency} ${amount.toLocaleString('sr-Latn-RS')}`);
+    if (amount > 0) parts.push(`${currency} ${amount.toLocaleString('en-US')}`);
   }
   return parts.join('; ');
 }
@@ -169,7 +169,7 @@ async function aggregatePendingAmounts(students) {
         Number(legacy.pendingPayment) ||
           (Number(legacy.totalPackageAmount) || 0) - (Number(legacy.totalPaid) || 0),
       );
-      result.set(sid, pending > 0 ? `${currency} ${Math.round(pending).toLocaleString('sr-Latn-RS')}` : '');
+      result.set(sid, pending > 0 ? `${currency} ${Math.round(pending).toLocaleString('en-US')}` : '');
       continue;
     }
 

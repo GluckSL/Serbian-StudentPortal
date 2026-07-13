@@ -21,7 +21,7 @@ function resolveStudentPhone(user) {
 
 /** Normalised portal base URL (no trailing slash). */
 function portalLoginUrl() {
-  return `${(process.env.PORTAL_URL || process.env.FRONTEND_URL || 'https://portal.gluckglobal.rs').replace(/\/$/, '')}/login`;
+  return `${(process.env.FRONTEND_URL || 'https://gluckstudentsportal.com').replace(/\/$/, '')}/login`;
 }
 
 /**

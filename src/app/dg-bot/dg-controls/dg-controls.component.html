@@ -7,7 +7,7 @@
     (click)="replay.emit()"
   >
     <mat-icon>volume_up</mat-icon>
-    Ponovi zvuk
+    Replay audio
   </button>
   <button
     mat-flat-button
@@ -17,7 +17,7 @@
     [disabled]="!canNext || busy"
     (click)="next.emit()"
   >
-    Nastavi
+    Continue
     <mat-icon>arrow_forward</mat-icon>
   </button>
   <button
@@ -28,6 +28,6 @@
     [disabled]="busy"
     (click)="skip.emit()"
   >
-    Trenutno ne mogu da govorim
+    I can't speak right now
   </button>
 </div>

@@ -4,19 +4,19 @@
   <!-- Page Header -->
   <div class="page-header" *ngIf="!embedded">
     <div class="header-text">
-      <h1>Digitalne vežbe</h1>
-      <p class="header-subtitle">Usavršite svoju jezičku preciznost kroz naš odabrani skup modula za gramatiku, vokabular i kontekstualno razumevanje.</p>
+      <h1>Digital Exercises</h1>
+      <p class="header-subtitle">Refine your linguistic precision through our curated set of grammar, vocabulary, and contextual comprehension modules.</p>
     </div>
     <div class="header-right">
       <div class="proficiency-badge" *ngIf="!isTeacherOrAdmin && exercises.length > 0">
-        {{ currentProficiency }}% TRENUTNA STRUČNOST
+        {{ currentProficiency }}% CURRENT PROFICIENCY
       </div>
       <div class="header-actions" *ngIf="isTeacherOrAdmin">
         <button class="btn-manage" (click)="navigateToAdmin()">
-          <span class="material-icons">settings</span> Upravljaj
+          <span class="material-icons">settings</span> Manage
         </button>
         <button class="btn-create" (click)="navigateToCreate()">
-          <span class="material-icons">add</span> Kreiraj vežbu
+          <span class="material-icons">add</span> Create Exercise
         </button>
       </div>
     </div>
@@ -31,7 +31,7 @@
           class="dex-filter"
           (click)="toggleFilter('level')"
         >
-          <span>{{ selectedLevel || 'Svi nivoi' }}</span>
+          <span>{{ selectedLevel || 'All Levels' }}</span>
           <span class="material-icons dex-filter__arrow">expand_{{ levelFilterOpen ? 'less' : 'more' }}</span>
         </button>
         <div class="dex-filter-menu" *ngIf="levelFilterOpen">
@@ -40,7 +40,7 @@
             class="dex-filter-option"
             [class.on]="!selectedLevel"
             (click)="selectedLevel = ''; levelFilterOpen = false; onFilterChange()"
-          >Svi nivoi</button>
+          >All Levels</button>
           <button
             type="button"
             class="dex-filter-option"
@@ -56,7 +56,7 @@
           class="dex-filter"
           (click)="toggleFilter('category')"
         >
-          <span>{{ selectedCategory || 'Sve kategorije' }}</span>
+          <span>{{ selectedCategory || 'All Categories' }}</span>
           <span class="material-icons dex-filter__arrow">expand_{{ categoryFilterOpen ? 'less' : 'more' }}</span>
         </button>
         <div class="dex-filter-menu" *ngIf="categoryFilterOpen">
@@ -65,7 +65,7 @@
             class="dex-filter-option"
             [class.on]="!selectedCategory"
             (click)="selectedCategory = ''; categoryFilterOpen = false; onFilterChange()"
-          >Sve kategorije</button>
+          >All Categories</button>
           <button
             type="button"
             class="dex-filter-option"
@@ -81,7 +81,7 @@
           class="dex-filter"
           (click)="toggleFilter('difficulty')"
         >
-          <span>{{ selectedDifficulty || 'Sve težine' }}</span>
+          <span>{{ selectedDifficulty || 'All Difficulties' }}</span>
           <span class="material-icons dex-filter__arrow">expand_{{ difficultyFilterOpen ? 'less' : 'more' }}</span>
         </button>
         <div class="dex-filter-menu" *ngIf="difficultyFilterOpen">
@@ -90,7 +90,7 @@
             class="dex-filter-option"
             [class.on]="!selectedDifficulty"
             (click)="selectedDifficulty = ''; difficultyFilterOpen = false; onFilterChange()"
-          >Sve težine</button>
+          >All Difficulties</button>
           <button
             type="button"
             class="dex-filter-option"
@@ -114,7 +114,7 @@
         </button>
       </div>
       <button class="clear-filters-btn" *ngIf="hasActiveFilters()" (click)="clearFilters()">
-        <span class="material-icons">filter_alt_off</span> Poništi
+        <span class="material-icons">filter_alt_off</span> Clear
       </button>
       <span class="journey-week-hint" *ngIf="userRole === 'STUDENT'">{{ journeyWeekHint }}</span>
     </div>
@@ -123,19 +123,19 @@
   <!-- Tabs + compact analytics entry (students) -->
   <div class="mc-tabs-wrap" *ngIf="!loading">
     <div class="mc-tabs">
-      <button type="button" class="mc-tab" [class.mc-tab--on]="activeTab === 'completed'" (click)="setTab('completed'); onTabChange()">Završeno</button>
-      <button type="button" class="mc-tab" [class.mc-tab--on]="activeTab === 'pending'" (click)="setTab('pending'); onTabChange()">Na čekanju</button>
-      <button type="button" class="mc-tab" [class.mc-tab--on]="activeTab === 'new'" (click)="setTab('new'); onTabChange()">Novo</button>
+      <button type="button" class="mc-tab" [class.mc-tab--on]="activeTab === 'completed'" (click)="setTab('completed'); onTabChange()">Completed</button>
+      <button type="button" class="mc-tab" [class.mc-tab--on]="activeTab === 'pending'" (click)="setTab('pending'); onTabChange()">Pending</button>
+      <button type="button" class="mc-tab" [class.mc-tab--on]="activeTab === 'new'" (click)="setTab('new'); onTabChange()">New</button>
     </div>
     <button
       *ngIf="userRole === 'STUDENT'"
       type="button"
       class="tabs-analytics-btn"
       (click)="openStudentAnalyticsPage()"
-        title="Otvori analitiku: ukupni pregled i svaka vežba"
-      >
+      title="Open full analytics: overall summary and every exercise"
+    >
       <span class="material-icons">analytics</span>
-      <span class="tabs-analytics-label">Analitika</span>
+      <span class="tabs-analytics-label">Analytics</span>
     </button>
   </div>
 
@@ -149,14 +149,14 @@
   <!-- Exercise List (Card-based rows) -->
   <div class="exercise-list" *ngIf="!loading && filteredExercises.length > 0" [class.exercise-list--student]="userRole === 'STUDENT'">
     <div class="list-headers">
-      <span class="col-details">DETALJI VEŽBE</span>
-      <span class="col-level">NIVO</span>
-      <span class="col-cat">KATEGORIJA</span>
-      <span class="col-day" *ngIf="userRole === 'STUDENT'">DAN / SEK</span>
-      <span class="col-vol">OBIM</span>
-      <span class="col-dur">TRAJANJE</span>
+      <span class="col-details">EXERCISE DETAILS</span>
+      <span class="col-level">LEVEL</span>
+      <span class="col-cat">CATEGORY</span>
+      <span class="col-day" *ngIf="userRole === 'STUDENT'">DAY / SEQ</span>
+      <span class="col-vol">VOLUME</span>
+      <span class="col-dur">DURATION</span>
       <span class="col-priority">STATUS</span>
-      <span class="col-action">AKCIJA</span>
+      <span class="col-action">ACTION</span>
     </div>
   <div class="exercise-row" *ngFor="let ex of paginatedExercises">
       <div class="row-icon">
@@ -176,15 +176,15 @@
         <div class="row-stats-group">
           <div class="row-day" *ngIf="userRole === 'STUDENT'">
             <span class="vol-num">{{ journeyDaySequenceLabel(ex) }}</span>
-            <span class="vol-label">DAN / SEK</span>
+            <span class="vol-label">DAY / SEQ</span>
           </div>
           <div class="row-volume">
             <span class="vol-num">{{ getQuestionCount(ex) }}</span>
-            <span class="vol-label">STAVKE</span>
+            <span class="vol-label">ITEMS</span>
           </div>
           <div class="row-duration">
             <span class="dur-num">{{ ex.estimatedDuration || 15 }}m</span>
-            <span class="dur-label">PROC.</span>
+            <span class="dur-label">EST.</span>
           </div>
           <div class="row-priority">
             <div class="status-ring" [class.completed]="ex.studentAttempt" [class.pending]="!ex.studentAttempt">
@@ -203,7 +203,7 @@
             class="btn-start"
             (click)="startExercise(ex)"
           >
-            {{ ex.studentAttempt ? 'Ponovi' : 'Počni' }}
+            {{ ex.studentAttempt ? 'Retry' : 'Start' }}
           </button>
         </div>
       </div>
@@ -219,11 +219,11 @@
         </div>
         <div class="row-volume">
           <span class="vol-num">{{ getQuestionCount(ex) }}</span>
-          <span class="vol-label">STAVKE</span>
+          <span class="vol-label">ITEMS</span>
         </div>
         <div class="row-duration">
           <span class="dur-num">{{ ex.estimatedDuration || 15 }}m</span>
-          <span class="dur-label">PROC.</span>
+          <span class="dur-label">EST.</span>
         </div>
         <div class="row-priority">
           <div class="priority-stack">
@@ -243,7 +243,7 @@
               type="button"
               class="btn-icon-analytics"
               (click)="openExerciseReview(ex, $event)"
-              title="Analitika"
+              title="Analytics"
             >
               <span class="material-icons">analytics</span>
             </button>
@@ -253,7 +253,7 @@
               class="btn-start"
               (click)="startExercise(ex)"
             >
-              {{ ex.studentAttempt ? 'Ponovi' : 'Počni' }}
+              {{ ex.studentAttempt ? 'Retry' : 'Start' }}
             </button>
             <button
               *ngIf="isExerciseJourneyLocked(ex)"
@@ -273,25 +273,25 @@
   <div class="empty-state" *ngIf="!loading && exercises.length === 0">
     <span class="material-icons empty-icon">search_off</span>
     <ng-container *ngIf="hasActiveFilters()">
-      <h3>Nijedna vežba ne odgovara filterima</h3>
-      <p>Pokušajte da prilagodite ili uklonite filtere</p>
-      <button class="btn-clear-filters" (click)="clearFilters()">Ukloni filtere</button>
+      <h3>No exercises match your filters</h3>
+      <p>Try adjusting or clearing your filters</p>
+      <button class="btn-clear-filters" (click)="clearFilters()">Clear Filters</button>
     </ng-container>
     <ng-container *ngIf="!hasActiveFilters() && accessDenied">
-      <h3>Vežbe nisu dostupne</h3>
-      <p *ngIf="accessReason === 'BATCH_NOT_ACTIVE'">Vaša grupa još nije aktivna. Kontaktirajte nastavnika za pristup.</p>
-      <p *ngIf="accessReason === 'LEARNING_DISABLED'">Pristup vežbama nije omogućen za vaš tip grupe. Kontaktirajte nastavnika.</p>
-      <p *ngIf="!accessReason">Pristup vežbama trenutno nije dostupan. Kontaktirajte nastavnika.</p>
+      <h3>Exercises not available</h3>
+      <p *ngIf="accessReason === 'BATCH_NOT_ACTIVE'">Your batch is not yet active. Please contact your teacher to enable access.</p>
+      <p *ngIf="accessReason === 'LEARNING_DISABLED'">Exercise access is not enabled for your batch type. Please contact your teacher.</p>
+      <p *ngIf="!accessReason">Exercise access is currently unavailable. Please contact your teacher.</p>
     </ng-container>
     <ng-container *ngIf="!hasActiveFilters() && !accessDenied && !isTeacherOrAdmin">
-      <h3>Još nema vežbi</h3>
-      <p>Vežbe će se pojaviti ovde kada ih nastavnik kreira</p>
+      <h3>No exercises yet</h3>
+      <p>Exercises will appear here once your teacher creates them</p>
     </ng-container>
     <ng-container *ngIf="!hasActiveFilters() && !accessDenied && isTeacherOrAdmin">
-      <h3>Još nema vežbi</h3>
-      <p>Počnite kreiranjem prve interaktivne vežbe</p>
+      <h3>No exercises yet</h3>
+      <p>Get started by creating your first interactive exercise</p>
       <button class="btn-create" (click)="navigateToCreate()">
-        <span class="material-icons">add</span> Kreiraj vežbu
+        <span class="material-icons">add</span> Create Exercise
       </button>
     </ng-container>
   </div>
@@ -299,9 +299,9 @@
   <!-- Empty tab state -->
   <div class="empty-state" *ngIf="!loading && exercises.length > 0 && filteredExercises.length === 0">
     <span class="material-icons empty-icon">inbox</span>
-    <h3>Nema {{ activeTab === 'all' ? '' : activeTab + ' ' }}vežbi</h3>
-    <p>Pokušajte {{ activeTab !== 'all' ? 'drugi tab ili ' : '' }}prilagodite filtere</p>
-    <button class="btn-clear-filters" *ngIf="hasActiveFilters()" (click)="clearFilters()">Ukloni filtere</button>
+    <h3>No {{ activeTab === 'all' ? '' : activeTab + ' ' }}exercises found</h3>
+    <p>Try {{ activeTab !== 'all' ? 'another tab or ' : '' }}adjusting your filters</p>
+    <button class="btn-clear-filters" *ngIf="hasActiveFilters()" (click)="clearFilters()">Clear Filters</button>
   </div>
 
   <!-- Pagination -->

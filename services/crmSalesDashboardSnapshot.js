@@ -132,7 +132,7 @@ function cardBlock(x, y, title, count, total, headerColor, counsellors, cardType
 }
 
 function buildDashboardSvg(data) {
-  const date = new Date().toLocaleDateString('sr-Latn-RS', {
+  const date = new Date().toLocaleDateString('en-IN', {
     timeZone: 'Asia/Colombo',
     weekday: 'long',
     year: 'numeric',

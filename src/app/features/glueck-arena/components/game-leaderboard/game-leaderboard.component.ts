@@ -17,8 +17,8 @@ import { GameStatsBannerComponent } from '../../shared/game-stats-banner/game-st
           <mat-icon>arrow_back</mat-icon>
         </button>
         <div>
-          <h1><mat-icon>leaderboard</mat-icon> GlückArena Rang lista</h1>
-          <p>Pogledajte gde se nalazite u odnosu na ostale učenike</p>
+          <h1><mat-icon>leaderboard</mat-icon> GlückArena Leaderboard</h1>
+          <p>See how you stack up against other students</p>
         </div>
       </div>
 
@@ -28,7 +28,7 @@ import { GameStatsBannerComponent } from '../../shared/game-stats-banner/game-st
           <!-- Top 3 podium -->
           <div class="lb__podium-card" *ngIf="!loading">
             <div class="lb__podium-heading">
-              <mat-icon>emoji_events</mat-icon> Najbolji učenici
+              <mat-icon>emoji_events</mat-icon> Top Students
             </div>
             <div class="lb__podium">
               <div class="lb__podium__place lb__podium__place--2">
@@ -93,7 +93,7 @@ import { GameStatsBannerComponent } from '../../shared/game-stats-banner/game-st
 
           <div class="lb__stats-card" *ngIf="!loading">
             <div class="lb__stats-heading">
-              <mat-icon>person</mat-icon> Vaša statistika
+              <mat-icon>person</mat-icon> Your Stats
             </div>
             <app-game-stats-banner [stats]="myStats"></app-game-stats-banner>
           </div>
@@ -116,13 +116,13 @@ import { GameStatsBannerComponent } from '../../shared/game-stats-banner/game-st
         <div class="lb__right-card">
           <div class="lb__right">
             <div class="lb__right-heading">
-              <mat-icon>leaderboard</mat-icon> Rang lista
+              <mat-icon>leaderboard</mat-icon> Leaderboard
             </div>
             <!-- Period tabs -->
             <mat-tab-group (selectedIndexChange)="onTabChange($event)" class="lb__tabs">
-            <mat-tab label="Sve vreme"></mat-tab>
-            <mat-tab label="Ova sedmica"></mat-tab>
-            <mat-tab label="Danas"></mat-tab>
+            <mat-tab label="All Time"></mat-tab>
+            <mat-tab label="This Week"></mat-tab>
+            <mat-tab label="Today"></mat-tab>
           </mat-tab-group>
 
           <!-- Full list -->
@@ -140,7 +140,7 @@ import { GameStatsBannerComponent } from '../../shared/game-stats-banner/game-st
                 >{{ e.rank }}</span>
                 <div class="lb__avatar">{{ e.name.charAt(0).toUpperCase() }}</div>
                 <div class="lb__info">
-                  <span class="lb__name">{{ e.name }} <span *ngIf="isMe(e)" class="lb__you">(Vi)</span></span>
+                  <span class="lb__name">{{ e.name }} <span *ngIf="isMe(e)" class="lb__you">(You)</span></span>
                   <div class="lb__stats">
                     <span class="lb__stat"><mat-icon>bolt</mat-icon> {{ e.totalXp }}</span>
                     <span class="lb__stat"><mat-icon>sports_esports</mat-icon> {{ e.gamesCompleted ?? 0 }}</span>
@@ -154,8 +154,8 @@ import { GameStatsBannerComponent } from '../../shared/game-stats-banner/game-st
 
             <div *ngIf="leaderboard.length === 0" class="lb__empty">
               <mat-icon>emoji_events</mat-icon>
-              <p *ngIf="periodLabel === 'all' && myStats?.gamesCompleted">Još nema rangiranih igrača — vi vodite sa {{ myStats!.totalXp }} XP!</p>
-              <p *ngIf="!(periodLabel === 'all' && myStats?.gamesCompleted)">Za ovaj period još nema završenih igara. Igrajte igru da biste se pojavili ovde!</p>
+              <p *ngIf="periodLabel === 'all' && myStats?.gamesCompleted">No other players ranked yet — you're leading with {{ myStats!.totalXp }} XP!</p>
+              <p *ngIf="!(periodLabel === 'all' && myStats?.gamesCompleted)">No completed games for this period yet. Play a game to appear here!</p>
             </div>
           </div>
 

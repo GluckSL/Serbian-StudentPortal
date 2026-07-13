@@ -1630,7 +1630,7 @@ export class KrishDashboardComponent implements OnInit, OnDestroy {
 
   formatDate(d?: string): string {
     if (!d) return '—';
-    return new Date(d).toLocaleDateString('sr-Latn-RS', { day: '2-digit', month: 'short', year: 'numeric' });
+    return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
   }
 
   /** Normalize legacy HOLD and unknown statuses for display. */

@@ -109,7 +109,7 @@ export class StudentDocumentsComponent implements OnInit, OnDestroy {
           return this.documentService.getDashboardBundle({ force }).pipe(
             catchError((error) => {
               console.error('Error loading student documents dashboard:', error);
-              this.showError('Greška pri učitavanju podataka. Osvežite stranicu.');
+              this.showError('Error loading data. Please refresh the page.');
               return of(null);
             }),
             switchMap((bundle) => of({ bundle, force }))
@@ -192,7 +192,7 @@ export class StudentDocumentsComponent implements OnInit, OnDestroy {
         : a.generatedFile?.fileName || `${a.displayName || 'agreement'}.pdf`;
     this.agreementService.downloadInstance(a._id, type).subscribe({
       next: (blob) => this.documentService.triggerFileDownload(blob, name),
-      error: (e) => this.showError(e.error?.message || 'Preuzimanje nije uspelo')
+      error: (e) => this.showError(e.error?.message || 'Download failed')
     });
   }
 
@@ -206,7 +206,7 @@ export class StudentDocumentsComponent implements OnInit, OnDestroy {
           this.showError(e?.message || 'Allow popups to view the document');
         }
       },
-      error: (e) => this.showError(e.error?.message || 'Nije moguće otvoriti ugovor')
+      error: (e) => this.showError(e.error?.message || 'Could not open agreement')
     });
   }
 
@@ -220,7 +220,7 @@ export class StudentDocumentsComponent implements OnInit, OnDestroy {
           this.showError(e?.message || 'Allow popups to view the document');
         }
       },
-      error: () => this.showError('Nije moguće otvoriti pregled dokumenta')
+      error: () => this.showError('Could not open document preview')
     });
   }
 
@@ -244,7 +244,7 @@ export class StudentDocumentsComponent implements OnInit, OnDestroy {
         input.value = '';
       },
       error: e => {
-        this.showError(e.error?.message || 'Otpremanje nije uspelo');
+        this.showError(e.error?.message || 'Upload failed');
         this.uploadingAgreementId = null;
         input.value = '';
       }
@@ -253,10 +253,10 @@ export class StudentDocumentsComponent implements OnInit, OnDestroy {
 
   agreementStatusLabel(s: string): string {
     const map: Record<string, string> = {
-      SENT: 'Čeka se vaš potpis',
-      SIGNED_PENDING: 'U pregledu',
-      VERIFIED: 'Verifikovano',
-      REJECTED: 'Odbijeno'
+      SENT: 'Awaiting Your Signature',
+      SIGNED_PENDING: 'Under Review',
+      VERIFIED: 'Verified',
+      REJECTED: 'Rejected'
     };
     return map[s] || s;
   }
@@ -314,7 +314,7 @@ export class StudentDocumentsComponent implements OnInit, OnDestroy {
 
   validateFile(file: File): string | null {
     if (file.size > 10 * 1024 * 1024) {
-      return 'Veličina fajla mora biti manja od 10 MB';
+      return 'File size must be less than 10MB';
     }
     const allowedTypes = [
       'application/pdf',
@@ -328,7 +328,7 @@ export class StudentDocumentsComponent implements OnInit, OnDestroy {
     const nameOk = /\.(pdf|jpe?g|png|docx?)$/i.test(file.name || '');
     const mimeOk = !!file.type && allowedTypes.includes(file.type);
     if (!mimeOk && !nameOk) {
-      return 'Nevažeći tip fajla. Dozvoljeni su samo PDF, JPG, PNG, DOC i DOCX.';
+      return 'Invalid file type. Only PDF, JPG, PNG, DOC, and DOCX files are allowed.';
     }
     return null;
   }
@@ -336,7 +336,7 @@ export class StudentDocumentsComponent implements OnInit, OnDestroy {
   // Upload document
   async uploadDocument(): Promise<void> {
     if (!this.selectedFile || !this.selectedDocumentType || !this.documentName) {
-      this.showError('Popunite sva obavezna polja i izaberite fajl');
+      this.showError('Please fill in all required fields and select a file');
       return;
     }
     
@@ -354,14 +354,14 @@ export class StudentDocumentsComponent implements OnInit, OnDestroy {
       const response = await this.documentService.uploadDocument(formData).toPromise();
       
       if (response && response.success) {
-        this.showSuccess('Dokument je uspešno otpremljen!');
+        this.showSuccess('Document uploaded successfully!');
         this.resetUploadForm();
         this.documentService.invalidateDashboardCache();
         this.refreshDashboard(true);
       }
     } catch (error: any) {
       console.error('Error uploading document:', error);
-      this.showError(error.error?.message || 'Greška pri otpremanju dokumenta. Pokušajte ponovo.');
+      this.showError(error.error?.message || 'Error uploading document. Please try again.');
     } finally {
       this.isUploading = false;
     }
@@ -369,18 +369,18 @@ export class StudentDocumentsComponent implements OnInit, OnDestroy {
 
   // Delete document
   deleteDocument(documentId: string): void {
-    this.notify.confirm('Obriši dokument', 'Da li ste sigurni da želite da obrišete ovaj dokument?', 'Da, obriši', 'Otkaži').subscribe(async ok => {
+    this.notify.confirm('Delete Document', 'Are you sure you want to delete this document?', 'Yes, Delete', 'Cancel').subscribe(async ok => {
       if (!ok) return;
       try {
         const response = await this.documentService.deleteDocument(documentId).toPromise();
         if (response && response.success) {
-          this.showSuccess('Dokument je uspešno obrisan');
+          this.showSuccess('Document deleted successfully');
           this.documentService.invalidateDashboardCache();
           this.refreshDashboard(true);
         }
       } catch (error: any) {
         console.error('Error deleting document:', error);
-        this.showError(error.error?.message || 'Greška pri brisanju dokumenta');
+        this.showError(error.error?.message || 'Error deleting document');
       }
     });
   }
@@ -523,12 +523,12 @@ export class StudentDocumentsComponent implements OnInit, OnDestroy {
 
       const response = await this.documentService.uploadDocument(formData).toPromise();
       if (response?.success) {
-        this.showSuccess(isReplace ? 'Dokument je uspešno zamenjen' : 'Dokument je uspešno otpremljen');
+        this.showSuccess(isReplace ? 'Document replaced successfully' : 'Document uploaded successfully');
         this.documentService.invalidateDashboardCache();
         this.refreshDashboard(true);
       }
     } catch (error: any) {
-      this.showError(error?.error?.message || 'Otpremanje dokumenta nije uspelo');
+      this.showError(error?.error?.message || 'Failed to upload document');
     } finally {
       this.uploadingRequirementType = null;
     }
@@ -585,7 +585,7 @@ export class StudentDocumentsComponent implements OnInit, OnDestroy {
   }
 
   formatDate(date: Date | string): string {
-    return new Date(date).toLocaleDateString('sr-Latn-RS', {
+    return new Date(date).toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'short',
       day: 'numeric'
@@ -635,7 +635,7 @@ export class StudentDocumentsComponent implements OnInit, OnDestroy {
       error: () => {
         this.universityApplications = [];
         this.loadingUniversities = false;
-        this.notify.error('Nije moguće učitati univerzitetske prijave');
+        this.notify.error('Failed to load university applications');
       }
     });
   }
@@ -676,7 +676,7 @@ export class StudentDocumentsComponent implements OnInit, OnDestroy {
 
   universityStatusLabel(status: string): string {
     if (status === 'in_progress') return 'In Progress';
-    if (status === 'completed') return 'Završeno';
+    if (status === 'completed') return 'Completed';
     return 'Pending';
   }
 

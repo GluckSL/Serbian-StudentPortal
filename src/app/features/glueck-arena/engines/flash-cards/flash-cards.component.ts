@@ -1,4 +1,4 @@
-﻿import { Component, Input, Output, EventEmitter, OnInit, OnDestroy } from '@angular/core';
+import { Component, Input, Output, EventEmitter, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MaterialModule } from '../../../../shared/material.module';
@@ -42,38 +42,38 @@ export interface FCResult {
 
       <div class="fc__card" *ngIf="phase === 'playing' && currentQuestion">
         <div class="fc__card-inner">
-          <div class="fc__prompt">{{ currentQuestion.hint || 'Prevedite ovu reč' }}</div>
+          <div class="fc__prompt">{{ currentQuestion.hint || 'Translate this word' }}</div>
           <div class="fc__word-display" *ngIf="!flipped">{{ currentQuestion.scrambledLetters?.join(' ') || currentQuestion.word || '***' }}</div>
           <div class="fc__reveal" *ngIf="flipped">{{ currentQuestion.word || currentQuestion.answerWord || '—' }}</div>
         </div>
         <button class="fc__flip-btn" mat-stroked-button (click)="flip()" *ngIf="!flipped">
-          <mat-icon>visibility</mat-icon> Prikaži odgovor
+          <mat-icon>visibility</mat-icon> Show answer
         </button>
         <div class="fc__actions" *ngIf="flipped">
           <button mat-raised-button color="primary" (click)="rate(1)">
-            <mat-icon>sentiment_satisfied</mat-icon> Znao/la sam (+10)
+            <mat-icon>sentiment_satisfied</mat-icon> I knew it (+10)
           </button>
           <button mat-raised-button color="warn" (click)="rate(0)">
-            <mat-icon>sentiment_dissatisfied</mat-icon> Nisam znao/la (+0)
+            <mat-icon>sentiment_dissatisfied</mat-icon> I didn't (+0)
           </button>
         </div>
       </div>
 
       <div class="fc__complete" *ngIf="phase === 'complete'">
         <mat-icon class="fc__complete-icon">emoji_events</mat-icon>
-        <h3>Sesija završena!</h3>
+        <h3>Session Complete!</h3>
         <div class="fc__stats">
           <div class="fc__stat">
             <span class="fc__stat-val">{{ score }}</span>
-            <span class="fc__stat-lbl">Rezultat</span>
+            <span class="fc__stat-lbl">Score</span>
           </div>
           <div class="fc__stat">
             <span class="fc__stat-val">{{ accuracy }}%</span>
-            <span class="fc__stat-lbl">Tačnost</span>
+            <span class="fc__stat-lbl">Accuracy</span>
           </div>
           <div class="fc__stat">
             <span class="fc__stat-val">{{ correctCount }}/{{ questions.length }}</span>
-            <span class="fc__stat-lbl">Tačno</span>
+            <span class="fc__stat-lbl">Correct</span>
           </div>
         </div>
       </div>

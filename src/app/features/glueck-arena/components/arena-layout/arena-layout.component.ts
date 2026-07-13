@@ -19,7 +19,7 @@ import { Subscription } from 'rxjs';
            [active]="gamesRla.isActive"
            [routerLinkActiveOptions]="{ exact: true }">
           <mat-icon>sports_esports</mat-icon>
-          Igre
+          Games
         </a>
         <a mat-tab-link
            [routerLink]="['/glueck-arena/battlefield']"
@@ -27,7 +27,7 @@ import { Subscription } from 'rxjs';
            #bfRla="routerLinkActive"
            [active]="bfRla.isActive">
           <mat-icon>sports_kabaddi</mat-icon>
-          Bojno polje
+          Battlefield
         </a>
       </nav>
 

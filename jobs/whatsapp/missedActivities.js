@@ -41,7 +41,7 @@ async function processMissedActivities(batchSettings) {
       phone,
       name: student.name,
       type: NOTIFICATION_TYPES.MISSED_ACTIVITIES,
-      message: `Zdravo ${student.name}, nema završenih aktivnosti u 7 dana. Prijavite se i završite bar jednu danas!`,
+      message: `Hi ${student.name}, no activities completed in 7 days. Log in and finish at least one today!`,
       data: {
         studentId: student._id,
         batch: student.batch,
@@ -89,7 +89,7 @@ async function processExcessiveAbsences(batchSettings) {
       phone,
       name: student.name,
       type: NOTIFICATION_TYPES.EXCESSIVE_ABSENCES,
-      message: `Zdravo ${student.name}, odsutni ste sa ${absentCount} od poslednjih ${recentMeetings.length} časova. Molimo razgovarajte sa vašim nastavnikom.`,
+      message: `Hi ${student.name}, absent ${absentCount} of your last ${recentMeetings.length} classes. Please speak with your teacher.`,
       data: {
         studentId: student._id,
         batch: student.batch,

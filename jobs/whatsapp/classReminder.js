@@ -11,7 +11,7 @@ const User = require('../../models/User');
 const { sendWhatsappNotification, NOTIFICATION_TYPES, getBatchSettingsMap, isBatchAllowedBySettings } = require('../../services/whatsappCrmService');
 
 const REMINDER_WINDOW_MINUTES = 30;
-const PORTAL_URL = (process.env.PORTAL_URL || process.env.FRONTEND_URL || 'https://portal.serbia.gluckglobal.com').replace(/\/$/, '');
+const PORTAL_URL = (process.env.FRONTEND_URL || 'https://gluckstudentsportal.com').replace(/\/$/, '');
 
 async function processClassReminders() {
   const batchSettings = await getBatchSettingsMap();
@@ -65,7 +65,7 @@ async function processClassReminders() {
         phone: userPhone,
         name: attendee.name,
         type: NOTIFICATION_TYPES.CLASS_REMINDER,
-        message: `Zdravo ${attendee.name}, "${topic}" počinje za ${minutesUntilStart} min. Pridružite se putem Glück Global studentskog portala: ${PORTAL_URL}/login — prijavite se, otvorite Moj čas i tapnite Pridruži se kada dođe vreme.`,
+        message: `Hi ${attendee.name}, "${topic}" starts in ${minutesUntilStart} min. Join via the Glück Global student portal: ${PORTAL_URL}/login — sign in, open My Class, and tap Join now when it is time.`,
         data: {
           meetingId: meeting._id,
           topic,
@@ -87,7 +87,7 @@ async function processClassReminders() {
           phone: teacherPhone,
           name: teacher.name,
           type: NOTIFICATION_TYPES.CLASS_REMINDER,
-          message: `Zdravo ${teacher.name}, "${topic}" (Grupa ${meeting.batch}) počinje za ${minutesUntilStart} min. Pokrenite: ${meeting.startUrl || joinUrl}`,
+          message: `Hi ${teacher.name}, "${topic}" (Batch ${meeting.batch}) starts in ${minutesUntilStart} min. Start: ${meeting.startUrl || joinUrl}`,
           data: {
             meetingId: meeting._id,
             topic,

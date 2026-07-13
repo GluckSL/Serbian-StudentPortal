@@ -1,4 +1,4 @@
-﻿import { Component, OnInit } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { StudentProgressService } from '../../services/student-progress.service';
@@ -166,6 +166,6 @@ export class StudentProgressComponent implements OnInit {
   formatDate(d: string | Date): string {
     if (!d) return '';
     const dt = new Date(d);
-    return dt.toLocaleDateString('sr-Latn-RS', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    return dt.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
   }
 }

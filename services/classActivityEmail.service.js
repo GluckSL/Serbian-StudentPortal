@@ -23,7 +23,7 @@ function escapeHtml(value = '') {
 function formatClassDateTime(startTime, timeZone = 'Asia/Colombo') {
   if (!startTime) return 'N/A';
   const d = new Date(startTime);
-  return d.toLocaleString('sr-Latn-RS', {
+  return d.toLocaleString('en-US', {
     weekday: 'short',
     year: 'numeric',
     month: 'short',

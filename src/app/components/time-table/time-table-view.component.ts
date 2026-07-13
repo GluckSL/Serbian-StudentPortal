@@ -1,4 +1,4 @@
-﻿import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { TimeTableService } from '../../services/timeTable.service';
 import { AuthService } from '../../services/auth.service';
 import { StudentService } from '../../services/student.service';
@@ -317,7 +317,7 @@ export class TimeTableViewComponent implements OnInit, OnDestroy {
     const key = this.toIstDateKey(date);
     if (!key) return new Date(0);
     const d = new Date(`${key}T00:00:00+05:30`);
-    const wd = d.toLocaleDateString('sr-Latn-RS', { weekday: 'short', timeZone: 'Asia/Kolkata' });
+    const wd = d.toLocaleDateString('en-US', { weekday: 'short', timeZone: 'Asia/Kolkata' });
     const map: Record<string, number> = { Mon: 0, Tue: 1, Wed: 2, Thu: 3, Fri: 4, Sat: 5, Sun: 6 };
     d.setDate(d.getDate() - (map[wd] ?? 0));
     return d;
@@ -327,16 +327,16 @@ export class TimeTableViewComponent implements OnInit, OnDestroy {
     const end = new Date(weekStartMonday);
     end.setDate(end.getDate() + 6);
     const opts: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric', timeZone: 'Asia/Kolkata' };
-    const y = weekStartMonday.toLocaleDateString('sr-Latn-RS', { year: 'numeric', timeZone: 'Asia/Kolkata' });
-    return `${weekStartMonday.toLocaleDateString('sr-Latn-RS', opts)} – ${end.toLocaleDateString('sr-Latn-RS', opts)}, ${y}`;
+    const y = weekStartMonday.toLocaleDateString('en-US', { year: 'numeric', timeZone: 'Asia/Kolkata' });
+    return `${weekStartMonday.toLocaleDateString('en-US', opts)} – ${end.toLocaleDateString('en-US', opts)}, ${y}`;
   }
 
   formatGridDayName(cell: JourneyGridCell): string {
-    return cell.date.toLocaleDateString('sr-Latn-RS', { weekday: 'short', timeZone: 'Asia/Kolkata' });
+    return cell.date.toLocaleDateString('en-US', { weekday: 'short', timeZone: 'Asia/Kolkata' });
   }
 
   formatGridDayDate(cell: JourneyGridCell): string {
-    return cell.date.toLocaleDateString('sr-Latn-RS', { month: 'short', day: 'numeric', timeZone: 'Asia/Kolkata' });
+    return cell.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'Asia/Kolkata' });
   }
 
   gridCellHasItems(cell: JourneyGridCell): boolean {
@@ -685,7 +685,7 @@ export class TimeTableViewComponent implements OnInit, OnDestroy {
     const isAdminView = this.userRole === 'ADMIN' || this.userRole === 'SUB_ADMIN';
     if (isAdminView) {
       const now = new Date();
-      return `${now.toLocaleDateString('sr-Latn-RS', { month: 'long', year: 'numeric' })} Schedule`;
+      return `${now.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })} Schedule`;
     }
     if (this.userRole === 'STUDENT') {
       const batch = this.journeyTimetable?.batchName;
@@ -702,14 +702,14 @@ export class TimeTableViewComponent implements OnInit, OnDestroy {
     const opts: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: tz };
     const start = new Date(meeting.startTime);
     const end = new Date(start.getTime() + (meeting.duration || 0) * 60000);
-    const s = start.toLocaleTimeString('sr-Latn-RS', opts);
-    const e = end.toLocaleTimeString('sr-Latn-RS', opts);
+    const s = start.toLocaleTimeString('en-GB', opts);
+    const e = end.toLocaleTimeString('en-GB', opts);
     return `${s} - ${e}`;
   }
 
   // Return IST date parts (year/month/day) for comparison
   private datePartsIST(d: Date): { y: number; m: number; day: number } {
-    const fmt = new Intl.DateTimeFormat('sr-Latn-RS', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' });
+    const fmt = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' });
     const parts = fmt.formatToParts(d);
     return {
       y: Number(parts.find(p => p.type === 'year')?.value || 0),
@@ -778,7 +778,7 @@ export class TimeTableViewComponent implements OnInit, OnDestroy {
       const tz = 'Asia/Kolkata';
       const withDiff = dayMatches.map(m => {
         const mStart = new Date(m.startTime);
-        const mParts = new Intl.DateTimeFormat('sr-Latn-RS', { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(mStart);
+        const mParts = new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(mStart);
         const mH = Number(mParts.find(p => p.type === 'hour')?.value || 0);
         const mMin = Number(mParts.find(p => p.type === 'minute')?.value || 0);
         return { m, diff: Math.abs(mH * 60 + mMin - slotMins) };
@@ -872,12 +872,12 @@ export class TimeTableViewComponent implements OnInit, OnDestroy {
       const end = new Date(start);
       end.setDate(end.getDate() + 6);
       const opts: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric', timeZone: 'Asia/Kolkata' };
-      const s = start.toLocaleDateString('sr-Latn-RS', opts);
-      const e = end.toLocaleDateString('sr-Latn-RS', opts);
-      const y = end.toLocaleDateString('sr-Latn-RS', { year: 'numeric', timeZone: 'Asia/Kolkata' });
+      const s = start.toLocaleDateString('en-US', opts);
+      const e = end.toLocaleDateString('en-US', opts);
+      const y = end.toLocaleDateString('en-US', { year: 'numeric', timeZone: 'Asia/Kolkata' });
       return `${s} – ${e}, ${y}`;
     }
-    return this.currentDate.toLocaleDateString('sr-Latn-RS', { month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata' });
+    return this.currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'Asia/Kolkata' });
   }
 
   goToPrev(): void {

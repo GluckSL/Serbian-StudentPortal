@@ -115,7 +115,7 @@ async function linkMeetingToTimetable({
 }) {
   const TimeTable = require('../models/TimeTable');
   const meetingDate = new Date(meeting.startTime);
-  const dayOfWeek = meetingDate.toLocaleDateString('sr-Latn-RS', {
+  const dayOfWeek = meetingDate.toLocaleDateString('en-US', {
     weekday: 'long',
     timeZone: 'Asia/Kolkata'
   }).toLowerCase();
@@ -478,7 +478,7 @@ async function linkTimetableZoomSlot(meeting, previousZoomId) {
   const TimeTable = require('../models/TimeTable');
   const meetingDate = new Date(meeting.startTime);
   const dayOfWeek = meetingDate
-    .toLocaleDateString('sr-Latn-RS', { weekday: 'long', timeZone: 'Asia/Kolkata' })
+    .toLocaleDateString('en-US', { weekday: 'long', timeZone: 'Asia/Kolkata' })
     .toLowerCase();
   const newZoomId = String(meeting.zoomMeetingId || '');
   if (!newZoomId) return;

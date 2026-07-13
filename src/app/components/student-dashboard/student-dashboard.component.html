@@ -4,8 +4,8 @@
   <!-- Header -->
   <!-- BEFORE: the dashboard header used plain gray page chrome instead of the unified Arena gradient hero. -->
   <div class="dashboard-header">
-    <h1>Dobrodošli, {{ basicUser?.name || 'Učenik' }}!</h1>
-    <p class="subtitle" *ngIf="basicUser?.level">Nivo: {{ basicUser.level }}</p>
+    <h1>Welcome, {{ basicUser?.name || 'Student' }}!</h1>
+    <p class="subtitle" *ngIf="basicUser?.level">Level: {{ basicUser.level }}</p>
   </div>
 
   <!-- Meeting Notifications Widget -->
@@ -14,7 +14,7 @@
   <!-- Loading State -->
   <div *ngIf="loading" class="loading-container">
     <mat-spinner></mat-spinner>
-    <p>Učitavanje kontrolne table...</p>
+    <p>Loading your dashboard...</p>
   </div>
 
   <!-- Error State -->
@@ -29,13 +29,13 @@
     <!-- Quick Actions -->
     <mat-card class="quick-actions-card">
       <mat-card-header>
-        <mat-card-title>Brze akcije</mat-card-title>
+        <mat-card-title>Quick Actions</mat-card-title>
       </mat-card-header>
       <mat-card-content>
         <div class="action-buttons">
           <button mat-raised-button color="primary" routerLink="/student/meetings">
             <mat-icon>event</mat-icon>
-            Moji časovi
+            My Classes
           </button>
           <button mat-raised-button routerLink="/student/ai-tutor">
             <mat-icon>psychology</mat-icon>
@@ -43,7 +43,7 @@
           </button>
           <button mat-raised-button routerLink="/profile">
             <mat-icon>person</mat-icon>
-            Moj profil
+            My Profile
           </button>
         </div>
       </mat-card-content>
@@ -54,13 +54,13 @@
       <mat-card-header>
         <mat-card-title>
           <mat-icon>trending_up</mat-icon>
-          Napredak kursa
+          Course Progress
         </mat-card-title>
       </mat-card-header>
       <mat-card-content>
         <div *ngFor="let progress of courseProgressList" class="progress-item">
           <div class="progress-header">
-            <span class="course-name">{{ progress.courseId?.name || 'Kurs' }}</span>
+            <span class="course-name">{{ progress.courseId?.name || 'Course' }}</span>
             <span class="progress-percentage">{{ progress.progressPercentage }}%</span>
           </div>
           <mat-progress-bar 
@@ -69,7 +69,7 @@
             [color]="getProgressColor(progress.progressPercentage)">
           </mat-progress-bar>
           <div class="progress-footer">
-            <span class="last-updated">Poslednje ažuriranje: {{ progress.lastUpdated | date:'short' }}</span>
+            <span class="last-updated">Last updated: {{ progress.lastUpdated | date:'short' }}</span>
           </div>
         </div>
       </mat-card-content>
@@ -80,7 +80,7 @@
       <mat-card-header>
         <mat-card-title>
           <mat-icon>account_circle</mat-icon>
-          Sažetak profila
+          Profile Summary
         </mat-card-title>
       </mat-card-header>
       <mat-card-content>
@@ -95,7 +95,7 @@
           </div>
           <div class="info-item" *ngIf="userProfile.registeredAt">
             <mat-icon>event</mat-icon>
-            <span>Član od {{ userProfile.registeredAt | date:'mediumDate' }}</span>
+            <span>Member since {{ userProfile.registeredAt | date:'mediumDate' }}</span>
           </div>
         </div>
       </mat-card-content>

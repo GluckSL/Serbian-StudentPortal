@@ -1208,13 +1208,13 @@ router.get("/teachers", async (req, res) => {
     const { level, medium } = req.query;
 
     if (!level || !medium) {
-      return res.status(400).json({ msg: "Nivo i medijum su obavezni" });
+      return res.status(400).json({ msg: "Level and medium are required" });
     }
 
     // 1ï¸âƒ£ Find the course for this level
     const course = await Course.findOne({ title: level }); // assuming title = level like "A1"
     if (!course) {
-      return res.status(404).json({ msg: "Nije pronađen kurs za ovaj nivo" });
+      return res.status(404).json({ msg: "No course found for this level" });
     }
 
     // 2ï¸âƒ£ Find teachers (including TEACHER_ADMIN) who teach this course & match medium
@@ -1225,7 +1225,7 @@ router.get("/teachers", async (req, res) => {
     }).select("name email regNo medium assignedCourses");
 
     if (!teachers || teachers.length === 0) {
-      return res.status(404).json({ msg: "Nisu pronađeni nastavnici za ovaj nivo i medijum" });
+      return res.status(404).json({ msg: "No teachers found for this level and medium" });
     }
 
     res.json(teachers);
@@ -1241,7 +1241,7 @@ router.get("/teachersByMedium", async (req, res) => {
     const { medium } = req.query;
 
     if (!medium) {
-      return res.status(400).json({ msg: "Medijum je obavezan" });
+      return res.status(400).json({ msg: "Medium is required" });
     }
 
     const teachers = await User.find({
@@ -1250,7 +1250,7 @@ router.get("/teachersByMedium", async (req, res) => {
     }).select("name email regNo medium assignedCourses");
 
     if (!teachers || teachers.length === 0) {
-      return res.status(404).json({ msg: "Nisu pronađeni nastavnici za ovaj medijum" });
+      return res.status(404).json({ msg: "No teachers found for this medium" });
     }
 
     res.json(teachers);
@@ -1297,21 +1297,21 @@ router.post("/signup", optionalVerifyToken, async (req, res) => {
     const normalizedName = typeof name === "string" ? name.trim() : "";
 
     if (!normalizedName) {
-      return res.status(400).json({ msg: "Ime je obavezno" });
+      return res.status(400).json({ msg: "Name is required" });
     }
     if (!normalizedEmail) {
-      return res.status(400).json({ msg: "E-mail je obavezan" });
+      return res.status(400).json({ msg: "Email is required" });
     }
     if (!normalizedRole) {
-      return res.status(400).json({ msg: "Uloga je obavezna" });
+      return res.status(400).json({ msg: "Role is required" });
     }
     if (!["STUDENT", "TEACHER", "ADMIN", "SUB_ADMIN", "TEACHER_ADMIN"].includes(normalizedRole)) {
-      return res.status(400).json({ msg: "Neispravna uloga" });
+      return res.status(400).json({ msg: "Invalid role" });
     }
 
     // Fast pre-check for duplicate email (still handle race via E11000 below)
     let existingByEmail = await User.findOne({ email: normalizedEmail });
-    if (existingByEmail) return res.status(400).json({ msg: "Korisnik već postoji" });
+    if (existingByEmail) return res.status(400).json({ msg: "User already exists" });
 
     // regNo is unique; collisions can happen (race conditions / existing data).
     // Try sequential candidates (e.g., SAD003, SAD004...) to guarantee progress.
@@ -1370,7 +1370,7 @@ router.post("/signup", optionalVerifyToken, async (req, res) => {
           // case 2: backend finds one automatically
           const course = await Course.findOne({ title: level });
           if (!course) {
-            return res.status(400).json({ msg: "Nije pronađen kurs za ovaj nivo" });
+            return res.status(400).json({ msg: "No course found for this level" });
           }
 
           const teacher = await User.findOne({
@@ -1382,7 +1382,7 @@ router.post("/signup", optionalVerifyToken, async (req, res) => {
           if (teacher) {
             user.assignedTeacher = teacher._id;
           } else {
-            return res.status(400).json({ msg: "Nije pronađen nastavnik za ovaj nivo i medijum" });
+            return res.status(400).json({ msg: "No teacher found for this level and medium" });
           }
         }
       } else if (user.role === "TEACHER" || user.role === "TEACHER_ADMIN") {
@@ -1407,16 +1407,16 @@ router.post("/signup", optionalVerifyToken, async (req, res) => {
             continue;
           }
           if (dupField === "email") {
-            return res.status(400).json({ msg: "Korisnik već postoji" });
+            return res.status(400).json({ msg: "User already exists" });
           }
-          return res.status(400).json({ error: `${dupField} već postoji` });
+          return res.status(400).json({ error: `${dupField} already exists` });
         }
         throw saveErr;
       }
     }
 
     if (!user?._id) {
-      return res.status(500).json({ error: "Nije moguće dodeliti jedinstven broj registracije. Molimo pokušajte ponovo." });
+      return res.status(500).json({ error: "Failed to allocate unique regNo. Please try again." });
     }
 
     const shouldSendCredentialsEmail =
@@ -1433,7 +1433,7 @@ router.post("/signup", optionalVerifyToken, async (req, res) => {
             status: 'payment_pending',
             userId: user._id,
           });
-          const frontendUrl = process.env.PORTAL_URL || process.env.FRONTEND_URL || 'https://portal.gluckglobal.rs';
+          const frontendUrl = process.env.FRONTEND_URL || 'https://gluckstudentsportal.com';
           const signupUrl = `${frontendUrl}/signup/apply?token=${signupApp.applicationToken}`;
           const linkMail = buildSignupLinkEmail({ name: user.name, signupUrl });
           await transporter.sendMail({ from: process.env.EMAIL_USER, to: user.email, subject: linkMail.subject, html: linkMail.html });
@@ -1459,7 +1459,7 @@ router.post("/signup", optionalVerifyToken, async (req, res) => {
             <li><strong>Password:</strong> ${passwordPlain}</li>
           </ul>
           <p>Please keep this information safe and do not share it with anyone.</p>
-          <p>You can access the Portal at: <a href="${process.env.PORTAL_URL || 'https://portal.gluckglobal.rs'}" target="_blank">${process.env.PORTAL_URL || 'https://portal.gluckglobal.rs'}</a></p>
+          <p>You can access the Portal at: <a href="https://gluckstudentsportal.com" target="_blank">https://gluckstudentsportal.com</a></p>
           <p>Best regards,<br><strong>Gluck Global Pvt Ltd</strong></p>
         </div>
       `,
@@ -1474,7 +1474,7 @@ router.post("/signup", optionalVerifyToken, async (req, res) => {
         }
       }
     }
-    const responsePayload = { msg: "Korisnik je uspešno kreiran", user };
+    const responsePayload = { msg: "User created successfully", user };
     if (user.role === "SUB_ADMIN") {
       responsePayload.generatedCredentials = {
         regNo: user.regNo,
@@ -1512,7 +1512,7 @@ router.post("/login", loginLimiter, async (req, res) => {
     const identifier = (req.body.identifier || req.body.regNo || '').trim();
     const { password, keepSessionActive } = req.body;
 
-    if (!identifier) return res.status(400).json({ msg: "Neispravni podaci za prijavu" });
+    if (!identifier) return res.status(400).json({ msg: "Invalid credentials" });
 
     // Route lookup: email if identifier contains @, otherwise treat as regNo
     let user;
@@ -1521,10 +1521,10 @@ router.post("/login", loginLimiter, async (req, res) => {
     } else {
       user = await User.findOne({ regNo: identifier });
     }
-    if (!user) return res.status(400).json({ msg: "Neispravni podaci za prijavu" });
+    if (!user) return res.status(400).json({ msg: "Invalid credentials" });
 
     const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) return res.status(400).json({ msg: "Neispravni podaci za prijavu" });
+    if (!isMatch) return res.status(400).json({ msg: "Invalid credentials" });
 
     // Keep ADMIN directory password column in sync when recoverable copy is missing.
     // Also auto-activate any student account that was pending (e.g. CRM-synced) — if they
@@ -1624,31 +1624,31 @@ router.post("/setup/request-email-change", setupEmailOtpLimiter, async (req, res
   try {
     const { setupToken, newEmail: rawNewEmail, newPassword, confirmPassword } = req.body;
     if (!setupToken || !rawNewEmail || !newPassword || !confirmPassword) {
-      return res.status(400).json({ msg: 'Sva polja su obavezna.' });
+      return res.status(400).json({ msg: 'All fields are required.' });
     }
     if (newPassword.length < 8) {
-      return res.status(400).json({ msg: 'Lozinka mora imati najmanje 8 znakova.' });
+      return res.status(400).json({ msg: 'Password must be at least 8 characters.' });
     }
     if (newPassword !== confirmPassword) {
-      return res.status(400).json({ msg: 'Lozinke se ne poklapaju.' });
+      return res.status(400).json({ msg: 'Passwords do not match.' });
     }
 
     const decoded = verifyPasswordSetupToken(setupToken);
     const user = await User.findById(decoded.id);
     if (!user || user.role !== 'STUDENT') {
-      return res.status(400).json({ msg: 'Nevažeća sesija podešavanja.' });
+      return res.status(400).json({ msg: 'Invalid setup session.' });
     }
 
     const newEmail = String(rawNewEmail).trim().toLowerCase();
     if (!newEmail.includes('@')) {
-      return res.status(400).json({ msg: 'Molimo unesite ispravnu e-mail adresu.' });
+      return res.status(400).json({ msg: 'Please enter a valid email address.' });
     }
     if (newEmail === String(user.email).toLowerCase()) {
-      return res.status(400).json({ msg: 'Nova e-mail adresa mora biti različita od trenutne.' });
+      return res.status(400).json({ msg: 'New email must be different from your current email.' });
     }
     const taken = await User.findOne({ email: newEmail, _id: { $ne: user._id } });
     if (taken) {
-      return res.status(400).json({ msg: 'Ta e-mail adresa je već registrovana na drugi nalog.' });
+      return res.status(400).json({ msg: 'That email address is already registered to another account.' });
     }
 
     const newPasswordEncrypted = storeRecoverablePassword(newPassword);
@@ -1672,7 +1672,7 @@ router.post("/setup/request-email-change", setupEmailOtpLimiter, async (req, res
   <p><strong>Student:</strong> ${user.name} (${user.regNo})</p>
   <p><strong>Current Email:</strong> ${user.email}</p>
   <p><strong>Requested New Email:</strong> ${newEmail}</p>
-  <p>Please review and approve/reject this request in the <a href="${process.env.PORTAL_URL || 'https://portal.gluckglobal.rs'}/admin/support-tickets">Admin Panel → Support Tickets</a>.</p>
+  <p>Please review and approve/reject this request in the <a href="https://gluckstudentsportal.com/admin/support-tickets">Admin Panel → Support Tickets</a>.</p>
   <p style="color:#9ca3af;font-size:12px;">This is an automated notification from the Glück Global Student Portal.</p>
 </div>`;
 
@@ -1685,14 +1685,14 @@ router.post("/setup/request-email-change", setupEmailOtpLimiter, async (req, res
     }).catch((e) => console.error('[setup/request-email-change] admin notify failed:', e?.message));
 
     return res.json({
-      msg: 'Vaš zahtev je poslat. Tim podrške će ga pregledati i ažurirati vašu e-mail adresu. Bićete obavešteni kada bude odobren.',
+      msg: 'Your request has been sent. The support team will review it and update your email soon. You will be notified once approved.',
     });
   } catch (err) {
     console.error('[setup/request-email-change]', err);
     if (err.name === 'TokenExpiredError' || err.name === 'JsonWebTokenError') {
-      return res.status(400).json({ msg: 'Vaša sesija podešavanja je istekla. Molimo prijavite se ponovo.' });
+      return res.status(400).json({ msg: 'Your setup session expired. Please log in again.' });
     }
-    return res.status(500).json({ msg: 'Nije moguće poslati zahtev. Molimo pokušajte ponovo.' });
+    return res.status(500).json({ msg: 'Could not submit request. Please try again.' });
   }
 });
 
@@ -1700,12 +1700,12 @@ router.post("/setup/request-email-change", setupEmailOtpLimiter, async (req, res
 router.post("/setup/send-otp", setupEmailOtpLimiter, async (req, res) => {
   try {
     const { setupToken } = req.body;
-    if (!setupToken) return res.status(400).json({ msg: 'Token podešavanja je obavezan.' });
+    if (!setupToken) return res.status(400).json({ msg: 'Setup token is required.' });
 
     const decoded = verifyPasswordSetupToken(setupToken);
     const user = await User.findById(decoded.id);
     if (!user || user.role !== 'STUDENT') {
-      return res.status(400).json({ msg: 'Nevažeća sesija podešavanja.' });
+      return res.status(400).json({ msg: 'Invalid setup session.' });
     }
 
     await EmailChangeOtp.deleteMany({ userId: user._id });
@@ -1724,13 +1724,13 @@ router.post("/setup/send-otp", setupEmailOtpLimiter, async (req, res) => {
       console.error('[setup/send-otp] Email send failed:', mailErr.message);
     }
 
-    return res.json({ msg: `Kod za verifikaciju je poslat na ${user.email}.`, email: user.email });
+    return res.json({ msg: `A verification code was sent to ${user.email}.`, email: user.email });
   } catch (err) {
     console.error('[setup/send-otp]', err);
     if (err.name === 'TokenExpiredError' || err.name === 'JsonWebTokenError') {
-      return res.status(400).json({ msg: 'Vaša sesija podešavanja je istekla. Molimo prijavite se ponovo.' });
+      return res.status(400).json({ msg: 'Your setup session expired. Please log in again.' });
     }
-    return res.status(500).json({ msg: 'Nije moguće poslati kod za verifikaciju. Molimo pokušajte ponovo.' });
+    return res.status(500).json({ msg: 'Could not send verification code. Please try again.' });
   }
 });
 
@@ -1740,33 +1740,33 @@ router.post("/setup/verify-otp", setupVerifyOtpLimiter, async (req, res) => {
     const { setupToken, otp } = req.body;
 
     if (!setupToken || !otp) {
-      return res.status(400).json({ msg: 'Token podešavanja i kod za verifikaciju su obavezni.' });
+      return res.status(400).json({ msg: 'Setup token and verification code are required.' });
     }
 
     const decoded = verifyPasswordSetupToken(setupToken);
     const user = await User.findById(decoded.id);
     if (!user || user.role !== 'STUDENT') {
-      return res.status(400).json({ msg: 'Nevažeća sesija podešavanja.' });
+      return res.status(400).json({ msg: 'Invalid setup session.' });
     }
     if (!studentRequiresPasswordSetup(user)) {
-      return res.status(400).json({ msg: 'Podešavanje lozinke nije potrebno za ovaj nalog.' });
+      return res.status(400).json({ msg: 'Password setup is not required for this account.' });
     }
 
     const otpDoc = await EmailChangeOtp.findOne({ userId: user._id, used: false });
     if (!otpDoc || otpDoc.expiresAt < new Date()) {
       if (otpDoc) await EmailChangeOtp.deleteOne({ _id: otpDoc._id });
-      return res.status(400).json({ msg: 'Kod za verifikaciju je istekao. Molimo zatražite novi.' });
+      return res.status(400).json({ msg: 'Verification code expired. Please request a new one.' });
     }
     otpDoc.attempts += 1;
     if (otpDoc.attempts > 5) {
       await EmailChangeOtp.deleteOne({ _id: otpDoc._id });
-      return res.status(400).json({ msg: 'Previše neispravnih pokušaja. Molimo zatražite novi kod.' });
+      return res.status(400).json({ msg: 'Too many invalid attempts. Please request a new code.' });
     }
     await otpDoc.save();
 
     const otpValid = await bcrypt.compare(String(otp).trim(), otpDoc.otpHash);
     if (!otpValid) {
-      return res.status(400).json({ msg: 'Neispravan kod za verifikaciju. Molimo pokušajte ponovo.' });
+      return res.status(400).json({ msg: 'Incorrect verification code. Please try again.' });
     }
 
     const verificationCode = crypto.randomBytes(32).toString('hex');
@@ -1779,9 +1779,9 @@ router.post("/setup/verify-otp", setupVerifyOtpLimiter, async (req, res) => {
   } catch (err) {
     console.error('[setup/verify-otp]', err);
     if (err.name === 'TokenExpiredError' || err.name === 'JsonWebTokenError') {
-      return res.status(400).json({ msg: 'Vaša sesija podešavanja je istekla. Molimo prijavite se ponovo.' });
+      return res.status(400).json({ msg: 'Your setup session expired. Please log in again.' });
     }
-    return res.status(500).json({ msg: 'Nije moguće verifikovati kod. Molimo pokušajte ponovo.' });
+    return res.status(500).json({ msg: 'Could not verify code. Please try again.' });
   }
 });
 
@@ -1791,30 +1791,30 @@ router.post("/setup/set-password", setupSetPasswordLimiter, async (req, res) => 
     const { setupToken, verificationCode, newPassword, confirmPassword, keepSessionActive } = req.body;
 
     if (!setupToken || !verificationCode || !newPassword || !confirmPassword) {
-      return res.status(400).json({ msg: 'Sva polja su obavezna.' });
+      return res.status(400).json({ msg: 'All fields are required.' });
     }
     if (newPassword.length < 8) {
-      return res.status(400).json({ msg: 'Lozinka mora imati najmanje 8 znakova.' });
+      return res.status(400).json({ msg: 'Password must be at least 8 characters.' });
     }
     if (newPassword !== confirmPassword) {
-      return res.status(400).json({ msg: 'Lozinke se ne poklapaju.' });
+      return res.status(400).json({ msg: 'Passwords do not match.' });
     }
 
     const decoded = verifyPasswordSetupToken(setupToken);
     const user = await User.findById(decoded.id);
     if (!user || user.role !== 'STUDENT') {
-      return res.status(400).json({ msg: 'Nevažeća sesija podešavanja.' });
+      return res.status(400).json({ msg: 'Invalid setup session.' });
     }
     if (!studentRequiresPasswordSetup(user)) {
-      return res.status(400).json({ msg: 'Podešavanje lozinke nije potrebno za ovaj nalog.' });
+      return res.status(400).json({ msg: 'Password setup is not required for this account.' });
     }
 
     const otpDoc = await EmailChangeOtp.findOne({ userId: user._id, used: false, verified: true });
     if (!otpDoc) {
-      return res.status(400).json({ msg: 'Molimo prvo verifikujte vaš kod.' });
+      return res.status(400).json({ msg: 'Please verify your code first.' });
     }
     if (otpDoc.verificationCode !== verificationCode) {
-      return res.status(400).json({ msg: 'Nevažeća sesija verifikacije. Molimo potvrdite kod ponovo.' });
+      return res.status(400).json({ msg: 'Invalid verification session. Please verify your code again.' });
     }
 
     otpDoc.used = true;
@@ -1833,20 +1833,20 @@ router.post("/setup/set-password", setupSetPasswordLimiter, async (req, res) => 
   } catch (err) {
     console.error('[setup/set-password]', err);
     if (err.name === 'TokenExpiredError' || err.name === 'JsonWebTokenError') {
-      return res.status(400).json({ msg: 'Vaša sesija podešavanja je istekla. Molimo prijavite se ponovo.' });
+      return res.status(400).json({ msg: 'Your setup session expired. Please log in again.' });
     }
-    return res.status(500).json({ msg: 'Nije moguće postaviti lozinku. Molimo pokušajte ponovo.' });
+    return res.status(500).json({ msg: 'Could not set password. Please try again.' });
   }
 });
 
 // ✅ Forgot Password — Step 1: Request OTP
 router.post("/forgot-password/request", forgotPasswordRequestLimiter, async (req, res) => {
   // Always return generic 200 to prevent email enumeration
-  const GENERIC_RESPONSE = { msg: "Ako nalog sa tom e-mail adresom postoji, poslan je kod za resetovanje." };
+  const GENERIC_RESPONSE = { msg: "If an account with that email exists, a reset code has been sent." };
   try {
     const email = (req.body.email || '').trim().toLowerCase();
     if (!email || !email.includes('@')) {
-      return res.status(400).json({ msg: "Ispravna e-mail adresa je obavezna." });
+      return res.status(400).json({ msg: "A valid email address is required." });
     }
 
     const user = await User.findOne({ email, isActive: { $ne: false } });
@@ -1891,41 +1891,41 @@ router.post("/forgot-password/reset", forgotPasswordResetLimiter, async (req, re
     const confirmPassword = (req.body.confirmPassword || '').trim();
 
     if (!email || !otp || !newPassword || !confirmPassword) {
-      return res.status(400).json({ msg: "Sva polja su obavezna." });
+      return res.status(400).json({ msg: "All fields are required." });
     }
     if (newPassword.length < 8) {
-      return res.status(400).json({ msg: "Lozinka mora imati najmanje 8 znakova." });
+      return res.status(400).json({ msg: "Password must be at least 8 characters." });
     }
     if (newPassword !== confirmPassword) {
-      return res.status(400).json({ msg: "Lozinke se ne poklapaju." });
+      return res.status(400).json({ msg: "Passwords do not match." });
     }
 
     const otpDoc = await PasswordResetOtp.findOne({ email, used: false });
     if (!otpDoc) {
-      return res.status(400).json({ msg: "Nevažeći ili istekli kod za resetovanje. Molimo zatražite novi." });
+      return res.status(400).json({ msg: "Invalid or expired reset code. Please request a new one." });
     }
 
     if (otpDoc.expiresAt < new Date()) {
       await PasswordResetOtp.deleteOne({ _id: otpDoc._id });
-      return res.status(400).json({ msg: "Kod za resetovanje je istekao. Molimo zatražite novi." });
+      return res.status(400).json({ msg: "Reset code has expired. Please request a new one." });
     }
 
     // Increment attempt counter before verifying (prevent timing-based enumeration)
     otpDoc.attempts += 1;
     if (otpDoc.attempts > 5) {
       await PasswordResetOtp.deleteOne({ _id: otpDoc._id });
-      return res.status(400).json({ msg: "Previše neispravnih pokušaja. Molimo zatražite novi kod za resetovanje." });
+      return res.status(400).json({ msg: "Too many invalid attempts. Please request a new reset code." });
     }
     await otpDoc.save();
 
     const isOtpValid = await bcrypt.compare(otp, otpDoc.otpHash);
     if (!isOtpValid) {
-      return res.status(400).json({ msg: "Neispravan kod za resetovanje. Molimo pokušajte ponovo." });
+      return res.status(400).json({ msg: "Incorrect reset code. Please try again." });
     }
 
     const user = await User.findOne({ email });
     if (!user) {
-      return res.status(400).json({ msg: "Nalog nije pronađen." });
+      return res.status(400).json({ msg: "Account not found." });
     }
 
     await setUserPassword(user, newPassword);
@@ -1937,10 +1937,10 @@ router.post("/forgot-password/reset", forgotPasswordResetLimiter, async (req, re
     otpDoc.used = true;
     await otpDoc.save();
 
-    return res.json({ msg: "Lozinka je uspešno resetovana. Sada se možete prijaviti sa novom lozinkom." });
+    return res.json({ msg: "Password reset successfully. You can now log in with your new password." });
   } catch (err) {
     console.error('[forgot-password/reset]', err);
-    return res.status(500).json({ msg: "Nešto je pošlo naopako. Molimo pokušajte ponovo." });
+    return res.status(500).json({ msg: "Something went wrong. Please try again." });
   }
 });
 
@@ -1950,21 +1950,21 @@ router.put("/change-password", verifyToken, async (req, res) => {
     const { currentPassword, newPassword, confirmPassword } = req.body;
 
     if (!currentPassword || !newPassword || !confirmPassword) {
-      return res.status(400).json({ msg: "Sva polja su obavezna." });
+      return res.status(400).json({ msg: "All fields are required." });
     }
     if (newPassword.length < 8) {
-      return res.status(400).json({ msg: "Nova lozinka mora imati najmanje 8 znakova." });
+      return res.status(400).json({ msg: "New password must be at least 8 characters." });
     }
     if (newPassword !== confirmPassword) {
-      return res.status(400).json({ msg: "Nove lozinke se ne poklapaju." });
+      return res.status(400).json({ msg: "New passwords do not match." });
     }
 
     const user = await User.findById(req.user.id);
-    if (!user) return res.status(404).json({ msg: "Korisnik nije pronađen." });
+    if (!user) return res.status(404).json({ msg: "User not found." });
 
     const isMatch = await bcrypt.compare(currentPassword, user.password);
     if (!isMatch) {
-      return res.status(400).json({ msg: "Trenutna lozinka je netačna." });
+      return res.status(400).json({ msg: "Current password is incorrect." });
     }
 
     await setUserPassword(user, newPassword);
@@ -1972,10 +1972,10 @@ router.put("/change-password", verifyToken, async (req, res) => {
     user.passwordChangedAt = new Date();
     await user.save();
 
-    return res.json({ msg: "Lozinka je uspešno promenjena." });
+    return res.json({ msg: "Password changed successfully." });
   } catch (err) {
     console.error('[change-password]', err);
-    return res.status(500).json({ msg: "Nešto je pošlo naopako. Molimo pokušajte ponovo." });
+    return res.status(500).json({ msg: "Something went wrong. Please try again." });
   }
 });
 
@@ -1985,14 +1985,14 @@ router.post("/withdrawal-confirmation", async (req, res) => {
     const { studentId, decision, loginAttemptTime, keepSessionActive } = req.body;
 
     if (!studentId || !decision) {
-      return res.status(400).json({ msg: "studentId i odluka su obavezni" });
+      return res.status(400).json({ msg: "studentId and decision are required" });
     }
 
     const user = await User.findById(studentId);
-    if (!user) return res.status(404).json({ msg: "Učenik nije pronađen" });
+    if (!user) return res.status(404).json({ msg: "Student not found" });
 
     if (!['YES', 'NO'].includes(decision)) {
-      return res.status(400).json({ msg: "odluka mora biti YES ili NO" });
+      return res.status(400).json({ msg: "decision must be YES or NO" });
     }
 
     const emailResult = await sendWithdrawalDecisionEmail(user, {
@@ -2004,8 +2004,8 @@ router.post("/withdrawal-confirmation", async (req, res) => {
 
     // Never issue a login token — admin must change batch/status to ONGOING (or similar) first
     const messages = {
-      YES: 'Hvala vam. Naš tim će vas kontaktirati u roku od 24-72 sata. Ne možete pristupiti portalu dok naš tim ne ažurira status vašeg naloga.',
-      NO: 'Hvala vam. Vaše povlačenje je evidentirano. Naš tim je obavešten.',
+      YES: 'Thank you. Our team will reach you within 24-72 hours. You cannot access the portal until your account status is updated by our team.',
+      NO: 'Thank you. Your withdrawal has been recorded. Our team has been notified.',
     };
 
     return res.json({
@@ -2040,7 +2040,7 @@ router.post("/logout", (req, res) => {
     }
   } catch (_) {}
 
-  return res.json({ msg: "Uspešno odjavljen" });
+  return res.json({ msg: "Logged out successfully" });
 });
 
 
@@ -2058,7 +2058,7 @@ router.get("/profile", verifyToken, async (req, res) => {
     let user = await query;
 
     if (!user) {
-      return res.status(404).json({ message: "Korisnik nije pronađen" });
+      return res.status(404).json({ message: "User not found" });
     }
 
     if (user.role === 'STUDENT') {
@@ -2076,7 +2076,7 @@ router.get("/profile", verifyToken, async (req, res) => {
     if (studentRequiresWithdrawalConfirmation(user)) {
       return res.status(403).json({
         message:
-          'Pristup portalu nije dostupan dok tim Gluck Global ne ažurira status vašeg naloga.',
+          'Portal access is not available until your account status is updated by the Gluck Global team.',
         requiresReactivation: true,
       });
     }
@@ -2089,7 +2089,7 @@ router.get("/profile", verifyToken, async (req, res) => {
     });
   } catch (err) {
     console.error("Error fetching profile:", err);
-    res.status(500).json({ message: "Greška servera" });
+    res.status(500).json({ message: "Server error" });
   }
 });
 
@@ -2112,7 +2112,7 @@ router.get("/teachers-and-admins", verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
     );
   } catch (error) {
     console.error("âŒ Error fetching teachers and admins:", error);
-    res.status(500).json({ message: "Interna greška servera." });
+    res.status(500).json({ message: "Internal server error." });
   }
 });
 
@@ -2121,11 +2121,11 @@ router.put("/admin-set-password/:id", verifyToken, checkRole(['ADMIN']), async (
   try {
     const { newPassword } = req.body;
     if (!newPassword || newPassword.trim().length < 6) {
-      return res.status(400).json({ message: "Lozinka mora imati najmanje 6 znakova." });
+      return res.status(400).json({ message: "Password must be at least 6 characters." });
     }
     const user = await User.findById(req.params.id);
     if (!user) {
-      return res.status(404).json({ message: "Korisnik nije pronađen." });
+      return res.status(404).json({ message: "User not found." });
     }
     await setUserPassword(user, newPassword.trim());
     user.mustChangePassword = false;
@@ -2137,10 +2137,10 @@ router.put("/admin-set-password/:id", verifyToken, checkRole(['ADMIN']), async (
       source: 'auth_admin_set_password',
       emailed: false,
     });
-    res.status(200).json({ success: true, message: "Lozinka je uspešno ažurirana." });
+    res.status(200).json({ success: true, message: "Password updated successfully." });
   } catch (error) {
     console.error("Error changing password (admin):", error);
-    res.status(500).json({ message: "Interna greška servera." });
+    res.status(500).json({ message: "Internal server error." });
   }
 });
 
@@ -2149,12 +2149,12 @@ router.put("/admin-set-password-and-email/:id", verifyToken, checkRole(['ADMIN']
   try {
     const { newPassword } = req.body;
     if (!newPassword || newPassword.trim().length < 6) {
-      return res.status(400).json({ message: "Lozinka mora imati najmanje 6 znakova." });
+      return res.status(400).json({ message: "Password must be at least 6 characters." });
     }
 
     const user = await User.findById(req.params.id);
     if (!user) {
-      return res.status(404).json({ message: "Korisnik nije pronađen." });
+      return res.status(404).json({ message: "User not found." });
     }
 
     const plainPassword = newPassword.trim();
@@ -2187,7 +2187,7 @@ router.put("/admin-set-password-and-email/:id", verifyToken, checkRole(['ADMIN']
 
           <p>Please keep this information safe and do not share it with anyone.</p>
 
-          <p>You can access the Portal at: <a href="${process.env.PORTAL_URL || 'https://portal.gluckglobal.rs'}" target="_blank">${process.env.PORTAL_URL || 'https://portal.gluckglobal.rs'}</a></p>
+          <p>You can access the Portal at: <a href="https://gluckstudentsportal.com" target="_blank">https://gluckstudentsportal.com</a></p>
 
           <p>Best regards,<br>
           <strong>Gluck Global Pvt Ltd</strong></p>
@@ -2197,17 +2197,17 @@ router.put("/admin-set-password-and-email/:id", verifyToken, checkRole(['ADMIN']
 
     try {
       await transporter.sendMail(mailOptions);
-      res.status(200).json({ success: true, message: "Lozinka je ažurirana i pristupni podaci su poslati e-mailom." });
+      res.status(200).json({ success: true, message: "Password updated and credentials emailed successfully." });
     } catch (emailErr) {
       console.error("Email sending failed:", emailErr);
       res.status(500).json({
         success: false,
-        message: "Lozinka je ažurirana, ali slanje e-maila nije uspelo. Molimo pokušajte ponovo."
+        message: "Password updated, but email failed to send. Please try again."
       });
     }
   } catch (error) {
     console.error("Error changing password + email (admin):", error);
-    res.status(500).json({ message: "Interna greška servera." });
+    res.status(500).json({ message: "Internal server error." });
   }
 });
 
@@ -2216,12 +2216,12 @@ router.get("/:id", async (req, res) => {
   try {
     const user = await User.findById(req.params.id).select("-password");
     if (!user) {
-      return res.status(404).json({ message: "Korisnik nije pronađen." });
+      return res.status(404).json({ message: "User not found." });
     }
     res.status(200).json(user);
   } catch (error) {
     console.error("âŒ Error fetching user:", error);
-    res.status(500).json({ message: "Interna greška servera." });
+    res.status(500).json({ message: "Internal server error." });
   }
 });
 
@@ -2232,7 +2232,7 @@ router.get("/teachers-by-batch/:batch", async (req, res) => {
     console.log("ðŸ” Fetching teachers for batch:", batch);
 
     if (!batch) {
-      return res.status(400).json({ message: "Grupa je obavezna." });
+      return res.status(400).json({ message: "Batch is required." });
     }
 
     const teachers = await User.find({
@@ -2249,7 +2249,7 @@ router.get("/teachers-by-batch/:batch", async (req, res) => {
 
   } catch (error) {
     console.error("âŒ Error fetching teachers by batch:", error);
-    res.status(500).json({ message: "Interna greška servera." });
+    res.status(500).json({ message: "Internal server error." });
   }
 });
 
@@ -2261,7 +2261,7 @@ router.put("/update-teacher-by-batch", verifyToken, isAdmin, async (req, res) =>
 
     if (!batch || !newTeacherId) {
       return res.status(400).json({
-        message: "Grupa i ID novog nastavnika su obavezni."
+        message: "Batch and newTeacherId are required."
       });
     }
 
@@ -2272,7 +2272,7 @@ router.put("/update-teacher-by-batch", verifyToken, isAdmin, async (req, res) =>
 
     if (students.length === 0) {
       return res.status(404).json({
-        message: "Nisu pronađeni učenici za navedenu grupu."
+        message: "No students found for the specified batch."
       });
     }
 
@@ -2313,11 +2313,11 @@ router.put("/update-teacher-by-batch", verifyToken, isAdmin, async (req, res) =>
     });
 
     res.status(200).json({
-      message: `Dodeljeni nastavnik je ažuriran za ${result.modifiedCount ?? result.nModified ?? students.length} učenika.`
+      message: `Assigned teacher updated for ${result.modifiedCount ?? result.nModified ?? students.length} students.`
     });
 
   } catch (error) {
-    res.status(500).json({ message: "Interna greška servera." });
+    res.status(500).json({ message: "Internal server error." });
   }
 });
 
@@ -2329,7 +2329,7 @@ router.put("/:id", verifyToken, isAdmin, async (req, res) => {
     const existingUser = await User.findById(req.params.id);
 
     if (!existingUser) {
-      return res.status(404).json({ message: "Korisnik nije pronađen." });
+      return res.status(404).json({ message: "User not found." });
     }
 
     // 2ï¸âƒ£ Log OLD data into StudentLogs (if STUDENT)
@@ -2567,7 +2567,7 @@ router.put("/:id", verifyToken, isAdmin, async (req, res) => {
     }
 
     res.status(200).json({
-      message: "Korisnik je uspešno ažuriran.",
+      message: "User updated successfully.",
       data: updatedUser
     });
 
@@ -2578,11 +2578,11 @@ router.put("/:id", verifyToken, isAdmin, async (req, res) => {
     if (error.code === 11000) {
       const field = Object.keys(error.keyPattern)[0];
       return res.status(400).json({
-        message: `${field.charAt(0).toUpperCase() + field.slice(1)} već postoji. Molimo koristite drugi ${field}.`
+        message: `${field.charAt(0).toUpperCase() + field.slice(1)} already exists. Please use a different ${field}.`
       });
     }
 
-    res.status(500).json({ message: "Interna greška servera." });
+    res.status(500).json({ message: "Internal server error." });
   }
 });
 
@@ -2593,7 +2593,7 @@ router.delete("/:id", verifyToken, isAdmin, async (req, res) => {
     const deletedUser = await User.findByIdAndDelete(req.params.id);
 
     if (!deletedUser) {
-      return res.status(404).json({ message: "Korisnik nije pronađen." });
+      return res.status(404).json({ message: "User not found." });
     }
 
     await recordUserDeletion({
@@ -2611,9 +2611,9 @@ router.delete("/:id", verifyToken, isAdmin, async (req, res) => {
       });
     }
 
-    res.status(200).json({ message: "Korisnik je uspešno obrisan." });
+    res.status(200).json({ message: "User deleted successfully." });
   } catch (error) {
-    res.status(500).json({ message: "Interna greška servera." });
+    res.status(500).json({ message: "Internal server error." });
   }
 });
 
@@ -2626,12 +2626,12 @@ router.post("/resend-credentials/:userId", verifyToken, checkRole('ADMIN'), asyn
     const user = await User.findById(userId);
 
     if (!user) {
-      return res.status(404).json({ msg: "Korisnik nije pronađen" });
+      return res.status(404).json({ msg: "User not found" });
     }
 
     // Only allow for students
     if (user.role !== "STUDENT") {
-      return res.status(400).json({ msg: "Pristupni podaci mogu biti ponovo poslati samo učenicima" });
+      return res.status(400).json({ msg: "Credentials can only be resent to students" });
     }
 
     // Generate a new one-time password
@@ -2661,7 +2661,7 @@ router.post("/resend-credentials/:userId", verifyToken, checkRole('ADMIN'), asyn
 
       res.json({
         success: true,
-        msg: "E-mail sa pristupnim podacima je uspešno poslat",
+        msg: "Credentials email sent successfully",
         lastSent: user.lastCredentialsEmailSent,
         displayPassword: passwordPlain,
       });
@@ -2669,7 +2669,7 @@ router.post("/resend-credentials/:userId", verifyToken, checkRole('ADMIN'), asyn
       console.error("âŒ Email sending failed:", emailErr);
       res.status(500).json({
         success: false,
-        msg: "Slanje e-maila nije uspelo. Molimo pokušajte ponovo."
+        msg: "Failed to send email. Please try again."
       });
     }
 
@@ -2681,19 +2681,19 @@ router.post("/resend-credentials/:userId", verifyToken, checkRole('ADMIN'), asyn
 
 // âœ… Protected role-based routes
 router.get("/protected", verifyToken, (req, res) => {
-  res.json({ msg: "Imate pristup!", user: req.user });
+  res.json({ msg: "You have access!", user: req.user });
 });
 
 router.get("/admin-dashboard", verifyToken, checkRole('ADMIN'), (req, res) => {
-  res.json({ msg: "Dobrodošli na admin kontrolnu tablu" });
+  res.json({ msg: "Welcome to the admin dashboard" });
 });
 
 router.get("/teacher-dashboard", verifyToken, checkRole('TEACHER'), (req, res) => {
-  res.json({ msg: "Dobrodošli na kontrolnu tablu nastavnika" });
+  res.json({ msg: "Welcome to the teacher dashboard" });
 });
 
 router.get("/student-dashboard", verifyToken, checkRole('STUDENT'), (req, res) => {
-  res.json({ msg: "Dobrodošli na kontrolnu tablu učenika" });
+  res.json({ msg: "Welcome to the student dashboard" });
 });
 
 // âœ… NEW: Get users by role (for unified user management)
@@ -2703,7 +2703,7 @@ router.get("/users-by-role/:role", verifyToken, checkRole(['ADMIN']), async (req
 
     // Validate role
     if (!['ADMIN', 'TEACHER', 'STUDENT', 'SUB_ADMIN'].includes(role)) {
-      return res.status(400).json({ message: 'Navedena neispravna uloga' });
+      return res.status(400).json({ message: 'Invalid role specified' });
     }
 
     const users = await User.find({ role })
@@ -2714,7 +2714,7 @@ router.get("/users-by-role/:role", verifyToken, checkRole(['ADMIN']), async (req
     res.json(users);
   } catch (error) {
     console.error('Error fetching users by role:', error);
-    res.status(500).json({ message: 'Greška pri dohvatanju korisnika' });
+    res.status(500).json({ message: 'Error fetching users' });
   }
 });
 
@@ -2726,7 +2726,7 @@ router.post("/bulk-upload-students", verifyToken, checkRole(['ADMIN']), async (r
     if (!students || !Array.isArray(students) || students.length === 0) {
       return res.status(400).json({
         success: false,
-        message: 'Niz učenika je obavezan i ne sme biti prazan'
+        message: 'Students array is required and must not be empty'
       });
     }
 
@@ -2746,7 +2746,7 @@ router.post("/bulk-upload-students", verifyToken, checkRole(['ADMIN']), async (r
           results.failed.push({
             row: rowNumber,
             data: student,
-            reason: 'Ime je obavezno'
+            reason: 'Name is required'
           });
           continue;
         }
@@ -2755,7 +2755,7 @@ router.post("/bulk-upload-students", verifyToken, checkRole(['ADMIN']), async (r
           results.failed.push({
             row: rowNumber,
             data: student,
-            reason: 'E-mail je obavezan'
+            reason: 'Email is required'
           });
           continue;
         }
@@ -2764,7 +2764,7 @@ router.post("/bulk-upload-students", verifyToken, checkRole(['ADMIN']), async (r
           results.failed.push({
             row: rowNumber,
             data: student,
-            reason: 'Pretplata mora biti SILVER ili PLATINUM'
+            reason: 'Subscription must be SILVER or PLATINUM'
           });
           continue;
         }
@@ -2773,7 +2773,7 @@ router.post("/bulk-upload-students", verifyToken, checkRole(['ADMIN']), async (r
           results.failed.push({
             row: rowNumber,
             data: student,
-            reason: 'Nivo mora biti A1, A2, B1, B2, C1 ili C2'
+            reason: 'Level must be A1, A2, B1, B2, C1, or C2'
           });
           continue;
         }
@@ -2782,7 +2782,7 @@ router.post("/bulk-upload-students", verifyToken, checkRole(['ADMIN']), async (r
           results.failed.push({
             row: rowNumber,
             data: student,
-            reason: 'Status učenika je obavezan'
+            reason: 'Student Status is required'
           });
           continue;
         }
@@ -2819,7 +2819,7 @@ router.post("/bulk-upload-students", verifyToken, checkRole(['ADMIN']), async (r
 
                     <p>Please keep this information safe and do not share it with anyone.</p>
 
-                    <p>You can access the Portal at: <a href="${process.env.PORTAL_URL || 'https://portal.gluckglobal.rs'}" target="_blank">${process.env.PORTAL_URL || 'https://portal.gluckglobal.rs'}</a></p>
+                    <p>You can access the Portal at: <a href="https://gluckstudentsportal.com" target="_blank">https://gluckstudentsportal.com</a></p>
 
                     <p>Best regards,<br>
                     <strong>Gluck Global Pvt Ltd</strong></p>
@@ -2842,7 +2842,7 @@ router.post("/bulk-upload-students", verifyToken, checkRole(['ADMIN']), async (r
               results.failed.push({
                 row: rowNumber,
                 data: student,
-                reason: `Nije uspelo ponovno slanje pristupnih podataka: ${emailError.message}`,
+                reason: `Failed to resend credentials: ${emailError.message}`,
                 existingRegNo: existingUser.regNo
               });
             }
@@ -2851,7 +2851,7 @@ router.post("/bulk-upload-students", verifyToken, checkRole(['ADMIN']), async (r
             results.skipped.push({
               row: rowNumber,
               data: student,
-              reason: 'E-mail već postoji (pristupni podaci nisu ponovo poslati jer je sendEmails=false)',
+              reason: 'Email already exists (credentials not resent because sendEmails=false)',
               existingRegNo: existingUser.regNo
             });
           }
@@ -2936,7 +2936,7 @@ router.post("/bulk-upload-students", verifyToken, checkRole(['ADMIN']), async (r
               regNo: newUser.regNo,
               password: passwordPlain,
               emailSent: false,
-              emailError: 'Slanje e-maila nije uspelo'
+              emailError: 'Failed to send email'
             });
           }
         } else {
@@ -2963,7 +2963,7 @@ router.post("/bulk-upload-students", verifyToken, checkRole(['ADMIN']), async (r
     // Return summary
     res.json({
       success: true,
-      message: 'Masovno otpremanje završeno',
+      message: 'Bulk upload completed',
       summary: {
         total: students.length,
         successful: results.successful.length,
@@ -2977,7 +2977,7 @@ router.post("/bulk-upload-students", verifyToken, checkRole(['ADMIN']), async (r
     console.error('Bulk upload error:', error);
     res.status(500).json({
       success: false,
-      message: 'Greška servera tokom masovnog otpremanja',
+      message: 'Server error during bulk upload',
       error: error.message
     });
   }
@@ -3004,7 +3004,7 @@ async function initiateStudentForcePasswordReset(user) {
     expiresAt,
   });
 
-  const frontendUrl = (process.env.PORTAL_URL || process.env.FRONTEND_URL || 'https://portal.gluckglobal.rs').replace(/\/$/, '');
+  const frontendUrl = (process.env.FRONTEND_URL || 'https://gluckstudentsportal.com').replace(/\/$/, '');
   const loginUrl = `${frontendUrl}/login`;
   const { subject, html } = buildForcePasswordResetEmail({
     name: user.name,
@@ -3033,22 +3033,22 @@ router.post('/admin/force-password-reset/:studentId', verifyToken, checkRole(['A
   try {
     const user = await User.findById(req.params.studentId);
     if (!user) {
-      return res.status(404).json({ msg: 'Učenik nije pronađen.' });
+      return res.status(404).json({ msg: 'Student not found.' });
     }
     if (user.role !== 'STUDENT') {
-      return res.status(400).json({ msg: 'Resetovanje lozinke može biti pokrenuto samo za učenike.' });
+      return res.status(400).json({ msg: 'Password reset can only be triggered for students.' });
     }
 
     const { displayPassword } = await initiateStudentForcePasswordReset(user);
 
     return res.json({
       success: true,
-      msg: `Resetovanje lozinke pokrenuto za ${user.name}. Odjavljeni su i poslan im je e-mail sa kodom za verifikaciju.`,
+      msg: `Password reset initiated for ${user.name}. They were signed out and emailed a verification code.`,
       displayPassword,
     });
   } catch (err) {
     console.error('[POST /auth/admin/force-password-reset]', err);
-    return res.status(500).json({ msg: 'Nije moguće pokrenuti resetovanje lozinke. Molimo pokušajte ponovo.' });
+    return res.status(500).json({ msg: 'Failed to initiate password reset. Please try again.' });
   }
 });
 
@@ -3056,7 +3056,7 @@ router.post('/admin/bulk-force-password-reset', verifyToken, checkRole(['ADMIN',
   try {
     const { studentIds } = req.body || {};
     if (!Array.isArray(studentIds) || !studentIds.length) {
-      return res.status(400).json({ msg: 'Izaberite najmanje jednog učenika.' });
+      return res.status(400).json({ msg: 'Select at least one student.' });
     }
 
     const uniqueIds = [...new Set(studentIds.map(String).filter(Boolean))];
@@ -3069,12 +3069,12 @@ router.post('/admin/bulk-force-password-reset', verifyToken, checkRole(['ADMIN',
         const user = await User.findById(id);
         if (!user) {
           failedCount++;
-          failures.push({ id, reason: 'Učenik nije pronađen' });
+          failures.push({ id, reason: 'Student not found' });
           continue;
         }
         if (user.role !== 'STUDENT') {
           failedCount++;
-          failures.push({ id, reason: 'Nije nalog učenika' });
+          failures.push({ id, reason: 'Not a student account' });
           continue;
         }
         await initiateStudentForcePasswordReset(user);
@@ -3087,8 +3087,8 @@ router.post('/admin/bulk-force-password-reset', verifyToken, checkRole(['ADMIN',
 
     const msg =
       successCount === 0
-        ? 'Nijedan učenik nije odjavljen. Molimo pokušajte ponovo.'
-        : `Odjavljeno ${successCount} učenik(a). Moraju se ponovo prijaviti i promeniti lozinku.${failedCount ? ` (${failedCount} nije uspelo)` : ''}`;
+        ? 'No students were signed out. Please try again.'
+        : `Signed out ${successCount} student(s). They must log in again and change their password.${failedCount ? ` (${failedCount} failed)` : ''}`;
 
     return res.json({
       success: successCount > 0,
@@ -3100,7 +3100,7 @@ router.post('/admin/bulk-force-password-reset', verifyToken, checkRole(['ADMIN',
     });
   } catch (err) {
     console.error('[POST /auth/admin/bulk-force-password-reset]', err);
-    return res.status(500).json({ msg: 'Nije moguće isteći sesije učenika. Molimo pokušajte ponovo.' });
+    return res.status(500).json({ msg: 'Failed to expire student sessions. Please try again.' });
   }
 });
 
@@ -3109,13 +3109,13 @@ router.post('/admin/bulk-force-password-reset', verifyToken, checkRole(['ADMIN',
 router.post('/admin/register-invite', verifyToken, checkRole(['ADMIN', 'SUB_ADMIN']), async (req, res) => {
   try {
     if (!['ADMIN', 'SUB_ADMIN'].includes(req.user.role)) {
-      return res.status(403).json({ success: false, msg: 'Zabranjeno' });
+      return res.status(403).json({ success: false, msg: 'Forbidden' });
     }
 
     const { name, email, phone, whatsapp, crmStudentId, department } = req.body || {};
     const normalizedEmail = String(email || '').trim().toLowerCase();
     if (!normalizedEmail || !normalizedEmail.includes('@')) {
-      return res.status(400).json({ success: false, msg: 'Ispravna e-mail adresa je obavezna.' });
+      return res.status(400).json({ success: false, msg: 'A valid email is required.' });
     }
 
     const displayName = String(name || '').trim() || 'there';
@@ -3129,7 +3129,7 @@ router.post('/admin/register-invite', verifyToken, checkRole(['ADMIN', 'SUB_ADMI
     if (existingStudent) {
       return res.status(409).json({
         success: false,
-        msg: 'Nalog učenika sa ovom e-mail adresom već postoji u portalu.',
+        msg: 'A student account with this email already exists in the portal.',
       });
     }
 
@@ -3149,7 +3149,7 @@ router.post('/admin/register-invite', verifyToken, checkRole(['ADMIN', 'SUB_ADMI
       await signupApp.save();
     }
 
-    const frontendUrl = (process.env.PORTAL_URL || process.env.FRONTEND_URL || 'https://portal.gluckglobal.rs').replace(/\/$/, '');
+    const frontendUrl = (process.env.FRONTEND_URL || 'https://gluckstudentsportal.com').replace(/\/$/, '');
     const registerUrl = `${frontendUrl}/register?token=${signupApp.applicationToken}`;
     const inviteMail = buildRegisterInviteEmail({
       name: signupApp.name || name || 'there',
@@ -3187,10 +3187,10 @@ router.post('/admin/register-invite', verifyToken, checkRole(['ADMIN', 'SUB_ADMI
     const channels = ['email'];
     if (whatsappSent) channels.push('WhatsApp');
     const msg = whatsappSent
-      ? `Pozivnica za registraciju poslata na ${normalizedEmail} i WhatsApp (${phoneNumber}).`
+      ? `Registration invite sent to ${normalizedEmail} and WhatsApp (${phoneNumber}).`
       : phoneNumber
-        ? `Pozivnica za registraciju poslata e-mailom na ${normalizedEmail}. WhatsApp nije uspeo: ${whatsappNote}`
-        : `Pozivnica za registraciju poslata e-mailom na ${normalizedEmail}. ${whatsappNote}`;
+        ? `Registration invite emailed to ${normalizedEmail}. WhatsApp failed: ${whatsappNote}`
+        : `Registration invite emailed to ${normalizedEmail}. ${whatsappNote}`;
 
     return res.json({
       success: true,
@@ -3203,7 +3203,7 @@ router.post('/admin/register-invite', verifyToken, checkRole(['ADMIN', 'SUB_ADMI
     });
   } catch (err) {
     console.error('[POST /auth/admin/register-invite]', err);
-    return res.status(500).json({ success: false, msg: 'Nije moguće poslati pozivnicu za registraciju. Molimo pokušajte ponovo.' });
+    return res.status(500).json({ success: false, msg: 'Failed to send registration invite. Please try again.' });
   }
 });
 
@@ -3212,11 +3212,11 @@ router.post('/admin/register-invite', verifyToken, checkRole(['ADMIN', 'SUB_ADMI
 router.post('/admin/signup-link', verifyToken, checkRole(['ADMIN', 'SUB_ADMIN']), async (req, res) => {
   try {
     if (!['ADMIN', 'SUB_ADMIN'].includes(req.user.role)) {
-      return res.status(403).json({ msg: 'Zabranjeno' });
+      return res.status(403).json({ msg: 'Forbidden' });
     }
     const { name, email, level, subscription } = req.body;
     if (!email || !String(email).includes('@')) {
-      return res.status(400).json({ msg: 'Ispravna e-mail adresa je obavezna.' });
+      return res.status(400).json({ msg: 'A valid email is required.' });
     }
 
     // Create (or reuse) a signup application
@@ -3234,15 +3234,15 @@ router.post('/admin/signup-link', verifyToken, checkRole(['ADMIN', 'SUB_ADMIN'])
       });
     }
 
-    const frontendUrl = process.env.PORTAL_URL || process.env.FRONTEND_URL || 'https://portal.gluckglobal.rs';
+    const frontendUrl = process.env.FRONTEND_URL || 'https://gluckstudentsportal.com';
     const signupUrl = `${frontendUrl}/signup/apply?token=${signupApp.applicationToken}`;
     const linkMail = buildSignupLinkEmail({ name: name || 'there', signupUrl });
     await transporter.sendMail({ from: process.env.EMAIL_USER, to: email.trim().toLowerCase(), subject: linkMail.subject, html: linkMail.html });
 
-    return res.json({ success: true, msg: `Registracioni link je poslat na ${email}.`, applicationToken: signupApp.applicationToken });
+    return res.json({ success: true, msg: `Signup link sent to ${email}.`, applicationToken: signupApp.applicationToken });
   } catch (err) {
     console.error('[POST /auth/admin/signup-link]', err);
-    return res.status(500).json({ msg: 'Nije moguće poslati registracioni link. Molimo pokušajte ponovo.' });
+    return res.status(500).json({ msg: 'Failed to send signup link. Please try again.' });
   }
 });
 

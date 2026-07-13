@@ -57,8 +57,8 @@ export class TourService {
 
   private navBtn(back: boolean = true): any[] {
     const btns: any[] = [];
-    if (back) btns.push({ text: '← Nazad', action: () => this.tour.back(), classes: 'shepherd-button-secondary' });
-    btns.push({ text: 'Sledeće →', action: () => this.tour.next() });
+    if (back) btns.push({ text: '← Back', action: () => this.tour.back(), classes: 'shepherd-button-secondary' });
+    btns.push({ text: 'Next →', action: () => this.tour.next() });
     return btns;
   }
 
@@ -93,22 +93,22 @@ export class TourService {
     const t = this.createTour();
     const self = this;
 
-    t.addStep(this.centeredStep('welcome', 'Dobrodošli u Glück Global!', '👋', 'Dozvolite nam da vam ukratko pokažemo vaš studentski portal.', [
-      { text: 'Preskoči obilazak', action: () => this.completeTour('STUDENT'), classes: 'shepherd-button-secondary' },
-      { text: 'Počni obilazak →', action: () => t.next() }
+    t.addStep(this.centeredStep('welcome', 'Welcome to Glück Global!', '👋', 'Let us give you a quick tour of your student portal.', [
+      { text: 'Skip Tour', action: () => this.completeTour('STUDENT'), classes: 'shepherd-button-secondary' },
+      { text: 'Start Tour →', action: () => t.next() }
     ]));
 
-    t.addStep(this.sidebarStep('sidebar', '.sidebar .nav-body', 'Meni za navigaciju', '📌', 'Ovo je vaš glavni meni. Koristite ga za navigaciju između svih delova portala.', false));
-    t.addStep(this.sidebarStep('dashboard', '.nav-item[href="/student-progress"]', 'Kontrolna tabla', '🏠', 'Vaša kontrolna tabla prikazuje sveukupni napredak — nivoe jezika, prisustvo, korišćenje AI bota, plaćanja i status vize na jednom mestu.'));
-    t.addStep(this.sidebarStep('my-course', '.nav-item[href="/student/my-course"]', 'Moj kurs', '📖', 'Pristupite Zoom časovima, snimcima, digitalnim vežbama i AI modulima za učenje — sve na jednom mestu.'));
-    t.addStep(this.sidebarStep('documents', '.nav-item[href="/student-documents"]', 'Dokumenti', '📁', 'Ovde otpremite i upravljajte potrebnim dokumentima. Administrativni tim će ih verifikovati za vašu vizu.'));
-    t.addStep(this.sidebarStep('payments', '.nav-item[href="/my-payments"]', 'Moja plaćanja', '💳', 'Pregledajte zahteve za plaćanje, otpremite dokaz o plaćanju i pratite šta je plaćeno, a šta čeka.'));
-    t.addStep(this.sidebarStep('visa', '.nav-item[href="/visa-status"]', 'Status vize', '✈️', 'Pratite napredak vaše vize korak po korak. Budite u toku sa statusom prijave.'));
-    t.addStep(this.sidebarStep('profile', '.sidebar-footer .profile-link', 'Vaš profil', '👤', 'Pregledajte i ažurirajte podatke profila, uključujući fotografiju i kontakt informacije.'));
+    t.addStep(this.sidebarStep('sidebar', '.sidebar .nav-body', 'Navigation Menu', '📌', 'This is your main menu. Use it to navigate between all sections of the portal.', false));
+    t.addStep(this.sidebarStep('dashboard', '.nav-item[href="/student-progress"]', 'Dashboard', '🏠', 'Your dashboard shows your overall progress — language levels, attendance, AI bot usage, payments, and visa status at a glance.'));
+    t.addStep(this.sidebarStep('my-course', '.nav-item[href="/student/my-course"]', 'My Course', '📖', 'Access your Zoom classes, class recordings, digital exercises, and AI learning modules — all in one place.'));
+    t.addStep(this.sidebarStep('documents', '.nav-item[href="/student-documents"]', 'Documents', '📁', 'Upload and manage your required documents here. The admin team will verify them for your visa process.'));
+    t.addStep(this.sidebarStep('payments', '.nav-item[href="/my-payments"]', 'My Payments', '💳', 'View payment requests from the team, upload proof, and track what\'s been paid and what\'s pending.'));
+    t.addStep(this.sidebarStep('visa', '.nav-item[href="/visa-status"]', 'Visa Status', '✈️', 'Track your visa application progress step by step. Stay updated on your application status.'));
+    t.addStep(this.sidebarStep('profile', '.sidebar-footer .profile-link', 'Your Profile', '👤', 'View and update your profile information, including your photo and contact details.'));
 
     t.addStep({
-      ...this.centeredStep('finish', 'Sve je gotovo!', '🎉', 'Istražite portal i počnite svoje putovanje učenja. Ako vam je potrebna pomoć, kontaktirajte nastavnika ili administrativni tim.', [
-        { text: 'Završi obilazak ✓', action: () => this.completeTour('STUDENT') }
+      ...this.centeredStep('finish', "You're all set!", '🎉', 'Explore the portal and start your learning journey. If you need help, contact your teacher or the admin team.', [
+        { text: 'Finish Tour ✓', action: () => this.completeTour('STUDENT') }
       ]),
       beforeShowPromise: () => new Promise<void>((resolve) => { self.closeSidebarIfMobile(); setTimeout(resolve, 350); })
     });
@@ -120,25 +120,25 @@ export class TourService {
     const t = this.createTour();
     const self = this;
 
-    t.addStep(this.centeredStep('welcome', 'Dobrodošli, nastavniče!', '👋', 'Evo kratkog obilaska vašeg nastavničkog portala.', [
-      { text: 'Preskoči obilazak', action: () => this.completeTour('TEACHER'), classes: 'shepherd-button-secondary' },
-      { text: 'Počni obilazak →', action: () => t.next() }
+    t.addStep(this.centeredStep('welcome', 'Welcome, Teacher!', '👋', "Here's a quick tour of your teaching portal.", [
+      { text: 'Skip Tour', action: () => this.completeTour('TEACHER'), classes: 'shepherd-button-secondary' },
+      { text: 'Start Tour →', action: () => t.next() }
     ]));
 
-    t.addStep(this.sidebarStep('sidebar', '.sidebar .nav-body', 'Meni za navigaciju', '📌', 'Vaš glavni meni za pristup svim nastavničkim alatima i izveštajima.', false));
-    t.addStep(this.sidebarStep('students', '.nav-item[href="/teacher-dashboard"]', 'Učenici', '👥', 'Pregledajte i upravljajte dodeljenim učenicima. Pratite njihov napredak, ažurirajte detalje i nadgledajte performanse.'));
-    t.addStep(this.sidebarStep('modules', '.nav-item[href="/learning-modules"]', 'Moduli za učenje', '🤖', 'Kreirajte i upravljajte AI modulima za učenje i scenarijima za igranje uloga za vaše učenike.'));
-    t.addStep(this.sidebarStep('exercises', '.nav-item[href="/admin/digital-exercises"]', 'Online vežbe', '🏋️', 'Kreirajte i upravljajte digitalnim vežbama — višestruki izbor, popunjavanje praznina, podudaranje, slušanje i još mnogo toga.'));
-    t.addStep(this.sidebarStep('classes', '.nav-item[href="/teacher/meetings"]', 'Upravljanje časovima', '🎥', 'Kreirajte Zoom sastanke, pozovite učenike i upravljajte rasporedom časova.'));
-    t.addStep(this.sidebarStep('attendance', '.nav-item[href="/admin/zoom-reports"]', 'Prisustvo', '📊', 'Pregledajte izveštaje Zoom sastanaka i evidenciju prisustva učenika.'));
-    t.addStep(this.sidebarStep('recordings', '.nav-item[href="/class-recordings"]', 'Snimci časova', '📹', 'Otpremite i upravljajte snimcima časova kako bi ih učenici pregledali.'));
-    t.addStep(this.sidebarStep('ai-report', '.nav-item[href="/admin-analytics"]', 'Izveštaj AI bota', '📈', 'Pratite kako učenici koriste AI tutora — broj sesija, trajanje i angažovanost.'));
-    t.addStep(this.sidebarStep('timetable', '.nav-item[href="/time-table-view-teacher"]', 'Raspored', '📅', 'Pogledajte raspored predavanja i predstojeće časove.'));
-    t.addStep(this.sidebarStep('profile', '.sidebar-footer .profile-link', 'Vaš profil', '👤', 'Pregledajte i ažurirajte podatke profila.'));
+    t.addStep(this.sidebarStep('sidebar', '.sidebar .nav-body', 'Navigation Menu', '📌', 'Your main menu to access all teaching tools and reports.', false));
+    t.addStep(this.sidebarStep('students', '.nav-item[href="/teacher-dashboard"]', 'Students', '👥', 'View and manage your assigned students. Track their progress, update details, and monitor performance.'));
+    t.addStep(this.sidebarStep('modules', '.nav-item[href="/learning-modules"]', 'Learning Modules', '🤖', 'Create and manage AI-powered learning modules and role-play scenarios for your students.'));
+    t.addStep(this.sidebarStep('exercises', '.nav-item[href="/admin/digital-exercises"]', 'Online Exercises', '🏋️', 'Build and manage digital exercises — MCQ, fill-in-the-blank, matching, listening, and more.'));
+    t.addStep(this.sidebarStep('classes', '.nav-item[href="/teacher/meetings"]', 'Manage Classes', '🎥', 'Create Zoom meetings, invite students, and manage your class schedule.'));
+    t.addStep(this.sidebarStep('attendance', '.nav-item[href="/admin/zoom-reports"]', 'Attendance', '📊', 'View Zoom meeting reports and student attendance records.'));
+    t.addStep(this.sidebarStep('recordings', '.nav-item[href="/class-recordings"]', 'Class Recordings', '📹', 'Upload and manage class recordings for students to review.'));
+    t.addStep(this.sidebarStep('ai-report', '.nav-item[href="/admin-analytics"]', 'AI Bot Report', '📈', 'Monitor how students are using the AI tutor — session counts, duration, and engagement.'));
+    t.addStep(this.sidebarStep('timetable', '.nav-item[href="/time-table-view-teacher"]', 'Timetable', '📅', 'View your teaching schedule and upcoming classes.'));
+    t.addStep(this.sidebarStep('profile', '.sidebar-footer .profile-link', 'Your Profile', '👤', 'View and update your profile information.'));
 
     t.addStep({
-      ...this.centeredStep('finish', 'Spremni ste za predavanje!', '🎉', 'Istražite portal i upravljajte časovima. Srećno predavanje!', [
-        { text: 'Završi obilazak ✓', action: () => this.completeTour('TEACHER') }
+      ...this.centeredStep('finish', "You're ready to teach!", '🎉', 'Explore the portal and manage your classes. Happy teaching!', [
+        { text: 'Finish Tour ✓', action: () => this.completeTour('TEACHER') }
       ]),
       beforeShowPromise: () => new Promise<void>((resolve) => { self.closeSidebarIfMobile(); setTimeout(resolve, 350); })
     });

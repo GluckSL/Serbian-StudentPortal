@@ -4,12 +4,12 @@
   <!-- Welcome Section -->
   <div class="welcome-section">
     <div class="welcome-content">
-      <h1>Dobrodošli u vašeg AI tutora za nemački</h1>
-      <p>Nastavite put učenja nemačkog sa personalizovanim AI tutorstvom</p>
+      <h1>Welcome to Your AI German Tutor</h1>
+      <p>Continue your German learning journey with personalized AI tutoring</p>
     </div>
     <div class="quick-actions">
       <button class="btn btn-primary btn-lg" (click)="navigateToModules()">
-        <i class="fas fa-book"></i> Pregledaj module
+        <i class="fas fa-book"></i> Browse Modules
       </button>
     </div>
   </div>
@@ -24,7 +24,7 @@
           </div>
           <div class="stat-content">
             <h3>{{ analytics.overview.totalModules }}</h3>
-            <p>Ukupno modula</p>
+            <p>Total Modules</p>
           </div>
         </div>
       </div>
@@ -36,7 +36,7 @@
           </div>
           <div class="stat-content">
             <h3>{{ analytics.overview.completedModules }}</h3>
-            <p>Završeno</p>
+            <p>Completed</p>
           </div>
         </div>
       </div>
@@ -48,7 +48,7 @@
           </div>
           <div class="stat-content">
             <h3>{{ formatTimeSpent(analytics.overview.totalTimeSpent) }}</h3>
-            <p>Provedeno vreme</p>
+            <p>Time Spent</p>
           </div>
         </div>
       </div>
@@ -60,7 +60,7 @@
           </div>
           <div class="stat-content">
             <h3>{{ analytics.overview.totalSessions }}</h3>
-            <p>AI sesije</p>
+            <p>AI Sessions</p>
           </div>
         </div>
       </div>
@@ -70,7 +70,7 @@
   <!-- Overall Journey Progress -->
   <div class="journey-bar" *ngIf="journeyData">
     <div class="journey-bar__header">
-      <span class="journey-bar__title">🎯 Ukupno putovanje</span>
+      <span class="journey-bar__title">🎯 Overall Journey</span>
       <span class="journey-bar__pct">{{ jOverallPct }}%</span>
     </div>
     <div class="journey-bar__track">
@@ -78,19 +78,19 @@
     </div>
     <div class="journey-bar__metrics">
       <div class="journey-bar__metric">
-        <span class="journey-bar__metric-label">📚 Učenje</span>
+        <span class="journey-bar__metric-label">📚 Learning</span>
         <span class="journey-bar__metric-val">{{ jLearningPct }}%</span>
       </div>
       <div class="journey-bar__metric">
-        <span class="journey-bar__metric-label">📁 Dokumenti</span>
+        <span class="journey-bar__metric-label">📁 Documents</span>
         <span class="journey-bar__metric-val">{{ jDocsPct }}%</span>
       </div>
       <div class="journey-bar__metric">
-        <span class="journey-bar__metric-label">💳 Plaćanja</span>
+        <span class="journey-bar__metric-label">💳 Payments</span>
         <span class="journey-bar__metric-val">{{ jPayPct }}%</span>
       </div>
       <div class="journey-bar__metric">
-        <span class="journey-bar__metric-label">✈️ Viza</span>
+        <span class="journey-bar__metric-label">✈️ Visa</span>
         <span class="journey-bar__metric-val">{{ jVisaPct }}%</span>
       </div>
     </div>
@@ -98,7 +98,7 @@
 
   <!-- Progress by Level -->
   <div class="progress-section">
-    <h2>Napredak po nivou</h2>
+    <h2>Progress by Level</h2>
     <div class="row g-3">
       <div class="col-md-4" *ngFor="let levelData of getLevelProgressData()">
         <div class="progress-card">
@@ -113,7 +113,7 @@
             </div>
           </div>
           <div class="progress-details">
-            {{ levelData.completed }} od {{ levelData.total }} modula završeno
+            {{ levelData.completed }} of {{ levelData.total }} modules completed
           </div>
         </div>
       </div>
@@ -126,7 +126,7 @@
       <!-- Weekly Activity -->
       <div class="col-lg-6">
         <div class="activity-card">
-          <h3>Nedeljna aktivnost</h3>
+          <h3>Weekly Activity</h3>
           <div class="activity-chart">
             <div class="chart-item" *ngFor="let dayData of getWeeklyActivityData()">
               <div class="day-label">{{ dayData.dayShort }}</div>
@@ -134,14 +134,14 @@
                 <div
                   class="bar sessions"
                   [style.height.px]="Math.max(dayData.sessions * 1, 2)"
-                  [title]="dayData.sessions + ' sesija — ' + dayData.day">
+                  [title]="dayData.sessions + ' sessions on ' + dayData.day">
                 </div>
               </div>
               <div class="session-count">{{ dayData.sessions }}</div>
             </div>
           </div>
           <div class="chart-legend">
-            <span><i class="fas fa-square text-primary"></i> Sesije</span>
+            <span><i class="fas fa-square text-primary"></i> Sessions</span>
           </div>
         </div>
       </div>
@@ -149,25 +149,25 @@
       <!-- Recent Sessions -->
       <div class="col-lg-6">
         <div class="activity-card">
-          <h3>Nedavne sesije</h3>
+          <h3>Recent Sessions</h3>
           <div class="recent-sessions">
             <div
               class="session-item"
               *ngFor="let session of analytics.recentSessions.slice(0, 5)">
               <div class="session-info">
                 <h5>{{ session.moduleTitle }}</h5>
-                <p>{{ session.sessionType | titlecase }} — {{ session.duration }} min</p>
+                <p>{{ session.sessionType | titlecase }} - {{ session.duration }} min</p>
               </div>
               <div class="session-score">
                 <span class="score">{{ session.score }}</span>
-                <small>poena</small>
+                <small>points</small>
               </div>
             </div>
 
             <div class="empty-sessions" *ngIf="analytics.recentSessions.length === 0">
-              <p>Nema nedavnih sesija. Počnite prvu AI sesiju tutorstva!</p>
+              <p>No recent sessions. Start your first AI tutoring session!</p>
               <button class="btn btn-primary btn-sm" (click)="navigateToModules()">
-                Počni učenje
+                Start Learning
               </button>
             </div>
           </div>
@@ -178,7 +178,7 @@
 
   <!-- Category Progress -->
   <div class="category-section">
-    <h2>Napredak po kategoriji</h2>
+    <h2>Progress by Category</h2>
     <div class="category-grid">
       <div class="category-item" *ngFor="let categoryData of getCategoryProgressData()">
         <div class="category-header">
@@ -200,7 +200,7 @@
             </div>
           </div>
           <div class="category-stats">
-            {{ categoryData.completed }}/{{ categoryData.total }} završeno
+            {{ categoryData.completed }}/{{ categoryData.total }} completed
           </div>
         </div>
       </div>
@@ -209,58 +209,66 @@
 
   <!-- Quick Actions -->
   <div class="quick-actions-section">
-    <h2>Brze akcije</h2>
+    <h2>Quick Actions</h2>
     <div class="actions-grid">
       <div class="action-card" (click)="navigateToModules()">
         <div class="action-icon">
           <i class="fas fa-book-open"></i>
         </div>
-        <h4>Pregledaj module</h4>
-        <p>Istražite dostupne module za učenje</p>
+        <h4>Browse Modules</h4>
+        <p>Explore available learning modules</p>
       </div>
 
       <div class="action-card" (click)="viewProgress()">
         <div class="action-icon">
           <i class="fas fa-chart-line"></i>
         </div>
-        <h4>Pogledaj napredak</h4>
-        <p>Proverite detaljan napredak u učenju</p>
+        <h4>View Progress</h4>
+        <p>Check your detailed learning progress</p>
       </div>
 
       <div class="action-card" (click)="viewPerformanceHistory()">
         <div class="action-icon">
           <i class="fas fa-history"></i>
         </div>
-        <h4>Istorija performansi</h4>
-        <p>Pogledajte sve pokušaje sesija i napredak</p>
+        <h4>Performance History</h4>
+        <p>See all your session attempts and improvements</p>
       </div>
 
       <div class="action-card" (click)="testAudio()">
         <div class="action-icon">
           <i class="fas fa-microphone-alt"></i>
         </div>
-        <h4>Test zvuka</h4>
-        <p>Testirajte mikrofon i zvučnike</p>
+        <h4>Audio Test</h4>
+        <p>Test your microphone and speakers</p>
       </div>
-    </div>
+
+
   </div>
 </div>
 
+
+
+
+
 <section class="quick-actions-section">
+  <!-- existing quick actions ... -->
   <div class="actions-grid">
+    <!-- existing cards -->
     <div class="action-card">
       <app-student-notifications></app-student-notifications>
     </div>
   </div>
 </section>
 
+
 <!-- Loading State -->
 <div class="loading-container" *ngIf="isLoading">
   <div class="text-center">
     <div class="spinner-border text-primary" role="status">
-      <span class="visually-hidden">Učitavanje...</span>
+      <span class="visually-hidden">Loading...</span>
     </div>
-    <p class="mt-3">Učitavanje kontrolne table...</p>
+    <p class="mt-3">Loading your dashboard...</p>
   </div>
 </div>
 
@@ -268,47 +276,50 @@
 <div class="error-container" *ngIf="!isLoading && !analytics">
   <div class="text-center">
     <div class="alert alert-warning">
-      <h4>Kontrolna tabla privremeno nedostupna</h4>
-      <p>Imamo problema sa učitavanjem analitičkih podataka. Pokušajte da osvežite stranicu.</p>
+      <h4>Dashboard Temporarily Unavailable</h4>
+      <p>We're having trouble loading your analytics data. Please try refreshing the page.</p>
       <button class="btn btn-primary" (click)="loadDashboardData()">
-        <i class="fas fa-refresh"></i> Pokušaj ponovo
+        <i class="fas fa-refresh"></i> Retry
       </button>
     </div>
+    <!-- Show basic navigation even when analytics fail -->
     <div class="quick-actions-section mt-4">
-      <h3>Brze akcije</h3>
+      <h3>Quick Actions</h3>
       <div class="actions-grid">
         <div class="action-card" (click)="navigateToModules()">
           <div class="action-icon">
             <i class="fas fa-book-open"></i>
           </div>
-          <h4>Pregledaj module</h4>
-          <p>Istražite dostupne module za učenje</p>
+          <h4>Browse Modules</h4>
+          <p>Explore available learning modules</p>
         </div>
 
         <div class="action-card" (click)="viewProgress()">
           <div class="action-icon">
             <i class="fas fa-chart-line"></i>
           </div>
-          <h4>Pogledaj napredak</h4>
-          <p>Proverite detaljan napredak u učenju</p>
+          <h4>View Progress</h4>
+          <p>Check your detailed learning progress</p>
         </div>
 
         <div class="action-card" (click)="viewPerformanceHistory()">
           <div class="action-icon">
             <i class="fas fa-history"></i>
           </div>
-          <h4>Istorija performansi</h4>
-          <p>Pogledajte sve pokušaje sesija i napredak</p>
+          <h4>Performance History</h4>
+          <p>See all your session attempts and improvements</p>
         </div>
 
         <div class="action-card" (click)="testAudio()">
           <div class="action-icon">
             <i class="fas fa-microphone-alt"></i>
           </div>
-          <h4>Test zvuka</h4>
-          <p>Testirajte mikrofon i zvučnike</p>
+          <h4>Audio Test</h4>
+          <p>Test your microphone and speakers</p>
         </div>
-      </div>
+
+
+
     </div>
   </div>
 </div>

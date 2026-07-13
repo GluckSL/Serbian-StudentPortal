@@ -379,7 +379,7 @@ export class GluckRoomListComponent implements OnInit, OnDestroy {
   }
 
   formatDate(d: string | Date): string {
-    return new Date(d).toLocaleString('sr-Latn-RS', {
+    return new Date(d).toLocaleString('en-US', {
       month: 'short', day: 'numeric', year: 'numeric',
       hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata'
     });

@@ -1,45 +1,45 @@
 <div class="teacher-resources-page">
   <div class="page-head">
-    <h2>Resursi</h2>
-    <p>Resursi podeljeni za vaše časove sa detaljima o grupi i planu.</p>
+    <h2>Resources</h2>
+    <p>Resources shared for your classes with batch and plan details.</p>
   </div>
 
-  <div *ngIf="loading" class="empty-state">Učitavanje resursa...</div>
-  <div *ngIf="!loading && resources.length === 0" class="empty-state">Još nema dostupnih resursa.</div>
+  <div *ngIf="loading" class="empty-state">Loading resources...</div>
+  <div *ngIf="!loading && resources.length === 0" class="empty-state">No resources available yet.</div>
 
   <section class="resource-panel" *ngIf="!loading && resources.length > 0">
     <div class="filter-grid">
       <div class="filter-item">
-        <label>Pretraži</label>
-        <input type="text" [(ngModel)]="searchTerm" placeholder="Pretraži naslov, temu, fajl..." />
+        <label>Search</label>
+        <input type="text" [(ngModel)]="searchTerm" placeholder="Search title, topic, file..." />
       </div>
       <div class="filter-item">
-        <label>Grupa</label>
+        <label>Batch</label>
         <select [(ngModel)]="selectedBatch">
-          <option value="">Sve grupe</option>
+          <option value="">All batches</option>
           <option *ngFor="let value of availableBatches" [value]="value">{{ value }}</option>
         </select>
       </div>
       <div class="filter-item">
-        <label>Nivo</label>
+        <label>Level</label>
         <select [(ngModel)]="selectedLevel">
-          <option value="">Svi nivoi</option>
+          <option value="">All levels</option>
           <option *ngFor="let value of availableLevels" [value]="value">{{ value }}</option>
         </select>
       </div>
       <div class="filter-item">
         <label>Plan</label>
         <select [(ngModel)]="selectedPlan">
-          <option value="">Svi planovi</option>
+          <option value="">All plans</option>
           <option *ngFor="let value of availablePlans" [value]="value">{{ value }}</option>
         </select>
       </div>
       <div class="filter-item filter-item--action">
-        <button type="button" class="btn-reset" (click)="resetFilters()">Resetuj filtere</button>
+        <button type="button" class="btn-reset" (click)="resetFilters()">Reset Filters</button>
       </div>
     </div>
 
-    <div *ngIf="groupedResources.length === 0" class="empty-state">Nema resursa koji odgovaraju vašim filterima.</div>
+    <div *ngIf="groupedResources.length === 0" class="empty-state">No resources match your current filters.</div>
 
     <div class="resource-cards" *ngIf="groupedResources.length > 0">
       <div class="resource-card" *ngFor="let group of groupedResources">
@@ -53,7 +53,7 @@
             <span class="tag tag--plan" *ngIf="group.plan">{{ group.plan }}</span>
             <span class="tag tag--type" *ngIf="group.resourceType">{{ group.resourceType }}</span>
           </div>
-          <div class="card-sub" *ngIf="group.topic">Tema: <strong>{{ group.topic }}</strong></div>
+          <div class="card-sub" *ngIf="group.topic">Topic: <strong>{{ group.topic }}</strong></div>
           <div class="card-sub card-desc" *ngIf="group.description">{{ group.description }}</div>
         </div>
 
@@ -81,8 +81,8 @@
     <div class="preview-topbar">
       <strong>{{ activePreviewTitle }}</strong>
       <div class="topbar-actions">
-        <button class="fullscreen-btn" type="button" (click)="toggleFullscreen(previewContainer)">Pun ekran</button>
-        <button class="close-btn" type="button" (click)="closePreview()">Zatvori</button>
+        <button class="fullscreen-btn" type="button" (click)="toggleFullscreen(previewContainer)">Fullscreen</button>
+        <button class="close-btn" type="button" (click)="closePreview()">Close</button>
       </div>
     </div>
 
@@ -102,7 +102,7 @@
 
     <div *ngIf="activePreviewIsAudio" class="preview-audio-wrap">
       <audio controls controlsList="nodownload noremoteplayback" disablePictureInPicture [src]="activePreviewRawUrl" style="width:100%;max-width:600px;">
-        Vaš pregledač ne podržava audio element.
+        Your browser does not support the audio element.
       </audio>
     </div>
 
@@ -114,7 +114,7 @@
       [src]="activePreviewRawUrl"
       style="max-width:100%;max-height:calc(100vh - 110px);"
     >
-      Vaš pregledač ne podržava video element.
+      Your browser does not support the video element.
     </video>
 
     <iframe

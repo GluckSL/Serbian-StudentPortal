@@ -135,22 +135,22 @@ const IMPORT_COLUMNS: Record<string, { col: string; required?: boolean; note?: s
       <div class="gip__notice" *ngIf="!hasGameSetId">
         <mat-icon>info</mat-icon>
         <div>
-          <strong>Prvo sačuvajte detalje igre</strong>
-          <p>Uvoz zahteva sačuvan set igre. Popunite obrazac na kartici Detalji igre i kliknite Sačuvaj, zatim se vratite ovde.</p>
+          <strong>Save Game Details first</strong>
+          <p>Import needs a saved game set. Fill in the form on the Game Details tab and click Save, then return here.</p>
         </div>
       </div>
 
       <ng-container *ngIf="hasGameSetId">
         <div class="gip__hero">
           <div class="gip__hero-text">
-            <h3>Masovni uvoz</h3>
-            <p>Preuzmite CSV šablon za <strong>{{ gameTypeLabel }}</strong>, popunite ga u Excelu ili Google Sheets, zatim otpremite radi validacije pre uvoza.</p>
+            <h3>Bulk import</h3>
+            <p>Download a CSV template for <strong>{{ gameTypeLabel }}</strong>, fill it in Excel or Google Sheets, then upload for validation before importing.</p>
           </div>
           <span class="gip__badge">{{ gameTypeLabel }}</span>
         </div>
 
         <div class="gip__columns" *ngIf="columnGuide.length">
-          <h4>Očekivane kolone</h4>
+          <h4>Expected columns</h4>
           <div class="gip__column-chips">
             <span *ngFor="let c of columnGuide" class="gip__col" [class.gip__col--req]="c.required">
               {{ c.col }}<span *ngIf="c.required">*</span>
@@ -163,13 +163,13 @@ const IMPORT_COLUMNS: Record<string, { col: string; required?: boolean; note?: s
           <div class="gip__step">
             <span class="gip__step-num">1</span>
             <button mat-stroked-button (click)="downloadTemplate()">
-              <mat-icon>download</mat-icon> Preuzmite šablon
+              <mat-icon>download</mat-icon> Download template
             </button>
           </div>
           <div class="gip__step">
             <span class="gip__step-num">2</span>
             <button mat-stroked-button (click)="fileInput.click()">
-              <mat-icon>upload_file</mat-icon> Otpremite CSV / Excel
+              <mat-icon>upload_file</mat-icon> Upload CSV / Excel
             </button>
             <input #fileInput type="file" accept=".csv,.xlsx,.xls" hidden (change)="onFile($event)">
             <span class="gip__file-name" *ngIf="fileName">{{ fileName }} ({{ rows.length }} rows)</span>
@@ -180,7 +180,7 @@ const IMPORT_COLUMNS: Record<string, { col: string; required?: boolean; note?: s
               [disabled]="!rows.length || importing || !previewOk"
               (click)="commit()">
               <mat-icon>cloud_upload</mat-icon>
-              Uvezi {{ validCount || rows.length }} stavki
+              Import {{ validCount || rows.length }} items
             </button>
           </div>
         </div>
@@ -188,19 +188,19 @@ const IMPORT_COLUMNS: Record<string, { col: string; required?: boolean; note?: s
         <mat-progress-bar *ngIf="importing || previewing" mode="indeterminate"></mat-progress-bar>
 
         <div class="gip__stats" *ngIf="rows.length && !previewing">
-          <span class="gip__stat gip__stat--ok" *ngIf="previewOk"><mat-icon>check_circle</mat-icon> {{ validCount }} ispravno</span>
-          <span class="gip__stat gip__stat--err" *ngIf="previewErrors.length"><mat-icon>error</mat-icon> {{ previewErrors.length }} grešaka</span>
+          <span class="gip__stat gip__stat--ok" *ngIf="previewOk"><mat-icon>check_circle</mat-icon> {{ validCount }} valid</span>
+          <span class="gip__stat gip__stat--err" *ngIf="previewErrors.length"><mat-icon>error</mat-icon> {{ previewErrors.length }} errors</span>
         </div>
 
         <div class="gip__errors" *ngIf="previewErrors.length">
-          <h4>Ispravite ove greške pre uvoza</h4>
+          <h4>Fix these before importing</h4>
           <ul>
             <li *ngFor="let e of previewErrors">{{ e }}</li>
           </ul>
         </div>
 
         <div class="gip__preview" *ngIf="previewRows.length && previewOk">
-          <h4>Pregled (prvih {{ previewRows.length }} stavki)</h4>
+          <h4>Preview (first {{ previewRows.length }} items)</h4>
           <div class="gip__preview-scroll">
             <table>
               <thead>
@@ -221,7 +221,7 @@ const IMPORT_COLUMNS: Record<string, { col: string; required?: boolean; note?: s
 
         <p class="gip__replace-note">
           <mat-icon>warning_amber</mat-icon>
-          Import zamenjuje sva postojeća pitanja za ovaj set igre (ne dodaje).
+          Import replaces all existing questions for this game set (does not append).
         </p>
       </ng-container>
     </div>

@@ -17,7 +17,7 @@
       <span class="sp-exam-player__title">{{ payload.module.title }}</span>
       <span class="sp-exam-player__exam-label">{{ examLabel }}</span>
     </div>
-    <button class="sp-exam-player__exit" (click)="onExit()" aria-label="Izlaz">
+    <button class="sp-exam-player__exit" (click)="onExit()" aria-label="Exit">
       <mat-icon>close</mat-icon>
     </button>
   </header>
@@ -117,7 +117,7 @@
 
       <!-- Mic + Fertig (center, below card) -->
       <div class="sp-exam-player__mic-zone" *ngIf="showStudentTurnUi">
-        <div class="sp-exam-player__turn-pill">VAŠA TURA</div>
+        <div class="sp-exam-player__turn-pill">IHR TURN</div>
         <p class="sp-exam-player__mic-hint" *ngIf="!isMonologueMode">
           🎧 Headset empfohlen.
         </p>

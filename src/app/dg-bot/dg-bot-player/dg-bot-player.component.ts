@@ -258,7 +258,7 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
 
   get statusLabel(): string {
     if (this.isAiThinking) return 'Thinking…';
-    if (this.status === 'listening') return 'Slušanje…';
+    if (this.status === 'listening') return 'Listening…';
     if (this.status === 'processing') return 'Processing…';
     return '';
   }
@@ -309,18 +309,18 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
   }
 
   private readonly motivationTexts = [
-    'Odlično vam ide — svaka reč se računa!',
-    'Sjajan trud! Gradite prave jezičke veštine.',
-    'Nastavite — vežba vodi napretku!',
-    'Fantastičan rad! Učenje jezika zahteva hrabrost.',
-    'Na pravom ste putu — budite radoznali i nastavite!',
-    'Sjajno! Svaka sesija vas približava tečnosti.',
-    'Pravite velike korake — trud se zaista vidi!',
-    'Briljantan trud! Vaše samopouzdanje raste sa svakom sesijom.',
-    'Dobro urađeno! Doslednost je ključ jezičke majstorije.',
-    'Vi ste učenik jezika — i to je nešto na šta možete biti ponosni!',
-    'Svaki razgovor je korak ka tečnosti!',
-    'Pojavili ste se i vežbali — to rade pravi šampioni!',
+    "You're doing amazing — every word counts!",
+    "Great effort! You're building real language skills.",
+    "Keep it up — practice makes progress!",
+    "Fantastic work! Learning a language takes courage.",
+    "You're on the right track — stay curious and keep going!",
+    "Awesome job! Each session brings you closer to fluency.",
+    "You're making great strides — the effort really shows!",
+    "Brilliant effort! Your confidence is growing every session.",
+    "Well done! Consistency is the key to language mastery.",
+    "You're a language learner — and that's something to be proud of!",
+    "Every conversation you have is a step toward fluency!",
+    "You showed up and practiced — that's what champions do!",
   ];
 
   private pickMotivationText(): string {
@@ -747,7 +747,7 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     this.isMobile = window.innerWidth < 900;
     const id = this.route.snapshot.paramMap.get('moduleId');
-    if (!id) { this.error = 'Modul nedostaje'; this.loading = false; return; }
+    if (!id) { this.error = 'Missing module'; this.loading = false; return; }
     this.boot(id);
   }
 
@@ -807,7 +807,7 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
         this.exit();
         return;
       }
-      this.error = e?.error?.message || e?.message || 'Nije moguće učitati modul';
+      this.error = e?.error?.message || e?.message || 'Could not load module';
       this.loading = false;
     }
   }
@@ -841,7 +841,7 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
         type: 'teach',
         text: guidance,
         audioUrl: '', expectedAnswer: '', translation: '',
-        hint: 'Slušajte svoju ulogu, zatim govorite kada ste spremni.',
+        hint: 'Listen to your role, then speak when ready.',
         order: introScenes.length,
       });
     }
@@ -991,7 +991,7 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
         this.practicePassed = true;
         void this.advance();
       } else {
-        this.displayLine = `${lines.en} Pokušajte ponovo kada budete spremni.`;
+        this.displayLine = `${lines.en} Try again when you're ready.`;
         this.displaySub = lines.de;
         this.mascotSpeechText = lines.de;
         await this.playFeedbackTts(lines.de, 'sad');
@@ -1142,7 +1142,7 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
       this.dgLog('empty_transcript', {});
       this.chatHistory = [
         ...this.chatHistory,
-        { speaker: 'hint' as const, text: 'Nismo vas čuli — pokušajte ponovo.', instructionEn: 'Govorite jasno i pokušajte ponovo.' },
+        { speaker: 'hint' as const, text: "Couldn't hear you — please try again.", instructionEn: 'Speak clearly and try again.' },
       ];
       this.scrollChatToLatest();
       this.openMicForUserTurn();

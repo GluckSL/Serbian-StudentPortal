@@ -81,12 +81,12 @@ const A4_WIDTH_PX = Math.round(A4_WIDTH_MM * MM_TO_PX);
 
 const fmt = (val: number | undefined | null): string => {
   if (val === undefined || val === null) return "0";
-  return val.toLocaleString("sr-Latn-RS");
+  return val.toLocaleString("en-IN");
 };
 
 const fmtDate = (d: string | undefined | null): string => {
   if (!d) return "—";
-  return new Date(d).toLocaleDateString("sr-Latn-RS", {
+  return new Date(d).toLocaleDateString("en-IN", {
     day: "2-digit",
     month: "short",
     year: "numeric",
@@ -168,12 +168,12 @@ function renderGluckLogoSvg(): string {
 
 export function renderInvoiceHTML(data: InvoiceData, logoDataUrl?: string): string {
   const formatAmount = (amount: number, currency: string) =>
-    `${currency} ${amount.toLocaleString("sr-Latn-RS", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    `${currency} ${amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   const formatDate = (dateStr: string) => {
     if (!dateStr) return "—";
     const d = new Date(dateStr);
-    return d.toLocaleDateString("sr-Latn-RS"); // DD/MM/YYYY
+    return d.toLocaleDateString("en-GB"); // DD/MM/YYYY
   };
 
   const si = data.studentInfo;

@@ -35,10 +35,10 @@ export class DgSceneEngineService {
     const repeatCurrent = isPractice && (args.status === 'listening' || args.status === 'processing');
     const practiceDone = isPractice && args.practicePassed;
     return [
-      { id: 'listen', label: 'Slušajte', done: listeningDone, current: isPractice && args.status === 'speaking' },
-      { id: 'repeat', label: 'Ponovite', done: practiceDone, current: !!repeatCurrent },
-      { id: 'practice', label: 'Vežbajte', done: practiceDone, current: isPractice && !practiceDone && args.status !== 'speaking' },
-      { id: 'feedback', label: 'Povratna informacija', done: practiceDone, current: isPractice && args.status === 'result' },
+      { id: 'listen', label: 'Listen', done: listeningDone, current: isPractice && args.status === 'speaking' },
+      { id: 'repeat', label: 'Repeat', done: practiceDone, current: !!repeatCurrent },
+      { id: 'practice', label: 'Practice', done: practiceDone, current: isPractice && !practiceDone && args.status !== 'speaking' },
+      { id: 'feedback', label: 'Get feedback', done: practiceDone, current: isPractice && args.status === 'result' },
     ];
   }
 

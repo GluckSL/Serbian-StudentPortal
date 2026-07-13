@@ -50,7 +50,7 @@ import {
           <mat-icon>check_circle</mat-icon> +{{ lastPoints }} pts
         </div>
         <div class="immp__feedback immp__feedback--wrong" *ngIf="feedback === 'wrong'">
-          <mat-icon>cancel</mat-icon> {{ revealAnswer || 'Netačno' }}
+          <mat-icon>cancel</mat-icon> {{ revealAnswer || 'Wrong' }}
         </div>
       </div>
 

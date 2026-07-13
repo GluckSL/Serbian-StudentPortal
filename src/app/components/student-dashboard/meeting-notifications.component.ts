@@ -136,7 +136,7 @@ export class MeetingNotificationsComponent implements OnInit, OnDestroy {
     }
 
     // Otherwise show date
-    return meetingDate.toLocaleDateString('sr-Latn-RS', {
+    return meetingDate.toLocaleDateString('en-US', {
       month: 'short',
       day: 'numeric'
     });

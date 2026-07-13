@@ -3,8 +3,8 @@
     <div class="sa-header__main">
       <span class="sa-header__icon material-icons" aria-hidden="true">campaign</span>
       <div>
-        <h1 class="sa-header__title">Obaveštenja</h1>
-        <p class="sa-header__sub">Zvanična obaveštenja vaše škole. Novi postovi se pojavljuju ovde kada je vaša grupa uključena.</p>
+        <h1 class="sa-header__title">Announcements</h1>
+        <p class="sa-header__sub">Official notices from your school. New posts appear here when your batch is included.</p>
       </div>
     </div>
   </header>
@@ -15,22 +15,22 @@
 
   <div *ngIf="!loading && announcements.length === 0" class="sa-empty">
     <span class="material-icons sa-empty__icon" aria-hidden="true">notifications_none</span>
-    <p class="sa-empty__title">Nema obaveštenja</p>
-    <p class="sa-empty__text">Kada vaša grupa dobije ažuriranje, pojaviće se ovde.</p>
+    <p class="sa-empty__title">No announcements yet</p>
+    <p class="sa-empty__text">When your batch receives an update, it will show up here.</p>
   </div>
 
   <div *ngIf="!loading && announcements.length > 0 && filteredAnnouncements.length === 0" class="sa-empty">
-    <p class="sa-empty__title">Nema rezultata u ovom prikazu</p>
-    <p class="sa-empty__text">Pokušajte drugi filter iznad.</p>
+    <p class="sa-empty__title">Nothing in this view</p>
+    <p class="sa-empty__text">Try another filter above.</p>
   </div>
 
   <div class="sa-table-wrap" *ngIf="!loading && filteredAnnouncements.length > 0">
     <table class="sa-table">
       <thead>
         <tr>
-          <th class="sa-table__col-date">Datum i vreme</th>
-          <th class="sa-table__col-badge">Tip</th>
-          <th class="sa-table__col-title">Naslov</th>
+          <th class="sa-table__col-date">Date &amp; Time</th>
+          <th class="sa-table__col-badge">Type</th>
+          <th class="sa-table__col-title">Title</th>
           <th class="sa-table__col-action"></th>
         </tr>
       </thead>
@@ -46,7 +46,7 @@
           </td>
           <td class="sa-row__title">{{ item.title }}</td>
           <td class="sa-row__action">
-            <button class="sa-view-btn" (click)="openAnnouncement(item)" title="Prikaži obaveštenje">
+            <button class="sa-view-btn" (click)="openAnnouncement(item)" title="View announcement">
               <span class="material-icons">visibility</span>
             </button>
           </td>

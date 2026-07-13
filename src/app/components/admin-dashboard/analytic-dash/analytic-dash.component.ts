@@ -1051,7 +1051,7 @@ export class AnalyticDashComponent implements OnInit {
       const dateObj = new Date(date);
       if (isNaN(dateObj.getTime())) return 'Never sent';
       
-      return dateObj.toLocaleDateString('sr-Latn-RS', {
+      return dateObj.toLocaleDateString('en-US', {
         year: 'numeric',
         month: 'short',
         day: 'numeric',
@@ -1068,7 +1068,7 @@ export class AnalyticDashComponent implements OnInit {
     try {
       const dateObj = new Date(date);
       if (isNaN(dateObj.getTime())) return '—';
-      return dateObj.toLocaleDateString('sr-Latn-RS', {
+      return dateObj.toLocaleDateString('en-US', {
         year: 'numeric',
         month: 'short',
         day: 'numeric'

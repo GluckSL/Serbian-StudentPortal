@@ -1,4 +1,4 @@
-﻿// src/app/components/meeting-link/meeting-attendance.component.ts
+// src/app/components/meeting-link/meeting-attendance.component.ts
 
 import { Component, OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -1916,7 +1916,7 @@ export class MeetingAttendanceComponent implements OnInit {
   }
 
   formatDate(date: string | Date): string {
-    return new Date(date).toLocaleString('sr-Latn-RS', {
+    return new Date(date).toLocaleString('en-US', {
       weekday: 'short',
       year: 'numeric',
       month: 'short',
@@ -1928,7 +1928,7 @@ export class MeetingAttendanceComponent implements OnInit {
 
   formatTime(dateString: string): string {
     if (!dateString) return '-';
-    return new Date(dateString).toLocaleTimeString('sr-Latn-RS', {
+    return new Date(dateString).toLocaleTimeString('en-US', {
       hour: '2-digit',
       minute: '2-digit'
     });

@@ -21,19 +21,19 @@
   <!-- ─── ERROR ───────────────────────────────────────────────────────────── -->
   <div class="state-centered" *ngIf="state === 'error' && !noReattemptBlocked">
     <span class="material-icons error-icon">error_outline</span>
-    <h3>Vežba nije pronađena</h3>
-    <p>Ova vežba možda nije dostupna ili je link netačan.</p>
+    <h3>Exercise not found</h3>
+    <p>This exercise may not be available or the link is incorrect.</p>
     <button class="btn-primary" (click)="backToExercises()">
-      <span class="material-icons">arrow_back</span> Nazad na vežbe
+      <span class="material-icons">arrow_back</span> Back to Exercises
     </button>
   </div>
 
   <div class="state-centered" *ngIf="state === 'error' && noReattemptBlocked">
     <span class="material-icons error-icon">lock</span>
-    <h3>Već pokušano</h3>
-    <p>Već ste završili ovu vežbu i ponovni pokušaji nisu dozvoljeni.</p>
+    <h3>Already Attempted</h3>
+    <p>You have already completed this exercise and re-attempts are not allowed.</p>
     <button class="btn-primary" (click)="backToExercises()">
-      <span class="material-icons">arrow_back</span> Nazad na vežbe
+      <span class="material-icons">arrow_back</span> Back to Exercises
     </button>
   </div>
 
@@ -50,7 +50,7 @@
           role="status"
           aria-live="polite"
         >
-          <span class="result-sync-strip__label">Čuvanje vašeg rezultata…</span>
+          <span class="result-sync-strip__label">Saving your result…</span>
           <span class="result-sync-strip__bar" aria-hidden="true"></span>
         </div>
         <div class="result-card-inner">
@@ -62,9 +62,9 @@
             <span class="material-icons">verified</span>
           </div>
           <p class="result-exercise-label">{{ exercise?.title }}</p>
-          <h1 class="result-heading">Vaš rezultat</h1>
+          <h1 class="result-heading">Your Result</h1>
           <p class="result-auto-submit-flag" *ngIf="autoSubmittedDueToLockBrowser">
-            <span class="material-icons">info</span> Automatski predato zbog prebacivanja taba/aplikacije
+            <span class="material-icons">info</span> Auto-submitted due to tab/app switch
           </p>
           <p
             class="result-video-kicker"
@@ -72,28 +72,28 @@
               isVideoOnlyResult && answeredCount === playerQuestions.length
             "
           >
-            Završili ste sve
-            <strong>{{ playerQuestions.length }}</strong> isečk{{
-              playerQuestions.length === 1 ? "" : "a"
+            You completed all
+            <strong>{{ playerQuestions.length }}</strong> clip{{
+              playerQuestions.length === 1 ? "" : "s"
             }}
-            — odličan rad.
+            — great work.
           </p>
           <p
             class="result-video-kicker"
             *ngIf="isVideoOnlyResult && answeredCount < playerQuestions.length"
           >
-            Pokušali ste <strong>{{ answeredCount }}</strong> od
-            <strong>{{ playerQuestions.length }}</strong> isečk{{
-              playerQuestions.length === 1 ? "" : "a"
+            You attempted <strong>{{ answeredCount }}</strong> of
+            <strong>{{ playerQuestions.length }}</strong> clip{{
+              playerQuestions.length === 1 ? "" : "s"
             }}
-            (npr. isteklo je vreme ili je vežba ranije predata).
+            (e.g. time ran out or the exercise was submitted early).
           </p>
           <div class="result-score-block">
             <div class="result-points-big">
               <span class="points-earned">{{ result.earnedPoints }}</span>
               <span class="points-sep">/</span>
               <span class="points-total">{{ result.totalPoints }}</span>
-              <span class="points-label">poena</span>
+              <span class="points-label">points</span>
             </div>
           </div>
           <div class="result-meta">
@@ -116,24 +116,24 @@
               <span class="material-icons">{{
                 result.passed ? "check_circle" : "cancel"
               }}</span>
-              {{ result.passed ? "Položeno" : "Nije položeno" }}
+              {{ result.passed ? "Passed" : "Not passed" }}
             </span>
           </div>
           <div class="result-mini-stats">
             <div class="mini-stat">
-              <span class="mini-stat-label">Pokušano</span>
+              <span class="mini-stat-label">Attempted</span>
               <span class="mini-stat-value">{{ answeredCount }}</span>
             </div>
             <div class="mini-stat">
-              <span class="mini-stat-label">Bez odgovora</span>
+              <span class="mini-stat-label">Unanswered</span>
               <span class="mini-stat-value">{{ unattemptedCount }}</span>
             </div>
             <div class="mini-stat good">
-              <span class="mini-stat-label">Tačno</span>
+              <span class="mini-stat-label">Correct</span>
               <span class="mini-stat-value">{{ correctCount }}</span>
             </div>
             <div class="mini-stat bad">
-              <span class="mini-stat-label">Netačno</span>
+              <span class="mini-stat-label">Wrong</span>
               <span class="mini-stat-value">{{ wrongCount }}</span>
             </div>
           </div>
@@ -148,7 +148,7 @@
               [disabled]="submitting"
             >
               <span class="material-icons">rate_review</span>
-              Pregled odgovora
+              Review answers
             </button>
             <button
               *ngIf="!exercise?.noReattempt || isStaffTester"
@@ -158,7 +158,7 @@
               [disabled]="submitting"
             >
               <span class="material-icons">replay</span>
-              Pokušaj ponovo
+              Re-attempt
             </button>
           </div>
         </div>
@@ -167,8 +167,8 @@
         class="result-back-btn"
         type="button"
         (click)="backToExercises()"
-        title="Nazad na vežbe"
-        aria-label="Nazad na vežbe"
+        title="Back to exercises"
+        aria-label="Back to exercises"
       >
         <span class="material-icons">arrow_back</span>
       </button>
@@ -181,14 +181,14 @@
       <button
         class="btn-icon-back"
         (click)="backToResult()"
-        title="Nazad na rezultat"
+        title="Back to result"
       >
         <span class="material-icons">arrow_back</span>
       </button>
-      <h1 class="review-title">Pregled odgovora</h1>
+      <h1 class="review-title">Review answers</h1>
       <div class="review-score-bar">
-        Ukupno: <strong>{{ result.earnedPoints }}</strong> /
-        <strong>{{ result.totalPoints }}</strong> poena ({{
+        Total: <strong>{{ result.earnedPoints }}</strong> /
+        <strong>{{ result.totalPoints }}</strong> points ({{
           result.scorePercentage
         }}%)
       </div>
@@ -210,7 +210,7 @@
           [ngClass]="'review-q-block--' + pq.data.type"
         >
           <div class="review-q-head">
-            <span class="review-q-num">Pitanje {{ i + 1 }}</span>
+            <span class="review-q-num">Question {{ i + 1 }}</span>
             <span class="review-q-type-pill" [class]="'pill-' + pq.data.type">
               {{ getQuestionTypeLabelForDisplay(pq.data) }}
             </span>
@@ -225,7 +225,7 @@
                 <span class="material-icons">{{
                   isMultipartFullyCorrect(pq) ? "check_circle" : (getMultipartPointsEarned(pq) > 0 ? "adjust" : "cancel")
                 }}</span>
-                {{ getMultipartPointsEarned(pq) }}/{{ getMultipartMaxPoints(pq) }} poena
+                {{ getMultipartPointsEarned(pq) }}/{{ getMultipartMaxPoints(pq) }} pts
               </span>
             </ng-container>
             <ng-template #simpleReviewBadge>
@@ -237,7 +237,7 @@
               <span class="material-icons">{{
                 pq.isCorrect ? "check_circle" : "cancel"
               }}</span>
-              {{ pq.isCorrect ? "Tačno" : "Netačno" }}
+              {{ pq.isCorrect ? "Correct" : "Incorrect" }}
             </span>
             </ng-template>
           </div>
@@ -258,7 +258,7 @@
                 *ngIf="worksheetInstructionDisplay(pq.data)"
               >
                 <div class="q-instruction-banner-header">
-                  <span class="q-instruction-label">Uputstvo</span>
+                  <span class="q-instruction-label">Instruction</span>
                 </div>
                 <div class="q-instruction-banner-body">
                   <span
@@ -271,7 +271,7 @@
               </div>
               <div class="q-example-banner" *ngIf="pq.data.example">
                 <div class="q-example-banner-header">
-                  <span class="q-example-label">Primer</span>
+                  <span class="q-example-label">Example</span>
                 </div>
                 <div class="q-example-banner-body">
                   <span
@@ -312,7 +312,7 @@
                 class="review-word-bank-line"
                 *ngIf="pq.data.wordBank?.length"
               >
-                <strong>Banka reči:</strong>
+                <strong>Word bank:</strong>
                 <span
                   class="review-word-bank-chip"
                   *ngFor="let w of pq.data.wordBank"
@@ -329,7 +329,7 @@
               ></div>
             </ng-container>
             <div class="review-q-text" *ngIf="pq.data.type === 'pronunciation'">
-              Recite: {{ pq.data.word }}
+              Say: {{ pq.data.word }}
             </div>
             <div
               class="review-q-text"
@@ -349,14 +349,14 @@
               *ngIf="pq.data.type === 'rearrange'"
               [innerHTML]="pq.data.rearrangePrompt | safeHtml"
             ></div>
-            <!-- Uparivanje pinova na slici: show the image for context in review -->
+            <!-- Image Pin Match: show the image for context in review -->
             <div
               *ngIf="pq.data.type === 'image_pin_match' && getImagePinImageUrl(pq.data)"
               class="q-attachment-box"
             >
               <img
                 [src]="getMediaFullUrl(getImagePinImageUrl(pq.data))"
-                alt="Slika za pin uparivanje"
+                alt="Pin match image"
                 class="q-attachment-img"
                 loading="lazy"
               />
@@ -381,7 +381,7 @@
                 style="font-size: 1rem; vertical-align: middle"
                 >videocam</span
               >
-              Recite: <strong [innerHTML]="pq.data.caption | safeHtml"></strong>
+              Say: <strong [innerHTML]="pq.data.caption | safeHtml"></strong>
             </div>
 
             <!-- Shared audio above prompts when Q&A has sub-parts -->
@@ -411,7 +411,7 @@
                 <img
                   *ngSwitchCase="'image'"
                   [src]="getMediaFullUrl(attUrl)"
-                  alt="Prilog"
+                  alt="Attachment"
                   class="q-attachment-img"
                   loading="lazy"
                   decoding="async"
@@ -434,7 +434,7 @@
                   target="_blank"
                   class="q-attachment-file-link"
                 >
-                  <span class="material-icons">picture_as_pdf</span> Otvori PDF
+                  <span class="material-icons">picture_as_pdf</span> Open PDF
                 </a>
                 <a
                   *ngSwitchDefault
@@ -442,7 +442,8 @@
                   target="_blank"
                   class="q-attachment-file-link"
                 >
-                  <span class="material-icons">insert_drive_file</span> Otvori datoteku
+                  <span class="material-icons">insert_drive_file</span> Open
+                  file
                 </a>
               </ng-container>
             </div>
@@ -451,7 +452,7 @@
               class="review-part-label"
               *ngIf="hasSubQuestions(pq.data) && !hasFillBlankReviewItems(pq, i)"
             >
-              D {{ getQuestionPartLabel(i, getParentPartNumber()) }}
+              Q {{ getQuestionPartLabel(i, getParentPartNumber()) }}
             </div>
 
             <div class="review-fill-blank-list" *ngIf="hasFillBlankReviewItems(pq, i)">
@@ -463,19 +464,19 @@
                 [class.unanswered]="!blank.answered"
               >
                 <div class="review-blank-head">
-                  <span class="review-blank-num">Praznina {{ blank.globalIndex }}</span>
+                  <span class="review-blank-num">Blank {{ blank.globalIndex }}</span>
                   <span class="review-blank-part">{{ blank.partLabel }}</span>
                 </div>
                 <div class="review-answer-row">
-                  <span class="review-label">Vaš odgovor:</span>
+                  <span class="review-label">Your answer:</span>
                   <span
                     class="review-value"
                     [class.correct]="blank.isCorrect"
                     [class.wrong]="blank.answered && !blank.isCorrect"
-                  >{{ blank.answered ? blank.studentAnswer : 'Bez odgovora' }}</span>
+                  >{{ blank.answered ? blank.studentAnswer : 'Not answered' }}</span>
                 </div>
                 <div class="review-answer-row">
-                  <span class="review-label">Tačan odgovor:</span>
+                  <span class="review-label">Correct answer:</span>
                   <span class="review-value correct">{{ blank.correctAnswer || '—' }}</span>
                 </div>
               </div>
@@ -483,7 +484,7 @@
 
             <ng-container *ngIf="!hasFillBlankReviewItems(pq, i)">
             <div class="review-answer-row" *ngIf="!hasSubQuestions(pq.data) || !isParentAnswerPartEmpty(pq.data)">
-              <span class="review-label">Vaš odgovor:</span>
+              <span class="review-label">Your answer:</span>
               <span
                 class="review-value"
                 [class.correct]="hasSubQuestions(pq.data) ? getParentPartIsCorrect(pq) : pq.isCorrect === true"
@@ -496,7 +497,7 @@
               class="review-answer-row"
               *ngIf="hasSubQuestions(pq.data) ? (hasMultipartBeenGraded(pq) && !getParentPartIsCorrect(pq)) : !pq.isCorrect"
             >
-              <span class="review-label">Tačan odgovor:</span>
+              <span class="review-label">Correct answer:</span>
               <span class="review-value correct">{{
                 getReviewCorrectText(pq)
               }}</span>
@@ -521,12 +522,12 @@
           <div class="review-sub-questions" *ngIf="pq.data.subQuestions && pq.data.subQuestions.length > 0">
             <div class="review-sub-q-header">
               <span class="material-icons">subdirectory_arrow_right</span>
-              <span>Pod-pitanja ({{ pq.data.subQuestions.length }})</span>
+              <span>Sub-questions ({{ pq.data.subQuestions.length }})</span>
             </div>
             <div class="review-sub-q-list">
               <div class="review-sub-q-block" *ngFor="let sq of pq.data.subQuestions; let sqIndex = index">
                 <div class="review-sub-q-head">
-                  <span class="review-sub-q-num">D {{ getQuestionPartLabel(i, getSubQuestionPartNumber(sqIndex, pq.data)) }}</span>
+                  <span class="review-sub-q-num">Q {{ getQuestionPartLabel(i, getSubQuestionPartNumber(sqIndex, pq.data)) }}</span>
                   <span class="review-sub-q-type">{{ getQuestionTypeLabelForDisplay(sq) }}</span>
                   <span class="review-sub-q-pts">{{ sq.points || 1 }} pt</span>
                 </div>
@@ -535,13 +536,13 @@
                   <div class="review-sub-q-text" *ngIf="sq.type === 'fill-blank'" [innerHTML]="sq.sentence | safeHtml"></div>
                   <div class="review-sub-q-text" *ngIf="sq.type === 'question-answer'" [innerHTML]="sq.prompt | safeHtml"></div>
                   <div class="review-sub-q-text" *ngIf="sq.type === 'listening'" [innerHTML]="sq.prompt | safeHtml"></div>
-                  <div class="review-sub-q-text" *ngIf="sq.type === 'pronunciation'">Recite: {{ sq.word }}</div>
-                  <div class="review-sub-q-text" *ngIf="sq.type === 'matching'">Upari stavke</div>
-                  <div class="review-sub-q-text" *ngIf="sq.type === 'word_bank_fill'">Popunite praznine</div>
+                  <div class="review-sub-q-text" *ngIf="sq.type === 'pronunciation'">Say: {{ sq.word }}</div>
+                  <div class="review-sub-q-text" *ngIf="sq.type === 'matching'">Match the items</div>
+                  <div class="review-sub-q-text" *ngIf="sq.type === 'word_bank_fill'">Fill in the blanks</div>
 
                   <!-- Sub-question answer -->
                   <div class="review-sub-q-answer">
-                    <span class="review-label">Vaš odgovor:</span>
+                    <span class="review-label">Your answer:</span>
                     <span
                       class="review-value"
                       [class.correct]="getSubQuestionIsCorrect(pq, sqIndex)"
@@ -552,7 +553,7 @@
                     class="review-sub-q-correct"
                     *ngIf="hasMultipartBeenGraded(pq) && !getSubQuestionIsCorrect(pq, sqIndex)"
                   >
-                    <span class="review-label">Tačan odgovor:</span>
+                    <span class="review-label">Correct answer:</span>
                     <span class="review-value correct">{{
                       sq.type === 'mcq'
                         ? (sq.options?.[sq.correctAnswerIndex] || '—')
@@ -573,7 +574,7 @@
                 <img
                   *ngSwitchCase="'image'"
                   [src]="getMediaFullUrl(attUrl)"
-                  alt="Prilog"
+                  alt="Attachment"
                   class="q-attachment-img"
                   loading="lazy"
                   decoding="async"
@@ -596,7 +597,7 @@
                   target="_blank"
                   class="q-attachment-file-link"
                 >
-                  <span class="material-icons">picture_as_pdf</span> Otvori PDF
+                  <span class="material-icons">picture_as_pdf</span> Open PDF
                 </a>
                 <a
                   *ngSwitchDefault
@@ -604,7 +605,8 @@
                   target="_blank"
                   class="q-attachment-file-link"
                 >
-                  <span class="material-icons">insert_drive_file</span> Otvori datoteku
+                  <span class="material-icons">insert_drive_file</span> Open
+                  file
                 </a>
               </ng-container>
             </div>
@@ -620,10 +622,10 @@
       <button
         class="btn-icon-back btn-back-nav"
         (click)="goBack()"
-        title="Idi nazad"
+        title="Go back"
       >
         <span class="material-icons">arrow_back</span>
-        <span class="btn-back-label">Nazad</span>
+        <span class="btn-back-label">Back</span>
       </button>
     </div>
     <div class="intro-card">
@@ -643,21 +645,21 @@
           <span class="material-icons">quiz</span>
           <div>
             <strong>{{ totalQuestionCount }}</strong>
-            <span>Pitanja</span>
+            <span>Questions</span>
           </div>
         </div>
         <div class="intro-stat">
           <span class="material-icons">schedule</span>
           <div>
             <strong>~{{ exercise.estimatedDuration || 15 }} min</strong>
-            <span>Procenjeno</span>
+            <span>Estimated</span>
           </div>
         </div>
         <div class="intro-stat">
           <span class="material-icons">stars</span>
           <div>
             <strong>{{ totalPoints }}</strong>
-            <span>Ukupno poena</span>
+            <span>Total Points</span>
           </div>
         </div>
       </div>
@@ -673,10 +675,10 @@
       </div>
       <div class="intro-actions">
         <button class="btn-secondary" (click)="backToExercises()">
-          <span class="material-icons">list</span> Idi na vežbe
+          <span class="material-icons">list</span> Go to exercises
         </button>
         <button class="btn-primary btn-start" (click)="startExercise()">
-          <span class="material-icons">play_arrow</span> Pokrenite vežbu
+          <span class="material-icons">play_arrow</span> Start Exercise
         </button>
       </div>
     </div>
@@ -690,7 +692,7 @@
   >
     <span class="material-icons">visibility_off</span>
     <span class="lock-browser-alert__text">
-      Prebačen tab — automatska predaja za <strong>{{ lockBrowserCountdown }}</strong> seconds
+      Tab switched — auto-submitting in <strong>{{ lockBrowserCountdown }}</strong> seconds
     </span>
   </div>
 
@@ -722,13 +724,13 @@
     <div class="browser-guidance" *ngIf="showBrowserGuidance" role="status">
       <span class="material-icons">info</span>
       <span class="browser-guidance__text"
-        >Najbolje iskustvo u <strong>Chrome</strong>-u na računaru.</span
+        >Best experience in <strong>Chrome</strong> on desktop.</span
       >
       <button
         type="button"
         class="browser-guidance__close"
         (click)="dismissBrowserGuidance()"
-        aria-label="Zatvori"
+        aria-label="Dismiss"
       >
         <span class="material-icons">close</span>
       </button>
@@ -737,12 +739,12 @@
     <!-- Pronunciation developer debug panel (toggle: ?debug=pron or localStorage pron:debugPanel=1) -->
     <div class="pron-debug" *ngIf="pronDebugPanelEnabled">
       <div class="pron-debug__head">
-        <strong>Debug izgovora</strong>
+        <strong>Pronunciation debug</strong>
         <button
           type="button"
           class="pron-debug__close"
           (click)="togglePronDebugPanel()"
-          aria-label="Sakrij debug panel"
+          aria-label="Hide debug panel"
         >
           <span class="material-icons">close</span>
         </button>
@@ -814,10 +816,10 @@
         <button
           class="btn-icon-back btn-back-nav"
           (click)="goBack()"
-          title="Idi nazad"
+          title="Go back"
         >
           <span class="material-icons">arrow_back</span>
-          <span class="btn-back-label">Nazad</span>
+          <span class="btn-back-label">Back</span>
         </button>
         <div class="player-header-title">{{ exercise?.title }}</div>
         <div class="timer">
@@ -831,7 +833,7 @@
     <div class="shared-audio-wrap" *ngIf="exercise?.sharedAudioUrl">
       <div class="shared-audio-label">
         <span class="material-icons">headphones</span>
-        Zvuk
+        Audio
       </div>
       <audio
         class="shared-audio"
@@ -852,19 +854,19 @@
           >
             <div class="vp-detail-header">
               <div class="vp-detail-header-left">
-                <span class="vp-detail-card-label">Vežba</span>
+                <span class="vp-detail-card-label">Exercise</span>
                 <div class="watch-only-indicator" *ngIf="watchOnlyMode">
                   <span class="material-icons">mic_off</span>
-                  <span>Samo gledanje</span>
+                  <span>Watch Only</span>
                 </div>
               </div>
               <button
                 class="btn-icon-back btn-back-nav"
                 (click)="goBack()"
-                title="Idi nazad"
+                title="Go back"
               >
                 <span class="material-icons">arrow_back</span>
-                <span class="btn-back-label">Nazad</span>
+                <span class="btn-back-label">Back</span>
               </button>
             </div>
             <div class="vp-detail-content-row">
@@ -875,7 +877,7 @@
                     {{ exercise?.description }}
                   </p>
                   <div class="vp-detail-specs-row">
-                    <div class="vp-detail-spec-item">Putovanje u Nemačku</div>
+                    <div class="vp-detail-spec-item">Journey to Germany</div>
                     <div class="vp-detail-spec-item" *ngIf="exercise?.category">
                       {{ exercise?.category }}
                     </div>
@@ -928,7 +930,7 @@
           </div>
           <div class="vp-detail-card vp-detail-card--clips vp-detail-card--clips-desktop">
             <span class="vp-detail-card-label"
-              >Klipovi · {{ playerQuestions.length }} ukupno</span
+              >Clips · {{ playerQuestions.length }} total</span
             >
             <div class="vp-clip-cells">
               <button
@@ -942,7 +944,7 @@
                     currentQuestion.pronUiState === 'processing'
                   )
                 "
-                [attr.title]="'Klip ' + (i + 1)"
+                [attr.title]="'Clip ' + (i + 1)"
                 [disabled]="
                   finishingAll ||
                   submitting ||
@@ -990,7 +992,7 @@
                 <div
                   class="vp-buffering-overlay"
                   *ngIf="vpIsBuffering"
-                  aria-label="Učitavanje videa…"
+                  aria-label="Loading video…"
                   aria-live="polite"
                 >
                   <div class="vp-buffering-spinner"></div>
@@ -1024,7 +1026,7 @@
                         class="vp-stage-sub"
                         *ngIf="currentQuestion.data.acceptedVariants?.length"
                       >
-                        Takođe prihvaćeno:
+                        Also accepted:
                         {{ currentQuestion.data.acceptedVariants.join(", ") }}
                       </p>
                     </div>
@@ -1046,11 +1048,11 @@
                         "
                       >
                         <span class="material-icons">send</span>
-                        Pošalji
+                        Submit
                       </button>
                     </div>
 
-                    <!-- Samo gledanje: Replay + Next/Submit (no speaking required) -->
+                    <!-- Watch Only: Replay + Next/Submit (no speaking required) -->
                     <div
                       class="vp-stage-watch-only-block"
                       *ngIf="
@@ -1069,7 +1071,7 @@
                         (click)="replayVpVideo()"
                       >
                         <span class="material-icons">replay</span>
-                        Ponovi
+                        Replay
                       </button>
                       <button
                         *ngIf="!isLastQuestion"
@@ -1079,7 +1081,7 @@
                         [disabled]="finishingAll || submitting"
                       >
                         <span class="material-icons">skip_next</span>
-                        Sledeći klip
+                        Next Clip
                       </button>
                       <button
                         *ngIf="isLastQuestion"
@@ -1089,7 +1091,7 @@
                         [disabled]="finishingAll || submitting"
                       >
                         <span class="material-icons">flag</span>
-                        {{ finishingAll ? "Predaje se…" : "Završi" }}
+                        {{ finishingAll ? "Submitting…" : "Finish" }}
                       </button>
                     </div>
 
@@ -1110,7 +1112,7 @@
                         type="button"
                         class="vp-stage-mic-btn vp-stage-mic-btn--glass"
                         (click)="startVideoPronunciation(currentQuestion)"
-                        title="Govori"
+                        title="Speak"
                       >
                         <span class="material-icons">mic</span>
                       </button>
@@ -1121,10 +1123,10 @@
                         type="button"
                         class="vp-stage-foot-pill vp-stage-foot-pill--subtle"
                         (click)="openMicTest()"
-                        title="Proverite da mikrofon radi"
+                        title="Check your microphone is working"
                       >
                         <span class="material-icons">settings_voice</span>
-                        Testirajte mikrofon
+                        Test microphone
                       </button>
                     </div>
 
@@ -1136,7 +1138,7 @@
                         >mic</span
                       >
                       <span
-                        >🎤 Slušam<span
+                        >🎤 Listening<span
                           class="vp-listening-dots vp-listening-dots--light"
                           aria-hidden="true"
                           ><span>.</span><span>.</span><span>.</span></span
@@ -1153,7 +1155,7 @@
                         (click)="stopVideoPronunciation(currentQuestion)"
                       >
                         <span class="material-icons">stop</span>
-                        Zaustavi
+                        Stop
                       </button>
                     </div>
 
@@ -1168,7 +1170,7 @@
                         >hourglass_top</span
                       >
                       <span
-                        >Obrada<span
+                        >Processing<span
                           class="vp-listening-dots vp-listening-dots--light"
                           aria-hidden="true"
                           ><span>.</span><span>.</span><span>.</span></span
@@ -1178,7 +1180,7 @@
                         class="vp-stage-processing-hint"
                         *ngIf="pronProcessingSlow"
                       >
-                        Obrađujemo vaš govor… ovo može potrajati.
+                        Processing your speech… this may take a moment.
                       </span>
                     </div>
 
@@ -1215,11 +1217,11 @@
                           {{
                             currentQuestion.vpResult === "correct"
                               ? isVideoOnlyExercise
-                                ? "Razumem!"
-                                : "Tačno!"
+                                ? "Got it!"
+                                : "Correct!"
                               : currentQuestion.vpResult === "almostCorrect"
-                                ? "Skoro tačno — pokušajte još jednom"
-                                : "Pokušajmo ponovo"
+                                ? "Almost there — try once more"
+                                : "Let's try again"
                           }}
                         </span>
                       </div>
@@ -1285,8 +1287,8 @@
                           )
                         "
                       >
-                        Ulaz mikrofona deluje tiho. Govorite glasnije ili
-                        bliže mikrofonu.
+                        Your microphone input seems low. Try speaking louder or
+                        closer to the mic.
                       </div>
 
                       <!-- Comparison: spoken vs expected -->
@@ -1309,7 +1311,7 @@
                         "
                       >
                         <span class="vp-stage-transcript__label"
-                          >Rekli ste:</span
+                          >You said:</span
                         >
                         <span class="vp-stage-transcript__text"
                           >"{{ currentQuestion.vpSpokenText }}"</span
@@ -1326,7 +1328,7 @@
                         "
                       >
                         <span class="vp-stage-word-analysis-label"
-                          >Analiza reči:</span
+                          >Word breakdown:</span
                         >
                         <div class="pron-word-chips">
                           <span
@@ -1339,8 +1341,8 @@
                             [class.pron-chip--missing]="w.status === 'missing'"
                             [title]="
                               w.status === 'missing'
-                                ? 'Nedostaje'
-                                : 'Rekli ste: ' + (w.spoken || '—')
+                                ? 'Missing'
+                                : 'You said: ' + (w.spoken || '—')
                             "
                           >
                             {{ w.expected }}
@@ -1378,13 +1380,13 @@
                         class="vp-stage-retry-nudge vp-stage-retry-nudge--almost vp-wrong-minimal-hide-on-mobile"
                         *ngIf="currentQuestion.vpResult === 'almostCorrect'"
                       >
-                        🔶 Skoro! Možete ponovo pokušati za pun broj poena ili nastaviti.
+                        🔶 So close! You can retry for full credit or continue.
                       </p>
                       <p
                         class="vp-stage-retry-nudge vp-wrong-minimal-hide-on-mobile"
                         *ngIf="currentQuestion.vpResult === 'incorrect'"
                       >
-                        ❌ Nije baš tačno — 👉 pokušajte ponovo jasno.
+                        ❌ Not quite right — 👉 try again clearly.
                       </p>
                       <div
                         class="pron-help-wrap"
@@ -1399,7 +1401,7 @@
                           (click)="togglePronHelp(currentQuestion)"
                         >
                           <span class="material-icons">help_outline</span>
-                          Treba vam pomoć?
+                          Need help?
                         </button>
                         <div
                           class="pron-help-chunks"
@@ -1426,7 +1428,7 @@
                         (click)="markCurrentAsCorrect(currentQuestion)"
                       >
                         <span class="material-icons">check_circle</span>
-                        Označi kao tačno
+                        Mark as correct
                       </button>
 
                       <!-- Almost-correct actions -->
@@ -1441,16 +1443,16 @@
                             speakAgainVideoPronunciation(currentQuestion)
                           "
                         >
-                          <span class="material-icons">mic</span> Pokušaj ponovo
+                          <span class="material-icons">mic</span> Try again
                         </button>
                         <button
                           type="button"
                           class="vp-stage-pill vp-stage-pill--ghost vp-wrong-action-hide-on-mobile"
                           (click)="replayReferenceForRetry(currentQuestion)"
-                          title="Ponovi referentnu rečenicu"
+                          title="Replay the reference sentence"
                         >
                           <span class="material-icons">replay</span>
-                          Ponovi rečenicu
+                          Replay sentence
                         </button>
                         <button
                           *ngIf="!isLastQuestion"
@@ -1460,7 +1462,7 @@
                           [disabled]="finishingAll || submitting"
                         >
                           <span class="material-icons">skip_next</span>
-                          Nastavi ipak
+                          Continue anyway
                         </button>
                         <button
                           *ngIf="isLastQuestion"
@@ -1474,11 +1476,11 @@
                           "
                         >
                           <span class="material-icons">flag</span>
-                          {{ finishingAll ? "Predaje se…" : "Predaj vežbu" }}
+                          {{ finishingAll ? "Submitting…" : "Submit Exercise" }}
                         </button>
                       </div>
 
-                      <!-- Netačno actions -->
+                      <!-- Incorrect actions -->
                       <div
                         class="vp-stage-feedback-actions"
                         *ngIf="currentQuestion.vpResult === 'incorrect'"
@@ -1490,16 +1492,16 @@
                             speakAgainVideoPronunciation(currentQuestion)
                           "
                         >
-                          <span class="material-icons">mic</span> Govori ponovo
+                          <span class="material-icons">mic</span> Speak again
                         </button>
                         <button
                           type="button"
                           class="vp-stage-pill vp-stage-pill--ghost vp-wrong-action-hide-on-mobile"
                           (click)="replayReferenceForRetry(currentQuestion)"
-                          title="Ponovi referentnu rečenicu"
+                          title="Replay the reference sentence"
                         >
                           <span class="material-icons">replay</span>
-                          Ponovi rečenicu
+                          Replay sentence
                         </button>
                         <button
                           *ngIf="!isLastQuestion"
@@ -1509,7 +1511,7 @@
                           [disabled]="finishingAll || submitting"
                         >
                           <span class="material-icons">skip_next</span>
-                          Idi na sledeći klip
+                          Go to next clip
                         </button>
                         <button
                           *ngIf="isLastQuestion"
@@ -1523,7 +1525,7 @@
                           "
                         >
                           <span class="material-icons">flag</span>
-                          {{ finishingAll ? "Predaje se…" : "Predaj vežbu" }}
+                          {{ finishingAll ? "Submitting…" : "Submit Exercise" }}
                         </button>
                       </div>
                     </div>
@@ -1547,7 +1549,7 @@
                       (click)="replayVpVideo()"
                     >
                       <span class="material-icons">replay</span>
-                      Ponovi
+                      Replay
                     </button>
                   </div>
                   <div
@@ -1562,7 +1564,7 @@
                       <span class="material-icons">{{
                         isVpVideoPaused ? "play_arrow" : "pause"
                       }}</span>
-                      {{ isVpVideoPaused ? "Pusti" : "Pauza" }}
+                      {{ isVpVideoPaused ? "Play" : "Pause" }}
                     </button>
                   </div>
                 </div>
@@ -1572,7 +1574,7 @@
 
         <div class="vp-detail-card vp-detail-card--clips vp-detail-card--clips-mobile">
           <span class="vp-detail-card-label"
-            >Klipovi · {{ playerQuestions.length }} ukupno</span
+            >Clips · {{ playerQuestions.length }} total</span
           >
           <div class="vp-clip-cells">
             <button
@@ -1586,7 +1588,7 @@
                   currentQuestion.pronUiState === 'processing'
                 )
               "
-              [attr.title]="'Klip ' + (i + 1)"
+              [attr.title]="'Clip ' + (i + 1)"
               [disabled]="
                 finishingAll ||
                 submitting ||
@@ -1618,15 +1620,16 @@
                 />
               </div>
               <div class="vp-chat-brand-text">
-                <div class="vp-chat-brand-name">Partner za vežbu</div>
+                <div class="vp-chat-brand-name">Practice partner</div>
                 <div class="vp-chat-brand-tagline">
-                  {{ exercise?.targetLanguage || "German" }} · vaš partner za učenje
+                  {{ exercise?.targetLanguage || "German" }} · your learning
+                  buddy
                 </div>
               </div>
             </div>
             <div class="vp-chat-live-pill">
               <span class="vp-chat-live-dot" aria-hidden="true"></span>
-              Uživo
+              Live
             </div>
           </header>
 
@@ -1636,7 +1639,7 @@
           >
             <span class="material-icons">menu_book</span>
             <span class="vp-chat-lesson-text"
-              >{{ exercise?.title || "Lekcija"
+              >{{ exercise?.title || "Lesson"
               }}<ng-container *ngIf="exercise?.category">
                 · {{ exercise?.category }}</ng-container
               ></span
@@ -1666,7 +1669,7 @@
                     />
                   </div>
                   <div class="vp-chat-msg-stack">
-                    <span class="vp-chat-bot-label">Instruktor</span>
+                    <span class="vp-chat-bot-label">Tutor</span>
                     <div
                       class="vp-chat-bubble vp-chat-bubble--cream"
                       [class.vp-chat-bubble--your-turn]="m.kind === 'your-turn'"
@@ -1712,7 +1715,7 @@
                     <div class="vp-chat-bubble vp-chat-bubble--user">
                       <p class="vp-chat-user-quote">"{{ m.text }}"</p>
                       <p class="vp-chat-match-line" *ngIf="m.score != null">
-                        Podudaranje: {{ m.score }}%
+                        Match: {{ m.score }}%
                       </p>
                     </div>
                     <div
@@ -1728,8 +1731,8 @@
                       }}</span>
                       <span>{{
                         m.isCorrect
-                          ? "Odlično! Sjajan izgovor."
-                          : "Nastavite — slušajte i pokušajte ponovo."
+                          ? "Nice! Great pronunciation."
+                          : "Keep going — listen and try again."
                       }}</span>
                     </div>
                   </div>
@@ -1745,7 +1748,7 @@
                 class="vp-chat-msg vp-chat-msg--bot vp-chat-msg--listening-thread"
                 role="status"
                 aria-live="polite"
-                aria-label="Slušam vaš govor"
+                aria-label="Listening for your speech"
               >
                 <div
                   class="vp-chat-msg-avatar vp-chat-msg-avatar--fox"
@@ -1759,21 +1762,21 @@
                   />
                 </div>
                 <div class="vp-chat-msg-stack">
-                  <span class="vp-chat-bot-label">Instruktor</span>
+                  <span class="vp-chat-bot-label">Tutor</span>
                   <div
                     class="vp-chat-bubble vp-chat-bubble--cream vp-chat-bubble--listening-chat"
                   >
                     <p
                       class="vp-chat-bubble-text vp-chat-bubble-text--listening"
                     >
-                      Slušam<span
+                      Listening<span
                         class="vp-listening-dots"
                         aria-hidden="true"
                         ><span>.</span><span>.</span><span>.</span></span
                       >
                     </p>
                     <p class="vp-chat-listening-inline-hint">
-                      Nastavite da govorite — snimam vaš glas.
+                      Keep speaking — I’m capturing your voice.
                     </p>
                   </div>
                 </div>
@@ -1809,42 +1812,42 @@
             <div class="info-stat">
               <span class="material-icons info-stat-icon">quiz</span>
               <div>
-                <strong>{{ playerQuestions.length }}</strong> Pitanja
+                <strong>{{ playerQuestions.length }}</strong> Questions
               </div>
             </div>
             <div class="info-stat">
               <span class="material-icons info-stat-icon">schedule</span>
               <div>
                 <strong>~{{ exercise?.estimatedDuration || 15 }} min</strong>
-                Procena
+                Estimated
               </div>
             </div>
             <div class="info-stat">
               <span class="material-icons info-stat-icon">stars</span>
               <div>
-                <strong>{{ totalPoints }}</strong> Ukupno poena
+                <strong>{{ totalPoints }}</strong> Total Points
               </div>
             </div>
           </div>
 
           <div class="info-restrictions" *ngIf="exercise?.lockBrowser || exercise?.noReattempt">
             <span class="info-restriction-badge" *ngIf="exercise?.lockBrowser">
-              <span class="material-icons">lock</span> Pregledač zaključan
+              <span class="material-icons">lock</span> Browser Locked
             </span>
             <span class="info-restriction-badge" *ngIf="exercise?.noReattempt">
-              <span class="material-icons">block</span> Bez ponovnog pokušaja
+              <span class="material-icons">block</span> No Re-attempt
             </span>
             <span class="info-restriction-note" *ngIf="exercise?.lockBrowser">
-              <span class="material-icons">info</span> Prebacivanje tabova/aplikacija aktivira automatsko predavanje
+              <span class="material-icons">info</span> Switching tabs/apps triggers auto-submit
             </span>
             <span class="info-restriction-note" *ngIf="exercise?.noReattempt">
-              <span class="material-icons">info</span> Ova vežba se može pokušati samo jednom
+              <span class="material-icons">info</span> This exercise can only be attempted once
             </span>
           </div>
 
           <div class="info-progress">
             <div class="info-progress-head">
-              <span class="info-progress-label">Napredak</span>
+              <span class="info-progress-label">Progress</span>
               <span class="info-progress-count">{{ answeredCount }}/{{ playerQuestions.length }}</span>
             </div>
             <mat-progress-bar
@@ -1857,7 +1860,7 @@
         <!-- RIGHT (now below LEFT): Question Navigator + Status -->
         <aside class="question-sidebar">
           <div class="sidebar-header">
-            <div class="sidebar-title">Idi na pitanje</div>
+            <div class="sidebar-title">Jump to question</div>
           </div>
           <div class="question-nav-grid">
             <button
@@ -1870,7 +1873,7 @@
               [class.wrong]="pq.isCorrect === false"
               (click)="goToQuestion(i)"
               [title]="
-                'Pitanje ' +
+                'Question ' +
                 (i + 1) +
                 ' - ' +
                 getQuestionTypeLabelForDisplay(pq.data)
@@ -1881,7 +1884,7 @@
           </div>
 
           <div class="info-specs">
-            <div class="spec-label">Vrste pitanja</div>
+            <div class="spec-label">Question types</div>
             <div class="spec-pills">
               <span
                 *ngFor="let qt of getQuestionTypes()"
@@ -1915,7 +1918,7 @@
 
           <!-- Question Header -->
           <div class="q-header">
-            <span class="q-num">PITANJE {{ currentIndex + 1 }}</span>
+            <span class="q-num">QUESTION {{ currentIndex + 1 }}</span>
             <span
               class="q-type-label"
               [class]="'label-' + currentQuestion.data.type"
@@ -1928,7 +1931,7 @@
               </span>
             </span>
             <span class="q-points"
-              >{{ currentQuestion.data.points || 1 }} poena</span
+              >{{ currentQuestion.data.points || 1 }} marks</span
             >
           </div>
         </div>
@@ -1944,7 +1947,7 @@
           >
             <div class="q-instruction-banner">
               <div class="q-instruction-banner-header">
-                <span class="q-instruction-label">Uputstvo</span>
+                <span class="q-instruction-label">Instruction</span>
               </div>
               <div class="q-instruction-banner-body">
                 <span
@@ -1960,7 +1963,7 @@
           >
             <div class="q-example-banner">
               <div class="q-example-banner-header">
-                <span class="q-example-label">Primer</span>
+                <span class="q-example-label">Example</span>
               </div>
               <div class="q-example-banner-body">
                 <span
@@ -1996,7 +1999,7 @@
                 <img
                   *ngSwitchCase="'image'"
                   [src]="getMediaFullUrl(attUrl)"
-                  alt="Prilog pitanja"
+                  alt="Question attachment"
                   class="q-attachment-img"
                 />
                 <video
@@ -2011,7 +2014,7 @@
                   target="_blank"
                   class="q-attachment-file-link"
                 >
-                  <span class="material-icons">picture_as_pdf</span> Otvori PDF
+                  <span class="material-icons">picture_as_pdf</span> Open PDF
                 </a>
                 <a
                   *ngSwitchDefault
@@ -2019,20 +2022,21 @@
                   target="_blank"
                   class="q-attachment-file-link"
                 >
-                  <span class="material-icons">insert_drive_file</span> Otvori datoteku
+                  <span class="material-icons">insert_drive_file</span> Open
+                  file
                 </a>
               </ng-container>
             </div>
             <div class="q-image-wrap" *ngIf="currentQuestion.data.imageUrl">
               <img
                 [src]="currentQuestion.data.imageUrl"
-                alt="Slika pitanja"
+                alt="Question image"
                 class="q-image"
               />
             </div>
           </div>
 
-          <!-- Guidance: 1. Uputstvo → 2. Primer → 3. Context (+ TF reading passage), then q-body: 4. Question(s) → 5. Shared image (after sub-questions when present) -->
+          <!-- Guidance: 1. Instruction → 2. Example → 3. Context (+ TF reading passage), then q-body: 4. Question(s) → 5. Shared image (after sub-questions when present) -->
           <div
             class="q-guidance-stack"
             *ngIf="
@@ -2066,7 +2070,7 @@
           >
             <div class="q-listening-panel-head">
               <span class="material-icons q-listening-panel-icon" aria-hidden="true">headphones</span>
-              <span class="q-listening-panel-title">Poslušajte audio</span>
+              <span class="q-listening-panel-title">Listen to the audio</span>
             </div>
             <ng-container
               *ngTemplateOutlet="playerQuestionAudioAttachment"
@@ -2086,13 +2090,13 @@
                     <div class="q-attachment-audio-capped">
                       <p class="q-attachment-audio-capped-hint" role="status">
                         <span *ngIf="(getAttachmentAudioPlaysRemaining(currentQuestion) || 0) > 0">
-                          Možete pustiti ovaj audio
+                          You can start this audio
                           <strong>{{ getAttachmentAudioPlaysRemaining(currentQuestion) }}</strong>
-                          put<span *ngIf="(getAttachmentAudioPlaysRemaining(currentQuestion) || 0) !== 1">a</span>
-                          u ovom pokušaju (svaki pritisak na Pusti se broji).
+                          more time<span *ngIf="(getAttachmentAudioPlaysRemaining(currentQuestion) || 0) !== 1">s</span>
+                          this attempt (each press of Play counts).
                         </span>
                         <span *ngIf="(getAttachmentAudioPlaysRemaining(currentQuestion) || 0) === 0">
-                          Dostignut limit reprodukcija za ovaj pokušaj.
+                          Play limit reached for this attempt.
                         </span>
                       </p>
                       <button
@@ -2102,7 +2106,7 @@
                         [disabled]="isAttachmentAudioLimitReached(currentQuestion)"
                       >
                         <span class="material-icons" aria-hidden="true">play_arrow</span>
-                        Pusti audio
+                        Play audio
                       </button>
                     </div>
                   </ng-container>
@@ -2126,7 +2130,7 @@
                 <img
                   *ngSwitchCase="'image'"
                   [src]="getMediaFullUrl(attUrl)"
-                  alt="Prilog pitanja"
+                  alt="Question attachment"
                   class="q-attachment-img"
                 />
                 <video
@@ -2141,7 +2145,7 @@
                   target="_blank"
                   class="q-attachment-file-link"
                 >
-                  <span class="material-icons">picture_as_pdf</span> Otvori PDF
+                  <span class="material-icons">picture_as_pdf</span> Open PDF
                 </a>
                 <a
                   *ngSwitchDefault
@@ -2149,7 +2153,8 @@
                   target="_blank"
                   class="q-attachment-file-link"
                 >
-                  <span class="material-icons">insert_drive_file</span> Otvori datoteku
+                  <span class="material-icons">insert_drive_file</span> Open
+                  file
                 </a>
               </ng-container>
             </div>
@@ -2163,7 +2168,7 @@
               [class.multipart-part-card]="hasSubQuestions(currentQuestion.data)"
             >
               <div class="sub-q-header" *ngIf="hasSubQuestions(currentQuestion.data)">
-                <span class="sub-q-number">D {{ getQuestionPartLabel(currentIndex, getParentPartNumber(currentQuestion.data)) }}</span>
+                <span class="sub-q-number">Q {{ getQuestionPartLabel(currentIndex, getParentPartNumber(currentQuestion.data)) }}</span>
                 <span class="sub-q-points">{{ currentQuestion.data.points || 1 }} pt</span>
               </div>
               <ng-container
@@ -2206,8 +2211,8 @@
                     class="opt-visual-img-expand"
                     (mousedown)="$event.stopPropagation()"
                     (click)="openMcqOptionImageLightbox(optImg, $event)"
-                    aria-label="Pogledaj veću sliku"
-                    matTooltip="Pogledaj veću"
+                    aria-label="View larger image"
+                    matTooltip="View larger"
                   >
                     <span class="material-icons">zoom_in</span>
                   </button>
@@ -2240,7 +2245,7 @@
               class="q-feedback-incorrect"
               *ngIf="hasCurrentSubmitted && !currentQuestion.isCorrect"
             >
-              Vaš predati odgovor nije tačan.
+              Your submitted response was incorrect.
             </div>
             <div
               class="q-explanation"
@@ -2259,9 +2264,9 @@
             <div class="matching-container">
               <!-- Labels Row -->
               <div class="matching-row labels-row">
-                <div class="matching-col-label">Upari ovo...</div>
+                <div class="matching-col-label">Match these...</div>
                 <div class="connector-spacer"></div>
-                <div class="matching-col-label">...sa ovim</div>
+                <div class="matching-col-label">...with these</div>
               </div>
 
               <!-- Item Rows -->
@@ -2337,14 +2342,14 @@
               *ngIf="currentQuestion.selectedLeftIndex !== null"
             >
               <span class="material-icons">info</span>
-              Sada kliknite na odgovarajuću stavku desno →
+              Now click the matching item on the right →
             </div>
             <div class="matching-reset" *ngIf="!hasCurrentSubmitted">
               <button
                 class="btn-text-sm"
                 (click)="resetMatching(currentQuestion)"
               >
-                <span class="material-icons">refresh</span> Resetuj uparivanja
+                <span class="material-icons">refresh</span> Reset matches
               </button>
             </div>
           </div>
@@ -2360,7 +2365,7 @@
               ></ng-container>
               <div class="hint-label" *ngIf="currentQuestion.data.hint">
                 <span class="material-icons">lightbulb</span>
-                Savet: {{ currentQuestion.data.hint }}
+                Hint: {{ currentQuestion.data.hint }}
               </div>
               <div class="sentence-container">
                 <ng-container
@@ -2389,7 +2394,7 @@
                           blankIndex: pi,
                         })
                       "
-                      [attr.aria-label]="'Praznina ' + (pi + 1)"
+                      [attr.aria-label]="'Blank ' + (pi + 1)"
                       [class.correct]="
                         hasCurrentSubmitted &&
                         isFillCorrect(currentQuestion, pi)
@@ -2419,11 +2424,11 @@
                 showSpecialCharacterPad(currentQuestion) && !hasCurrentSubmitted
               "
             >
-              <div class="special-char-label">Specijalna slova</div>
+              <div class="special-char-label">Special letters</div>
               <div
                 class="special-char-list"
                 role="group"
-                aria-label="Nemačka specijalna slova"
+                aria-label="German special letters"
               >
                 <button
                   type="button"
@@ -2450,7 +2455,7 @@
                 currentQuestion.data.sampleAnswers?.length
               "
             >
-              <strong>Primeri odgovora:</strong>
+              <strong>Sample answers:</strong>
               <span
                 *ngFor="
                   let sa of currentQuestion.data.sampleAnswers;
@@ -2506,7 +2511,7 @@
                       !isWordBankItemCorrect(currentQuestion, ii)
                     "
                     [disabled]="hasCurrentSubmitted"
-                    [placeholder]="'Praznina ' + (ii + 1)"
+                    [placeholder]="'Blank ' + (ii + 1)"
                     autocomplete="off"
                   />
                   <button
@@ -2517,7 +2522,7 @@
                       (currentQuestion.wordBankAnswers![ii].value || '').trim()
                     "
                     (click)="clearWordBankAnswer(currentQuestion, ii)"
-                    aria-label="Obriši odgovor"
+                    aria-label="Clear answer"
                   >
                     <span class="material-icons">close</span>
                   </button>
@@ -2539,7 +2544,7 @@
               *ngIf="currentQuestion.data.wordBank?.length"
             >
               <div class="word-bank-box-label">
-                Banka reči — izaberite prazninu, zatim dodirnite reč (ili ukucajte odgovor)
+                Word bank — select a blank, then tap a word (or type your answer)
               </div>
               <div class="word-bank-pills">
                 <button
@@ -2571,11 +2576,11 @@
                 showSpecialCharacterPad(currentQuestion) && !hasCurrentSubmitted
               "
             >
-              <div class="special-char-label">Specijalna slova</div>
+              <div class="special-char-label">Special letters</div>
               <div
                 class="special-char-list"
                 role="group"
-                aria-label="Nemačka specijalna slova"
+                aria-label="German special letters"
               >
                 <button
                   type="button"
@@ -2608,9 +2613,9 @@
             <div class="sp-rows">
               <!-- Labels Row -->
               <div class="sp-row sp-labels-row">
-                <span class="sp-col-label">Jednina</span>
+                <span class="sp-col-label">Singular</span>
                 <div class="connector-spacer"></div>
-                <span class="sp-col-label">Množina</span>
+                <span class="sp-col-label">Plural</span>
               </div>
               <div
                 class="sp-row"
@@ -2635,7 +2640,7 @@
                         rowIndex: ri,
                       })
                     "
-                    [placeholder]="'Množina ' + (ri + 1)"
+                    [placeholder]="'Plural ' + (ri + 1)"
                     [class.correct]="
                       hasCurrentSubmitted &&
                       isSpRowCorrect(currentQuestion, ri)
@@ -2664,11 +2669,11 @@
                 showSpecialCharacterPad(currentQuestion) && !hasCurrentSubmitted
               "
             >
-              <div class="special-char-label">Specijalna slova</div>
+              <div class="special-char-label">Special letters</div>
               <div
                 class="special-char-list"
                 role="group"
-                aria-label="Nemačka specijalna slova"
+                aria-label="German special letters"
               >
                 <button
                   type="button"
@@ -2734,10 +2739,10 @@
                     currentQuestion.isRecording ||
                     currentQuestion.pronUiState === 'processing'
                   "
-                  title="Proverite da mikrofon radi"
+                  title="Check your microphone is working"
                 >
                   <span class="material-icons">settings_voice</span>
-                  <span>Testirajte mikrofon</span>
+                  <span>Test microphone</span>
                 </button>
                 <button
                   class="btn-record"
@@ -2772,12 +2777,12 @@
                   <span>
                     {{
                       currentQuestion.isRecording
-                        ? "Zaustavi"
+                        ? "Stop"
                         : currentQuestion.pronUiState === "processing"
-                          ? "Obrada…"
+                          ? "Processing…"
                           : currentQuestion.hasRecorded
-                            ? "Snimi ponovo"
-                            : "Govori"
+                            ? "Re-record"
+                            : "Speak"
                     }}
                   </span>
                 </button>
@@ -2790,7 +2795,7 @@
                 <div class="pronunciation-listening__main">
                   <span class="material-icons">mic</span>
                   <span class="pronunciation-listening__text"
-                    >Slušam<span class="vp-listening-dots" aria-hidden="true"
+                    >Listening<span class="vp-listening-dots" aria-hidden="true"
                       ><span>.</span><span>.</span><span>.</span></span
                     ></span
                   >
@@ -2812,7 +2817,7 @@
                 <div class="pronunciation-listening__main">
                   <span class="material-icons">hourglass_top</span>
                   <span class="pronunciation-listening__text"
-                    >Obrada<span class="vp-listening-dots" aria-hidden="true"
+                    >Processing<span class="vp-listening-dots" aria-hidden="true"
                       ><span>.</span><span>.</span><span>.</span></span
                     ></span
                   >
@@ -2821,7 +2826,7 @@
                   class="pronunciation-processing-slow"
                   *ngIf="pronProcessingSlow"
                 >
-                  Ovo može potrajati.
+                  This may take a moment.
                 </span>
               </div>
 
@@ -2835,7 +2840,7 @@
                 <div class="pronunciation-listening__main">
                   <span class="material-icons">error_outline</span>
                   <span class="pronunciation-listening__text">{{
-                    currentQuestion.pronMessage || "Govor nije detektovan, pokušajte ponovo"
+                    currentQuestion.pronMessage || "No speech detected, try again"
                   }}</span>
                 </div>
               </div>
@@ -2855,7 +2860,7 @@
                 <div class="score-value">
                   {{ currentQuestion.pronunciationScore || 0 }}%
                 </div>
-                <div class="score-label">Podudaranje</div>
+                <div class="score-label">Match</div>
               </div>
 
               <!-- State headline -->
@@ -2881,7 +2886,7 @@
                   }}
                 </ng-container>
                 <ng-container *ngIf="currentQuestion.pronAlmostCorrect">
-                  Skoro ste uspeli — pokušajte još jednom
+                  Almost there — try once more
                 </ng-container>
               </div>
 
@@ -2923,7 +2928,8 @@
                   )
                 "
               >
-                Ulaz mikrofona deluje tiho. Govorite glasnije ili bliže mikrofonu.
+                Your microphone input seems low. Try speaking louder or closer
+                to the mic.
               </div>
 
               <!-- Comparison: what they said vs what was expected -->
@@ -2946,7 +2952,7 @@
                   currentQuestion.pronWordAnalysis.length > 0
                 "
               >
-                <span class="pron-word-analysis-label">Analiza reči:</span>
+                <span class="pron-word-analysis-label">Word breakdown:</span>
                 <div class="pron-word-chips">
                   <span
                     *ngFor="let w of currentQuestion.pronWordAnalysis"
@@ -2956,8 +2962,8 @@
                     [class.pron-chip--missing]="w.status === 'missing'"
                     [title]="
                       w.status === 'missing'
-                        ? 'Nedostaje'
-                        : 'Rekli ste: ' + (w.spoken || '—')
+                        ? 'Missing'
+                        : 'You said: ' + (w.spoken || '—')
                     "
                   >
                     {{ w.expected }}
@@ -3005,22 +3011,22 @@
                   class="pronunciation-retry-nudge"
                   *ngIf="!currentQuestion.pronAlmostCorrect"
                 >
-                  ❌ Nije baš tačno — 👉 pokušajte ponovo jasno.
+                  ❌ Not quite — 👉 try again clearly.
                 </span>
                 <span
                   class="pronunciation-retry-nudge pronunciation-retry-nudge--almost"
                   *ngIf="currentQuestion.pronAlmostCorrect"
                 >
-                  🔶 Skoro! Pokušajte još jednom.
+                  🔶 So close! Give it one more try.
                 </span>
                 <button
                   type="button"
                   class="btn-record btn-record--subtle"
                   (click)="replayReferenceForRetry(currentQuestion)"
-                  title="Ponovi referentnu reč"
+                  title="Replay the reference word"
                 >
                   <span class="material-icons">replay</span>
-                  <span>Ponovi reč</span>
+                  <span>Replay word</span>
                 </button>
               </div>
               <div
@@ -3033,7 +3039,7 @@
                   (click)="togglePronHelp(currentQuestion)"
                 >
                   <span class="material-icons">help_outline</span>
-                  Treba vam pomoć?
+                  Need help?
                 </button>
                 <div
                   class="pron-help-chunks"
@@ -3057,7 +3063,7 @@
                 (click)="markCurrentAsCorrect(currentQuestion)"
               >
                 <span class="material-icons">check_circle</span>
-                Označi kao tačno
+                Mark as correct
               </button>
             </div>
 
@@ -3066,8 +3072,8 @@
               *ngIf="!speechSupported && !audioRecorderSupported"
             >
               <span class="material-icons">warning</span>
-              Prepoznavanje govora nije podržano u ovom pregledaču. Koristite
-              Chrome ili Edge za vežbe izgovora.
+              Speech recognition is not supported in this browser. Please use
+              Chrome or Edge for pronunciation exercises.
             </div>
           </div>
 
@@ -3097,19 +3103,19 @@
                 class="qa-prompt"
                 [innerHTML]="
                   currentQuestion.data.prompt ||
-                    'Slušajte i odgovorite na pitanje.' | safeHtml
+                    'Listen and answer the question.' | safeHtml
                 "
               ></div>
             </div>
             <ng-container
               *ngTemplateOutlet="playerQuestionMediaAttachment"
             ></ng-container>
-            <label class="qa-input-label">Vaš odgovor</label>
+            <label class="qa-input-label">Your Answer</label>
             <div class="listening-input-row">
               <textarea
                 class="qa-textarea"
                 rows="4"
-                placeholder="Unesite šta čujete..."
+                placeholder="Type what you hear..."
                 [(ngModel)]="currentQuestion.listeningText"
                 (ngModelChange)="markAttempted(currentQuestion)"
                 (focus)="setActiveSpecialInputTarget({ type: 'listening' })"
@@ -3136,7 +3142,7 @@
                   <span class="material-icons">{{
                     currentQuestion.isRecording ? "stop" : "mic"
                   }}</span>
-                  {{ currentQuestion.isRecording ? "Zaustavi" : "Govori" }}
+                  {{ currentQuestion.isRecording ? "Stop" : "Speak" }}
                 </button>
               </div>
             </div>
@@ -3146,11 +3152,11 @@
                 showSpecialCharacterPad(currentQuestion) && !hasCurrentSubmitted
               "
             >
-              <div class="special-char-label">Specijalna slova</div>
+              <div class="special-char-label">Special letters</div>
               <div
                 class="special-char-list"
                 role="group"
-                aria-label="Nemačka specijalna slova"
+                aria-label="German special letters"
               >
                 <button
                   type="button"
@@ -3198,7 +3204,7 @@
                   (mousedown)="$event.preventDefault()"
                   (click)="insertJumbleToken(token, ti)"
                   [disabled]="hasCurrentSubmitted || isJumbleTokenUsed(currentQuestion, ti)"
-                  [attr.aria-label]="'Umetni ' + token"
+                  [attr.aria-label]="'Insert ' + token"
                 >
                   {{ token }}
                 </button>
@@ -3207,11 +3213,11 @@
             <ng-container
               *ngTemplateOutlet="playerQuestionMediaAttachment"
             ></ng-container>
-            <label class="qa-input-label">Sastavite reč: <strong>{{ currentQuestion.data.scrambledText || currentQuestion.data.word }}</strong></label>
+            <label class="qa-input-label">Form the word: <strong>{{ currentQuestion.data.scrambledText || currentQuestion.data.word }}</strong></label>
             <input
               type="text"
               class="jumble-input"
-              placeholder="Unesite reč..."
+              placeholder="Type the word..."
               #jumbleInput
               [ngModel]="currentQuestion.jumbleWordResponse"
               (ngModelChange)="onJumbleResponseChange(currentQuestion, $event)"
@@ -3226,11 +3232,11 @@
                 showSpecialCharacterPad(currentQuestion) && !hasCurrentSubmitted
               "
             >
-              <div class="special-char-label">Specijalna slova</div>
+              <div class="special-char-label">Special letters</div>
               <div
                 class="special-char-list"
                 role="group"
-                aria-label="Nemačka specijalna slova"
+                aria-label="German special letters"
               >
                 <button
                   type="button"
@@ -3269,7 +3275,7 @@
               class="rearrange-tokens-wrap"
               *ngIf="currentQuestion.rearrangeTokens?.length"
             >
-              <div class="rearrange-label">Prevucite da preuredite:</div>
+              <div class="rearrange-label">Drag to rearrange:</div>
               <div
                 cdkDropList
                 class="rearrange-drop"
@@ -3301,7 +3307,7 @@
                 class="rearrange-answer-box"
                 *ngIf="currentQuestion.isAnswered"
               >
-                <div class="rearrange-answer-label">Vaš odgovor je</div>
+                <div class="rearrange-answer-label">Your answer is</div>
                 <div class="rearrange-answer-text">
                   {{ getRearrangePreviewText(currentQuestion) || "—" }}
                 </div>
@@ -3309,13 +3315,13 @@
             </div>
           </div>
 
-          <!-- Uparivanje pinova na slici body -->
+          <!-- Image Pin Match body -->
           <div
             class="q-body ipm-body"
             *ngIf="currentQuestion.data.type === 'image_pin_match'"
           >
             <p class="ipm-instruction">
-              Prevucite ručku sa oznake do odgovarajućeg numerisanog pina na slici.
+              Drag the handle from a label to the correct numbered pin on the image.
             </p>
             <div
               class="ipm-play-wrap"
@@ -3347,7 +3353,7 @@
                 <img
                   class="ipm-image"
                   [src]="getMediaFullUrl(getImagePinImageUrl(currentQuestion.data))"
-                  alt="Slika za pin uparivanje"
+                  alt="Pin match image"
                   draggable="false"
                 />
                   <span
@@ -3415,7 +3421,7 @@
             </div>
           </div>
 
-          <!-- Video izgovor (mixed exercises only — video-only uses split layout above) -->
+          <!-- Video Pronunciation (mixed exercises only — video-only uses split layout above) -->
           <div
             class="q-body vp-body"
             *ngIf="
@@ -3428,7 +3434,7 @@
                 <div class="vp-mobile-notch" aria-hidden="true"></div>
 
                 <div class="vp-mobile-top">
-                  <span class="vp-mobile-kicker">Recite ovu frazu</span>
+                  <span class="vp-mobile-kicker">Say this phrase</span>
                   <div
                     class="vp-variants-hint vp-variants-hint--top"
                     *ngIf="currentQuestion.data.context"
@@ -3442,7 +3448,7 @@
                     class="vp-variants-hint vp-variants-hint--top"
                     *ngIf="currentQuestion.data.acceptedVariants?.length > 0"
                   >
-                    Takođe prihvaćeno:
+                    Also ok:
                     {{ currentQuestion.data.acceptedVariants.join(", ") }}
                   </div>
                 </div>
@@ -3473,7 +3479,8 @@
                   class="vp-no-video vp-no-video--mobile"
                   *ngIf="!currentQuestion.data.videoUrl"
                 >
-                  <span class="material-icons">videocam_off</span> Video nije dostupan
+                  <span class="material-icons">videocam_off</span> Video not
+                  available
                 </div>
 
                 <div class="vp-mobile-bottom" *ngIf="!hasCurrentSubmitted">
@@ -3488,10 +3495,10 @@
                     "
                   >
                     <span class="material-icons">play_circle_outline</span>
-                    Pogledajte klip — dugmad se pojavljuju kada se završi
+                    Watch the clip — buttons appear when it finishes
                   </p>
 
-                  <!-- After video ends: Samo gledanje Mode — Replay + Next/Finish (no speaking) -->
+                  <!-- After video ends: Watch Only Mode — Replay + Next/Finish (no speaking) -->
                   <div
                     class="vp-mob-btn-row"
                     *ngIf="
@@ -3509,7 +3516,7 @@
                       (click)="replayVpVideo()"
                     >
                       <span class="material-icons">replay</span>
-                      <span>Ponovi</span>
+                      <span>Replay</span>
                     </button>
                     <button
                       *ngIf="!isLastQuestion"
@@ -3519,7 +3526,7 @@
                       [disabled]="finishingAll || submitting"
                     >
                       <span class="material-icons">skip_next</span>
-                      <span>Sledeći klip</span>
+                      <span>Next Clip</span>
                     </button>
                     <button
                       *ngIf="isLastQuestion"
@@ -3529,7 +3536,7 @@
                       [disabled]="finishingAll || submitting"
                     >
                       <span class="material-icons">flag</span>
-                      <span>{{ finishingAll ? "Predaje se…" : "Završi" }}</span>
+                      <span>{{ finishingAll ? "Submitting…" : "Finish" }}</span>
                     </button>
                   </div>
 
@@ -3551,7 +3558,7 @@
                       (click)="replayVpVideo()"
                     >
                       <span class="material-icons">replay</span>
-                      <span>Ponovi</span>
+                      <span>Replay</span>
                     </button>
                     <button
                       type="button"
@@ -3559,7 +3566,7 @@
                       (click)="startVideoPronunciation(currentQuestion)"
                     >
                       <span class="material-icons">mic</span>
-                      <span>Govori</span>
+                      <span>Speak</span>
                     </button>
                     <button
                       type="button"
@@ -3567,7 +3574,7 @@
                       (click)="openMicTest()"
                     >
                       <span class="material-icons">settings_voice</span>
-                      <span>Testiraj mikrofon</span>
+                      <span>Test mic</span>
                     </button>
                   </div>
 
@@ -3582,7 +3589,7 @@
                     <span class="material-icons" style="font-size: 1rem"
                       >warning</span
                     >
-                    Snimanje zvuka nije podržano u ovom pregledaču. Pokušajte Chrome,
+                    Audio recording not supported in this browser. Try Chrome,
                     Edge, or Safari 14.3+.
                   </p>
 
@@ -3593,12 +3600,12 @@
                   >
                     <span class="material-icons vp-mob-pulse">mic</span>
                     <span
-                      >🎤 Slušam<span
+                      >🎤 Listening<span
                         class="vp-listening-dots vp-listening-dots--light"
                         aria-hidden="true"
                         ><span>.</span><span>.</span><span>.</span></span
                       >
-                      — govorite sada</span
+                      — speak now</span
                     >
                     <app-audio-visualizer
                       class="vp-mob-visualizer"
@@ -3611,7 +3618,7 @@
                       (click)="stopVideoPronunciation(currentQuestion)"
                     >
                       <span class="material-icons">stop</span>
-                      <span>Zaustavi</span>
+                      <span>Stop</span>
                     </button>
                   </div>
 
@@ -3627,7 +3634,7 @@
                       >hourglass_top</span
                     >
                     <span
-                      >Obrada<span
+                      >Processing<span
                         class="vp-listening-dots vp-listening-dots--light"
                         aria-hidden="true"
                         ><span>.</span><span>.</span><span>.</span></span
@@ -3637,7 +3644,7 @@
                       class="vp-mob-processing-hint"
                       *ngIf="pronProcessingSlow"
                     >
-                      Ovo može potrajati.
+                      This may take a moment.
                     </span>
                   </div>
 
@@ -3647,7 +3654,7 @@
                     >
                       <span class="material-icons">check_circle</span>
                       <strong>{{
-                        isVideoOnlyExercise ? "Razumem!" : "Tačno!"
+                        isVideoOnlyExercise ? "Got it!" : "Correct!"
                       }}</strong>
                       <span class="vp-spoken"
                         >"{{ currentQuestion.vpSpokenText }}"</span
@@ -3659,8 +3666,8 @@
                     <p class="vp-auto-advance">
                       {{
                         isVideoOnlyExercise
-                          ? "Prelazak na sledeći klip…"
-                          : "Sledeći klip…"
+                          ? "Moving to next clip…"
+                          : "Next clip…"
                       }}
                     </p>
                   </ng-container>
@@ -3673,16 +3680,16 @@
                       class="vp-feedback vp-feedback--almost vp-feedback--mobile vp-mob-wrong-feedback-hide"
                     >
                       <span class="material-icons">star_half</span>
-                      <strong>Skoro ste uspeli — pokušajte još jednom</strong>
+                      <strong>Almost there — try once more</strong>
                       <span
                         class="vp-spoken"
                         *ngIf="currentQuestion.vpSpokenText"
-                        >Rekli ste: "{{ currentQuestion.vpSpokenText }}"</span
+                        >You said: "{{ currentQuestion.vpSpokenText }}"</span
                       >
                       <span
                         class="vp-spoken vp-spoken--expected"
                         *ngIf="currentQuestion.vpExpectedText"
-                        >Očekivano: "{{ currentQuestion.vpExpectedText }}"</span
+                        >Expected: "{{ currentQuestion.vpExpectedText }}"</span
                       >
                     </div>
                     <div
@@ -3709,7 +3716,7 @@
                       >
                     </div>
                     <p class="vp-mob-retry-nudge vp-mob-wrong-extra-hide">
-                      🔶 Skoro! Pokušajte ponovo za pun broj poena ili nastavite.
+                      🔶 So close! Retry for full credit or continue.
                     </p>
                     <div class="vp-mob-btn-row">
                       <button
@@ -3718,7 +3725,7 @@
                         (click)="speakAgainVideoPronunciation(currentQuestion)"
                       >
                         <span class="material-icons">mic</span>
-                        <span>Pokušaj ponovo</span>
+                        <span>Try again</span>
                       </button>
                       <button
                         *ngIf="!isLastQuestion"
@@ -3728,7 +3735,7 @@
                         [disabled]="finishingAll || submitting"
                       >
                         <span class="material-icons">skip_next</span>
-                        <span>Sledeći klip</span>
+                        <span>Next clip</span>
                       </button>
                       <button
                         *ngIf="isLastQuestion"
@@ -3743,7 +3750,7 @@
                       >
                         <span class="material-icons">flag</span>
                         <span>{{
-                          finishingAll ? "Predaje se…" : "Predaj vežbu"
+                          finishingAll ? "Submitting…" : "Submit Exercise"
                         }}</span>
                       </button>
                     </div>
@@ -3756,16 +3763,16 @@
                       class="vp-feedback vp-feedback--incorrect vp-feedback--mobile vp-mob-wrong-feedback-hide"
                     >
                       <span class="material-icons">cancel</span>
-                      <strong>Pokušajmo ponovo</strong>
+                      <strong>Let's try again</strong>
                       <span
                         class="vp-spoken"
                         *ngIf="currentQuestion.vpSpokenText"
-                        >Rekli ste: "{{ currentQuestion.vpSpokenText }}"</span
+                        >You said: "{{ currentQuestion.vpSpokenText }}"</span
                       >
                       <span
                         class="vp-spoken vp-spoken--expected"
                         *ngIf="currentQuestion.vpExpectedText"
-                        >Očekivano: "{{ currentQuestion.vpExpectedText }}"</span
+                        >Expected: "{{ currentQuestion.vpExpectedText }}"</span
                       >
                     </div>
                     <div
@@ -3792,7 +3799,7 @@
                       >
                     </div>
                     <p class="vp-mob-retry-nudge vp-mob-wrong-extra-hide">
-                      ❌ Nije baš tačno — 👉 pokušajte ponovo jasno.
+                      ❌ Not quite — 👉 try again clearly.
                     </p>
                     <div class="vp-mob-btn-row">
                       <button
@@ -3801,7 +3808,7 @@
                         (click)="speakAgainVideoPronunciation(currentQuestion)"
                       >
                         <span class="material-icons">mic</span>
-                        <span>Govori ponovo</span>
+                        <span>Speak again</span>
                       </button>
                       <button
                         *ngIf="!isLastQuestion"
@@ -3811,7 +3818,7 @@
                         [disabled]="finishingAll || submitting"
                       >
                         <span class="material-icons">skip_next</span>
-                        <span>Sledeći klip</span>
+                        <span>Next clip</span>
                       </button>
                       <button
                         *ngIf="isLastQuestion"
@@ -3826,7 +3833,7 @@
                       >
                         <span class="material-icons">flag</span>
                         <span>{{
-                          finishingAll ? "Predaje se…" : "Predaj vežbu"
+                          finishingAll ? "Submitting…" : "Submit Exercise"
                         }}</span>
                       </button>
                     </div>
@@ -3836,7 +3843,7 @@
             </div>
           </div>
 
-          <!-- Pitanje / Odgovor body -->
+          <!-- Question / Answer body -->
           <div
             class="q-body qa-body"
             [class.qa-body--multipart]="hasSubQuestions(currentQuestion.data)"
@@ -3847,7 +3854,7 @@
               [class.multipart-part-card]="hasSubQuestions(currentQuestion.data)"
             >
               <div class="sub-q-header" *ngIf="hasSubQuestions(currentQuestion.data)">
-                <span class="sub-q-number">D {{ getQuestionPartLabel(currentIndex, getParentPartNumber()) }}</span>
+                <span class="sub-q-number">Q {{ getQuestionPartLabel(currentIndex, getParentPartNumber()) }}</span>
                 <span class="sub-q-points">{{ currentQuestion.data.points || 1 }} pt</span>
               </div>
               <ng-container
@@ -3916,11 +3923,11 @@
             </ng-container>
 
             <ng-container *ngIf="!isTrueFalseQuestion(currentQuestion.data)">
-              <label class="qa-input-label">Vaš odgovor</label>
+              <label class="qa-input-label">Your Answer</label>
               <textarea
                 class="qa-textarea"
                 rows="3"
-                placeholder="Napišite odgovor ovde..."
+                placeholder="Write your answer here..."
                 [(ngModel)]="currentQuestion.qaResponse"
                 (ngModelChange)="markAttempted(currentQuestion)"
                 (focus)="
@@ -3935,11 +3942,11 @@
                   !hasCurrentSubmitted
                 "
               >
-                <div class="special-char-label">Specijalna slova</div>
+                <div class="special-char-label">Special letters</div>
                 <div
                   class="special-char-list"
                   role="group"
-                  aria-label="Nemačka specijalna slova"
+                  aria-label="German special letters"
                 >
                   <button
                     type="button"
@@ -3961,7 +3968,7 @@
                 currentQuestion.data.sampleAnswers?.length
               "
             >
-              <strong>Primeri odgovora:</strong>
+              <strong>Sample answers:</strong>
               <span
                 *ngFor="
                   let sa of currentQuestion.data.sampleAnswers;
@@ -3983,7 +3990,7 @@
               <div class="sub-questions-list">
                 <div class="sub-question-card multipart-part-card" *ngFor="let sq of currentQuestion.data.subQuestions; let sqIndex = index">
                   <div class="sub-q-header">
-                    <span class="sub-q-number">D {{ getQuestionPartLabel(currentIndex, getSubQuestionPartNumber(sqIndex, currentQuestion.data)) }}</span>
+                    <span class="sub-q-number">Q {{ getQuestionPartLabel(currentIndex, getSubQuestionPartNumber(sqIndex, currentQuestion.data)) }}</span>
                     <span class="sub-q-points">{{ sq.points || 1 }} pt</span>
                   </div>
                   <ng-container
@@ -4026,8 +4033,8 @@
                               class="opt-visual-img-expand"
                               (mousedown)="$event.stopPropagation()"
                               (click)="openMcqOptionImageLightbox(optImg, $event)"
-                              aria-label="Pogledaj veću sliku"
-                              matTooltip="Pogledaj veću"
+                              aria-label="View larger image"
+                              matTooltip="View larger"
                             >
                               <span class="material-icons">zoom_in</span>
                             </button>
@@ -4050,7 +4057,7 @@
                               [ngModel]="getSubQuestionFillBlankAnswer(currentQuestion, sqIndex, pi)"
                               (ngModelChange)="setSubQuestionFillBlankAnswer(currentQuestion, sqIndex, pi, $event)"
                               [disabled]="hasCurrentSubmitted"
-                              [attr.aria-label]="'Praznina ' + (pi + 1)"
+                              [attr.aria-label]="'Blank ' + (pi + 1)"
                               [class.correct]="hasCurrentSubmitted && isSubFillCorrect(currentQuestion, sqIndex, pi)"
                               [class.wrong]="hasCurrentSubmitted && !isSubFillCorrect(currentQuestion, sqIndex, pi)" />
                             <span class="blank-correct-val"
@@ -4067,9 +4074,9 @@
                     <div *ngIf="sq.type === 'matching'" class="sub-q-matching">
                       <div class="matching-container">
                       <div class="matching-row labels-row">
-                        <div class="matching-col-label">Upari ovo...</div>
+                        <div class="matching-col-label">Match these...</div>
                         <div class="connector-spacer"></div>
-                        <div class="matching-col-label">...sa ovim</div>
+                        <div class="matching-col-label">...with these</div>
                       </div>
                       <div class="matching-row" *ngFor="let i of getSubMatchingIndices(currentQuestion, sqIndex)">
                         <span
@@ -4115,15 +4122,15 @@
                       </div>
                       <div class="matching-hint" *ngIf="currentQuestion.subQuestionMatchingSelectedLeft?.[sqIndex] !== null && currentQuestion.subQuestionMatchingSelectedLeft?.[sqIndex] !== undefined">
                         <span class="material-icons">info</span>
-                        Sada kliknite na odgovarajuću stavku desno →
+                        Now click the matching item on the right →
                       </div>
                       </div>
                     </div>
 
-                     <!-- Popuna iz banke reči -->
+                     <!-- Word Bank Fill -->
                     <div *ngIf="sq.type === 'word_bank_fill'" class="sub-q-word-bank">
                       <div class="word-bank-box" *ngIf="sq.wordBank?.length">
-                        <div class="word-bank-box-label">Banka reči — izaberite prazninu, zatim dodirnite reč</div>
+                        <div class="word-bank-box-label">Word bank — select a blank, then tap a word</div>
                         <div class="word-bank-pills">
                           <button type="button" class="word-bank-pill"
                             *ngFor="let word of sq.wordBank; trackBy: trackByIndex"
@@ -4143,7 +4150,7 @@
                               (focus)="onSubQuestionWordBankBlankFocus(currentQuestion, sqIndex, ii)"
                               [class.active]="currentQuestion.subQuestionActiveBlankIndex?.[sqIndex] === ii"
                               [disabled]="hasCurrentSubmitted"
-                              [placeholder]="'Praznina ' + (ii + 1)" />
+                              [placeholder]="'Blank ' + (ii + 1)" />
                           </div>
                         </div>
                       </div>
@@ -4180,7 +4187,7 @@
                           (ngModelChange)="setSubQuestionAnswer(currentQuestion, sqIndex, $event)"
                           [disabled]="hasCurrentSubmitted"
                           name="sq-qa-{{ currentQuestion.index }}-{{ sqIndex }}"
-                          placeholder="Unesite odgovor..." />
+                          placeholder="Type your answer..." />
                       </ng-template>
                     </div>
 
@@ -4207,9 +4214,9 @@
                           <button type="button" class="btn-record--subtle btn-record"
                             (click)="openMicTest()"
                             [disabled]="currentQuestion.subQuestionIsRecording?.[sqIndex] || currentQuestion.subQuestionPronUiState?.[sqIndex] === 'processing'"
-                            title="Proverite da mikrofon radi">
+                            title="Check your microphone is working">
                             <span class="material-icons">settings_voice</span>
-                            <span>Testirajte mikrofon</span>
+                            <span>Test microphone</span>
                           </button>
                           <button class="btn-record"
                             [class.recording]="currentQuestion.subQuestionIsRecording?.[sqIndex]"
@@ -4225,7 +4232,7 @@
                               {{ currentQuestion.subQuestionIsRecording?.[sqIndex] ? 'stop' : currentQuestion.subQuestionPronUiState?.[sqIndex] === 'processing' ? 'hourglass_top' : 'mic' }}
                             </span>
                             <span>
-                              {{ currentQuestion.subQuestionIsRecording?.[sqIndex] ? 'Zaustavi' : currentQuestion.subQuestionPronUiState?.[sqIndex] === 'processing' ? 'Obrada…' : currentQuestion.subQuestionHasRecorded?.[sqIndex] ? 'Snimi ponovo' : 'Govori' }}
+                              {{ currentQuestion.subQuestionIsRecording?.[sqIndex] ? 'Stop' : currentQuestion.subQuestionPronUiState?.[sqIndex] === 'processing' ? 'Processing…' : currentQuestion.subQuestionHasRecorded?.[sqIndex] ? 'Re-record' : 'Speak' }}
                             </span>
                           </button>
                         </div>
@@ -4233,7 +4240,7 @@
                         <div class="pronunciation-listening" *ngIf="currentQuestion.subQuestionIsRecording?.[sqIndex]">
                           <div class="pronunciation-listening__main">
                             <span class="material-icons">mic</span>
-                            <span class="pronunciation-listening__text">Slušam<span class="vp-listening-dots" aria-hidden="true"><span>.</span><span>.</span><span>.</span></span></span>
+                            <span class="pronunciation-listening__text">Listening<span class="vp-listening-dots" aria-hidden="true"><span>.</span><span>.</span><span>.</span></span></span>
                           </div>
                           <app-audio-visualizer class="pronunciation-visualizer"
                             [analyser]="getPronAnalyser()"
@@ -4244,15 +4251,15 @@
                         <div class="pronunciation-listening pronunciation-listening--processing" *ngIf="currentQuestion.subQuestionPronUiState?.[sqIndex] === 'processing' && !currentQuestion.subQuestionIsRecording?.[sqIndex]">
                           <div class="pronunciation-listening__main">
                             <span class="material-icons">hourglass_top</span>
-                            <span class="pronunciation-listening__text">Obrada<span class="vp-listening-dots" aria-hidden="true"><span>.</span><span>.</span><span>.</span></span></span>
+                            <span class="pronunciation-listening__text">Processing<span class="vp-listening-dots" aria-hidden="true"><span>.</span><span>.</span><span>.</span></span></span>
                           </div>
-                          <span class="pronunciation-processing-slow" *ngIf="pronProcessingSlow">Ovo može potrajati.</span>
+                          <span class="pronunciation-processing-slow" *ngIf="pronProcessingSlow">This may take a moment.</span>
                         </div>
 
                         <div class="pronunciation-listening pronunciation-listening--error" *ngIf="currentQuestion.subQuestionPronUiState?.[sqIndex] === 'error' && !currentQuestion.subQuestionIsRecording?.[sqIndex]">
                           <div class="pronunciation-listening__main">
                             <span class="material-icons">error_outline</span>
-                            <span class="pronunciation-listening__text">{{ currentQuestion.subQuestionPronMessage?.[sqIndex] || 'Nije detektovan govor, pokušajte ponovo' }}</span>
+                            <span class="pronunciation-listening__text">{{ currentQuestion.subQuestionPronMessage?.[sqIndex] || 'No speech detected, try again' }}</span>
                           </div>
                         </div>
                       </div>
@@ -4261,7 +4268,7 @@
                         <div class="score-circle"
                           [class]="getPronunciationClass(currentQuestion.subQuestionPronunciationScore?.[sqIndex] || 0)">
                           <div class="score-value">{{ currentQuestion.subQuestionPronunciationScore?.[sqIndex] || 0 }}%</div>
-                          <div class="score-label">Podudaranje</div>
+                          <div class="score-label">Match</div>
                         </div>
 
                         <div class="pronunciation-feedback"
@@ -4272,7 +4279,7 @@
                             {{ getPronunciationFeedback(currentQuestion.subQuestionPronunciationScore?.[sqIndex] || 0) }}
                           </ng-container>
                           <ng-container *ngIf="currentQuestion.subQuestionPronAlmostCorrect?.[sqIndex]">
-                            Skoro tačno — pokušajte još jednom
+                            Almost there — try once more
                           </ng-container>
                         </div>
 
@@ -4284,7 +4291,7 @@
                           {{ confidenceNudge(lastConfidenceByIndex[currentQuestion.index], currentQuestion.subQuestionPronunciationScore?.[sqIndex]) }}
                         </div>
                         <div class="pron-audio-quality-banner" *ngIf="shouldShowLowAudioWarning(currentQuestion.subQuestionPronLowAudioQuality?.[sqIndex], currentQuestion.subQuestionPronunciationScore?.[sqIndex])">
-                          Ulaz mikrofona deluje tiho. Govorite glasnije ili bliže mikrofonu.
+                          Your microphone input seems low. Try speaking louder or closer to the mic.
                         </div>
 
                         <app-pronunciation-comparison-view
@@ -4297,14 +4304,14 @@
                         </app-pronunciation-comparison-view>
 
                         <div class="pron-word-analysis" *ngIf="currentQuestion.subQuestionPronWordAnalysis?.[sqIndex]?.length">
-                          <span class="pron-word-analysis-label">Analiza reči:</span>
+                          <span class="pron-word-analysis-label">Word breakdown:</span>
                           <div class="pron-word-chips">
                             <span *ngFor="let w of currentQuestion.subQuestionPronWordAnalysis?.[sqIndex]"
                               class="pron-chip"
                               [class.pron-chip--correct]="w.status === 'correct'"
                               [class.pron-chip--incorrect]="w.status === 'incorrect'"
                               [class.pron-chip--missing]="w.status === 'missing'"
-                              [title]="w.status === 'missing' ? 'Nedostaje' : 'Rekli ste: ' + (w.spoken || '—')">
+                              [title]="w.status === 'missing' ? 'Missing' : 'You said: ' + (w.spoken || '—')">
                               {{ w.expected }}
                               <span class="pron-chip-icon material-icons">
                                 {{ w.status === 'correct' ? 'check' : w.status === 'missing' ? 'remove' : 'close' }}
@@ -4321,16 +4328,16 @@
 
                         <div class="pronunciation-retry-row" *ngIf="currentQuestion.subQuestionHasRecorded?.[sqIndex] && !hasCurrentSubmitted && (currentQuestion.subQuestionPronAlmostCorrect?.[sqIndex] || (currentQuestion.subQuestionPronunciationScore?.[sqIndex] || 0) < 60)">
                           <span class="pronunciation-retry-nudge" *ngIf="!currentQuestion.subQuestionPronAlmostCorrect?.[sqIndex]">
-                            ❌ Nije baš tačno — 👉 pokušajte ponovo jasno.
+                            ❌ Not quite — 👉 try again clearly.
                           </span>
                           <span class="pronunciation-retry-nudge pronunciation-retry-nudge--almost" *ngIf="currentQuestion.subQuestionPronAlmostCorrect?.[sqIndex]">
-                            🔶 Skoro! Pokušajte još jednom.
+                            🔶 So close! Give it one more try.
                           </span>
                           <button type="button" class="btn-record btn-record--subtle"
                             (click)="playSubQuestionAudio(sq)"
-                            title="Ponovi referentnu reč">
+                            title="Replay the reference word">
                             <span class="material-icons">replay</span>
-                            <span>Ponovi reč</span>
+                            <span>Replay word</span>
                           </button>
                         </div>
 
@@ -4338,7 +4345,7 @@
                           <button type="button" class="btn-record btn-record--subtle"
                             (click)="togglePronHelp(currentQuestion)">
                             <span class="material-icons">help_outline</span>
-                            Treba vam pomoć?
+                            Need help?
                           </button>
                           <div class="pron-help-chunks" *ngIf="currentQuestion.pronHelpOpen">
                             <span class="pron-help-chip" *ngFor="let c of expectedChunks(currentQuestion.subQuestionPronExpectedText?.[sqIndex] || '')">{{ c }}</span>
@@ -4358,7 +4365,7 @@
                         (ngModelChange)="setSubQuestionAnswer(currentQuestion, sqIndex, $event)"
                         [disabled]="hasCurrentSubmitted"
                         name="sq-listening-{{ currentQuestion.index }}-{{ sqIndex }}"
-                        placeholder="Unesite šta čujete..." />
+                        placeholder="Type what you hear..." />
                     </div>
 
                     <!-- Singular Plural -->
@@ -4366,9 +4373,9 @@
                       <div class="sp-rows">
                         <!-- Labels Row -->
                         <div class="sp-row sp-labels-row">
-                          <span class="sp-col-label">Jednina</span>
+                          <span class="sp-col-label">Singular</span>
                           <div class="connector-spacer"></div>
-                          <span class="sp-col-label">Množina</span>
+                          <span class="sp-col-label">Plural</span>
                         </div>
                         <div class="sp-row" *ngFor="let sp of getSubQuestionSpRows(sq); let ri = index">
                           <span class="sp-singular-item">{{ sp.singular }}</span>
@@ -4380,16 +4387,16 @@
                               [ngModel]="getSubQuestionSpInput(currentQuestion, sqIndex, ri)"
                               (ngModelChange)="setSubQuestionSpInput(currentQuestion, sqIndex, ri, $event)"
                               [disabled]="hasCurrentSubmitted"
-                              [placeholder]="'Množina'" />
+                              [placeholder]="'Plural'" />
                           </div>
                         </div>
                       </div>
                     </div>
 
-                    <!-- Mešanje reči -->
+                    <!-- Jumble Word -->
                     <div *ngIf="sq.type === 'jumble-word'" class="sub-q-jumble">
                       <p class="sub-q-text" *ngIf="sq.categoryTip">{{ sq.categoryTip }}</p>
-                      <p class="sub-q-text">Sastavite reč: <strong>{{ sq.scrambledText || sq.word }}</strong></p>
+                      <p class="sub-q-text">Form the word: <strong>{{ sq.scrambledText || sq.word }}</strong></p>
                       <div class="jumble-scramble">
                         <ng-container *ngFor="let token of getJumbleTokens(sq); let ti = index">
                           <button *ngIf="token !== ' '" type="button" class="jumble-letter jumble-letter-btn"
@@ -4405,14 +4412,14 @@
                         [ngModel]="getSubQuestionAnswer(currentQuestion, sqIndex)"
                         (ngModelChange)="onSubQuestionJumbleResponseChange(currentQuestion, sqIndex, sq, $event)"
                         [disabled]="hasCurrentSubmitted"
-                        placeholder="Unesite raspetljanu reč..." />
+                        placeholder="Type the unscrambled word..." />
                     </div>
 
                     <!-- Rearrange -->
                     <div *ngIf="sq.type === 'rearrange'" class="sub-q-rearrange">
                       <p class="sub-q-text" [innerHTML]="sq.rearrangePrompt | safeHtml"></p>
                       <div class="rearrange-tokens-wrap" *ngIf="getSubQuestionRearrangeTokens(currentQuestion, sqIndex)?.length">
-                        <div class="rearrange-label">Prevucite da preuredite:</div>
+                        <div class="rearrange-label">Drag to rearrange:</div>
                         <div class="rearrange-drop" cdkDropList
                           [cdkDropListData]="getSubQuestionRearrangeTokens(currentQuestion, sqIndex)"
                           [cdkDropListSortingDisabled]="true"
@@ -4428,19 +4435,19 @@
                         </div>
                       </div>
                       <div class="rearrange-answer-box" *ngIf="getSubQuestionRearrangeTokens(currentQuestion, sqIndex).length">
-                        <div class="rearrange-answer-label">Vaš odgovor je</div>
+                        <div class="rearrange-answer-label">Your answer is</div>
                         <div class="rearrange-answer-text">{{ getSubQuestionRearrangeTokens(currentQuestion, sqIndex).join(' ') || '—' }}</div>
                       </div>
                     </div>
 
                     <!-- Image Pin Match -->
                     <div *ngIf="sq.type === 'image_pin_match'" class="sub-q-image-pin">
-                      <p class="sub-q-text">Prevucite ručku sa oznake do odgovarajućeg numerisanog pina na slici.</p>
+                      <p class="sub-q-text">Drag the handle from a label to the correct numbered pin on the image.</p>
                     </div>
 
-                    <!-- Video izgovor -->
+                    <!-- Video Pronunciation -->
                     <div *ngIf="sq.type === 'video-pronunciation'" class="sub-q-video-pron">
-                      <p class="sub-q-text">Recite: <strong>{{ sq.caption }}</strong></p>
+                      <p class="sub-q-text">Say: <strong>{{ sq.caption }}</strong></p>
                       <p *ngIf="sq.context" class="sub-q-text-sub">{{ sq.context }}</p>
                     </div>
 
@@ -4453,7 +4460,7 @@
                         (ngModelChange)="setSubQuestionAnswer(currentQuestion, sqIndex, $event)"
                         [disabled]="hasCurrentSubmitted"
                         name="sq-fallback-{{ currentQuestion.index }}-{{ sqIndex }}"
-                        placeholder="Unesite odgovor..." />
+                        placeholder="Type your answer..." />
                     </div>
                   </div>
                 </div>
@@ -4481,22 +4488,22 @@
                   isMultipartFullyCorrect(currentQuestion) ? "check_circle" : "adjust"
                 }}</span>
                 +{{ getMultipartPointsEarned(currentQuestion) }}/{{ getMultipartMaxPoints(currentQuestion) }}
-                poena
-                <span class="result-partial-hint" *ngIf="isMultipartPartial(currentQuestion)">(delimični bodovi)</span>
+                point{{ getMultipartMaxPoints(currentQuestion) !== 1 ? "s" : "" }}
+                <span class="result-partial-hint" *ngIf="isMultipartPartial(currentQuestion)">(partial credit)</span>
               </div>
               <div class="result-wrong" *ngIf="getMultipartPointsEarned(currentQuestion) === 0">
-                <span class="material-icons">cancel</span> Netačno — 0/{{ getMultipartMaxPoints(currentQuestion) }} poena
+                <span class="material-icons">cancel</span> Incorrect — 0/{{ getMultipartMaxPoints(currentQuestion) }} points
               </div>
             </ng-container>
             <ng-template #simpleResultBanner>
             <div class="result-correct" *ngIf="currentQuestion.isCorrect">
-              <span class="material-icons">check_circle</span> Tačno! +{{
+              <span class="material-icons">check_circle</span> Correct! +{{
                 currentQuestion.data.points || 1
               }}
-              poena
+              point{{ currentQuestion.data.points !== 1 ? "s" : "" }}
             </div>
             <div class="result-wrong" *ngIf="!currentQuestion.isCorrect">
-              <span class="material-icons">cancel</span> Netačno
+              <span class="material-icons">cancel</span> Incorrect
             </div>
             </ng-template>
           </div>
@@ -4511,16 +4518,16 @@
         >
           <span class="material-icons" aria-hidden="true">arrow_forward</span>
           <span>
-            Prelazak na sledeće pitanje za
+            Going to next question in
             <strong>{{ imagePinAutoAdvanceSeconds }}</strong>
-            sekund{{ imagePinAutoAdvanceSeconds !== 1 ? "a" : "" }}…
+            second{{ imagePinAutoAdvanceSeconds !== 1 ? "s" : "" }}…
           </span>
           <button
             type="button"
             class="ipm-auto-advance-skip"
             (click)="skipImagePinAutoAdvance()"
           >
-            Idi odmah
+            Go now
           </button>
         </div>
 
@@ -4533,10 +4540,10 @@
             [disabled]="isFirstQuestion || finishingAll"
           >
             <span class="material-icons">arrow_back</span>
-            <span class="nav-btn-label">Prethodno</span>
+            <span class="nav-btn-label">Previous</span>
           </button>
           <span class="nav-questions-progress"
-            >{{ currentIndex + 1 }} / {{ playerQuestions.length }} Pitanja</span
+            >{{ currentIndex + 1 }} / {{ playerQuestions.length }} Questions</span
           >
           <button
             type="button"
@@ -4545,7 +4552,7 @@
             (click)="navNext($event)"
             [disabled]="finishingAll"
           >
-            <span class="nav-btn-label">Sledeće </span><span class="material-icons">arrow_forward</span>
+            <span class="nav-btn-label">Next </span><span class="material-icons">arrow_forward</span>
           </button>
           <button
             type="button"
@@ -4557,7 +4564,7 @@
             <span class="material-icons">{{
               finishingAll ? "hourglass_empty" : "flag"
             }}</span>
-            <span class="nav-btn-label">{{ finishingAll ? "Završava se..." : "Završi i predaj" }}</span>
+            <span class="nav-btn-label">{{ finishingAll ? "Finishing..." : "Finish & Submit" }}</span>
           </button>
         </div>
       </div>
@@ -4566,28 +4573,28 @@
     <!-- Finish Summary Modal -->
     <div class="finish-summary-backdrop" *ngIf="showFinishSummary">
       <div class="finish-summary-modal">
-        <h3>Završiti vežbu?</h3>
-        <p>Pregledajte rezime pokušaja pre konačnog predavanja.</p>
+        <h3>Finish Exercise?</h3>
+        <p>Review your attempt summary before final submit.</p>
         <div class="finish-stats">
           <div class="finish-stat">
             <span class="finish-num">{{ playerQuestions.length }}</span>
-            <span class="finish-label">Ukupno pitanja</span>
+            <span class="finish-label">Total Questions</span>
           </div>
           <div class="finish-stat">
             <span class="finish-num">{{ answeredCount }}</span>
-            <span class="finish-label">Pokušano</span>
+            <span class="finish-label">Attempted</span>
           </div>
           <div class="finish-stat warn">
             <span class="finish-num">{{ unattemptedCount }}</span>
-            <span class="finish-label">Bez odgovora</span>
+            <span class="finish-label">Unanswered</span>
           </div>
         </div>
         <div class="finish-actions">
           <button class="btn-nav" (click)="cancelFinishSummary()">
-            Nastavi uređivanje
+            Continue Editing
           </button>
           <button class="btn-submit btn-finish" (click)="confirmFinishSubmit()">
-            Konačno predaj
+            Submit Final
           </button>
         </div>
       </div>
@@ -4597,8 +4604,8 @@
     <div class="submitting-overlay" *ngIf="finishingAll">
       <div class="submitting-card">
         <div class="submit-spinner"></div>
-        <h4>Predaju se vaši odgovori...</h4>
-        <p>Molimo sačekajte, ne zatvarajte ovu stranicu.</p>
+        <h4>Submitting your answers...</h4>
+        <p>Please wait, do not close this page.</p>
       </div>
     </div>
   </div>
@@ -4613,22 +4620,23 @@
     (click)="$event.stopPropagation()"
     role="dialog"
     aria-modal="true"
-    aria-label="Testirajte mikrofon"
+    aria-label="Test your microphone"
   >
     <button
       type="button"
       class="mic-test-close"
       (click)="closeMicTest()"
-      aria-label="Zatvori"
+      aria-label="Close"
     >
       <span class="material-icons">close</span>
     </button>
     <h3 class="mic-test-title">
       <span class="material-icons">settings_voice</span>
-      Testirajte mikrofon
+      Test your microphone
     </h3>
     <p class="mic-test-subtitle">
-      Snimićemo 5-sekundni uzorak da čujete tačno šta vaš mikrofon hvata.
+      We'll record a 5-second sample so you can hear exactly what your
+      microphone captures.
     </p>
 
     <div class="mic-test-body" [ngSwitch]="micTestState">
@@ -4639,19 +4647,20 @@
           (click)="runMicTest()"
         >
           <span class="material-icons">fiber_manual_record</span>
-          Pokreni test (5s)
+          Start test (5s)
         </button>
         <p class="mic-test-hint" *ngIf="micPermission === 'denied'">
           <span class="material-icons">warning</span>
-          Pristup mikrofonu je blokiran. Prvo dozvolite ga u podešavanjima pregledača.
+          Microphone access is blocked. Please allow it in your browser settings
+          first.
         </p>
       </div>
 
       <div *ngSwitchCase="'recording'" class="mic-test-recording">
         <span class="material-icons mic-test-pulse">mic</span>
-        <div class="mic-test-count">Snimanje… {{ micTestCountdown }}s</div>
+        <div class="mic-test-count">Recording… {{ micTestCountdown }}s</div>
         <p class="mic-test-hint">
-          Recite nešto jasno, npr. <em>“Hallo, ich teste mein Mikrofon.”</em>
+          Say something clearly, e.g. <em>“Hallo, ich teste mein Mikrofon.”</em>
         </p>
       </div>
 
@@ -4660,7 +4669,7 @@
           <span class="material-icons" style="color: #16a34a"
             >check_circle</span
           >
-          Snimljeno. Pritisnite pusti da čujete sebe.
+          Captured. Press play to hear yourself.
         </p>
         <audio
           *ngIf="micTestAudioUrl"
@@ -4679,7 +4688,7 @@
             (click)="playMicTestBoosted()"
           >
             <span class="material-icons">volume_up</span>
-            Pusti glasnije
+            Play louder
           </button>
           <button
             type="button"
@@ -4687,7 +4696,7 @@
             (click)="runMicTest()"
           >
             <span class="material-icons">refresh</span>
-            Snimi ponovo
+            Record again
           </button>
           <button
             type="button"
@@ -4695,7 +4704,7 @@
             (click)="closeMicTest()"
           >
             <span class="material-icons">thumb_up</span>
-            Zvuči dobro
+            Sounds good
           </button>
         </div>
       </div>
@@ -4705,7 +4714,7 @@
           <span class="material-icons" style="color: #dc2626"
             >error_outline</span
           >
-          {{ micTestError || "Test mikrofona nije uspeo." }}
+          {{ micTestError || "Microphone test failed." }}
         </p>
         <div class="mic-test-actions">
           <button
@@ -4714,14 +4723,14 @@
             (click)="runMicTest()"
           >
             <span class="material-icons">refresh</span>
-            Pokušaj ponovo
+            Try again
           </button>
           <button
             type="button"
             class="mic-test-primary"
             (click)="closeMicTest()"
           >
-            Zatvori
+            Close
           </button>
         </div>
       </div>
@@ -4736,17 +4745,17 @@
   (click)="closeMcqOptionImageLightbox()"
   role="dialog"
   aria-modal="true"
-  aria-label="Uvećana slika opcije"
+  aria-label="Enlarged option image"
 >
   <button
     type="button"
     class="mcq-image-lightbox-close"
     (click)="closeMcqOptionImageLightbox(); $event.stopPropagation()"
-    aria-label="Zatvori"
+    aria-label="Close"
   >
     <span class="material-icons">close</span>
   </button>
   <div class="mcq-image-lightbox-panel" (click)="$event.stopPropagation()">
-    <img [src]="mcqImageLightboxUrl" alt="Uvećana slika opcije" class="mcq-image-lightbox-img" />
+    <img [src]="mcqImageLightboxUrl" alt="Enlarged option image" class="mcq-image-lightbox-img" />
   </div>
 </div>

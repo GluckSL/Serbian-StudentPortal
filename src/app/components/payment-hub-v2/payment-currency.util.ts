@@ -1,4 +1,4 @@
-﻿/** Shared currency display config for Payment Hub (USD stored as Euro in UI). */
+/** Shared currency display config for Payment Hub (USD stored as Euro in UI). */
 
 export type PaymentCurrencyCode = 'LKR' | 'INR' | 'USD';
 
@@ -60,7 +60,7 @@ export function amountForCurrency(code: PaymentCurrencyCode, totals: CurrencyPai
 }
 
 export function fmtPaymentAmount(n: number | null | undefined): string {
-  return (n ?? 0).toLocaleString('sr-Latn-RS');
+  return (n ?? 0).toLocaleString('en-IN');
 }
 
 /** Indian-style compact (lakhs): 750000 → "7.5L", 236000 → "2.36L". */
@@ -77,5 +77,5 @@ export function fmtPaymentAmountCompact(n: number | null | undefined): string {
     const decimals = k >= 100 ? 0 : k >= 10 ? 1 : 2;
     return `${Number(k.toFixed(decimals))}K`;
   }
-  return v.toLocaleString('sr-Latn-RS');
+  return v.toLocaleString('en-IN');
 }

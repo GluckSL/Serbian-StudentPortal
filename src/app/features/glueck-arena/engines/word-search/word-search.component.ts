@@ -1,4 +1,4 @@
-﻿import {
+import {
   Component, Input, Output, EventEmitter, OnInit, OnDestroy, HostListener,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
@@ -65,13 +65,13 @@ const DEFAULT_SESSION_SECONDS = 300;
         <div class="ws__status" *ngIf="phase === 'playing'">
           <div class="ws__timer">{{ formatTime(displaySeconds) }}</div>
           <div class="ws__status-right">
-            <div class="ws__lives" aria-label="Preostali životi">
+            <div class="ws__lives" aria-label="Lives remaining">
               <mat-icon
                 *ngFor="let _ of hearts; let i = index"
                 [class.ws__heart--lost]="i >= remainingLives"
               >favorite</mat-icon>
             </div>
-            <div class="ws__score" aria-label="Pronađene reči">
+            <div class="ws__score" aria-label="Words found">
               <mat-icon>check</mat-icon>
               <span>{{ foundCount }}</span>
             </div>
@@ -106,7 +106,7 @@ const DEFAULT_SESSION_SECONDS = 300;
                     [class.ws__cell--selecting]="cellSelecting(ri, ci)"
                     [style.--ws-highlight]="cellDisplayColor(ri, ci)"
                     [style.color]="cellDisplayTextColor(ri, ci)"
-                    [attr.aria-label]="'Slovo ' + letter"
+                    [attr.aria-label]="'Letter ' + letter"
                     (pointerdown)="onCellPointerDown($event, ri, ci)"
                     (click)="onCellClick(ri, ci)"
                   >
@@ -150,8 +150,8 @@ const DEFAULT_SESSION_SECONDS = 300;
             <path d="M22 42 L36 56 L60 28" fill="none" stroke="#fff" stroke-width="6"
               stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
-          <h2>Sve reči pronađene!</h2>
-          <p>Rezultat <strong>{{ score }}</strong></p>
+          <h2>All words found!</h2>
+          <p>Score <strong>{{ score }}</strong></p>
         </div>
 
       </div>
@@ -471,7 +471,7 @@ export class WordSearchComponent implements OnInit, OnDestroy {
 
   phase: 'playing' | 'complete' = 'playing';
   feedback: Feedback = 'idle';
-  promptText = 'Pronađite reči vodoravno, vertikalno ili dijagonalno';
+  promptText = 'Find words across, down, or diagonally';
 
   grid: string[][] = [];
   gridRows = 10;
@@ -559,7 +559,7 @@ export class WordSearchComponent implements OnInit, OnDestroy {
     this.clearSelection();
     this.foundCount = this.wordsFoundInGame;
     this.feedback = 'idle';
-    this.promptText = 'Pronađite reči vodoravno, vertikalno ili dijagonalno';
+    this.promptText = 'Find words across, down, or diagonally';
   }
 
   private startTimers(): void {
@@ -851,7 +851,7 @@ export class WordSearchComponent implements OnInit, OnDestroy {
 
   private showCorrect(placement: Placement): void {
     this.feedback = 'correct';
-    this.promptText = 'Tačno!';
+    this.promptText = 'Correct!';
     this.audio.playCorrect();
     const color = HIGHLIGHT_COLORS[this.foundIds.size % HIGHLIGHT_COLORS.length];
     for (const c of placement.cells) {
@@ -865,7 +865,7 @@ export class WordSearchComponent implements OnInit, OnDestroy {
 
     this.feedbackTimer = setTimeout(() => {
       this.feedback = 'idle';
-      this.promptText = 'Pronađite reči vodoravno, vertikalno ili dijagonalno';
+      this.promptText = 'Find words across, down, or diagonally';
       if (this.foundIds.size >= this.placements.length) {
         this.advancePuzzle();
       }
@@ -874,13 +874,13 @@ export class WordSearchComponent implements OnInit, OnDestroy {
 
   private showWrong(): void {
     this.feedback = 'wrong';
-    this.promptText = 'Netačno!';
+    this.promptText = 'Wrong!';
     this.audio.playWrong();
     this.remainingLives--;
 
     this.feedbackTimer = setTimeout(() => {
       this.feedback = 'idle';
-      this.promptText = 'Pronađite reči vodoravno, vertikalno ili dijagonalno';
+      this.promptText = 'Find words across, down, or diagonally';
       if (this.remainingLives <= 0) {
         this.finishGame();
       }

@@ -31,8 +31,8 @@
         <span class="material-icons">arrow_back</span>
       </button>
       <div>
-        <h1>{{ isEditMode ? 'Izmeni vežbu' : 'Kreiraj digitalnu vežbu' }}</h1>
-        <p>Pravite interaktivne vežbe sa više vrsta pitanja</p>
+        <h1>{{ isEditMode ? 'Edit Exercise' : 'Create Digital Exercise' }}</h1>
+        <p>Build interactive exercises with multiple question types</p>
       </div>
     </div>
     <div class="header-actions">
@@ -43,7 +43,7 @@
         </span>
         <span class="toggle-label">
           <span class="material-icons">{{ visibleToStudents ? 'visibility' : 'visibility_off' }}</span>
-          {{ visibleToStudents ? 'Objavljeno' : 'Nacrt' }}
+          {{ visibleToStudents ? 'Published' : 'Draft' }}
         </span>
       </label>
       <button
@@ -52,15 +52,15 @@
         class="btn-recover-media"
         (click)="recoverMediaFromCloud()"
         [disabled]="mediaRecovering || saving"
-        matTooltip="Vrati slike/audio iz R2 ili S3 kada su linkovi prekinuti nakon deploy-a"
+        matTooltip="Restore images/audio from R2 or S3 when links broke after a deploy"
       >
         <span class="material-icons">{{ mediaRecovering ? 'hourglass_empty' : 'cloud_download' }}</span>
-        {{ mediaRecovering ? 'Vraćanje…' : 'Vrati medije' }}
+        {{ mediaRecovering ? 'Recovering…' : 'Recover media' }}
       </button>
-      <button class="btn-cancel" (click)="cancel()">Otkaži</button>
+      <button class="btn-cancel" (click)="cancel()">Cancel</button>
       <button class="btn-save" (click)="save()" [disabled]="saving">
         <span class="material-icons">{{ saving ? 'hourglass_empty' : 'save' }}</span>
-        {{ saving ? 'Čuvanje...' : (isEditMode ? 'Ažuriraj' : 'Kreiraj vežbu') }}
+        {{ saving ? 'Saving...' : (isEditMode ? 'Update' : 'Create Exercise') }}
       </button>
     </div>
   </div>
@@ -68,25 +68,25 @@
   <!-- Loading -->
   <div class="loading-overlay" *ngIf="loading">
     <div class="spinner"></div>
-    <p>Učitavanje vežbe...</p>
+    <p>Loading exercise...</p>
   </div>
 
   <!-- Tabs -->
   <div class="builder-tabs" *ngIf="!loading">
     <button class="tab-btn" [class.active]="activeTab === 'info'" (click)="activeTab = 'info'">
-      <span class="material-icons">info</span> Info o vežbi
+      <span class="material-icons">info</span> Exercise Info
       <span class="tab-check" *ngIf="isInfoValid()">✓</span>
     </button>
     <button class="tab-btn" [class.active]="activeTab === 'questions'" (click)="activeTab = 'questions'">
-      <span class="material-icons">quiz</span> Pitanja
+      <span class="material-icons">quiz</span> Questions
       <span class="questions-count" *ngIf="questions.length > 0">{{ getTotalQuestionCount() }}</span>
     </button>
     <button class="tab-btn" [class.active]="activeTab === 'video'" (click)="activeTab = 'video'">
-      <span class="material-icons">videocam</span> Koristi video
+      <span class="material-icons">videocam</span> Use Video
       <span class="questions-count" *ngIf="videoQuestions.length > 0">{{ videoQuestions.length }}</span>
     </button>
     <button class="tab-btn" [class.active]="activeTab === 'preview'" (click)="activeTab = 'preview'">
-      <span class="material-icons">preview</span> Pregled
+      <span class="material-icons">preview</span> Preview
     </button>
   </div>
 
@@ -95,20 +95,20 @@
     <div class="info-card info-card--full">
       <section class="info-section info-section--sheet">
         <div class="info-sheet-head">
-          <h2 class="info-section__title info-section__title--inline">Info o vežbi</h2>
-          <span class="info-sheet-head__hint">Vidljivo učenicima · koristite journey day za zakazivanje otključavanja</span>
+          <h2 class="info-section__title info-section__title--inline">Exercise info</h2>
+          <span class="info-sheet-head__hint">Shown to students · use journey day to schedule unlocks</span>
         </div>
 
         <div class="info-grid info-grid--top">
           <div class="field-group field-group--title">
-            <label class="field-label required" for="ex-title">Naslov</label>
+            <label class="field-label required" for="ex-title">Title</label>
             <div class="field-input-wrap">
               <input
                 id="ex-title"
                 type="text"
                 [(ngModel)]="title"
                 class="field-input field-input--sm"
-                placeholder="npr. Vežba prezenta"
+                placeholder="e.g. Present tense practice"
                 maxlength="120"
                 autocomplete="off"
               />
@@ -118,7 +118,7 @@
           <div class="field-group field-group--daybox">
             <label class="field-label field-label--day" for="ex-course-day">
               <span class="material-icons" aria-hidden="true">event_note</span>
-              Journey dan (0 = Trial, 1–200)
+              Journey day (0 = Trial, 1–200)
             </label>
             <div class="field-input-wrap field-input-wrap--day field-input-wrap--day--prominent">
               <input
@@ -132,32 +132,32 @@
                 (ngModelChange)="onCourseDayNumberInput($event)"
                 placeholder="Any"
                 autocomplete="off"
-                title="Prazno = opšti skup; 0 = Trial; 1–200 = journey dan"
+                title="Empty = general pool; 0 = Trial; 1–200 = journey day"
               />
               <span class="day-suffix" aria-hidden="true">/200</span>
             </div>
           </div>
           <div class="field-group field-group--day">
             <label class="field-label" for="ex-seq-letter">
-              Redosled
-              <span class="label-optional">(a, b, c… redosled unutar dana)</span>
+              Sequence
+              <span class="label-optional">(a, b, c… order within day)</span>
             </label>
             <input
               id="ex-seq-letter"
               type="text"
               class="field-input field-input--seq"
               [(ngModel)]="sequenceLetter"
-              placeholder="npr. a"
+              placeholder="e.g. a"
               maxlength="1"
               pattern="[a-zA-Z]"
               autocomplete="off"
-              title="Jedno slovo a–z. Učenici moraju završiti ranije vežbe pre ove."
+              title="Single letter a–z. Students must complete earlier letters first."
             />
           </div>
           <div class="field-group field-group--day">
-            <label class="field-label">Gluck ispit kategorija</label>
+            <label class="field-label">Gluck Exam bucket</label>
             <div class="d-flex gap-3 flex-wrap align-items-center">
-              <label class="visibility-toggle" title="Prikaži ovu vežbu pod Nedeljnim testom">
+              <label class="visibility-toggle" title="Show this exercise under Weekly Test">
                 <input
                   type="checkbox"
                   [ngModel]="weeklyTestEnabled"
@@ -165,10 +165,10 @@
                 />
                 <span class="toggle-track"><span class="toggle-thumb"></span></span>
                 <span class="toggle-label">
-                  Nedeljni test
+                  Weekly Test
                 </span>
               </label>
-              <label class="visibility-toggle" title="Prikaži ovu vežbu pod Ispitima">
+              <label class="visibility-toggle" title="Show this exercise under Exams">
                 <input
                   type="checkbox"
                   [ngModel]="examEnabled"
@@ -176,40 +176,40 @@
                 />
                 <span class="toggle-track"><span class="toggle-thumb"></span></span>
                 <span class="toggle-label">
-                  Ispit
+                  Exam
                 </span>
               </label>
               <small class="text-muted" style="flex-basis:100%">
-                Samo jedno može biti UKLJUČENO. Podrazumevano oba su ISKLJUČENA (ne prikazuje se pod karticom Gluck ispit).
+                Only one can be ON. Default is both OFF (not shown under Gluck Exam tab).
               </small>
             </div>
           </div>
           <div class="field-group field-group--day">
-            <label class="field-label">Ograničenja</label>
+            <label class="field-label">Restrictions</label>
             <div class="d-flex gap-3 flex-wrap align-items-center">
-              <label class="visibility-toggle" title="Učenici mogu pokušati ovu vežbu samo jednom">
+              <label class="visibility-toggle" title="Students can only attempt this exercise once">
                 <input type="checkbox" [(ngModel)]="noReattempt" />
                 <span class="toggle-track"><span class="toggle-thumb"></span></span>
                 <span class="toggle-label">
-                  Bez ponovnog pokušaja
+                  No Re-attempt
                 </span>
               </label>
-              <label class="visibility-toggle" title="Zaključaj pretraživač u celom ekranu; prebacivanje tabova završava test">
+              <label class="visibility-toggle" title="Lock browser in fullscreen; switching tabs ends the test">
                 <input type="checkbox" [(ngModel)]="lockBrowser" />
                 <span class="toggle-track"><span class="toggle-thumb"></span></span>
                 <span class="toggle-label">
-                  Zaključaj pretraživač
+                  Lock Browser
                 </span>
               </label>
               <small class="text-muted" style="flex-basis:100%">
-                Bez ponovnog pokušaja = učenici mogu pokušati samo jednom. Zaključaj pretraživač = celi ekran; napuštanje taba automatski šalje odgovore za 10s.
+                No Re-attempt = students can only attempt once. Lock Browser = fullscreen mode; leaving the tab auto-submits after 10s.
               </small>
             </div>
           </div>
           <div class="field-group field-group--batches" *ngIf="isV2Exercise">
             <label class="field-label" for="ex-target-batches">
               <span class="material-icons" aria-hidden="true">groups</span>
-              Prikaži grupama
+              Show to batches
             </label>
             <div class="batch-dropdown-row">
               <select
@@ -219,30 +219,30 @@
                 (change)="onBatchDropdownChange()"
                 [disabled]="loadingBatches || selectableBatches.length === 0"
               >
-                <option value="">{{ loadingBatches ? 'Učitavanje grupa…' : (selectableBatches.length ? 'Izaberi grupu…' : 'Nema više grupa za dodavanje') }}</option>
+                <option value="">{{ loadingBatches ? 'Loading batches…' : (selectableBatches.length ? 'Select batch…' : 'No more batches to add') }}</option>
                 <option *ngFor="let b of selectableBatches" [value]="b.batchName">{{ b.batchName }}</option>
               </select>
             </div>
             <div class="selected-batches" *ngIf="selectedTargetBatches.length > 0">
               <span class="selected-batch-pill" *ngFor="let b of selectedTargetBatches">
                 {{ b }}
-                <button type="button" class="selected-batch-remove" (click)="removeTargetBatch(b)" aria-label="Ukloni grupu">
+                <button type="button" class="selected-batch-remove" (click)="removeTargetBatch(b)" aria-label="Remove batch">
                   <span class="material-icons">close</span>
                 </button>
               </span>
             </div>
-            <small class="text-muted" *ngIf="!loadingBatches && batches.length === 0">Nema pronađenih grupa. Najpre kreirajte grupu u Journey-u.</small>
-            <small class="text-muted" *ngIf="batches.length > 0">Samo učenici iz odabranih grupa će videti ovu vežbu kada bude objavljena.</small>
+            <small class="text-muted" *ngIf="!loadingBatches && batches.length === 0">No batches found. Create a batch in Journey first.</small>
+            <small class="text-muted" *ngIf="batches.length > 0">Only students in the selected batches will see this exercise when published.</small>
           </div>
           <div class="field-group field-group--desc">
-            <label class="field-label required" for="ex-desc">Opis</label>
+            <label class="field-label required" for="ex-desc">Description</label>
             <div class="field-input-wrap">
               <textarea
                 id="ex-desc"
                 [(ngModel)]="description"
                 class="field-input field-input--desc field-input--sm"
                 rows="2"
-                placeholder="Šta učenici vežbaju"
+                placeholder="What students practice"
               ></textarea>
             </div>
           </div>
@@ -250,13 +250,13 @@
 
         <div class="info-grid info-grid--settings">
           <div class="field-group">
-            <label class="field-label required" for="ex-target-lang">Ciljni</label>
+            <label class="field-label required" for="ex-target-lang">Target</label>
             <select id="ex-target-lang" [(ngModel)]="targetLanguage" class="field-input field-input--select field-input--sm">
               <option *ngFor="let l of languages" [value]="l">{{ l }}</option>
             </select>
           </div>
           <div class="field-group">
-            <label class="field-label" for="ex-native-lang">Maternji</label>
+            <label class="field-label" for="ex-native-lang">Native</label>
             <select id="ex-native-lang" [(ngModel)]="nativeLanguage" class="field-input field-input--select field-input--sm">
               <option *ngFor="let l of nativeLanguages" [value]="l">{{ l }}</option>
             </select>
@@ -268,13 +268,13 @@
             </select>
           </div>
           <div class="field-group">
-            <label class="field-label required" for="ex-cat">Kategorija</label>
+            <label class="field-label required" for="ex-cat">Category</label>
             <select id="ex-cat" [(ngModel)]="category" class="field-input field-input--select field-input--sm">
               <option *ngFor="let c of categories" [value]="c">{{ c }}</option>
             </select>
           </div>
           <div class="field-group">
-            <label class="field-label" for="ex-diff">Težina</label>
+            <label class="field-label" for="ex-diff">Difficulty</label>
             <select id="ex-diff" [(ngModel)]="difficulty" class="field-input field-input--select field-input--sm">
               <option *ngFor="let d of difficulties" [value]="d">{{ d }}</option>
             </select>
@@ -291,19 +291,19 @@
             />
           </div>
           <div class="field-group field-group--tags">
-            <label class="field-label" for="ex-tags">Oznake <span class="label-optional">opciono</span></label>
+            <label class="field-label" for="ex-tags">Tags <span class="label-optional">opt.</span></label>
             <input
               id="ex-tags"
               type="text"
               [(ngModel)]="tags"
               class="field-input field-input--sm"
-              placeholder="glagoli, gramatika, …"
+              placeholder="verbs, grammar, …"
             />
           </div>
         </div>
 
         <div class="info-alt-row">
-          <span class="info-alt-row__label">Iz fajlova</span>
+          <span class="info-alt-row__label">From files</span>
           <!-- DISABLED: AI (PDF) — same as worksheet extractor
           <button type="button" class="btn-alt btn-alt--ai" (click)="navigateToAiGenerator()">
             <span class="material-icons">auto_awesome</span>
@@ -314,16 +314,16 @@
             <span class="material-icons">headphones</span>
             Audio + PDF
           </button>
-          <span class="info-alt-row__pill" *ngIf="courseDayStr.trim()">Koristi dan {{ courseDayStr.trim() }}</span>
-          <span class="info-alt-row__pill info-alt-row__pill--muted" *ngIf="!courseDayStr.trim()">Nema dana → čarobnjaci opcioni</span>
-          <span class="info-alt-row__warn" *ngIf="isEditMode">Sačuvajte/otkažite pre napuštanja.</span>
+          <span class="info-alt-row__pill" *ngIf="courseDayStr.trim()">Uses day {{ courseDayStr.trim() }}</span>
+          <span class="info-alt-row__pill info-alt-row__pill--muted" *ngIf="!courseDayStr.trim()">No day → wizards optional</span>
+          <span class="info-alt-row__warn" *ngIf="isEditMode">Save/cancel before leaving.</span>
         </div>
       </section>
     </div>
     <div class="tab-nav-footer tab-nav-footer--info">
       <div></div>
       <button class="btn-next" (click)="activeTab = 'questions'" [disabled]="!isInfoValid()">
-        Sledeće: Dodaj pitanja <span class="material-icons">arrow_forward</span>
+        Next: Add Questions <span class="material-icons">arrow_forward</span>
       </button>
     </div>
   </div>
@@ -333,7 +333,7 @@
 
     <!-- Add Question Types -->
     <div class="question-type-selector">
-      <h3>Dodaj pitanje</h3>
+      <h3>Add a Question</h3>
       <div class="type-cards">
         <div *ngFor="let qt of questionTypes" class="type-card" (click)="addQuestion(qt.value)">
           <span class="material-icons type-icon">{{ qt.icon }}</span>
@@ -347,7 +347,7 @@
       <div class="add-more-row" *ngIf="questions.length > 0">
         <button type="button" class="btn-add-more" (click)="addOneMoreQuestion()">
           <span class="material-icons">add_circle_outline</span>
-          Dodaj još jedno {{ getTypeLabel(lastQuestionType) }} pitanje
+          Add one more {{ getTypeLabel(lastQuestionType) }} question
         </button>
       </div>
     </div>
@@ -356,27 +356,27 @@
     <div class="questions-list" *ngIf="questions.length > 0">
       <div class="questions-header">
         <div class="questions-header-left">
-          <label class="bulk-select-all" (click)="toggleSelectAll($event)" matTooltip="Izaberi / poništi izbor svih pitanja">
+          <label class="bulk-select-all" (click)="toggleSelectAll($event)" matTooltip="Select / deselect all questions">
             <input type="checkbox" [checked]="selectAllChecked" (change)="toggleSelectAll($event)" (click)="$event.stopPropagation()" />
-            <span class="bulk-select-label">Sve</span>
+            <span class="bulk-select-label">All</span>
           </label>
-          <h3>Pitanja <span class="q-count">{{ getTotalQuestionCount() }}</span></h3>
+          <h3>Questions <span class="q-count">{{ getTotalQuestionCount() }}</span></h3>
           <button
             *ngIf="isEditMode && selectedIndices.size > 0"
             type="button"
             class="btn-split-new-exercise"
             (click)="openSplitToNewExerciseModal()"
             [disabled]="splitSaving || saving"
-            matTooltip="Kreiraj novu vežbu sa izabranim pitanjima; ona se uklanjaju iz ove"
+            matTooltip="Create a new exercise with the selected questions; they are removed from this one"
           >
             <span class="material-icons">call_split</span>
-            Nova vežba od {{ selectedIndices.size }} izabranih
+            New exercise from {{ selectedIndices.size }} selected
           </button>
         </div>
         <div class="questions-header-stats">
-          <button class="btn-gen-answers" type="button" (click)="generateMissingAnswers()" [disabled]="generatingAnswers" matTooltip="AI popunjava nedostajuće odgovore za pitanja s popunjavanjem i Q&A pitanja">
+          <button class="btn-gen-answers" type="button" (click)="generateMissingAnswers()" [disabled]="generatingAnswers" matTooltip="AI fills missing answers for fill-blank and Q&A questions">
             <span class="material-icons">{{ generatingAnswers ? 'hourglass_top' : 'auto_fix_high' }}</span>
-            {{ generatingAnswers ? 'Generisanje…' : 'Generiši nedostajuće odgovore' }}
+            {{ generatingAnswers ? 'Generating…' : 'Generate missing answers' }}
           </button>
           <span
             class="valid-count"
@@ -386,9 +386,9 @@
             matTooltipShowDelay="200"
           >
             <span class="material-icons">{{ validQuestionCount === questions.length ? 'check_circle' : 'warning' }}</span>
-            {{ validQuestionCount }}/{{ questions.length }} validnih
+            {{ validQuestionCount }}/{{ questions.length }} valid
           </span>
-          <span class="total-points">{{ getTotalPoints() }} pt ukupno</span>
+          <span class="total-points">{{ getTotalPoints() }} pts total</span>
         </div>
       </div>
 
@@ -397,10 +397,10 @@
         <div class="bulk-toolbar-top">
           <span class="bulk-count">
             <span class="material-icons">check_box</span>
-            {{ selectedIndices.size }} izabrano
+            {{ selectedIndices.size }} selected
           </span>
-          <button type="button" class="btn-bulk-clear" (click)="clearSelection()" matTooltip="Poništi izbor svih">
-            <span class="material-icons">close</span> Poništi izbor
+          <button type="button" class="btn-bulk-clear" (click)="clearSelection()" matTooltip="Deselect all">
+            <span class="material-icons">close</span> Deselect all
           </button>
           <button
             *ngIf="isEditMode"
@@ -408,26 +408,26 @@
             class="btn-split-new-exercise btn-split-new-exercise--toolbar"
             (click)="openSplitToNewExerciseModal()"
             [disabled]="splitSaving || saving"
-            matTooltip="Mora ostati bar jedno pitanje u ovoj vežbi"
+            matTooltip="Must leave at least one question in this exercise"
           >
             <span class="material-icons">call_split</span>
-            Napravi novu vežbu od izabranih
+            Make new exercise from selected
           </button>
         </div>
 
         <div class="bulk-section">
           <div class="bulk-section-title">
-            <span class="material-icons">edit</span> Grupno uređivanje polja
+            <span class="material-icons">edit</span> Bulk Edit Field
           </div>
           <div class="bulk-field-row">
             <select [(ngModel)]="bulkEditField" class="bulk-field-select">
-              <option value="">— Izaberi polje za uređivanje —</option>
-              <option value="instruction">Uputstvo (plavi baner)</option>
-              <option value="example">Primer (rešen primer)</option>
-              <option value="context">Kontekst (pozadinski tekst)</option>
-              <option value="audio">Audio URL (slušanje)</option>
-              <option value="attachment">URL prilog</option>
-              <option value="attachment-upload">Prilog (postavi fajl)</option>
+              <option value="">— Choose field to edit —</option>
+              <option value="instruction">Instruction (blue banner)</option>
+              <option value="example">Example (worked sample)</option>
+              <option value="context">Context (background text)</option>
+              <option value="audio">Audio URL (listening)</option>
+              <option value="attachment">Attachment URL</option>
+              <option value="attachment-upload">Attachment (upload file)</option>
             </select>
           </div>
 
@@ -438,18 +438,18 @@
                 [(ngModel)]="bulkEditValue"
                 class="bulk-textarea"
                 rows="3"
-                placeholder="Unesite kontekst koji će se primeniti na sva izabrana pitanja…"
+                placeholder="Enter context text to apply to all selected questions…"
               ></textarea>
               <input
                 *ngIf="bulkEditField !== 'context'"
                 type="text"
                 [(ngModel)]="bulkEditValue"
                 class="bulk-input"
-                [placeholder]="bulkEditField === 'instruction' ? 'npr. Izaberite tačnu opciju.' : bulkEditField === 'example' ? 'npr. Nebo je ___ → plavo' : 'https://…'"
+                [placeholder]="bulkEditField === 'instruction' ? 'e.g. Choose the correct option.' : bulkEditField === 'example' ? 'e.g. The sky is ___ → blue' : 'https://…'"
               />
             </div>
             <button type="button" class="btn-bulk-apply" (click)="applyBulkField()" [disabled]="!bulkEditValue.trim()">
-              <span class="material-icons">done_all</span> Primeni na {{ selectedIndices.size }} izabranih
+              <span class="material-icons">done_all</span> Apply to {{ selectedIndices.size }} selected
             </button>
           </ng-container>
 
@@ -457,9 +457,9 @@
             <div class="bulk-audio-row">
               <button type="button" class="btn-upload-audio" (click)="triggerBulkAudioFile()" [disabled]="bulkAudioUploading">
                 <span class="material-icons">upload_file</span>
-                {{ bulkAudioUploading ? 'Postavljanje…' : 'Postavi audio fajl' }}
+                {{ bulkAudioUploading ? 'Uploading…' : 'Upload audio file' }}
               </button>
-              <span class="upload-or">ili nalepi URL</span>
+              <span class="upload-or">or paste URL</span>
               <input
                 type="text"
                 [(ngModel)]="bulkEditValue"
@@ -468,7 +468,7 @@
                 style="flex:1"
               />
               <button type="button" class="btn-bulk-apply" (click)="applyBulkField()" [disabled]="!bulkEditValue.trim() || bulkAudioUploading">
-                <span class="material-icons">done_all</span> Primeni na {{ selectedIndices.size }}
+                <span class="material-icons">done_all</span> Apply to {{ selectedIndices.size }}
               </button>
             </div>
           </ng-container>
@@ -477,10 +477,10 @@
             <div class="bulk-audio-row">
               <button type="button" class="btn-upload-audio" (click)="triggerBulkAttachmentFile()" [disabled]="bulkAttachmentUploading">
                 <span class="material-icons">upload_file</span>
-                {{ bulkAttachmentUploading ? 'Postavljanje…' : 'Postavi fajl' }}
+                {{ bulkAttachmentUploading ? 'Uploading…' : 'Upload file' }}
               </button>
               <span class="bulk-type-hint" style="margin:0">
-                Primenjuje isti fajl na sva {{ selectedIndices.size }} izabrana pitanja — slika, audio, PDF ili video.
+                Applies the same file to all {{ selectedIndices.size }} selected question(s) — image, audio, PDF, or video.
               </span>
             </div>
           </ng-container>
@@ -488,17 +488,17 @@
 
         <div class="bulk-section">
           <div class="bulk-section-title">
-            <span class="material-icons">transform</span> Grupna promena tipa (AI)
+            <span class="material-icons">transform</span> Bulk Change Type (AI)
             <button type="button" class="btn-toggle-type-panel" (click)="bulkTypeChangeOpen = !bulkTypeChangeOpen">
               <span class="material-icons">{{ bulkTypeChangeOpen ? 'expand_less' : 'expand_more' }}</span>
             </button>
           </div>
 
           <ng-container *ngIf="bulkTypeChangeOpen">
-            <p class="bulk-type-hint">AI će pročitati svako izabrano pitanje i prepisati ga u izabranom formatu. Originalni kontekst, uputstvo i primer su sačuvani.</p>
+            <p class="bulk-type-hint">AI will read each selected question and rewrite it in the chosen format. Original context, instruction, and example are preserved.</p>
 
             <div class="bulk-convert-progress" *ngIf="bulkConverting">
-              <div class="bulk-progress-label">Konvertovanje {{ bulkConvertProgress }} / {{ bulkConvertTotal }}…</div>
+              <div class="bulk-progress-label">Converting {{ bulkConvertProgress }} / {{ bulkConvertTotal }}…</div>
               <div class="bulk-progress-bar">
                 <div class="bulk-progress-fill" [style.width.%]="bulkConvertTotal > 0 ? (bulkConvertProgress / bulkConvertTotal) * 100 : 0"></div>
               </div>
@@ -507,7 +507,7 @@
             <ng-container *ngIf="!bulkConverting">
               <div class="bulk-type-row">
                 <select [(ngModel)]="bulkTargetType" class="bulk-field-select">
-                  <option value="">— Izaberi ciljni tip —</option>
+                  <option value="">— Select target type —</option>
                   <option *ngFor="let t of questionTypes" [value]="t.value">{{ t.label }}</option>
                 </select>
                 <button
@@ -517,7 +517,7 @@
                   [disabled]="!bulkTargetType || bulkConverting"
                 >
                   <span class="material-icons">auto_awesome</span>
-                  Konvertuj {{ selectedIndices.size }} sa AI
+                  Convert {{ selectedIndices.size }} with AI
                 </button>
               </div>
             </ng-container>
@@ -556,41 +556,41 @@
               <span class="material-icons">content_copy</span>
               {{ q.subQuestions.length }}
             </span>
-                <span class="q-summary">
+            <span class="q-summary">
               <ng-container [ngSwitch]="q.type">
-                <span *ngSwitchCase="'mcq'">{{ q.question || 'Nema teksta pitanja' }}</span>
-                <span *ngSwitchCase="'matching'">{{ q.pairs?.length || 0 }} parova</span>
-                <span *ngSwitchCase="'singular_plural'">{{ q.pairs?.length || 0 }} red(ova)</span>
-                <span *ngSwitchCase="'fill-blank'">{{ q.sentence || 'Nema rečenice' }}</span>
-                <span *ngSwitchCase="'word_bank_fill'">{{ q.items?.length || 0 }} zadatak(a) · {{ q.wordBank?.length || 0 }} reč(i)</span>
-                <span *ngSwitchCase="'pronunciation'">{{ q.word || 'Nema reči' }}</span>
-                <span *ngSwitchCase="'question-answer'">{{ q.prompt || 'Nema teksta pitanja' }}</span>
-                <span *ngSwitchCase="'listening'">{{ q.prompt || 'Pitanje za slušanje' }} ({{ hasListeningAudio(q) ? 'audio spreman' : 'nema audia' }})</span>
+                <span *ngSwitchCase="'mcq'">{{ q.question || 'No question text' }}</span>
+                <span *ngSwitchCase="'matching'">{{ q.pairs?.length || 0 }} pairs</span>
+                <span *ngSwitchCase="'singular_plural'">{{ q.pairs?.length || 0 }} row(s)</span>
+                <span *ngSwitchCase="'fill-blank'">{{ q.sentence || 'No sentence' }}</span>
+                <span *ngSwitchCase="'word_bank_fill'">{{ q.items?.length || 0 }} prompt(s) · {{ q.wordBank?.length || 0 }} word(s)</span>
+                <span *ngSwitchCase="'pronunciation'">{{ q.word || 'No word' }}</span>
+                <span *ngSwitchCase="'question-answer'">{{ q.prompt || 'No question text' }}</span>
+                <span *ngSwitchCase="'listening'">{{ q.prompt || 'Listening question' }} ({{ hasListeningAudio(q) ? 'audio ready' : 'no audio' }})</span>
                 <span *ngSwitchCase="'video-pronunciation'">
-                  {{ q.caption || 'Nema natpisa' }}{{ q.secondaryCaption ? (' → ' + q.secondaryCaption) : '' }} ({{ q.videoUrl ? 'video spreman' : 'nema videa' }})
+                  {{ q.caption || 'No caption' }}{{ q.secondaryCaption ? (' → ' + q.secondaryCaption) : '' }} ({{ q.videoUrl ? 'video ready' : 'no video' }})
                 </span>
                 <span *ngSwitchCase="'image_pin_match'">
-                  {{ (q.labels?.length || 0) }} oznaka · {{ (q.pins?.length || 0) }} markera
+                  {{ (q.labels?.length || 0) }} labels · {{ (q.pins?.length || 0) }} pins
                 </span>
               </ng-container>
             </span>
           </div>
           <div class="question-header-right">
-            <span class="q-valid" *ngIf="isQuestionValid(q)" matTooltip="Ovo pitanje je kompletno">✓</span>
-            <span class="q-invalid" *ngIf="!isQuestionValid(q)" matTooltip="Ovo pitanje je nepotpuno — otvorite ga da vidite obavezna polja">!</span>
-            <button class="btn-move" (click)="$event.stopPropagation(); moveQuestion(i, -1)" [disabled]="i === 0" matTooltip="Pomeri gore">
+            <span class="q-valid" *ngIf="isQuestionValid(q)" matTooltip="This question is complete">✓</span>
+            <span class="q-invalid" *ngIf="!isQuestionValid(q)" matTooltip="This question is incomplete — open it to see required fields">!</span>
+            <button class="btn-move" (click)="$event.stopPropagation(); moveQuestion(i, -1)" [disabled]="i === 0" matTooltip="Move up">
               <span class="material-icons">keyboard_arrow_up</span>
             </button>
-            <button class="btn-move" (click)="$event.stopPropagation(); moveQuestion(i, 1)" [disabled]="i === questions.length - 1" matTooltip="Pomeri dole">
+            <button class="btn-move" (click)="$event.stopPropagation(); moveQuestion(i, 1)" [disabled]="i === questions.length - 1" matTooltip="Move down">
               <span class="material-icons">keyboard_arrow_down</span>
             </button>
-            <button class="btn-remove" (click)="$event.stopPropagation(); removeQuestion(i)" matTooltip="Ukloni">
+            <button class="btn-remove" (click)="$event.stopPropagation(); removeQuestion(i)" matTooltip="Remove">
               <span class="material-icons">delete_outline</span>
             </button>
             <span
               class="material-icons expand-icon"
-              matTooltip="{{ expandedQuestion === i ? 'Skupi pitanje' : 'Proširi pitanje' }}"
-              [attr.aria-label]="expandedQuestion === i ? 'Skupi pitanje' : 'Proširi pitanje'"
+              matTooltip="{{ expandedQuestion === i ? 'Collapse question' : 'Expand question' }}"
+              [attr.aria-label]="expandedQuestion === i ? 'Collapse question' : 'Expand question'"
             >{{ expandedQuestion === i ? 'expand_less' : 'expand_more' }}</span>
           </div>
         </div>
@@ -600,17 +600,17 @@
 
           <!-- Points + common -->
           <div class="points-row">
-            <label>Poeni:</label>
+            <label>Points:</label>
             <input type="number" [(ngModel)]="q.points" min="1" max="10" class="points-input" />
           </div>
 
           <div class="field-group full">
-            <label class="field-label">Kontekst <span class="label-optional">(opciono)</span></label>
+            <label class="field-label">Context <span class="label-optional">(optional)</span></label>
             <textarea
               [(ngModel)]="q.context"
               class="field-input"
               rows="3"
-              placeholder="Dodajte opcioni kontekst koji se prikazuje učenicima iznad ovog pitanja..."
+              placeholder="Add optional context shown to students above this question..."
             ></textarea>
           </div>
 
@@ -618,18 +618,18 @@
           <div class="field-group full">
             <label class="field-label">
               <span class="material-icons" style="font-size:16px;vertical-align:middle;margin-right:4px;">attach_file</span>
-              Prilog
-              <span *ngIf="q.type !== 'listening'" class="label-optional">(opciono — slika, audio, PDF, video; dozvoljeno više fajlova)</span>
-              <span *ngIf="q.type === 'listening'" class="label-optional">(obavezno — priložite audio fajl ovde)</span>
+              Attachment
+              <span *ngIf="q.type !== 'listening'" class="label-optional">(optional — image, audio, PDF, video; multiple files allowed)</span>
+              <span *ngIf="q.type === 'listening'" class="label-optional">(required — attach audio file here)</span>
             </label>
             <div *ngIf="!q.attachmentUploading" class="attachment-upload-row">
               <button type="button" class="btn-upload-audio" (click)="triggerAttachmentFile(q)">
                 <span class="material-icons">upload_file</span>
-                {{ getQuestionAttachments(q).length ? 'Dodaj još jedan fajl' : 'Postavi fajl' }}
+                {{ getQuestionAttachments(q).length ? 'Add another file' : 'Upload file' }}
               </button>
             </div>
             <div *ngIf="q.attachmentUploading" class="attachment-uploading">
-              <span class="material-icons spin">sync</span> Postavljanje…
+              <span class="material-icons spin">sync</span> Uploading…
             </div>
             <!-- Preview based on file type -->
             <div
@@ -641,13 +641,13 @@
                 <audio *ngSwitchCase="'audio'" [src]="getMediaFullUrl(attUrl)" controls class="attachment-audio-preview"></audio>
                 <video *ngSwitchCase="'video'" [src]="getMediaFullUrl(attUrl)" controls class="attachment-video-preview"></video>
                 <a *ngSwitchCase="'pdf'" [href]="getMediaFullUrl(attUrl)" target="_blank" class="attachment-file-link">
-                  <span class="material-icons">picture_as_pdf</span> Prikaži PDF
+                  <span class="material-icons">picture_as_pdf</span> View PDF
                 </a>
                 <a *ngSwitchDefault [href]="getMediaFullUrl(attUrl)" target="_blank" class="attachment-file-link">
-                  <span class="material-icons">insert_drive_file</span> Prikaži fajl
+                  <span class="material-icons">insert_drive_file</span> View file
                 </a>
               </ng-container>
-              <button type="button" class="btn-remove-attachment" (click)="removeAttachmentAt(q, attIdx)" matTooltip="Ukloni prilog">
+              <button type="button" class="btn-remove-attachment" (click)="removeAttachmentAt(q, attIdx)" matTooltip="Remove attachment">
                 <span class="material-icons">delete</span>
               </button>
             </div>
@@ -656,8 +656,8 @@
               class="field-group full attachment-audio-limit-row"
             >
               <label class="field-label">
-                Maksimalan broj reprodukcija po pokušaju
-                <span class="label-optional">(ostavite prazno za neograničeno)</span>
+                Max audio plays per attempt
+                <span class="label-optional">(leave empty for unlimited)</span>
               </label>
               <input
                 type="number"
@@ -666,7 +666,7 @@
                 min="1"
                 max="99"
                 step="1"
-                placeholder="Neograničeno"
+                placeholder="Unlimited"
               />
               <p class="field-hint">
                 While attempting the exercise, students see how many plays they have left. After the limit they see “Play limit reached” until they re-attempt the whole exercise.
@@ -674,27 +674,27 @@
             </div>
           </div>
 
-          <!-- Odgovor Explanation -->
+          <!-- Answer Explanation -->
           <div class="field-group full">
             <label class="field-label">
               <span class="material-icons" style="font-size:16px;vertical-align:middle;margin-right:4px;">lightbulb</span>
-               Opšte objašnjenje <span class="label-optional">(prikazuje se učenicima u pregledu)</span>
+               Overall Explanation <span class="label-optional">(shown to students in review)</span>
             </label>
             <div class="explanation-field-wrap">
               <app-rich-text-input
                 [(ngModel)]="q.answerExplanation"
                 [rows]="3"
-                placeholder="Objasnite zašto je tačan odgovor ispravan…"
+                placeholder="Explain why the correct answer is right…"
               ></app-rich-text-input>
               <button
                 type="button"
                 class="btn-use-ai"
                 (click)="useAiExplanation(q)"
                 [disabled]="q.generatingExplanation"
-                matTooltip="Generiši objašnjenje pomoću AI"
+                matTooltip="Generate explanation with AI"
               >
                 <span class="material-icons">{{ q.generatingExplanation ? 'sync' : 'auto_awesome' }}</span>
-                {{ q.generatingExplanation ? 'Generisanje…' : 'Koristi AI' }}
+                {{ q.generatingExplanation ? 'Generating…' : 'Use AI' }}
               </button>
             </div>
           </div>
@@ -704,25 +704,25 @@
             <div class="field-group full">
               <label class="field-label">
                 <span class="material-icons" style="font-size:15px;vertical-align:middle;margin-right:4px;">info</span>
-                Uputstvo
-                <span class="label-optional">(prikazuje se u plavom baneru iznad pitanja za učenike)</span>
+                Instruction
+                <span class="label-optional">(shown in a blue banner above the question for students)</span>
               </label>
               <app-rich-text-input
                 [(ngModel)]="q.instruction"
                 [rows]="2"
-                placeholder="npr. Izaberite tačnu opciju. / Popunite prazninu tačnom reči."
+                placeholder="e.g. Choose the correct option. / Fill in the blank with the right word."
               ></app-rich-text-input>
             </div>
             <div class="field-group full">
               <label class="field-label">
                 <span class="material-icons" style="font-size:15px;vertical-align:middle;margin-right:4px;">lightbulb_outline</span>
-                Primer
-                <span class="label-optional">(opcioni rešen primer prikazan ispod uputstva)</span>
+                Example
+                <span class="label-optional">(optional worked sample shown below instruction)</span>
               </label>
               <app-rich-text-input
                 [(ngModel)]="q.workedExample"
                 [rows]="2"
-                placeholder="npr. Pitanje: 'Nebo je ___.' → Odgovor: plavo"
+                placeholder="e.g. Question: 'The sky is ___.' → Answer: blue"
               ></app-rich-text-input>
             </div>
           </div>
@@ -730,19 +730,19 @@
           <!-- MCQ Editor -->
           <ng-container *ngIf="q.type === 'mcq'">
             <div class="field-group full">
-              <label class="field-label required">Tekst pitanja</label>
-              <app-rich-text-input [(ngModel)]="q.question" [rows]="2" placeholder="Unesite tekst pitanja ovde..."></app-rich-text-input>
+              <label class="field-label required">Question Text</label>
+              <app-rich-text-input [(ngModel)]="q.question" [rows]="2" placeholder="Type your question here..."></app-rich-text-input>
             </div>
             <div class="field-group full">
-              <label class="field-label">URL slike (opciono)</label>
+              <label class="field-label">Image URL (optional)</label>
               <input type="text" [(ngModel)]="q.imageUrl" class="field-input" placeholder="https://..." />
               <div class="image-preview" *ngIf="q.imageUrl">
-                <img [src]="getMediaFullUrl(q.imageUrl)" alt="Slika pitanja" class="preview-img" />
+                <img [src]="getMediaFullUrl(q.imageUrl)" alt="Question image" class="preview-img" />
               </div>
             </div>
             <div class="options-section">
-              <label class="field-label required">Opcije <span class="hint">(izaberite tačan odgovor)</span></label>
-              <p class="option-image-hint">Dodajte ilustraciju za svaku opciju (postavite ili nalepite URL — npr. slike preuzete iz PDF radnog lista).</p>
+              <label class="field-label required">Options <span class="hint">(select the correct answer)</span></label>
+              <p class="option-image-hint">Add an illustration per option (upload or paste a URL — e.g. images extracted from a worksheet PDF).</p>
               <div class="option-block" *ngFor="let opt of q.options; let oi = index; trackBy: trackByIndex">
                 <div class="option-row">
                   <label class="radio-label">
@@ -750,73 +750,73 @@
                   </label>
                   <app-rich-text-input [(ngModel)]="q.options![oi]" [placeholder]="'Option ' + (oi + 1)" class="option-rte"></app-rich-text-input>
                   <div class="option-image-actions">
-                    <button type="button" class="btn-option-image" [class.has-image]="getMcqOptionImageUrl(q, oi)" (click)="triggerMcqOptionImageFile(q, oi)" [disabled]="isMcqOptionImageUploading(q, oi)" matTooltip="Postavi sliku opcije">
+                    <button type="button" class="btn-option-image" [class.has-image]="getMcqOptionImageUrl(q, oi)" (click)="triggerMcqOptionImageFile(q, oi)" [disabled]="isMcqOptionImageUploading(q, oi)" matTooltip="Upload option image">
                       <img *ngIf="getMcqOptionImageUrl(q, oi) as optImg" [src]="getMediaFullUrl(optImg)" alt="" class="option-image-thumb" />
                       <span class="material-icons" *ngIf="!getMcqOptionImageUrl(q, oi) && !isMcqOptionImageUploading(q, oi)">add_photo_alternate</span>
                       <span class="material-icons spin" *ngIf="isMcqOptionImageUploading(q, oi)">hourglass_empty</span>
                     </button>
-                    <button type="button" class="btn-option-image-link" (click)="toggleMcqOptionUrlInput(q, oi)" matTooltip="Nalepi URL slike"><span class="material-icons">link</span></button>
+                    <button type="button" class="btn-option-image-link" (click)="toggleMcqOptionUrlInput(q, oi)" matTooltip="Paste image URL"><span class="material-icons">link</span></button>
                   </div>
-                  <button class="btn-remove-opt" (click)="removeOption(q, oi)" *ngIf="q.options!.length > 2" matTooltip="Ukloni opciju"><span class="material-icons">close</span></button>
+                  <button class="btn-remove-opt" (click)="removeOption(q, oi)" *ngIf="q.options!.length > 2" matTooltip="Remove option"><span class="material-icons">close</span></button>
                 </div>
                 <div class="option-image-url-row" *ngIf="isMcqOptionUrlExpanded(q, oi) || getMcqOptionImageUrl(q, oi)">
-                  <input type="text" class="field-input option-image-url-input" [ngModel]="getMcqOptionImageUrl(q, oi)" (ngModelChange)="setMcqOptionImageUrl(q, oi, $event)" placeholder="https://… ili putanja do preuzete PDF slike" />
-                  <button type="button" class="btn-option-image-clear" *ngIf="getMcqOptionImageUrl(q, oi)" (click)="removeMcqOptionImage(q, oi)" matTooltip="Ukloni sliku"><span class="material-icons">delete_outline</span></button>
+                  <input type="text" class="field-input option-image-url-input" [ngModel]="getMcqOptionImageUrl(q, oi)" (ngModelChange)="setMcqOptionImageUrl(q, oi, $event)" placeholder="https://… or path to extracted PDF image" />
+                  <button type="button" class="btn-option-image-clear" *ngIf="getMcqOptionImageUrl(q, oi)" (click)="removeMcqOptionImage(q, oi)" matTooltip="Remove image"><span class="material-icons">delete_outline</span></button>
                 </div>
               </div>
               <button class="btn-add-opt" (click)="addOption(q)" *ngIf="q.options!.length < 6">
-                <span class="material-icons">add</span> Dodaj opciju
+                <span class="material-icons">add</span> Add Option
               </button>
             </div>
             <div class="field-group full">
-              <label class="field-label">Objašnjenje po odgovoru (prikazuje se nakon što učenik odgovori)</label>
-              <app-rich-text-input [(ngModel)]="q.explanation" placeholder="Objasnite zašto je tačan odgovor ispravan..."></app-rich-text-input>
+              <label class="field-label">Per-Answer Explanation (shown after student answers)</label>
+              <app-rich-text-input [(ngModel)]="q.explanation" placeholder="Explain why the correct answer is right..."></app-rich-text-input>
             </div>
           </ng-container>
 
           <!-- Word Bank Fill Editor -->
           <ng-container *ngIf="q.type === 'word_bank_fill'">
             <div class="field-group full">
-              <label class="field-label required">Banka reči</label>
+              <label class="field-label required">Word Bank</label>
               <div class="answer-row" *ngFor="let word of q.wordBank; let wi = index; trackBy: trackByIndex">
-                <span class="blank-label">Reč {{ wi + 1 }}</span>
-                <input type="text" [(ngModel)]="q.wordBank![wi]" class="answer-input" [placeholder]="'Reč ' + (wi + 1)" />
+                <span class="blank-label">Word {{ wi + 1 }}</span>
+                <input type="text" [(ngModel)]="q.wordBank![wi]" class="answer-input" [placeholder]="'Word ' + (wi + 1)" />
                 <button class="btn-remove-opt" (click)="removeWordBankWord(q, wi)" *ngIf="(q.wordBank?.length || 0) > 2">
                   <span class="material-icons">close</span>
                 </button>
               </div>
               <button class="btn-add-opt" (click)="addWordBankWord(q)">
-                <span class="material-icons">add</span> Dodaj reč
+                <span class="material-icons">add</span> Add Word
               </button>
             </div>
 
             <div class="field-group full">
-              <label class="field-label required">Zadaci i odgovori</label>
+              <label class="field-label required">Prompts and Answers</label>
               <div class="pair-row word-bank-item-row" *ngFor="let item of q.items; let ii = index">
-                <input type="text" [(ngModel)]="item.prompt" class="field-input" [placeholder]="'Zadatak ' + (ii + 1)" />
+                <input type="text" [(ngModel)]="item.prompt" class="field-input" [placeholder]="'Prompt ' + (ii + 1)" />
                 <span class="pair-arrow">→</span>
-                <input type="text" [(ngModel)]="item.answer" class="field-input" [placeholder]="'Odgovor ' + (ii + 1)" />
+                <input type="text" [(ngModel)]="item.answer" class="field-input" [placeholder]="'Answer ' + (ii + 1)" />
                 <input
                   type="text"
                   class="field-input word-bank-accepted-input"
                   [ngModel]="(item.acceptedAnswers || []).join(', ')"
                   (ngModelChange)="setWordBankItemAccepted($event, item)"
-                  placeholder="Prihvati i (opciono)"
-                  title="Alternativni tačni odgovori za ovu prazninu odvojeni zarezom"
+                  placeholder="Also accept (optional)"
+                  title="Comma-separated alternate correct answers for this blank"
                 />
                 <button class="btn-remove-opt" (click)="removeWordBankItem(q, ii)" *ngIf="(q.items?.length || 0) > 1">
                   <span class="material-icons">close</span>
                 </button>
               </div>
               <button class="btn-add-opt" (click)="addWordBankItem(q)">
-                <span class="material-icons">add</span> Dodaj zadatak
+                <span class="material-icons">add</span> Add Prompt
               </button>
             </div>
 
             <div class="field-group full">
               <label class="checkbox-label">
                 <input type="checkbox" [(ngModel)]="q.reusableWords" />
-                Reči za ponovnu upotrebu (ista reč može se koristiti u više praznina)
+                Reusable words (same word can be used in multiple blanks)
               </label>
             </div>
           </ng-container>
@@ -825,80 +825,80 @@
           <ng-container *ngIf="q.type === 'matching'">
             <div class="pairs-section">
               <div class="pairs-header">
-                <span class="col-label">Leva kolona</span>
-                <span class="col-label">Desna kolona</span>
+                <span class="col-label">Left Column</span>
+                <span class="col-label">Right Column</span>
                 <span></span>
               </div>
               <div class="pair-row" *ngFor="let pair of q.pairs; let pi = index">
-                <app-rich-text-input [(ngModel)]="pair.left" [placeholder]="'Levo ' + (pi+1)" class="pair-rte"></app-rich-text-input>
+                <app-rich-text-input [(ngModel)]="pair.left" [placeholder]="'Left ' + (pi+1)" class="pair-rte"></app-rich-text-input>
                 <span class="pair-arrow">↔</span>
-                <app-rich-text-input [(ngModel)]="pair.right" [placeholder]="'Desno ' + (pi+1)" class="pair-rte"></app-rich-text-input>
-                <button class="btn-remove-opt" (click)="removePair(q, pi)" *ngIf="q.pairs!.length > 2" matTooltip="Ukloni par">
+                <app-rich-text-input [(ngModel)]="pair.right" [placeholder]="'Right ' + (pi+1)" class="pair-rte"></app-rich-text-input>
+                <button class="btn-remove-opt" (click)="removePair(q, pi)" *ngIf="q.pairs!.length > 2" matTooltip="Remove pair">
                   <span class="material-icons">close</span>
                 </button>
               </div>
               <button class="btn-add-opt" (click)="addPair(q)">
-                <span class="material-icons">add</span> Dodaj par
+                <span class="material-icons">add</span> Add Pair
               </button>
             </div>
-            <p class="hint-text">💡 Desna kolona biće izmešana za učenike. Svaka stavka leve kolone mapira se 1:1 na stavku desne kolone u istom redu.</p>
+            <p class="hint-text">💡 The right column will be shuffled for students. Each left item maps 1:1 to the right item in the same row.</p>
           </ng-container>
 
-          <!-- Jednina / Množina -->
+          <!-- Singular / Plural -->
           <ng-container *ngIf="q.type === 'singular_plural'">
             <div class="pairs-section">
               <div class="pairs-header">
-                <span class="col-label">Jednina (prikazuje se učeniku)</span>
-                <span class="col-label">Množina (tačan odgovor)</span>
+                <span class="col-label">Singular (shown to student)</span>
+                <span class="col-label">Plural (correct answer)</span>
                 <span></span>
               </div>
               <div class="pair-row" *ngFor="let pair of q.pairs; let pi = index">
-                <input type="text" [(ngModel)]="pair.singular" [placeholder]="'Jednina ' + (pi+1)" class="field-input" />
+                <input type="text" [(ngModel)]="pair.singular" [placeholder]="'Singular ' + (pi+1)" class="field-input" />
                 <span class="pair-arrow">→</span>
-                <input type="text" [(ngModel)]="pair.plural" [placeholder]="'Množina ' + (pi+1)" class="field-input" />
-                <button class="btn-remove-opt" (click)="removePair(q, pi)" *ngIf="q.pairs!.length > 1" matTooltip="Ukloni red" type="button">
+                <input type="text" [(ngModel)]="pair.plural" [placeholder]="'Plural ' + (pi+1)" class="field-input" />
+                <button class="btn-remove-opt" (click)="removePair(q, pi)" *ngIf="q.pairs!.length > 1" matTooltip="Remove row" type="button">
                   <span class="material-icons">close</span>
                 </button>
               </div>
               <button class="btn-add-opt" (click)="addPair(q)" type="button">
-                <span class="material-icons">add</span> Dodaj red
+                <span class="material-icons">add</span> Add row
               </button>
             </div>
-            <p class="hint-text">Učenici vide jedninu i upisuju množinu. Ocenjivanje ne razlikuje velika i mala slova.</p>
+            <p class="hint-text">Students see the singular form and type the plural. Grading is case-insensitive.</p>
           </ng-container>
 
           <!-- Fill-blank Editor -->
           <ng-container *ngIf="q.type === 'fill-blank'">
             <div class="field-group full">
               <div class="sentence-label-row">
-                <label class="field-label required">Rečenica</label>
+                <label class="field-label required">Sentence</label>
                 <button type="button" class="btn-insert-blank" (mousedown)="$event.preventDefault()" (click)="insertBlank(q)"
-                  matTooltip="Ubaci _ na poziciji kursora (fokusirajte rečenicu prvo) ili na kraju">
-                  <span class="material-icons">add_box</span> Ubaci prazninu
+                  matTooltip="Insert _ at cursor (focus sentence first) or at end">
+                  <span class="material-icons">add_box</span> Insert blank
                 </button>
               </div>
-              <p class="hint-text">Koristite <code>_</code> ili <code>___</code> za svaku prazninu (svaki niz donjih crtica), ili kliknite dugme iznad.</p>
+              <p class="hint-text">Use <code>_</code> or <code>___</code> for each blank (each gap is a run of underscores), or click the button above.</p>
               <app-rich-text-input [(ngModel)]="q.sentence" (ngModelChange)="onSentenceChange(q)" [rows]="2"
-                placeholder="Mačka _ na prostirci. Ona _ srećna."></app-rich-text-input>
-              <div class="blank-count">{{ getBlankCount(q) }} praznina(e) pronađeno</div>
+                placeholder="The cat _ on the mat. She _ happy."></app-rich-text-input>
+              <div class="blank-count">{{ getBlankCount(q) }} blank(s) detected</div>
             </div>
             <div class="answers-section" *ngIf="getBlankCount(q) > 0">
-              <label class="field-label required">Tačni odgovori</label>
+              <label class="field-label required">Correct Answers</label>
               <div class="answer-row" *ngFor="let ans of q.answers; let ai = index; trackBy: trackByIndex">
-                <span class="blank-label">Praznina {{ ai + 1 }}</span>
-                <input type="text" [(ngModel)]="q.answers![ai]" class="answer-input" [placeholder]="'Odgovor za prazninu ' + (ai+1)"
+                <span class="blank-label">Blank {{ ai + 1 }}</span>
+                <input type="text" [(ngModel)]="q.answers![ai]" class="answer-input" [placeholder]="'Answer for blank ' + (ai+1)"
                   (keydown)="$event.stopPropagation()" />
               </div>
             </div>
             <div class="field-row">
               <div class="field-group">
-                <label class="field-label">Nagoveštaj (opciono)</label>
-                <input type="text" [(ngModel)]="q.hint" class="field-input" placeholder="npr. Koristite prošlo vreme" />
+                <label class="field-label">Hint (optional)</label>
+                <input type="text" [(ngModel)]="q.hint" class="field-input" placeholder="e.g. Use past tense" />
               </div>
               <div class="field-group">
                 <label class="checkbox-label">
                   <input type="checkbox" [(ngModel)]="q.caseSensitive" />
-                  Ocenjivanje razlikuje velika/mala slova
+                  Case-sensitive grading
                 </label>
               </div>
             </div>
@@ -907,24 +907,24 @@
           <!-- Jumble Word Editor -->
           <ng-container *ngIf="q.type === 'jumble-word'">
             <div class="field-group full">
-              <label class="field-label">Uputstvo <span class="label-optional">(opciono)</span></label>
-              <input type="text" [(ngModel)]="q.instruction" class="field-input" placeholder="npr. Složite slova da biste formirali reč." />
+              <label class="field-label">Instruction <span class="label-optional">(optional)</span></label>
+              <input type="text" [(ngModel)]="q.instruction" class="field-input" placeholder="e.g. Unscramble the letters to form a word." />
             </div>
             <div class="field-group half">
-              <label class="field-label required">Izmešani tekst</label>
-              <input type="text" [(ngModel)]="q.scrambledText" class="field-input" placeholder="npr. Z I M M E W O H N R" />
+              <label class="field-label required">Scrambled Text</label>
+              <input type="text" [(ngModel)]="q.scrambledText" class="field-input" placeholder="e.g. Z I M M E W O H N R" />
             </div>
             <div class="field-group half">
-              <label class="field-label required">Očekivana reč</label>
-              <input type="text" [(ngModel)]="q.expectedWord" class="field-input" placeholder="npr. Wohnzimmer" />
+              <label class="field-label required">Expected Word</label>
+              <input type="text" [(ngModel)]="q.expectedWord" class="field-input" placeholder="e.g. Wohnzimmer" />
             </div>
             <div class="field-group half">
-              <label class="field-label">Podebljano slovo (nagoveštaj) <span class="label-optional">(opciono)</span></label>
-              <input type="text" [(ngModel)]="q.boldLetter" class="field-input" maxlength="1" placeholder="Jedno slovo, npr. W" />
+              <label class="field-label">Bold Letter (hint) <span class="label-optional">(optional)</span></label>
+              <input type="text" [(ngModel)]="q.boldLetter" class="field-input" maxlength="1" placeholder="Single letter, e.g. W" />
             </div>
             <div class="field-group half">
-              <label class="field-label">Nagoveštaj kategorije <span class="label-optional">(opciono)</span></label>
-              <input type="text" [(ngModel)]="q.categoryTip" class="field-input" placeholder="npr. Sobe i nameštaj" />
+              <label class="field-label">Category Tip <span class="label-optional">(optional)</span></label>
+              <input type="text" [(ngModel)]="q.categoryTip" class="field-input" placeholder="e.g. Rooms and furniture" />
             </div>
           </ng-container>
 
@@ -932,26 +932,26 @@
           <ng-container *ngIf="q.type === 'rearrange'">
             <div class="info-banner">
               <span class="material-icons">reorder</span>
-              Učenici će preurediti tokene u tačan redosled (prevlačenjem) ili upisati konačnu rečenicu.
-              Navedite ili celu očekivanu rečenicu ili listu tokena (preporučeno).
+              Students will rearrange the tokens into the correct order (drag-drop) or type the final sentence.
+              Provide either a full expected sentence or a token list (recommended).
             </div>
             <div class="field-group full">
-              <label class="field-label required">Pitanje</label>
-              <app-rich-text-input [(ngModel)]="q.rearrangePrompt" [rows]="2" placeholder="npr. Preuredite reči da biste formirali tačnu rečenicu."></app-rich-text-input>
+              <label class="field-label required">Question</label>
+              <app-rich-text-input [(ngModel)]="q.rearrangePrompt" [rows]="2" placeholder="e.g. Rearrange the words to form a correct sentence."></app-rich-text-input>
             </div>
             <div class="field-group full">
-              <label class="field-label">Očekivana rečenica <span class="label-optional">(opciono ako su tokeni navedeni)</span></label>
-              <input type="text" [(ngModel)]="q.rearrangeAnswer" class="field-input" placeholder="npr. Ich gehe heute nach Hause." />
+              <label class="field-label">Expected sentence <span class="label-optional">(optional if tokens are provided)</span></label>
+              <input type="text" [(ngModel)]="q.rearrangeAnswer" class="field-input" placeholder="e.g. Ich gehe heute nach Hause." />
             </div>
             <div class="field-group full">
-              <label class="field-label">Tačan redosled tokena <span class="label-optional">(preporučeno)</span></label>
+              <label class="field-label">Correct token order <span class="label-optional">(recommended)</span></label>
               <textarea
                 [(ngModel)]="q.rearrangeTokens"
                 class="field-input"
                 rows="6"
-                placeholder="Jedan token po liniji, u tačnom redosledu&#10;Ich&#10;gehe&#10;heute&#10;nach&#10;Hause."
+                placeholder="One token per line, in correct order&#10;Ich&#10;gehe&#10;heute&#10;nach&#10;Hause."
               ></textarea>
-              <p class="hint-text">Savet: uključite interpunkciju u token (npr. <code>Hause.</code>) ako želite da bude pripojen.</p>
+              <p class="hint-text">Tip: include punctuation in the token (e.g. <code>Hause.</code>) if you want it attached.</p>
             </div>
           </ng-container>
 
@@ -959,23 +959,23 @@
           <ng-container *ngIf="q.type === 'image_pin_match'">
             <div class="info-banner">
               <span class="material-icons">place</span>
-              Kliknite na sliku da biste kreirali markere. Prevucite markere da biste ih premestili. Dodelite svaku oznaku markeru.
+              Click on the image to create pins. Drag pins to reposition. Map each label to a pin.
             </div>
 
             <div class="field-group full">
-              <label class="field-label required">Slika</label>
+              <label class="field-label required">Image</label>
               <div class="listening-upload-row">
                 <button type="button" class="btn-upload-audio" (click)="triggerImagePinImageFile(q)" [disabled]="q.imagePinImageUploading">
                   <span class="material-icons">{{ q.imagePinImageUploading ? 'hourglass_empty' : (q.imageUrl ? 'image' : 'upload_file') }}</span>
-                  {{ q.imagePinImageUploading ? 'Postavljanje...' : (q.imageUrl ? 'Zameni sliku' : 'Postavi sliku') }}
+                  {{ q.imagePinImageUploading ? 'Uploading...' : (q.imageUrl ? 'Replace image' : 'Upload image') }}
                 </button>
               </div>
-              <input type="text" [(ngModel)]="q.imageUrl" (ngModelChange)="onImagePinImageUrlChanged(q)" class="field-input" placeholder="Ili nalepite URL slike..." />
+              <input type="text" [(ngModel)]="q.imageUrl" (ngModelChange)="onImagePinImageUrlChanged(q)" class="field-input" placeholder="Or paste image URL..." />
               <p class="hint-text" *ngIf="q.imageUrl && getAttachmentType(q.imageUrl) !== 'image'" style="color:#b91c1c;">
-                Ovaj URL nije fajl slike. Molimo postavite/izaberite validnu sliku.
+                This URL is not an image file. Please upload/select a valid image.
               </p>
               <p class="hint-text" *ngIf="q.imageUrl && q.imagePinImageLoadError" style="color:#b91c1c;">
-                Slika nije uspela da se učita. Molimo koristite validan javni URL slike ili je ponovo postavite.
+                Image failed to load. Please use a valid public image URL or re-upload.
               </p>
             </div>
 
@@ -1005,15 +1005,15 @@
                   {{ pi + 1 }}
                 </button>
               </div>
-              <p class="hint-text">Savet: kliknite na sliku da dodate markere, prevucite oznake markera da biste ih pomerili.</p>
+              <p class="hint-text">Tip: click image to add pins, drag pin badges to move.</p>
             </div>
 
             <div class="field-group full">
-              <label class="field-label required">Oznake i tačan marker</label>
+              <label class="field-label required">Labels & Correct Pin</label>
               <div class="pair-row" *ngFor="let label of q.labels; let li = index">
-                <input type="text" [(ngModel)]="label.text" class="field-input" [placeholder]="'Oznaka ' + (li + 1)" />
+                <input type="text" [(ngModel)]="label.text" class="field-input" [placeholder]="'Label ' + (li + 1)" />
                 <select [(ngModel)]="label.correctPinId" class="field-input">
-                  <option value="">Izaberi marker</option>
+                  <option value="">Select pin</option>
                   <option *ngFor="let pin of q.pins" [value]="pin.id">{{ pin.id }}</option>
                 </select>
                 <button class="btn-remove-opt" type="button" (click)="removeImagePinMatchLabel(q, li)" *ngIf="(q.labels?.length || 0) > 1">
@@ -1021,12 +1021,12 @@
                 </button>
               </div>
               <button class="btn-add-opt" type="button" (click)="addImagePinMatchLabel(q)">
-                <span class="material-icons">add</span> Dodaj oznaku
+                <span class="material-icons">add</span> Add Label
               </button>
             </div>
 
             <div class="field-group full">
-              <label class="field-label required">Markeri</label>
+              <label class="field-label required">Pins</label>
               <div class="pair-row" *ngFor="let pin of q.pins; let pi = index">
                 <input type="text" [ngModel]="pin.id" class="field-input" readonly />
                 <input type="number" [(ngModel)]="pin.x" min="0" max="100" step="0.1" class="field-input" placeholder="x %" />
@@ -1040,11 +1040,11 @@
             <div class="field-group full">
               <label class="checkbox-label">
                 <input type="checkbox" [(ngModel)]="q.settings!.randomizeLabels" />
-                Nasumični redosled oznaka za učenike
+                Randomize labels for students
               </label>
               <label class="checkbox-label">
                 <input type="checkbox" [(ngModel)]="q.settings!.allowRetry" />
-                Dozvoli ponovne pokušaje
+                Allow retries
               </label>
             </div>
           </ng-container>
@@ -1053,36 +1053,36 @@
           <ng-container *ngIf="q.type === 'listening'">
             <div class="info-banner">
               <span class="material-icons">headphones</span>
-              Priložite audio u <strong>Prilogu</strong> iznad, dodajte tekst pitanja i tačan odgovor. Učenici slušaju i upisuju šta čuju.
+              Attach audio in <strong>Attachment</strong> above, add the question text and correct answer. Students listen and type what they hear.
             </div>
             <div class="field-group full">
-              <label class="field-label required">Pitanje</label>
-              <app-rich-text-input [(ngModel)]="q.prompt" placeholder="npr. Kako se zove osoba?"></app-rich-text-input>
+              <label class="field-label required">Question</label>
+              <app-rich-text-input [(ngModel)]="q.prompt" placeholder="e.g. What is the name of the person?"></app-rich-text-input>
             </div>
             <div class="field-group full">
-              <label class="field-label required">Odgovor</label>
-              <textarea [(ngModel)]="q.expectedTranscript" class="field-input" rows="3" placeholder="Unesite tačan odgovor koji učenici treba da upišu..."></textarea>
+              <label class="field-label required">Answer</label>
+              <textarea [(ngModel)]="q.expectedTranscript" class="field-input" rows="3" placeholder="Enter the correct answer students should type..."></textarea>
             </div>
           </ng-container>
 
-          <!-- Question / Odgovor Editor -->
+          <!-- Question / Answer Editor -->
           <ng-container *ngIf="q.type === 'question-answer'">
             <div class="info-banner">
               <span class="material-icons">short_text</span>
-              Učenici će pročitati pitanje i upisati odgovor slobodnim tekstom. Možete dodati uzorne odgovore za tačno poklapanje, ili omogućiti AI ocenjivanje.
+              Students will read the question and type a free-text answer. You can add sample answers for exact matching, or enable AI grading.
             </div>
             <div class="field-group full">
-              <label class="field-label required">Pitanje</label>
-              <app-rich-text-input [(ngModel)]="q.prompt" [rows]="2" placeholder="Unesite tekst pitanja ovde..."></app-rich-text-input>
+              <label class="field-label required">Question</label>
+              <app-rich-text-input [(ngModel)]="q.prompt" [rows]="2" placeholder="Type your question here..."></app-rich-text-input>
             </div>
             <!-- True/False Story Paragraph -->
             <div class="field-group full" *ngIf="q.worksheetKind === 'true-false'">
-              <label class="field-label">Paragraf priče (opciono)</label>
+              <label class="field-label">Story paragraph (optional)</label>
               <textarea
                 [(ngModel)]="q.storyParagraph"
                 class="field-input"
                 rows="4"
-                placeholder="Nalepite paragraf/priču ovde (opciono)..."
+                placeholder="Paste the paragraph/story here (optional)..."
               ></textarea>
               <button
                 type="button"
@@ -1119,15 +1119,15 @@
             <!-- Sample Answers (all other question-answer worksheet kinds) -->
             <div class="field-group full" *ngIf="q.worksheetKind !== 'true-false'">
               <label class="field-label">
-                Uzorni odgovori
-                <span class="hint"> (opciono — ako nema, AI automatski ocenjuje)</span>
+                Sample Answers
+                <span class="hint"> (optional — if none, AI grades automatically)</span>
               </label>
               <div class="variant-row" *ngFor="let sa of q.sampleAnswers; let si = index; trackBy: trackByIndex">
                 <input
                   type="text"
                   [(ngModel)]="q.sampleAnswers![si]"
                   class="field-input"
-                  [placeholder]="'Prihvaćen odgovor ' + (si + 1)"
+                  [placeholder]="'Accepted answer ' + (si + 1)"
                   (keydown)="$event.stopPropagation()"
                 />
                 <button class="btn-remove-opt" (click)="removeSampleAnswer(q, si)" *ngIf="q.sampleAnswers!.length > 1">
@@ -1135,7 +1135,7 @@
                 </button>
               </div>
               <button class="btn-add-opt" (click)="addSampleAnswer(q)">
-                <span class="material-icons">add</span> Dodaj uzorni odgovor
+                <span class="material-icons">add</span> Add Sample Answer
               </button>
             </div>
 
@@ -1145,32 +1145,32 @@
           <div class="qa-grading-config">
             <div class="qa-grading-title">
               <span class="material-icons">auto_awesome</span>
-              Podešavanja ocenjivanja
+              Grading Settings
             </div>
             <p class="hint-text" *ngIf="q.type === 'jumble-word' || q.type === 'rearrange'" style="margin-top:0;">
-              Sa naprednim ocenjivanjem, učenici mogu dobiti delimičan bod za skoro tačne odgovore (sličnost pravopisa za jumble; sličnost redosleda reči za rearrange). Isključite da zahtevate samo tačno poklapanje.
+              With advanced grading on, students can earn partial credit for almost-correct answers (spelling similarity for jumble; word-order closeness for rearrange). Turn it off to require an exact match only.
             </p>
             <div class="field-group full" style="margin-bottom:10px;">
               <label class="checkbox-label">
                 <input type="checkbox" [(ngModel)]="q.aiGradingEnabled" />
-                Koristi AI/napredno ocenjivanje za ovo pitanje
+                Use AI/advanced grading for this question
               </label>
             </div>
             <p class="hint-text" *ngIf="q.aiGradingEnabled === false" style="margin-top:-4px;">
-              AI/napredno ocenjivanje je isključeno. Ovo pitanje će koristiti strogo normalno ocenjivanje.
+              AI/advanced grading is off. This question will use strict normal grading.
             </p>
             <div class="qa-grading-row" *ngIf="q.aiGradingEnabled !== false">
 
               <!-- Threshold -->
               <div class="qa-grading-field">
-                <label>Minimalni % za prolaz</label>
+                <label>Minimum % to pass</label>
                 <div class="threshold-control">
                   <div class="threshold-display">
                     <div>
                       <span class="threshold-val">{{ q.similarityThreshold ?? 70 }}</span>
                       <span class="threshold-val-unit">%</span>
                     </div>
-                    <span class="threshold-label">poklapanje potrebno za prolaz</span>
+                    <span class="threshold-label">match required to pass</span>
                   </div>
                   <input
                     type="range" min="0" max="100" step="5"
@@ -1193,22 +1193,22 @@
 
               <!-- Scoring mode -->
               <div class="qa-grading-field">
-                <label>Dodeljeni poeni</label>
+                <label>Marks awarded</label>
                 <div class="scoring-mode-opts">
                   <label class="scoring-opt" [class.active]="(q.scoringMode || 'full') === 'full'" (click)="q.scoringMode = 'full'">
                     <input type="radio" [name]="'sm-'+i" value="full" [(ngModel)]="q.scoringMode" />
                     <div class="scoring-opt-icon"><span class="material-icons">check_circle</span></div>
                     <div class="scoring-opt-text">
-                      <span class="scoring-opt-name">Puni poeni ako položi</span>
-                      <span class="scoring-opt-desc">Sve ili ništa na osnovu praga</span>
+                      <span class="scoring-opt-name">Full marks if passed</span>
+                      <span class="scoring-opt-desc">All-or-nothing based on threshold</span>
                     </div>
                   </label>
                   <label class="scoring-opt" [class.active]="q.scoringMode === 'proportional'" (click)="q.scoringMode = 'proportional'">
                     <input type="radio" [name]="'sm-'+i" value="proportional" [(ngModel)]="q.scoringMode" />
                     <div class="scoring-opt-icon"><span class="material-icons">percent</span></div>
                     <div class="scoring-opt-text">
-                      <span class="scoring-opt-name">Proporcionalni poeni</span>
-                      <span class="scoring-opt-desc">Skalira se prema rezultatu (85% → 0.85 × pt)</span>
+                      <span class="scoring-opt-name">Proportional marks</span>
+                      <span class="scoring-opt-desc">Scaled by score (85% → 0.85 × pts)</span>
                     </div>
                   </label>
                 </div>
@@ -1221,37 +1221,37 @@
           <ng-container *ngIf="q.type === 'pronunciation'">
             <div class="info-banner">
               <span class="material-icons">info</span>
-              Učenici će videti ovu reč/frazu i kliknuti dugme da je izgovore. Sistem koristi prepoznavanje govora da proveri njihov izgovor.
+              Students will see this word/phrase and click a button to speak it. The system uses speech recognition to check their pronunciation.
             </div>
             <div class="field-row">
               <div class="field-group">
-                <label class="field-label required">Reč / Fraza</label>
-                <input type="text" [(ngModel)]="q.word" class="field-input" placeholder="npr. Guten Morgen" />
+                <label class="field-label required">Word / Phrase</label>
+                <input type="text" [(ngModel)]="q.word" class="field-input" placeholder="e.g. Guten Morgen" />
               </div>
               <div class="field-group">
-                <label class="field-label">Fonetski vodič</label>
-                <input type="text" [(ngModel)]="q.phonetic" class="field-input" placeholder="npr. /ˈɡuːtən ˈmɔːɡən/" />
+                <label class="field-label">Phonetic Guide</label>
+                <input type="text" [(ngModel)]="q.phonetic" class="field-input" placeholder="e.g. /ˈɡuːtən ˈmɔːɡən/" />
               </div>
             </div>
             <div class="field-row">
               <div class="field-group">
-                <label class="field-label">Prevod</label>
-                <input type="text" [(ngModel)]="q.translation" class="field-input" placeholder="npr. Dobro jutro" />
+                <label class="field-label">Translation</label>
+                <input type="text" [(ngModel)]="q.translation" class="field-input" placeholder="e.g. Good morning" />
               </div>
               <div class="field-group">
-                <label class="field-label">Audio URL (opciono)</label>
+                <label class="field-label">Audio URL (optional)</label>
                 <input type="text" [(ngModel)]="q.audioUrl" class="field-input" placeholder="https://..." />
               </div>
             </div>
             <div class="field-group full">
-              <label class="field-label">Prihvaćene varijante izgovora</label>
-              <p class="hint-text">Dodajte alternativne forme koje bi takođe trebalo prihvatiti kao tačne.</p>
+              <label class="field-label">Accepted Pronunciation Variants</label>
+              <p class="hint-text">Add alternative forms that should also be accepted as correct.</p>
               <div class="variant-row" *ngFor="let v of q.acceptedVariants; let vi = index">
-                <input type="text" [(ngModel)]="q.acceptedVariants![vi]" class="field-input" placeholder="Alternativni izgovor" />
+                <input type="text" [(ngModel)]="q.acceptedVariants![vi]" class="field-input" placeholder="Alternative pronunciation" />
                 <button class="btn-remove-opt" (click)="removeVariant(q, vi)"><span class="material-icons">close</span></button>
               </div>
               <button class="btn-add-opt" (click)="addVariant(q)">
-                <span class="material-icons">add</span> Dodaj varijantu
+                <span class="material-icons">add</span> Add Variant
               </button>
             </div>
           </ng-container>
@@ -1261,11 +1261,11 @@
             <div class="sub-questions-header">
               <div class="sub-questions-title">
                 <span class="material-icons">content_copy</span>
-                Pitanja sa istim kontekstom
-                <span class="label-optional">(dele kontekst, nagoveštaje, slike)</span>
+                Questions with Same Context
+                <span class="label-optional">(share context, hints, images)</span>
               </div>
               <button type="button" class="btn-add-sub-question" (click)="addSubQuestion(i)">
-                <span class="material-icons">add</span> Dodaj pitanje
+                <span class="material-icons">add</span> Add Question
               </button>
             </div>
             <div class="sub-questions-list" *ngIf="q.subQuestions && q.subQuestions.length > 0">
@@ -1274,18 +1274,18 @@
                   <span class="sub-q-number">Q{{ i + 1 }}.{{ si + 1 }}</span>
                   <span class="sub-q-type">{{ getTypeLabel(sq.type === 'question-answer' && sq.worksheetKind ? sq.worksheetKind : sq.type) }}</span>
                   <div class="sub-q-actions">
-                    <button type="button" class="btn-remove-sub" (click)="removeSubQuestion(i, si)" matTooltip="Ukloni">
+                    <button type="button" class="btn-remove-sub" (click)="removeSubQuestion(i, si)" matTooltip="Remove">
                       <span class="material-icons">delete_outline</span>
                     </button>
                   </div>
                 </div>
                 <div class="sub-question-body">
                   <ng-container [ngSwitch]="sq.type">
-                    <!-- MCQ pod-pitanje -->
+                    <!-- MCQ Sub-question -->
                     <div *ngSwitchCase="'mcq'" class="sub-q-editor">
                       <div class="field-group full">
                         <label class="field-label required">Question Text</label>
-                        <app-rich-text-input [(ngModel)]="sq.question" [rows]="2" placeholder="Unesite tekst pitanja ovde..."></app-rich-text-input>
+                        <app-rich-text-input [(ngModel)]="sq.question" [rows]="2" placeholder="Type your question here..."></app-rich-text-input>
                       </div>
                       <div class="field-group full">
                         <label class="field-label">Image URL (optional)</label>
@@ -1293,7 +1293,7 @@
                       </div>
                       <div class="options-section">
                         <label class="field-label required">Options <span class="hint">(select the correct answer)</span></label>
-                        <p class="option-image-hint">Dodajte ilustraciju za svaku opciju (postavite ili nalepite URL).</p>
+                        <p class="option-image-hint">Add an illustration per option (upload or paste URL).</p>
                         <div class="option-block" *ngFor="let opt of sq.options; let oi = index; trackBy: trackByIndex">
                           <div class="option-row">
                             <label class="radio-label">
@@ -1301,18 +1301,18 @@
                             </label>
                             <app-rich-text-input [(ngModel)]="sq.options![oi]" [placeholder]="'Option ' + (oi + 1)" class="option-rte"></app-rich-text-input>
                             <div class="option-image-actions">
-                              <button type="button" class="btn-option-image" [class.has-image]="getMcqOptionImageUrl(sq, oi)" (click)="triggerMcqOptionImageFile(sq, oi)" [disabled]="isMcqOptionImageUploading(sq, oi)" matTooltip="Postavi sliku opcije">
+                              <button type="button" class="btn-option-image" [class.has-image]="getMcqOptionImageUrl(sq, oi)" (click)="triggerMcqOptionImageFile(sq, oi)" [disabled]="isMcqOptionImageUploading(sq, oi)" matTooltip="Upload option image">
                                 <img *ngIf="getMcqOptionImageUrl(sq, oi) as optImg" [src]="getMediaFullUrl(optImg)" alt="" class="option-image-thumb" />
                                 <span class="material-icons" *ngIf="!getMcqOptionImageUrl(sq, oi) && !isMcqOptionImageUploading(sq, oi)">add_photo_alternate</span>
                                 <span class="material-icons spin" *ngIf="isMcqOptionImageUploading(sq, oi)">hourglass_empty</span>
                               </button>
-                              <button type="button" class="btn-option-image-link" (click)="toggleMcqOptionUrlInput(sq, oi)" matTooltip="Nalepi URL slike"><span class="material-icons">link</span></button>
+                              <button type="button" class="btn-option-image-link" (click)="toggleMcqOptionUrlInput(sq, oi)" matTooltip="Paste image URL"><span class="material-icons">link</span></button>
                             </div>
-                            <button class="btn-remove-opt" (click)="removeOption(sq, oi)" *ngIf="sq.options!.length > 2" matTooltip="Ukloni opciju"><span class="material-icons">close</span></button>
+                            <button class="btn-remove-opt" (click)="removeOption(sq, oi)" *ngIf="sq.options!.length > 2" matTooltip="Remove option"><span class="material-icons">close</span></button>
                           </div>
                           <div class="option-image-url-row" *ngIf="isMcqOptionUrlExpanded(sq, oi) || getMcqOptionImageUrl(sq, oi)">
                             <input type="text" class="field-input option-image-url-input" [ngModel]="getMcqOptionImageUrl(sq, oi)" (ngModelChange)="setMcqOptionImageUrl(sq, oi, $event)" placeholder="https://… or path to extracted PDF image" />
-                            <button type="button" class="btn-option-image-clear" *ngIf="getMcqOptionImageUrl(sq, oi)" (click)="removeMcqOptionImage(sq, oi)" matTooltip="Ukloni sliku"><span class="material-icons">delete_outline</span></button>
+                            <button type="button" class="btn-option-image-clear" *ngIf="getMcqOptionImageUrl(sq, oi)" (click)="removeMcqOptionImage(sq, oi)" matTooltip="Remove image"><span class="material-icons">delete_outline</span></button>
                           </div>
                         </div>
                         <button class="btn-add-opt" (click)="addOption(sq)" *ngIf="sq.options!.length < 6">
@@ -1320,12 +1320,12 @@
                         </button>
                       </div>
                       <div class="field-group full">
-                        <label class="field-label">Per-Odgovor Explanation (shown after student answers)</label>
-                        <app-rich-text-input [(ngModel)]="sq.explanation" placeholder="Objasnite zašto je tačan odgovor ispravan..."></app-rich-text-input>
+                        <label class="field-label">Per-Answer Explanation (shown after student answers)</label>
+                        <app-rich-text-input [(ngModel)]="sq.explanation" placeholder="Explain why the correct answer is right..."></app-rich-text-input>
                       </div>
                     </div>
 
-                    <!-- Matching pod-pitanje -->
+                    <!-- Matching Sub-question -->
                     <div *ngSwitchCase="'matching'" class="sub-q-editor">
                       <div class="pairs-section">
                         <div class="pairs-header">
@@ -1337,7 +1337,7 @@
                           <app-rich-text-input [(ngModel)]="pair.left" [placeholder]="'Left ' + (pi+1)" class="pair-rte"></app-rich-text-input>
                           <span class="pair-arrow">↔</span>
                           <app-rich-text-input [(ngModel)]="pair.right" [placeholder]="'Right ' + (pi+1)" class="pair-rte"></app-rich-text-input>
-                          <button class="btn-remove-opt" (click)="removePair(sq, pi)" *ngIf="sq.pairs!.length > 2" matTooltip="Ukloni par">
+                          <button class="btn-remove-opt" (click)="removePair(sq, pi)" *ngIf="sq.pairs!.length > 2" matTooltip="Remove pair">
                             <span class="material-icons">close</span>
                           </button>
                         </div>
@@ -1347,7 +1347,7 @@
                       </div>
                     </div>
 
-                    <!-- Fill-blank pod-pitanje -->
+                    <!-- Fill-blank Sub-question -->
                     <div *ngSwitchCase="'fill-blank'" class="sub-q-editor">
                       <div class="field-group full">
                         <div class="sentence-label-row">
@@ -1365,8 +1365,8 @@
                       <div class="answers-section" *ngIf="getBlankCount(sq) > 0">
                         <label class="field-label required">Correct Answers</label>
                         <div class="answer-row" *ngFor="let ans of sq.answers; let ai = index; trackBy: trackByIndex">
-                          <span class="blank-label">Praznina {{ ai + 1 }}</span>
-                          <input type="text" [(ngModel)]="sq.answers![ai]" class="answer-input" [placeholder]="'Odgovor for blank ' + (ai+1)"
+                          <span class="blank-label">Blank {{ ai + 1 }}</span>
+                          <input type="text" [(ngModel)]="sq.answers![ai]" class="answer-input" [placeholder]="'Answer for blank ' + (ai+1)"
                             (keydown)="$event.stopPropagation()" />
                         </div>
                       </div>
@@ -1378,18 +1378,18 @@
                         <div class="field-group">
                           <label class="checkbox-label">
                             <input type="checkbox" [(ngModel)]="sq.caseSensitive" />
-                            Ocenjivanje razlikuje velika/mala slova
+                            Case-sensitive grading
                           </label>
                         </div>
                       </div>
                     </div>
 
-                    <!-- Word Bank Fill pod-pitanje -->
+                    <!-- Word Bank Fill Sub-question -->
                     <div *ngSwitchCase="'word_bank_fill'" class="sub-q-editor">
                       <div class="field-group full">
                         <label class="field-label required">Word Bank</label>
                         <div class="answer-row" *ngFor="let word of sq.wordBank; let wi = index; trackBy: trackByIndex">
-                          <span class="blank-label">Reč {{ wi + 1 }}</span>
+                          <span class="blank-label">Word {{ wi + 1 }}</span>
                           <input type="text" [(ngModel)]="sq.wordBank![wi]" class="answer-input" [placeholder]="'Word ' + (wi + 1)" />
                           <button class="btn-remove-opt" (click)="removeWordBankWord(sq, wi)" *ngIf="(sq.wordBank?.length || 0) > 2">
                             <span class="material-icons">close</span>
@@ -1404,14 +1404,14 @@
                         <div class="pair-row word-bank-item-row" *ngFor="let item of sq.items; let ii = index">
                           <input type="text" [(ngModel)]="item.prompt" class="field-input" [placeholder]="'Prompt ' + (ii + 1)" />
                           <span class="pair-arrow">→</span>
-                          <input type="text" [(ngModel)]="item.answer" class="field-input" [placeholder]="'Odgovor ' + (ii + 1)" />
+                          <input type="text" [(ngModel)]="item.answer" class="field-input" [placeholder]="'Answer ' + (ii + 1)" />
                           <input
                             type="text"
                             class="field-input word-bank-accepted-input"
                             [ngModel]="(item.acceptedAnswers || []).join(', ')"
                             (ngModelChange)="setWordBankItemAccepted($event, item)"
-                            placeholder="Prihvati i (opciono)"
-                            title="Alternativni tačni odgovori za ovu prazninu odvojeni zarezom"
+                            placeholder="Also accept (optional)"
+                            title="Comma-separated alternate correct answers for this blank"
                           />
                           <button class="btn-remove-opt" (click)="removeWordBankItem(sq, ii)" *ngIf="(sq.items?.length || 0) > 1">
                             <span class="material-icons">close</span>
@@ -1423,23 +1423,23 @@
                       </div>
                     </div>
 
-                    <!-- Q&A pod-pitanje -->
+                    <!-- Question-Answer Sub-question -->
                     <div *ngSwitchCase="'question-answer'" class="sub-q-editor">
                       <div class="field-group full">
                         <label class="field-label required">Question</label>
-                        <app-rich-text-input [(ngModel)]="sq.prompt" [rows]="2" placeholder="Unesite tekst pitanja ovde..."></app-rich-text-input>
+                        <app-rich-text-input [(ngModel)]="sq.prompt" [rows]="2" placeholder="Type your question here..."></app-rich-text-input>
                       </div>
                       <div class="field-group full" *ngIf="sq.worksheetKind !== 'true-false'">
                         <label class="field-label">
                           Sample Answers
-                          <span class="hint"> (opciono — ako nema, AI automatski ocenjuje)</span>
+                          <span class="hint"> (optional — if none, AI grades automatically)</span>
                         </label>
                         <div class="variant-row" *ngFor="let sa of sq.sampleAnswers; let ssi = index; trackBy: trackByIndex">
                           <input
                             type="text"
                             [(ngModel)]="sq.sampleAnswers![ssi]"
                             class="field-input"
-                            [placeholder]="'Prihvaćen odgovor ' + (ssi + 1)"
+                            [placeholder]="'Accepted answer ' + (ssi + 1)"
                             (keydown)="$event.stopPropagation()"
                           />
                           <button class="btn-remove-opt" (click)="removeSampleAnswer(sq, ssi)" *ngIf="sq.sampleAnswers!.length > 1">
@@ -1473,45 +1473,45 @@
                       </div>
                     </div>
 
-                    <!-- Slušanje pod-pitanje -->
+                    <!-- Listening Sub-question -->
                     <div *ngSwitchCase="'listening'" class="sub-q-editor">
                       <div class="field-group full">
                         <label class="field-label required">Question</label>
-                        <app-rich-text-input [(ngModel)]="sq.prompt" placeholder="npr. Kako se zove osoba?"></app-rich-text-input>
+                        <app-rich-text-input [(ngModel)]="sq.prompt" placeholder="e.g. What is the name of the person?"></app-rich-text-input>
                       </div>
                       <div class="field-group full">
                         <label class="field-label required">Answer</label>
-                        <textarea [(ngModel)]="sq.expectedTranscript" class="field-input" rows="3" placeholder="Unesite tačan odgovor koji učenici treba da upišu..."></textarea>
+                        <textarea [(ngModel)]="sq.expectedTranscript" class="field-input" rows="3" placeholder="Enter the correct answer students should type..."></textarea>
                       </div>
                     </div>
 
-                    <!-- Izgovor pod-pitanje -->
+                    <!-- Pronunciation Sub-question -->
                     <div *ngSwitchCase="'pronunciation'" class="sub-q-editor">
                       <div class="field-row">
                         <div class="field-group">
-                          <label class="field-label required">Reč / Fraza</label>
-                          <input type="text" [(ngModel)]="sq.word" class="field-input" placeholder="npr. Guten Morgen" />
+                          <label class="field-label required">Word / Phrase</label>
+                          <input type="text" [(ngModel)]="sq.word" class="field-input" placeholder="e.g. Guten Morgen" />
                         </div>
                         <div class="field-group">
-                          <label class="field-label">Fonetski vodič</label>
+                          <label class="field-label">Phonetic Guide</label>
                           <input type="text" [(ngModel)]="sq.phonetic" class="field-input" placeholder="e.g. /ˈɡuːtən ˈmɔːɡən/" />
                         </div>
                       </div>
                       <div class="field-row">
                         <div class="field-group">
-                          <label class="field-label">Prevod</label>
-                          <input type="text" [(ngModel)]="sq.translation" class="field-input" placeholder="npr. Dobro jutro" />
+                          <label class="field-label">Translation</label>
+                          <input type="text" [(ngModel)]="sq.translation" class="field-input" placeholder="e.g. Good morning" />
                         </div>
                         <div class="field-group">
-                          <label class="field-label">Audio URL (opciono)</label>
+                          <label class="field-label">Audio URL (optional)</label>
                           <input type="text" [(ngModel)]="sq.audioUrl" class="field-input" placeholder="https://..." />
                         </div>
                       </div>
                       <div class="field-group full">
-                        <label class="field-label">Prihvaćene varijante izgovora</label>
-                        <p class="hint-text">Dodajte alternativne forme koje bi takođe trebalo prihvatiti kao tačne.</p>
+                        <label class="field-label">Accepted Pronunciation Variants</label>
+                        <p class="hint-text">Add alternative forms that should also be accepted as correct.</p>
                         <div class="variant-row" *ngFor="let v of sq.acceptedVariants; let vi = index">
-                          <input type="text" [(ngModel)]="sq.acceptedVariants![vi]" class="field-input" placeholder="Alternativni izgovor" />
+                          <input type="text" [(ngModel)]="sq.acceptedVariants![vi]" class="field-input" placeholder="Alternative pronunciation" />
                           <button class="btn-remove-opt" (click)="removeVariant(sq, vi)"><span class="material-icons">close</span></button>
                         </div>
                         <button class="btn-add-opt" (click)="addVariant(sq)">
@@ -1520,33 +1520,33 @@
                       </div>
                     </div>
 
-                    <!-- Jednina/Množina pod-pitanje -->
+                    <!-- Singular / Plural Sub-question -->
                     <div *ngSwitchCase="'singular_plural'" class="sub-q-editor">
                       <div class="pairs-section">
                         <div class="pairs-header">
-                          <span class="col-label">Jednina</span>
-                          <span class="col-label">Množina (odgovor)</span>
+                          <span class="col-label">Singular</span>
+                          <span class="col-label">Plural (answer)</span>
                           <span></span>
                         </div>
                         <div class="pair-row" *ngFor="let pair of sq.pairs; let pi = index">
-                          <input type="text" [(ngModel)]="pair.singular" [placeholder]="'Jednina ' + (pi+1)" class="field-input" />
+                          <input type="text" [(ngModel)]="pair.singular" [placeholder]="'Singular ' + (pi+1)" class="field-input" />
                           <span class="pair-arrow">→</span>
-                          <input type="text" [(ngModel)]="pair.plural" [placeholder]="'Množina ' + (pi+1)" class="field-input" />
+                          <input type="text" [(ngModel)]="pair.plural" [placeholder]="'Plural ' + (pi+1)" class="field-input" />
                           <button class="btn-remove-opt" (click)="removePair(sq, pi)" *ngIf="sq.pairs!.length > 1" matTooltip="Remove row" type="button">
                             <span class="material-icons">close</span>
                           </button>
                         </div>
                         <button class="btn-add-opt" (click)="addPair(sq)" type="button">
-                          <span class="material-icons">add</span> Dodaj red
+                          <span class="material-icons">add</span> Add row
                         </button>
                       </div>
                     </div>
 
-                    <!-- Jumble Word pod-pitanje -->
+                    <!-- Jumble Word Sub-question -->
                     <div *ngSwitchCase="'jumble-word'" class="sub-q-editor">
                       <div class="field-group full">
                         <label class="field-label">Instruction <span class="label-optional">(optional)</span></label>
-                        <input type="text" [(ngModel)]="sq.instruction" class="field-input" placeholder="npr. Složite slova da biste formirali reč." />
+                        <input type="text" [(ngModel)]="sq.instruction" class="field-input" placeholder="e.g. Unscramble the letters to form a word." />
                       </div>
                       <div class="field-row">
                         <div class="field-group half">
@@ -1565,28 +1565,28 @@
                         </div>
                         <div class="field-group half">
                           <label class="field-label">Category Tip <span class="label-optional">(optional)</span></label>
-                          <input type="text" [(ngModel)]="sq.categoryTip" class="field-input" placeholder="Opcioni nagoveštaj" />
+                          <input type="text" [(ngModel)]="sq.categoryTip" class="field-input" placeholder="Optional hint" />
                         </div>
                       </div>
                     </div>
 
-                    <!-- Rearrange pod-pitanje -->
+                    <!-- Rearrange Sub-question -->
                     <div *ngSwitchCase="'rearrange'" class="sub-q-editor">
                       <div class="field-group full">
                         <label class="field-label required">Question</label>
-                        <app-rich-text-input [(ngModel)]="sq.rearrangePrompt" [rows]="2" placeholder="Uputstva za učenika"></app-rich-text-input>
+                        <app-rich-text-input [(ngModel)]="sq.rearrangePrompt" [rows]="2" placeholder="Instructions for the student"></app-rich-text-input>
                       </div>
                       <div class="field-group full">
                         <label class="field-label">Expected sentence <span class="label-optional">(optional)</span></label>
-                        <input type="text" [(ngModel)]="sq.rearrangeAnswer" class="field-input" placeholder="Puna tačna rečenica" />
+                        <input type="text" [(ngModel)]="sq.rearrangeAnswer" class="field-input" placeholder="Full correct sentence" />
                       </div>
                       <div class="field-group full">
                         <label class="field-label">Correct token order <span class="label-optional">(one per line)</span></label>
-                        <textarea [(ngModel)]="sq.rearrangeTokens" class="field-input" rows="4" placeholder="Jedan token po liniji"></textarea>
+                        <textarea [(ngModel)]="sq.rearrangeTokens" class="field-input" rows="4" placeholder="One token per line"></textarea>
                       </div>
                     </div>
 
-                    <!-- Image Pin Match pod-pitanje -->
+                    <!-- Image Pin Match Sub-question -->
                     <div *ngSwitchCase="'image_pin_match'" class="sub-q-editor">
                       <div class="field-group full">
                         <label class="field-label required">Image URL</label>
@@ -1622,16 +1622,16 @@
                       <div class="field-group full">
                         <label class="checkbox-label">
                           <input type="checkbox" [(ngModel)]="sq.settings!.randomizeLabels" />
-                          Nasumični redosled oznaka
+                          Randomize labels
                         </label>
                         <label class="checkbox-label">
                           <input type="checkbox" [(ngModel)]="sq.settings!.allowRetry" />
-                          Dozvoli ponovne pokušaje
+                          Allow retries
                         </label>
                       </div>
                     </div>
 
-                    <!-- Video izgovor pod-pitanje -->
+                    <!-- Video pronunciation Sub-question -->
                     <div *ngSwitchCase="'video-pronunciation'" class="sub-q-editor">
                       <div class="field-group full">
                         <label class="field-label required">Video URL</label>
@@ -1639,25 +1639,25 @@
                       </div>
                       <div class="field-group full">
                         <label class="field-label required">Caption</label>
-                        <input type="text" [(ngModel)]="sq.caption" class="field-input" placeholder="Fraza koju učenik izgovara" />
+                        <input type="text" [(ngModel)]="sq.caption" class="field-input" placeholder="Phrase student speaks" />
                       </div>
                       <div class="field-row">
                         <div class="field-group half">
-                          <label class="field-label">Drugi natpis <span class="label-optional">(opt.)</span></label>
+                          <label class="field-label">Second caption <span class="label-optional">(opt.)</span></label>
                           <input type="text" [(ngModel)]="sq.secondaryCaption" class="field-input" />
                         </div>
                         <div class="field-group half">
-                          <label class="field-label">Kašnjenje (s)</label>
+                          <label class="field-label">Delay (s)</label>
                           <input type="number" [(ngModel)]="sq.secondaryCaptionAtSeconds" class="field-input" min="0" max="600" />
                         </div>
                       </div>
                     </div>
 
-                    <!-- Podrazumevano: prikaži osnovna polja -->
+                    <!-- Default: show basic fields -->
                     <div *ngSwitchDefault class="sub-q-editor">
                       <div class="field-group full">
                         <label class="field-label required">Question</label>
-                        <app-rich-text-input [(ngModel)]="sq.prompt" [rows]="2" placeholder="Unesite tekst pitanja ovde..."></app-rich-text-input>
+                        <app-rich-text-input [(ngModel)]="sq.prompt" [rows]="2" placeholder="Enter question text..."></app-rich-text-input>
                       </div>
                     </div>
                   </ng-container>
@@ -1665,27 +1665,27 @@
                   <div class="qa-grading-config sub-q-grading">
                     <div class="qa-grading-title">
                       <span class="material-icons">auto_awesome</span>
-                      Ocenjivanje (ovaj deo)
+                      Grading (this part)
                     </div>
                     <div class="field-group full" style="margin-bottom:10px;">
                       <label class="checkbox-label">
                         <input type="checkbox" [(ngModel)]="sq.aiGradingEnabled" />
-                        Koristi AI/napredno ocenjivanje za ovaj deo
+                        Use AI/advanced grading for this part
                       </label>
                     </div>
                     <p class="hint-text" *ngIf="sq.aiGradingEnabled === false" style="margin-top:-4px;">
-                      Samo strogo ocenjivanje (bez delimičnog boda po sličnosti).
+                      Strict grading only (no partial credit from similarity).
                     </p>
                     <div class="qa-grading-row" *ngIf="sq.aiGradingEnabled !== false">
                       <div class="qa-grading-field">
-                        <label>Minimalni % za prolaz</label>
+                        <label>Minimum % to pass</label>
                         <div class="threshold-control">
                           <div class="threshold-display">
                             <div>
                               <span class="threshold-val">{{ sq.similarityThreshold ?? 70 }}</span>
                               <span class="threshold-val-unit">%</span>
                             </div>
-                            <span class="threshold-label">poklapanje potrebno za prolaz</span>
+                            <span class="threshold-label">match required to pass</span>
                           </div>
                           <input
                             type="range" min="0" max="100" step="5"
@@ -1706,22 +1706,22 @@
                         </div>
                       </div>
                       <div class="qa-grading-field">
-                        <label>Dodeljeni poeni</label>
+                        <label>Marks awarded</label>
                         <div class="scoring-mode-opts">
                           <label class="scoring-opt" [class.active]="(sq.scoringMode || 'full') === 'full'" (click)="sq.scoringMode = 'full'">
                             <input type="radio" [name]="'sub-sm-'+i+'-'+si" value="full" [(ngModel)]="sq.scoringMode" />
                             <div class="scoring-opt-icon"><span class="material-icons">check_circle</span></div>
                             <div class="scoring-opt-text">
-                              <span class="scoring-opt-name">Puni poeni ako položi</span>
-                              <span class="scoring-opt-desc">Sve ili ništa na osnovu praga</span>
+                              <span class="scoring-opt-name">Full marks if passed</span>
+                              <span class="scoring-opt-desc">All-or-nothing based on threshold</span>
                             </div>
                           </label>
                           <label class="scoring-opt" [class.active]="sq.scoringMode === 'proportional'" (click)="sq.scoringMode = 'proportional'">
                             <input type="radio" [name]="'sub-sm-'+i+'-'+si" value="proportional" [(ngModel)]="sq.scoringMode" />
                             <div class="scoring-opt-icon"><span class="material-icons">percent</span></div>
                             <div class="scoring-opt-text">
-                              <span class="scoring-opt-name">Proporcionalni poeni</span>
-                              <span class="scoring-opt-desc">Skalira se prema rezultatu (85% → 0.85 × pt)</span>
+                              <span class="scoring-opt-name">Proportional marks</span>
+                              <span class="scoring-opt-desc">Scaled by score (85% → 0.85 × pts)</span>
                             </div>
                           </label>
                         </div>
@@ -1733,7 +1733,7 @@
             </div>
             <div class="sub-questions-empty" *ngIf="!q.subQuestions || q.subQuestions.length === 0">
               <span class="material-icons">add_circle_outline</span>
-              <span>Nema dodatnih pitanja. Kliknite "Dodaj pitanje" da kreirate više pitanja sa istim kontekstom.</span>
+              <span>No additional questions yet. Click "Add Question" to create more questions with the same context.</span>
             </div>
           </div>
 
@@ -1744,21 +1744,21 @@
     <!-- Empty questions state -->
     <div class="empty-questions" *ngIf="questions.length === 0">
       <span class="material-icons">quiz</span>
-      <p>Još nema pitanja. Dodajte svoje prvo pitanje koristeći tipove iznad.</p>
+      <p>No questions yet. Add your first question using the types above.</p>
     </div>
 
     <div class="tab-nav-footer">
       <button class="btn-back-tab" (click)="activeTab = 'info'">
-        <span class="material-icons">arrow_back</span> Nazad
+        <span class="material-icons">arrow_back</span> Back
       </button>
       <div class="footer-actions-right">
         <button type="button" class="btn-add-more-footer" (click)="addOneMoreQuestion()" *ngIf="questions.length > 0">
           <span class="material-icons">add_circle_outline</span>
-          Dodaj još jedno {{ getTypeLabel(lastQuestionType) }}
+          Add one more {{ getTypeLabel(lastQuestionType) }}
         </button>
         <button class="btn-save" (click)="save()" [disabled]="saving || !isInfoValid() || !isQuestionsValid()">
           <span class="material-icons">save</span>
-          {{ saving ? 'Čuvanje...' : (isEditMode ? 'Ažuriraj vežbu' : 'Kreiraj vežbu') }}
+          {{ saving ? 'Saving...' : (isEditMode ? 'Update Exercise' : 'Create Exercise') }}
         </button>
       </div>
     </div>
@@ -1771,16 +1771,16 @@
     <div class="video-info-panel">
       <div class="video-info-row">
         <div class="field-group field-group--sm">
-          <label class="field-label required">Naslov</label>
-          <input type="text" [(ngModel)]="title" class="field-input field-input--sm" placeholder="Naslov vežbe" maxlength="120" autocomplete="off" />
+          <label class="field-label required">Title</label>
+          <input type="text" [(ngModel)]="title" class="field-input field-input--sm" placeholder="Exercise title" maxlength="120" autocomplete="off" />
         </div>
         <div class="field-group field-group--sm">
-          <label class="field-label">Journey dan</label>
+          <label class="field-label">Journey Day</label>
           <input type="number" class="field-input field-input--sm field-input--day" min="0" max="200" step="1"
             [ngModel]="courseDayAsNumber" (ngModelChange)="onCourseDayNumberInput($event)" placeholder="Any" />
         </div>
         <div class="field-group field-group--sm">
-          <label class="field-label">Redosled</label>
+          <label class="field-label">Sequence</label>
           <input type="text" class="field-input field-input--sm field-input--seq"
             [(ngModel)]="sequenceLetter" placeholder="e.g. a" maxlength="1" autocomplete="off" />
         </div>
@@ -1797,7 +1797,7 @@
           </select>
         </div>
         <div class="field-group field-group--sm">
-          <label class="field-label required">Težina</label>
+          <label class="field-label required">Difficulty</label>
           <select [(ngModel)]="difficulty" class="field-input field-input--select field-input--sm">
             <option *ngFor="let d of difficulties" [value]="d">{{ d }}</option>
           </select>
@@ -1805,7 +1805,7 @@
       </div>
       <p class="video-info-hint">
         <span class="material-icons">info</span>
-        Učenici gledaju svaki video isečak, zatim glasno izgovaraju natpis. Možete dodati opcioni drugi natpis koji se pojavljuje kasnije u istom isečku.
+        Students watch each video clip, then speak the caption aloud. You can add an optional second caption that appears later in the same clip.
       </p>
     </div>
 
@@ -1814,13 +1814,13 @@
       <div class="video-feedback-head">
         <span class="material-icons">campaign</span>
         <div>
-          <h3>Zvuci povratne informacije <span class="label-optional">opciono</span></h3>
+          <h3>Feedback sounds <span class="label-optional">optional</span></h3>
           <p>After each spoken answer: one <strong>praise</strong> clip plays at random if correct, or one <strong>retry</strong> clip if not. Add captions for on-screen text (e.g. “Great!” / “Try again”).</p>
         </div>
       </div>
       <div class="video-feedback-grid">
         <div class="video-feedback-col">
-          <h4><span class="material-icons">emoji_events</span> Tačno (maks {{ maxVideoFeedbackClips }})</h4>
+          <h4><span class="material-icons">emoji_events</span> Correct (max {{ maxVideoFeedbackClips }})</h4>
           <div class="video-feedback-row" *ngFor="let row of videoSuccessFeedbackRows; let si = index">
             <div class="video-feedback-row-top">
               <button type="button" class="btn-video-feedback-upload" (click)="triggerVideoFeedbackUpload('success', si)" [disabled]="row.uploading">
@@ -1833,7 +1833,7 @@
             <audio *ngIf="row.audioUrl" [src]="getMediaFullUrl(row.audioUrl)" controls class="video-feedback-audio"></audio>
           </div>
           <button type="button" class="btn-add-video-feedback" (click)="addVideoSuccessFeedbackRow()" [disabled]="videoSuccessFeedbackRows.length >= maxVideoFeedbackClips">
-            <span class="material-icons">add</span> Dodaj pohvalni isečak
+            <span class="material-icons">add</span> Add praise clip
           </button>
         </div>
         <div class="video-feedback-col">
@@ -1850,7 +1850,7 @@
             <audio *ngIf="row.audioUrl" [src]="getMediaFullUrl(row.audioUrl)" controls class="video-feedback-audio"></audio>
           </div>
           <button type="button" class="btn-add-video-feedback" (click)="addVideoRetryFeedbackRow()" [disabled]="videoRetryFeedbackRows.length >= maxVideoFeedbackClips">
-            <span class="material-icons">add</span> Dodaj isečak za ponovni pokušaj
+            <span class="material-icons">add</span> Add retry clip
           </button>
         </div>
       </div>
@@ -1859,28 +1859,28 @@
     <!-- Video Questions -->
     <div class="video-questions-section">
       <div class="video-questions-header">
-        <h3>Video isečci <span class="questions-count" *ngIf="videoQuestions.length > 0">{{ videoQuestions.length }}</span></h3>
-        <span class="total-points">{{ videoQuestions.length }} isečak{{ videoQuestions.length !== 1 ? 'a' : '' }} · {{ getTotalPoints() }} pts</span>
+        <h3>Video Clips <span class="questions-count" *ngIf="videoQuestions.length > 0">{{ videoQuestions.length }}</span></h3>
+        <span class="total-points">{{ videoQuestions.length }} clip{{ videoQuestions.length !== 1 ? 's' : '' }} · {{ getTotalPoints() }} pts</span>
       </div>
 
       <!-- Empty state -->
       <div class="video-empty-state" *ngIf="videoQuestions.length === 0">
         <span class="material-icons">videocam_off</span>
-        <p>Još nema video isečaka. Kliknite "+ Dodaj video isečak" ispod za početak.</p>
+        <p>No video clips yet. Click "+ Add Video Clip" below to get started.</p>
       </div>
 
       <!-- Video question cards -->
       <div class="video-question-card" *ngFor="let vq of videoQuestions; let vi = index">
         <div class="vqc-header">
-          <span class="vqc-number">Isečak {{ vi + 1 }}</span>
+          <span class="vqc-number">Clip {{ vi + 1 }}</span>
           <div class="vqc-actions">
-            <button type="button" class="vqc-btn" (click)="moveVideoQuestion(vi, -1)" [disabled]="vi === 0" title="Pomeri gore">
+            <button type="button" class="vqc-btn" (click)="moveVideoQuestion(vi, -1)" [disabled]="vi === 0" title="Move up">
               <span class="material-icons">arrow_upward</span>
             </button>
-            <button type="button" class="vqc-btn" (click)="moveVideoQuestion(vi, 1)" [disabled]="vi === videoQuestions.length - 1" title="Pomeri dole">
+            <button type="button" class="vqc-btn" (click)="moveVideoQuestion(vi, 1)" [disabled]="vi === videoQuestions.length - 1" title="Move down">
               <span class="material-icons">arrow_downward</span>
             </button>
-            <button type="button" class="vqc-btn vqc-btn--delete" (click)="removeVideoQuestion(vi)" title="Ukloni isečak">
+            <button type="button" class="vqc-btn vqc-btn--delete" (click)="removeVideoQuestion(vi)" title="Remove clip">
               <span class="material-icons">delete_outline</span>
             </button>
           </div>
@@ -1891,10 +1891,10 @@
           <div class="video-upload-area" [class.has-video]="vq.videoUrl">
             <ng-container *ngIf="!vq.videoUrl && !vq.videoUploading">
               <span class="material-icons upload-icon">cloud_upload</span>
-              <p class="upload-label">Postavi video fajl</p>
-              <p class="upload-hint">MP4, WebM, MOV · bilo koja veličina</p>
+              <p class="upload-label">Upload a video file</p>
+              <p class="upload-hint">MP4, WebM, MOV · any size</p>
               <button type="button" class="btn-upload-video" (click)="triggerVideoFile(vq)">
-                <span class="material-icons">video_file</span> Izaberi video
+                <span class="material-icons">video_file</span> Choose Video
               </button>
             </ng-container>
             <ng-container *ngIf="vq.videoUploading">
@@ -1904,7 +1904,7 @@
             <ng-container *ngIf="vq.videoUrl && !vq.videoUploading">
               <video [src]="getMediaFullUrl(vq.videoUrl)" controls class="video-preview"></video>
               <button type="button" class="btn-replace-video" (click)="triggerVideoFile(vq)">
-                <span class="material-icons">swap_horiz</span> Zameni video
+                <span class="material-icons">swap_horiz</span> Replace Video
               </button>
             </ng-container>
           </div>
@@ -1912,13 +1912,13 @@
           <!-- Caption & pronunciation settings -->
           <div class="vqc-fields">
             <div class="field-group">
-              <label class="field-label required">Natpis (reč/fraza koju učenik mora izgovoriti)</label>
+              <label class="field-label required">Caption (word/phrase student must speak)</label>
               <input type="text" [(ngModel)]="vq.caption" class="field-input video-caption-field"
-                placeholder="npr. Guten Morgen" autocomplete="off" />
+                placeholder="e.g. Guten Morgen" autocomplete="off" />
             </div>
 
             <div class="field-group">
-              <label class="field-label">Drugi natpis <span class="label-optional">opt.</span></label>
+              <label class="field-label">Second caption <span class="label-optional">opt.</span></label>
               <input
                 type="text"
                 [(ngModel)]="vq.secondaryCaption"
@@ -1926,11 +1926,11 @@
                 placeholder="e.g. Ich fahre mit der Bahn."
                 autocomplete="off"
               />
-              <p class="hint-text">Ako je popunjeno, zamenjuje prvi natpis u prikazu za učenika nakon kašnjenja ispod.</p>
+              <p class="hint-text">If filled, this replaces the first caption in student view after the delay below.</p>
             </div>
 
             <div class="field-group field-group--points">
-              <label class="field-label">Drugi natpis delay (seconds)</label>
+              <label class="field-label">Second caption delay (seconds)</label>
               <input
                 type="number"
                 [(ngModel)]="vq.secondaryCaptionAtSeconds"
@@ -1939,37 +1939,37 @@
                 max="600"
                 step="1"
               />
-              <p class="hint-text">Podrazumevano je 5 sekundi.</p>
+              <p class="hint-text">Default is 5 seconds.</p>
             </div>
 
             <div class="field-group">
-              <label class="field-label">Kontekst <span class="label-optional">opciono</span></label>
+              <label class="field-label">Context <span class="label-optional">opt.</span></label>
               <textarea
                 [(ngModel)]="vq.context"
                 class="field-input field-input--sm"
                 rows="2"
-                placeholder="Opcioni kontekst prikazan iznad ovog isečka za učenike"
+                placeholder="Optional context shown above this clip for students"
               ></textarea>
             </div>
 
             <div class="field-group">
-              <label class="field-label">Prihvaćene varijante <span class="label-optional">opciono</span></label>
+              <label class="field-label">Accepted Variants <span class="label-optional">opt.</span></label>
               <div class="variants-list">
                 <div class="variant-row" *ngFor="let v of vq.acceptedVariants; let ai = index">
                   <input type="text" [(ngModel)]="vq.acceptedVariants![ai]" class="field-input field-input--sm"
-                    placeholder="Alternativni prihvaćeni izgovor" />
+                    placeholder="Alternate accepted pronunciation" />
                   <button type="button" class="btn-icon-sm" (click)="removeVariant(vq, ai)">
                     <span class="material-icons">close</span>
                   </button>
                 </div>
                 <button type="button" class="btn-add-variant" (click)="addVariant(vq)">
-                  <span class="material-icons">add</span> Dodaj varijantu
+                  <span class="material-icons">add</span> Add variant
                 </button>
               </div>
             </div>
 
             <div class="field-group field-group--points">
-              <label class="field-label">Poklapanje % za označavanje tačnog</label>
+              <label class="field-label">Match % to mark correct</label>
               <input
                 type="number"
                 [(ngModel)]="vq.similarityThreshold"
@@ -1978,11 +1978,11 @@
                 max="100"
                 step="1"
               />
-              <p class="hint-text">Administrator kontroliše strogoću (npr. 60 znači da je 60%+ tačno).</p>
+              <p class="hint-text">Admin controls strictness (e.g. 60 means 60%+ is correct).</p>
             </div>
 
             <div class="field-group field-group--points">
-              <label class="field-label">Poeni</label>
+              <label class="field-label">Points</label>
               <input type="number" [(ngModel)]="vq.points" class="field-input field-input--number field-input--sm" min="1" max="100" />
             </div>
           </div>
@@ -1992,22 +1992,22 @@
       <!-- Add clip button -->
       <button type="button" class="btn-add-video-clip" (click)="addVideoQuestion()">
         <span class="material-icons">add_circle_outline</span>
-        Dodaj video isečak
+        Add Video Clip
       </button>
     </div>
 
     <!-- Footer -->
     <div class="tab-nav-footer">
       <button class="btn-back-tab" (click)="activeTab = 'info'">
-        <span class="material-icons">arrow_back</span> Nazad na info
+        <span class="material-icons">arrow_back</span> Back to Info
       </button>
       <div class="footer-right">
         <button class="btn-next" (click)="activeTab = 'preview'" [disabled]="!isInfoValid()">
-          Pregled <span class="material-icons">arrow_forward</span>
+          Preview <span class="material-icons">arrow_forward</span>
         </button>
         <button class="btn-save" (click)="save()" [disabled]="saving || !isInfoValid() || !isVideoQuestionsValid()">
           <span class="material-icons">save</span>
-          {{ saving ? 'Čuvanje...' : (isEditMode ? 'Ažuriraj vežbu' : 'Kreiraj vežbu') }}
+          {{ saving ? 'Saving...' : (isEditMode ? 'Update Exercise' : 'Create Exercise') }}
         </button>
       </div>
     </div>
@@ -2022,16 +2022,16 @@
         <span class="diff-badge">{{ difficulty }}</span>
         <span class="lang-badge">{{ targetLanguage }}</span>
       </div>
-      <h2 class="preview-title">{{ title || 'Vežba bez naslova' }}</h2>
-      <p class="preview-desc">{{ description || 'Nema opisa' }}</p>
-      <p class="preview-stats">{{ getTotalQuestionCount() }} pitanja · ~{{ estimatedDuration }} min</p>
+      <h2 class="preview-title">{{ title || 'Untitled Exercise' }}</h2>
+      <p class="preview-desc">{{ description || 'No description' }}</p>
+      <p class="preview-stats">{{ getTotalQuestionCount() }} questions · ~{{ estimatedDuration }} min</p>
 
       <div class="preview-questions">
         <div *ngFor="let q of questions; let i = index" class="preview-question">
           <div class="pq-header">
             <span class="pq-number">{{ i + 1 }}</span>
             <span class="pq-type">{{ getTypeLabel(q.type === 'question-answer' && q.worksheetKind ? q.worksheetKind : q.type) }}</span>
-            <span class="pq-points">{{ q.points }} pt</span>
+            <span class="pq-points">{{ q.points }} pt{{ q.points !== 1 ? 's' : '' }}</span>
           </div>
 
           <!-- MCQ Preview -->
@@ -2070,7 +2070,7 @@
             <div *ngIf="q.hint" class="pq-hint">💡 Hint: {{ q.hint }}</div>
             <div class="pq-answers">
               <span *ngFor="let ans of q.answers; let ai = index" class="pq-answer">
-                Praznina {{ ai + 1 }}: <strong>{{ ans }}</strong>
+                Blank {{ ai + 1 }}: <strong>{{ ans }}</strong>
               </span>
             </div>
           </div>
@@ -2110,17 +2110,17 @@
             <div *ngIf="getListeningPreviewAudioUrl(q)" class="pq-audio">
               <audio [src]="getMediaFullUrl(getListeningPreviewAudioUrl(q)!)" controls></audio>
             </div>
-            <div class="pq-qa-answer-box">Učenik upisuje ili izgovara šta čuje...</div>
+            <div class="pq-qa-answer-box">Student types or speaks what they hear...</div>
           </div>
 
-          <!-- Question / Odgovor Preview -->
+          <!-- Question / Answer Preview -->
           <div *ngIf="q.type === 'question-answer'" class="pq-body">
             <p class="pq-text" *ngIf="q.context">{{ q.context }}</p>
             <p class="pq-text">{{ q.prompt }}</p>
-            <div class="pq-qa-answer-box">Učenik upisuje odgovor ovde...</div>
+            <div class="pq-qa-answer-box">Student types their answer here...</div>
             <div *ngIf="q.sampleAnswers && q.sampleAnswers[0]" class="pq-answers">
               <span *ngFor="let sa of q.sampleAnswers; let si = index" class="pq-answer">
-                Odgovor {{ si + 1 }}: <strong>{{ sa }}</strong>
+                Answer {{ si + 1 }}: <strong>{{ sa }}</strong>
               </span>
             </div>
           </div>
@@ -2131,14 +2131,14 @@
             <div *ngIf="q.videoUrl" class="pq-video-wrap">
               <video [src]="getMediaFullUrl(q.videoUrl)" controls class="pq-video"></video>
             </div>
-            <div *ngIf="!q.videoUrl" class="pq-no-video">Video nije postavljen</div>
-            <div class="pq-caption"><span class="material-icons">record_voice_over</span> Učenik govori: <strong>{{ q.caption || '—' }}</strong></div>
+            <div *ngIf="!q.videoUrl" class="pq-no-video">No video uploaded</div>
+            <div class="pq-caption"><span class="material-icons">record_voice_over</span> Student speaks: <strong>{{ q.caption || '—' }}</strong></div>
             <div class="pq-caption" *ngIf="q.secondaryCaption">
               <span class="material-icons">schedule</span>
-              Nakon {{ q.secondaryCaptionAtSeconds ?? 5 }}s: <strong>{{ q.secondaryCaption }}</strong>
+              After {{ q.secondaryCaptionAtSeconds ?? 5 }}s: <strong>{{ q.secondaryCaption }}</strong>
             </div>
             <div *ngIf="q.acceptedVariants && q.acceptedVariants.length > 0" class="pq-variants">
-              Prihvata se i: {{ q.acceptedVariants.join(', ') }}
+              Also accepted: {{ q.acceptedVariants.join(', ') }}
             </div>
           </div>
 
@@ -2156,7 +2156,7 @@
       </div>
 
       <div class="empty-preview" *ngIf="questions.length === 0">
-        <p>Dodajte pitanja da vidite pregled</p>
+        <p>Add questions to see preview</p>
       </div>
     </div>
   </div>
@@ -2176,22 +2176,22 @@
       (click)="$event.stopPropagation()"
     >
       <div class="split-modal-header">
-        <h2 id="split-modal-title">Nova vežba od izabranih pitanja</h2>
-        <button type="button" class="split-modal-close" (click)="closeSplitModal()" [disabled]="splitSaving" aria-label="Zatvori">
+        <h2 id="split-modal-title">New exercise from selected questions</h2>
+        <button type="button" class="split-modal-close" (click)="closeSplitModal()" [disabled]="splitSaving" aria-label="Close">
           <span class="material-icons">close</span>
         </button>
       </div>
       <p class="split-modal-intro">
-        {{ selectedIndices.size }} pitanje(a) biće premešeno u novu vežbu (svi tipovi i sadržaj sačuvani) i uklonjeno iz ove.
+        {{ selectedIndices.size }} question(s) will move to a new exercise (all types and content preserved) and be removed from this one.
       </p>
 
       <div class="split-modal-body info-grid info-grid--top">
         <div class="field-group field-group--title">
-          <label class="field-label required" for="split-title">Naslov</label>
+          <label class="field-label required" for="split-title">Title</label>
           <input id="split-title" type="text" [(ngModel)]="splitTitle" class="field-input field-input--sm" maxlength="120" />
         </div>
         <div class="field-group field-group--daybox">
-          <label class="field-label" for="split-course-day">Journey dan (0 = Trial, 1–200)</label>
+          <label class="field-label" for="split-course-day">Journey day (0 = Trial, 1–200)</label>
           <input
             id="split-course-day"
             type="number"
@@ -2204,7 +2204,7 @@
           />
         </div>
         <div class="field-group field-group--day">
-          <label class="field-label" for="split-seq">Redosled (a, b, c…)</label>
+          <label class="field-label" for="split-seq">Sequence (a, b, c…)</label>
           <input
             id="split-seq"
             type="text"
@@ -2215,20 +2215,20 @@
           />
         </div>
         <div class="field-group field-group--desc">
-          <label class="field-label required" for="split-desc">Opis</label>
+          <label class="field-label required" for="split-desc">Description</label>
           <textarea id="split-desc" [(ngModel)]="splitDescription" class="field-input field-input--desc field-input--sm" rows="2"></textarea>
         </div>
       </div>
 
       <div class="split-modal-body info-grid info-grid--settings">
         <div class="field-group">
-          <label class="field-label required" for="split-target">Ciljni</label>
+          <label class="field-label required" for="split-target">Target</label>
           <select id="split-target" [(ngModel)]="splitTargetLanguage" class="field-input field-input--select field-input--sm">
             <option *ngFor="let l of languages" [value]="l">{{ l }}</option>
           </select>
         </div>
         <div class="field-group">
-          <label class="field-label" for="split-native">Maternji</label>
+          <label class="field-label" for="split-native">Native</label>
           <select id="split-native" [(ngModel)]="splitNativeLanguage" class="field-input field-input--select field-input--sm">
             <option *ngFor="let l of nativeLanguages" [value]="l">{{ l }}</option>
           </select>
@@ -2246,7 +2246,7 @@
           </select>
         </div>
         <div class="field-group">
-          <label class="field-label" for="split-diff">Težina</label>
+          <label class="field-label" for="split-diff">Difficulty</label>
           <select id="split-diff" [(ngModel)]="splitDifficulty" class="field-input field-input--select field-input--sm">
             <option *ngFor="let d of difficulties" [value]="d">{{ d }}</option>
           </select>
@@ -2256,18 +2256,18 @@
           <input id="split-dur" type="number" [(ngModel)]="splitEstimatedDuration" class="field-input field-input--number field-input--sm" min="1" max="120" />
         </div>
         <div class="field-group field-group--tags">
-          <label class="field-label" for="split-tags">Oznake</label>
-          <input id="split-tags" type="text" [(ngModel)]="splitTags" class="field-input field-input--sm" placeholder="opciono" />
+          <label class="field-label" for="split-tags">Tags</label>
+          <input id="split-tags" type="text" [(ngModel)]="splitTags" class="field-input field-input--sm" placeholder="optional" />
         </div>
       </div>
 
       <label class="split-visibility">
         <input type="checkbox" [(ngModel)]="splitVisibleToStudents" />
-        <span>Objavi učenicima odmah</span>
+        <span>Publish to students immediately</span>
       </label>
 
       <div class="split-modal-footer">
-        <button type="button" class="btn-cancel" (click)="closeSplitModal()" [disabled]="splitSaving">Otkaži</button>
+        <button type="button" class="btn-cancel" (click)="closeSplitModal()" [disabled]="splitSaving">Cancel</button>
         <button
           type="button"
           class="btn-save"
@@ -2275,7 +2275,7 @@
           [disabled]="splitSaving || !isSplitFormValid()"
         >
           <span class="material-icons">{{ splitSaving ? 'hourglass_empty' : 'call_split' }}</span>
-          {{ splitSaving ? 'Kreiranje…' : 'Kreiraj i ukloni iz ove vežbe' }}
+          {{ splitSaving ? 'Creating…' : 'Create & remove from this exercise' }}
         </button>
       </div>
     </div>

@@ -131,7 +131,7 @@ function startConversation(sessionId, moduleData) {
       studentGuidance:  scenario.studentGuidance || '',
       aiOpeningLines:   scenario.aiOpeningLines  || [],
       language:         moduleData.language      || 'German',
-      nativeLanguage:   moduleData.nativeLanguage || 'Serbian',
+      nativeLanguage:   moduleData.nativeLanguage || 'English',
       minimumCompletionTime: moduleData.minimumCompletionTime || 10,
       minPracticeMinutes: timing.minPracticeMinutes,
       maxPracticeMinutes: timing.maxPracticeMinutes,
@@ -316,7 +316,7 @@ async function _gradeBeginnerAnswer(state, said, expected, questionText) {
     expectedAnswer: expected,
     questionText,
     language: ctx.language || 'German',
-    nativeLanguage: ctx.nativeLanguage || 'Serbian',
+    nativeLanguage: ctx.nativeLanguage || 'English',
   });
   if (aiGrade && Number.isFinite(aiGrade.score)) {
     score = aiGrade.score;

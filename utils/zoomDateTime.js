@@ -6,7 +6,7 @@ function formatZoomLocalStartTime(dateInput, timezone = 'Asia/Kolkata') {
   const startDate = new Date(dateInput);
   if (Number.isNaN(startDate.getTime())) return null;
   const localParts = startDate
-    .toLocaleString('sr-Latn-RS', { timeZone: timezone, hour12: false })
+    .toLocaleString('en-CA', { timeZone: timezone, hour12: false })
     .replace(',', '')
     .split(' ');
   return `${localParts[0]}T${(localParts[1] || '00:00:00').slice(0, 5)}`;

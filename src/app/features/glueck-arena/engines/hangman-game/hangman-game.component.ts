@@ -1,4 +1,4 @@
-﻿import {
+import {
   Component, Input, Output, EventEmitter, OnInit, OnDestroy, ChangeDetectorRef,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
@@ -33,12 +33,12 @@ const TOTAL_LIVES = 5;
           <mat-icon>star</mat-icon>
           <span>{{ score }}</span>
         </div>
-        <div class="hm__progress">Reč {{ currentIndex + 1 }} / {{ questions.length }}</div>
+        <div class="hm__progress">Word {{ currentIndex + 1 }} / {{ questions.length }}</div>
         <div class="hm__timer">
           <mat-icon>timer</mat-icon>
           <span>{{ formatElapsed(sessionElapsedSeconds) }}</span>
         </div>
-        <button mat-icon-button type="button" (click)="onPause()" aria-label="Pauza">
+        <button mat-icon-button type="button" (click)="onPause()" aria-label="Pause">
           <mat-icon>pause</mat-icon>
         </button>
       </header>
@@ -104,7 +104,7 @@ const TOTAL_LIVES = 5;
 
       <div class="hm-complete" *ngIf="phase === 'complete'">
         <mat-icon class="hm-complete__spinner">hourglass_top</mat-icon>
-        <span class="hm-complete__calc">Računanje rezultata...</span>
+        <span class="hm-complete__calc">Calculating results...</span>
       </div>
 
       <app-xp-float [xp]="lastXp" [trigger]="xpTrigger"></app-xp-float>

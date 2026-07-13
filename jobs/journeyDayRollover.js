@@ -16,7 +16,7 @@ const TZ = process.env.JOURNEY_ROLLOVER_TZ || 'Asia/Colombo';
 
 /** Today's date string (YYYY-MM-DD) in the rollover timezone. */
 function todayInTz() {
-  return new Date().toLocaleDateString('sr-Latn-RS', { timeZone: TZ }); // en-CA → YYYY-MM-DD
+  return new Date().toLocaleDateString('en-CA', { timeZone: TZ }); // en-CA → YYYY-MM-DD
 }
 
 /**

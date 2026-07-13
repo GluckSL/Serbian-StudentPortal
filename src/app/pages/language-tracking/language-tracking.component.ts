@@ -731,7 +731,7 @@ export class LanguageTrackingComponent implements OnInit, OnDestroy {
     students: LtStudentRow[],
   ): void {
     const wb = XLSX.utils.book_new();
-    const generatedAt = new Date().toLocaleString('sr-Latn-RS', {
+    const generatedAt = new Date().toLocaleString('en-IN', {
       timeZone: 'Asia/Kolkata',
       dateStyle: 'medium',
       timeStyle: 'short',
@@ -870,7 +870,7 @@ export class LanguageTrackingComponent implements OnInit, OnDestroy {
     if (!value) return '';
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return '';
-    return date.toLocaleString('sr-Latn-RS', {
+    return date.toLocaleString('en-IN', {
       timeZone: 'Asia/Kolkata',
       dateStyle: 'medium',
       timeStyle: 'short',

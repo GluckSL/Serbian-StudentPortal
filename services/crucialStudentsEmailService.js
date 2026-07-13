@@ -199,7 +199,7 @@ async function sendCrucialStudentsReport() {
   const { students, summary } = data;
   const count = summary.total;
 
-  const dateStr = new Date().toLocaleDateString('sr-Latn-RS', {
+  const dateStr = new Date().toLocaleDateString('en-IN', {
     timeZone: 'Asia/Kolkata',
     day: 'numeric',
     month: 'short',

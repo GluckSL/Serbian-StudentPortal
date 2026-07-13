@@ -1,4 +1,4 @@
-﻿import {
+import {
   Component, Input, Output, EventEmitter, OnInit, OnDestroy, HostListener, ChangeDetectorRef,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
@@ -39,12 +39,12 @@ interface LetterTile {
           <mat-icon>star</mat-icon>
           <span>{{ score }}</span>
         </div>
-        <div class="jw__progress">Reč {{ currentIndex + 1 }} / {{ questions.length }}</div>
+        <div class="jw__progress">Word {{ currentIndex + 1 }} / {{ questions.length }}</div>
         <div class="jw__timer">
           <mat-icon>timer</mat-icon>
           <span>{{ formatElapsed(sessionElapsedSeconds) }}</span>
         </div>
-        <button mat-icon-button type="button" (click)="onPause()" aria-label="Pauza">
+        <button mat-icon-button type="button" (click)="onPause()" aria-label="Pause">
           <mat-icon>pause</mat-icon>
         </button>
       </header>
@@ -92,14 +92,14 @@ interface LetterTile {
         <div class="jw__actions">
           <button class="jw__btn jw__btn--clear" (click)="clearSlots()"
             [disabled]="allLocked">
-            <mat-icon>undo</mat-icon> Obriši
+            <mat-icon>undo</mat-icon> Clear
           </button>
         </div>
       </div>
 
       <div class="jw-complete" *ngIf="phase === 'complete'">
         <mat-icon class="jw-complete__spinner">hourglass_top</mat-icon>
-        <span class="jw-complete__calc">Računanje rezultata...</span>
+        <span class="jw-complete__calc">Calculating results...</span>
       </div>
 
       <app-xp-float [xp]="lastXp" [trigger]="xpTrigger"></app-xp-float>

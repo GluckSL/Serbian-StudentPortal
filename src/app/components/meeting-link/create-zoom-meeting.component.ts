@@ -1,4 +1,4 @@
-﻿// src/app/components/meeting-link/create-zoom-meeting.component.ts
+// src/app/components/meeting-link/create-zoom-meeting.component.ts
 
 import { Component, OnInit } from '@angular/core';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule, FormsModule } from '@angular/forms';
@@ -100,7 +100,7 @@ export class CreateZoomMeetingComponent implements OnInit {
   private readonly istTimeZone = 'Asia/Kolkata';
 
   private formatDateTimeLocal(date: Date): string {
-    const parts = new Intl.DateTimeFormat('sr-Latn-RS', {
+    const parts = new Intl.DateTimeFormat('en-CA', {
       timeZone: this.istTimeZone,
       year: 'numeric',
       month: '2-digit',
@@ -352,7 +352,7 @@ export class CreateZoomMeetingComponent implements OnInit {
     const [hour, minute] = timePart.split(':').map(Number);
 
     const referenceDate = new Date(Date.UTC(year, month - 1, day, hour, minute, 0, 0));
-    const parts = new Intl.DateTimeFormat('sr-Latn-RS', {
+    const parts = new Intl.DateTimeFormat('en-US', {
       timeZone,
       timeZoneName: 'shortOffset'
     }).formatToParts(referenceDate);
@@ -544,13 +544,13 @@ export class CreateZoomMeetingComponent implements OnInit {
   formatConflictWhen(conflict: ZoomHostConflict): string {
     const dt = new Date(conflict.startTime);
     if (Number.isNaN(dt.getTime())) return '';
-    const date = dt.toLocaleDateString('sr-Latn-RS', {
+    const date = dt.toLocaleDateString('en-IN', {
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',
       timeZone: this.meetingTimezoneIana
     });
-    const time = dt.toLocaleTimeString('sr-Latn-RS', {
+    const time = dt.toLocaleTimeString('en-IN', {
       hour: '2-digit',
       minute: '2-digit',
       hour12: true,

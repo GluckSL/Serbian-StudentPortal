@@ -45,7 +45,7 @@ import {
           <span *ngIf="comboStreak >= 3" class="sbmp__combo">🔥 Combo x{{ comboStreak }}</span>
         </div>
         <div class="sbmp__feedback sbmp__feedback--wrong" *ngIf="feedback === 'wrong'">
-          <mat-icon>cancel</mat-icon> {{ revealSentence || 'Pokušajte ponovo u sledećoj rundi' }}
+          <mat-icon>cancel</mat-icon> {{ revealSentence || 'Try again next round' }}
         </div>
         <div class="sbmp__actions">
           <button mat-stroked-button (click)="clearArranged()" [disabled]="!!feedback">Reset</button>

@@ -2,31 +2,31 @@
   <div class="admin-header">
     <div class="container-fluid d-flex flex-wrap justify-content-between align-items-start gap-2">
       <div>
-        <h1 class="admin-title"><i class="fas fa-clipboard-list"></i> Dnevnik aktivnosti učenika</h1>
+        <h1 class="admin-title"><i class="fas fa-clipboard-list"></i> Student Logs</h1>
         <p class="admin-subtitle">
-          Vremenski prikaz aktivnosti — filtrirajte po učeniku, grupi i vrsti.
+          Activity timeline — filter by student, batch, and type.
           <ng-container *ngIf="canDeleteActivityRecords; else logsViewOnly">
-            Obrišite zapise o prijavama, snimke profila, pokušaje i više.
+            Delete login rows, profile snapshots, attempts, and more.
           </ng-container>
-          <ng-template #logsViewOnly>Samo pregled za pod-admin naloge.</ng-template>
+          <ng-template #logsViewOnly>View-only for sub-admin accounts.</ng-template>
         </p>
       </div>
       <div class="d-flex flex-wrap gap-2 align-items-center ms-auto">
         <a routerLink="/student-logs/all" class="btn btn-outline-primary btn-sm">
-          <i class="fas fa-calendar-alt me-1"></i> Svi zapisi
+          <i class="fas fa-calendar-alt me-1"></i> All logs
         </a>
         <div
           class="toolbar-actions d-flex flex-wrap gap-2 align-items-center"
           *ngIf="canDeleteActivityRecords && !isLoading && filteredEvents.length"
         >
-        <span class="selected-pill" *ngIf="selectedRowKeys.size > 0">{{ selectedRowKeys.size }} izabrano</span>
+        <span class="selected-pill" *ngIf="selectedRowKeys.size > 0">{{ selectedRowKeys.size }} selected</span>
         <button
           type="button"
           class="btn btn-danger btn-sm"
           [disabled]="selectedRowKeys.size === 0"
           (click)="deleteBulk()"
         >
-          <i class="fas fa-trash-alt me-1"></i> Obriši izabrano
+          <i class="fas fa-trash-alt me-1"></i> Delete selected
         </button>
         </div>
       </div>
@@ -35,11 +35,11 @@
 
   <div class="alert alert-info py-2 px-3 d-flex flex-wrap justify-content-between align-items-center gap-2" *ngIf="viewingDayKey">
     <span class="mb-0 small"
-      >Pregled <strong>{{ viewingDayLabel() }}</strong> — karticice ispod odgovaraju samo ovom danu.</span
+      >Viewing <strong>{{ viewingDayLabel() }}</strong> — full tabs below match this day only.</span
     >
     <div class="d-flex flex-wrap gap-2">
-      <a routerLink="/student-logs/all" class="btn btn-sm btn-outline-secondary">Nazad na sve zapise</a>
-      <button type="button" class="btn btn-sm btn-outline-primary" (click)="clearDayView()">Obriši filter dana</button>
+      <a routerLink="/student-logs/all" class="btn btn-sm btn-outline-secondary">Back to all logs</a>
+      <button type="button" class="btn btn-sm btn-outline-primary" (click)="clearDayView()">Clear day filter</button>
     </div>
   </div>
 
@@ -54,7 +54,7 @@
     >
       <span class="filters-card__toggle-main">
         <i class="fas fa-sliders-h me-2" aria-hidden="true"></i>
-        <span class="filters-card__toggle-label">Filteri</span>
+        <span class="filters-card__toggle-label">Filters</span>
         <span class="filters-card__toggle-summary text-muted" *ngIf="!filtersExpanded">{{ filtersCollapsedSummary() }}</span>
       </span>
       <i
@@ -68,13 +68,13 @@
     <div class="filters-card__body" id="student-logs-filters-body" *ngIf="filtersExpanded">
     <div class="row g-3">
       <div class="col-lg-4 col-md-6">
-        <label class="form-label">Pronađi učenika</label>
+        <label class="form-label">Find student</label>
         <div class="search-student-wrap">
           <div class="input-group input-group-sm">
             <input
               type="search"
               class="form-control"
-              placeholder="Ime, reg. br. ili e-mail…"
+              placeholder="Name, reg no, or email…"
               [(ngModel)]="studentSearchQuery"
               (keyup.enter)="searchStudents()"
             />
@@ -90,41 +90,41 @@
             <li *ngFor="let s of searchResults">
               <button type="button" class="dropdown-item-like" (click)="pickStudent(s)">
                 <strong>{{ s.regNo }}</strong> — {{ s.name }}
-                <span class="text-muted small" *ngIf="s.batch"> · grupa {{ s.batch }}</span>
+                <span class="text-muted small" *ngIf="s.batch"> · batch {{ s.batch }}</span>
               </button>
             </li>
           </ul>
         </div>
-        <p class="hint-text mb-0">Pretražite umesto učitavanja cele liste učenika.</p>
+        <p class="hint-text mb-0">Search instead of loading the full student list.</p>
       </div>
 
       <div class="col-lg-2 col-md-6">
-        <label class="form-label">Grupa</label>
+        <label class="form-label">Batch</label>
         <select class="form-select form-select-sm" [(ngModel)]="selectedBatch">
-          <option value="">Sve grupe</option>
+          <option value="">All batches</option>
           <option *ngFor="let b of batchOptions" [value]="b">{{ b }}</option>
         </select>
       </div>
 
       <div class="col-lg-3 col-md-6">
-        <label class="form-label">Od</label>
+        <label class="form-label">From</label>
         <input type="datetime-local" step="1" class="form-control form-control-sm" [(ngModel)]="fromDate" />
       </div>
       <div class="col-lg-3 col-md-6">
-        <label class="form-label">Do</label>
+        <label class="form-label">To</label>
         <input type="datetime-local" step="1" class="form-control form-control-sm" [(ngModel)]="toDate" />
       </div>
       <div class="col-12">
         <div class="quick-range">
-          <button class="btn btn-outline-secondary btn-sm" type="button" (click)="setTodayRange()">Danas</button>
-          <button class="btn btn-outline-secondary btn-sm" type="button" (click)="setLastDaysRange(1)">Poslejednjih 24h</button>
-          <button class="btn btn-outline-secondary btn-sm" type="button" (click)="setLastDaysRange(7)">Poslejednjih 7 dana</button>
+          <button class="btn btn-outline-secondary btn-sm" type="button" (click)="setTodayRange()">Today</button>
+          <button class="btn btn-outline-secondary btn-sm" type="button" (click)="setLastDaysRange(1)">Last 24h</button>
+          <button class="btn btn-outline-secondary btn-sm" type="button" (click)="setLastDaysRange(7)">Last 7 days</button>
         </div>
       </div>
     </div>
 
     <div class="type-chips mt-3">
-      <span class="type-chips__label">Vrste aktivnosti</span>
+      <span class="type-chips__label">Activity types</span>
       <label *ngFor="let t of typeOptions" class="type-chip">
         <input
           type="checkbox"
@@ -138,21 +138,21 @@
     <div class="row mt-3 align-items-center">
       <div class="col-auto">
         <button class="btn btn-primary btn-sm" type="button" (click)="applyFilters()" [disabled]="isLoading">
-          <i class="fas fa-check me-1"></i> Primeni filtere
+          <i class="fas fa-check me-1"></i> Apply filters
         </button>
       </div>
       <div class="col-auto">
         <button class="btn btn-outline-secondary btn-sm" type="button" (click)="clearFilters()" [disabled]="isLoading">
-          <i class="fas fa-undo me-1"></i> Poništi
+          <i class="fas fa-undo me-1"></i> Reset
         </button>
       </div>
       <div class="col-auto ms-auto">
-        <label class="form-label mb-1">Grupiši vremensku liniju po</label>
+        <label class="form-label mb-1">Group timeline by</label>
         <select class="form-select form-select-sm" [(ngModel)]="groupBy" (ngModelChange)="applyClientFilters()">
-          <option value="none">Bez grupisanja</option>
-          <option value="student">Učenik</option>
-          <option value="page">Stranica / funkcija</option>
-          <option value="day">Dan</option>
+          <option value="none">No grouping</option>
+          <option value="student">Student</option>
+          <option value="page">Page / feature</option>
+          <option value="day">Day</option>
         </select>
       </div>
     </div>
@@ -161,23 +161,23 @@
 
   <div class="insight-cards" *ngIf="!isLoading && !loadError">
     <div class="insight-card">
-      <span>Vreme u portalu (proc.)</span>
+      <span>Portal time (est.)</span>
       <strong>{{ formatMinutes(timeSummary.totalMinutes) }}</strong>
     </div>
     <div class="insight-card">
-      <span>Aktivni učenici</span>
+      <span>Active students</span>
       <strong>{{ timeSummary.activeStudents }}</strong>
     </div>
     <div class="insight-card">
-      <span>Prosek portala/učeniku</span>
+      <span>Avg portal/student</span>
       <strong>{{ formatMinutes(timeSummary.avgMinutesPerStudent) }}</strong>
     </div>
     <div class="insight-card">
-      <span>Najposećenija stranica</span>
+      <span>Top page</span>
       <strong>{{ timeSummary.topPage }}</strong>
     </div>
     <div class="insight-card">
-      <span>Najaktivniji učenik</span>
+      <span>Top student</span>
       <strong>{{ timeSummary.topStudent }}</strong>
     </div>
   </div>
@@ -202,19 +202,19 @@
     <div class="analytics-tab-panel" *ngIf="analyticsTab === 'overview'">
       <div class="overview-grid">
         <div class="overview-item">
-          <span>Procenjeno vreme u portalu (span aktivnosti, izabrani period)</span>
+          <span>Estimated time in portal (activity span, selected range)</span>
           <strong>{{ formatMinutes(timeSummary.totalMinutes) }}</strong>
         </div>
         <div class="overview-item">
-          <span>Najposećenija stranica</span>
+          <span>Most used page</span>
           <strong>{{ timeSummary.topPage }}</strong>
         </div>
         <div class="overview-item">
-          <span>Najaktivniji učenik</span>
+          <span>Most active student</span>
           <strong>{{ timeSummary.topStudent }}</strong>
         </div>
         <div class="overview-item">
-          <span>Prosečno vreme u portalu po učeniku</span>
+          <span>Average portal time per student</span>
           <strong>{{ formatMinutes(timeSummary.avgMinutesPerStudent) }}</strong>
         </div>
       </div>
@@ -222,15 +222,15 @@
 
     <div class="analytics-tab-panel" *ngIf="analyticsTab === 'student'">
       <div class="group-table-card">
-        <h6 class="group-table-title">Vreme u portalu po učeniku (proc.)</h6>
+        <h6 class="group-table-title">Student-wise portal time (est.)</h6>
         <div class="table-responsive">
           <table class="table table-sm mb-0">
             <thead>
               <tr>
-                <th>Učenik</th>
-                <th class="text-center">Stranice</th>
-                <th class="text-center">Posete</th>
-                <th class="text-end">Vreme u portalu</th>
+                <th>Student</th>
+                <th class="text-center">Pages</th>
+                <th class="text-center">Visits</th>
+                <th class="text-end">Portal time</th>
               </tr>
             </thead>
             <tbody>
@@ -245,7 +245,7 @@
                 <td class="text-end">{{ formatMinutes(row.minutes) }}</td>
               </tr>
               <tr *ngIf="studentTimeRows.length === 0">
-                <td colspan="4" class="text-muted text-center">Nema aktivnosti učenika u izabranom periodu.</td>
+                <td colspan="4" class="text-muted text-center">No student activity in selected range.</td>
               </tr>
             </tbody>
           </table>
@@ -256,38 +256,38 @@
         <div class="student-drill-card__head">
           <div>
             <h6 class="mb-1">{{ studentDrilldown.student }}</h6>
-            <p class="mb-0 text-muted small">Detaljna evidencija po stranici, danu i nedavnim radnjama.</p>
+            <p class="mb-0 text-muted small">Detailed tracking by page, day, and recent actions.</p>
           </div>
           <button type="button" class="btn btn-outline-secondary btn-sm" (click)="closeStudentDrilldown()">
-            Zatvori
+            Close
           </button>
         </div>
 
         <div class="student-drill-kpis">
           <div class="drill-kpi">
-            <span>Vreme u portalu (proc.)</span>
+            <span>Portal time (est.)</span>
             <strong>{{ formatMinutes(studentDrilldown.totalMinutes) }}</strong>
           </div>
           <div class="drill-kpi">
-            <span>Ukupno poseta</span>
+            <span>Total visits</span>
             <strong>{{ studentDrilldown.visits }}</strong>
           </div>
           <div class="drill-kpi">
-            <span>Posećene stranice</span>
+            <span>Pages visited</span>
             <strong>{{ studentDrilldown.pageRows.length }}</strong>
           </div>
         </div>
 
         <div class="student-drill-grids">
           <div class="group-table-card">
-            <h6 class="group-table-title">Detalji po stranici</h6>
+            <h6 class="group-table-title">Page details</h6>
             <div class="table-responsive">
               <table class="table table-sm mb-0">
                 <thead>
                   <tr>
-                    <th>Stranica / funkcija</th>
-                    <th class="text-center">Posete</th>
-                    <th class="text-end">Vreme</th>
+                    <th>Page / feature</th>
+                    <th class="text-center">Visits</th>
+                    <th class="text-end">Time</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -302,14 +302,14 @@
           </div>
 
           <div class="group-table-card">
-            <h6 class="group-table-title">Detalji po danu</h6>
+            <h6 class="group-table-title">Day details</h6>
             <div class="table-responsive">
               <table class="table table-sm mb-0">
                 <thead>
                   <tr>
-                    <th>Dan</th>
-                    <th class="text-center">Posete</th>
-                    <th class="text-end">Vreme</th>
+                    <th>Day</th>
+                    <th class="text-center">Visits</th>
+                    <th class="text-end">Time</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -325,17 +325,17 @@
         </div>
 
         <div class="group-table-card mt-2">
-          <h6 class="group-table-title">Nedavne detaljne aktivnosti</h6>
+          <h6 class="group-table-title">Recent detailed activity</h6>
           <div class="table-responsive">
             <table class="table table-sm mb-0">
               <thead>
                 <tr>
-                  <th>Vreme</th>
-                  <th>Vrsta</th>
-                  <th>Stranica</th>
-                  <th>Rezime</th>
-                  <th class="text-end">Trajanje</th>
-                  <th>Detalji</th>
+                  <th>Time</th>
+                  <th>Type</th>
+                  <th>Page</th>
+                  <th>Summary</th>
+                  <th class="text-end">Duration</th>
+                  <th>Details</th>
                 </tr>
               </thead>
               <tbody>
@@ -348,7 +348,7 @@
                   <td class="small text-muted details-cell">{{ formatDetails(ev) }}</td>
                 </tr>
                 <tr *ngIf="studentDrilldown.recentEvents.length === 0">
-                  <td colspan="6" class="text-muted text-center">Nema dostupnih aktivnosti.</td>
+                  <td colspan="6" class="text-muted text-center">No activity available.</td>
                 </tr>
               </tbody>
             </table>
@@ -359,15 +359,15 @@
 
     <div class="analytics-tab-panel" *ngIf="analyticsTab === 'page'">
       <div class="group-table-card">
-        <h6 class="group-table-title">Korišćenje po stranici</h6>
+        <h6 class="group-table-title">Page-wise usage</h6>
         <div class="table-responsive">
           <table class="table table-sm mb-0">
             <thead>
               <tr>
-                <th>Stranica / funkcija</th>
-                <th class="text-center">Posete</th>
-                <th class="text-center">Učenici</th>
-                <th class="text-end">Vreme</th>
+                <th>Page / feature</th>
+                <th class="text-center">Visits</th>
+                <th class="text-center">Students</th>
+                <th class="text-end">Time</th>
               </tr>
             </thead>
             <tbody>
@@ -378,7 +378,7 @@
                 <td class="text-end">{{ formatMinutes(row.minutes) }}</td>
               </tr>
               <tr *ngIf="pageTimeRows.length === 0">
-                <td colspan="4" class="text-muted text-center">Nema korišćenja stranica u izabranom periodu.</td>
+                <td colspan="4" class="text-muted text-center">No page usage in selected range.</td>
               </tr>
             </tbody>
           </table>
@@ -388,15 +388,15 @@
 
     <div class="analytics-tab-panel" *ngIf="analyticsTab === 'day'">
       <div class="group-table-card">
-        <h6 class="group-table-title">Zbiri po danu</h6>
+        <h6 class="group-table-title">Day-wise totals</h6>
         <div class="table-responsive">
           <table class="table table-sm mb-0">
             <thead>
               <tr>
-                <th>Dan</th>
-                <th class="text-center">Posete</th>
-                <th class="text-center">Učenici</th>
-                <th class="text-end">Vreme</th>
+                <th>Day</th>
+                <th class="text-center">Visits</th>
+                <th class="text-center">Students</th>
+                <th class="text-end">Time</th>
               </tr>
             </thead>
             <tbody>
@@ -407,7 +407,7 @@
                 <td class="text-end">{{ formatMinutes(row.minutes) }}</td>
               </tr>
               <tr *ngIf="dayTimeRows.length === 0">
-                <td colspan="4" class="text-muted text-center">Nema podataka po danu u izabranom periodu.</td>
+                <td colspan="4" class="text-muted text-center">No day-wise data in selected range.</td>
               </tr>
             </tbody>
           </table>
@@ -431,8 +431,8 @@
 
     <div *ngIf="!isLoading && paginatedData.length === 0 && !loadError" class="empty-state text-center py-5">
       <i class="fas fa-inbox fa-3x mb-3"></i>
-      <h5 class="mb-1">Nije pronađena aktivnost</h5>
-      <p class="text-muted mb-0 small">Prilagodite filtere ili opseg datuma. Prijave se čuvaju od kad je evidentiranje omogućeno.</p>
+      <h5 class="mb-1">No activity found</h5>
+      <p class="text-muted mb-0 small">Adjust filters or date range. Logins are stored from when logging was enabled.</p>
     </div>
 
     <div class="grouped-timeline" *ngIf="!isLoading && groupBy !== 'none' && groupedRows.length > 0">
@@ -445,11 +445,11 @@
           <table class="table table-hover table-sm align-middle mb-0">
             <thead>
               <tr>
-                <th>Vreme</th>
-                <th>Vrsta</th>
-                <th>Učenik</th>
-                <th>Rezime</th>
-                <th>Detalji</th>
+                <th>Time</th>
+                <th>Type</th>
+                <th>Student</th>
+                <th>Summary</th>
+                <th>Details</th>
               </tr>
             </thead>
             <tbody>
@@ -476,16 +476,16 @@
                 class="form-check-input"
                 [checked]="allDeletableOnPageSelected()"
                 (change)="toggleSelectAllOnPage($any($event.target).checked)"
-                title="Izaberi redove koji se mogu obrisati na ovoj stranici"
+                title="Select deletable rows on this page"
               />
             </th>
-            <th>Vreme</th>
-            <th>Vrsta</th>
-            <th>Učenik</th>
-            <th>Rezime</th>
-            <th>Detalji</th>
-            <th class="text-center col-actions">Analitika</th>
-            <th class="text-center col-actions" *ngIf="canDeleteActivityRecords">Obriši</th>
+            <th>Time</th>
+            <th>Type</th>
+            <th>Student</th>
+            <th>Summary</th>
+            <th>Details</th>
+            <th class="text-center col-actions">Analytics</th>
+            <th class="text-center col-actions" *ngIf="canDeleteActivityRecords">Delete</th>
           </tr>
         </thead>
         <tbody>
@@ -510,7 +510,7 @@
                 class="btn btn-sm btn-outline-info"
                 (click)="openAnalyticsForStudent(resolveStudentId(ev))"
                 [disabled]="!resolveStudentId(ev)"
-                title="Otvori analitiku"
+                title="Open analytics"
               >
                 <i class="fas fa-chart-line"></i>
               </button>
@@ -521,7 +521,7 @@
                 type="button"
                 class="btn btn-sm btn-outline-danger"
                 (click)="deleteOne(ev)"
-                title="Obriši ovaj zapis"
+                title="Delete this log"
               >
                 <i class="fas fa-trash-alt"></i>
               </button>
@@ -536,13 +536,13 @@
   <nav *ngIf="analyticsTab === 'timeline' && groupBy === 'none' && totalPages > 1" class="d-flex justify-content-center mt-3 mb-5">
     <ul class="pagination">
       <li class="page-item" [class.disabled]="currentPage === 1">
-        <button type="button" class="page-link" (click)="goToPage(currentPage - 1)">Prethodna</button>
+        <button type="button" class="page-link" (click)="goToPage(currentPage - 1)">Previous</button>
       </li>
       <li class="page-item" *ngFor="let page of [].constructor(totalPages); let i = index" [class.active]="currentPage === i + 1">
         <button type="button" class="page-link" (click)="goToPage(i + 1)">{{ i + 1 }}</button>
       </li>
       <li class="page-item" [class.disabled]="currentPage === totalPages">
-        <button type="button" class="page-link" (click)="goToPage(currentPage + 1)">Sledeća</button>
+        <button type="button" class="page-link" (click)="goToPage(currentPage + 1)">Next</button>
       </li>
     </ul>
   </nav>

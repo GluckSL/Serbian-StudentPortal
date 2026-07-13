@@ -32,7 +32,7 @@ function buildInvitationHtml({
   timeZone = DEFAULT_TZ
 }) {
   const st = new Date(startTime);
-  const dateStr = st.toLocaleDateString('sr-Latn-RS', {
+  const dateStr = st.toLocaleDateString('en-US', {
     weekday: 'long',
     year: 'numeric',
     month: 'long',

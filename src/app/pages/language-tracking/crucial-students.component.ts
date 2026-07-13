@@ -240,7 +240,7 @@ export class CrucialStudentsComponent implements OnInit, OnDestroy {
     summary: CrucialStudentsSummary | null,
   ): void {
     const wb = XLSX.utils.book_new();
-    const generatedAt = new Date().toLocaleString('sr-Latn-RS', {
+    const generatedAt = new Date().toLocaleString('en-IN', {
       timeZone: 'Asia/Kolkata', dateStyle: 'medium', timeStyle: 'short',
     });
     const sortLabel = this.sortOptions.find(o => o.value === this.sortBy)?.label || this.sortBy;

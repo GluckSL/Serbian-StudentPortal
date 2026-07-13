@@ -183,7 +183,7 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
   pdfDetectedTypes = false;
 
   targetLanguage = 'German';
-  nativeLanguage = 'Serbian';
+  nativeLanguage = 'English';
   level = 'A1';
   difficulty: 'Beginner' | 'Intermediate' | 'Advanced' = 'Beginner';
 
@@ -272,7 +272,7 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
   readonly levels = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
   readonly difficulties: Array<'Beginner' | 'Intermediate' | 'Advanced'> = ['Beginner', 'Intermediate', 'Advanced'];
   readonly languages = ['German', 'English'];
-  readonly nativeLanguages = ['Serbian', 'English', 'Tamil', 'Sinhala'];
+  readonly nativeLanguages = ['English', 'Tamil', 'Sinhala'];
   readonly categories = ['Grammar', 'Vocabulary', 'Conversation', 'Reading', 'Writing', 'Listening', 'Pronunciation'];
 
   constructor(
@@ -2246,7 +2246,7 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
       title: this.exerciseTitle.trim(),
       description: this.exerciseDescription.trim(),
       targetLanguage: this.targetLanguage as 'German' | 'English',
-      nativeLanguage: this.nativeLanguage as 'Serbian' | 'English' | 'Tamil' | 'Sinhala',
+      nativeLanguage: this.nativeLanguage as 'English' | 'Tamil' | 'Sinhala',
       level: this.level as any,
       category: this.category as any,
       difficulty: this.difficulty,
@@ -2332,7 +2332,7 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
       title: this.exerciseTitle.trim(),
       description: this.exerciseDescription.trim(),
       targetLanguage: this.targetLanguage as 'German' | 'English',
-      nativeLanguage: this.nativeLanguage as 'Serbian' | 'English' | 'Tamil' | 'Sinhala',
+      nativeLanguage: this.nativeLanguage as 'English' | 'Tamil' | 'Sinhala',
       level: this.level as any,
       category: this.category as any,
       difficulty: this.difficulty,

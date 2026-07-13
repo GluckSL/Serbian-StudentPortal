@@ -355,7 +355,7 @@ export class BulkJourneyMeetingComponent implements OnInit {
   formatConflictWhen(conflict: ZoomHostConflict): string {
     const dt = new Date(conflict.startTime);
     if (Number.isNaN(dt.getTime())) return '';
-    const date = dt.toLocaleDateString('sr-Latn-RS', {
+    const date = dt.toLocaleDateString('en-IN', {
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',
@@ -526,7 +526,7 @@ export class BulkJourneyMeetingComponent implements OnInit {
       this.errorMessage = 'No class dates in preview.';
       return false;
     }
-    this.previewSavedAt = new Date().toLocaleString('sr-Latn-RS', {
+    this.previewSavedAt = new Date().toLocaleString('en-IN', {
       timeZone: 'Asia/Kolkata',
       dateStyle: 'medium',
       timeStyle: 'short'
@@ -695,7 +695,7 @@ export class BulkJourneyMeetingComponent implements OnInit {
 
   /** “Today” in India Standard Time — shown on the schedule step. */
   istTodayDisplay(): string {
-    return new Date().toLocaleString('sr-Latn-RS', {
+    return new Date().toLocaleString('en-IN', {
       timeZone: 'Asia/Kolkata',
       weekday: 'long',
       year: 'numeric',
@@ -717,7 +717,7 @@ export class BulkJourneyMeetingComponent implements OnInit {
   rowWeekday(row: JourneyScheduleRow): string {
     const ms = this.slotMs(row.startTime);
     if (!Number.isFinite(ms)) return '—';
-    return new Date(ms).toLocaleDateString('sr-Latn-RS', {
+    return new Date(ms).toLocaleDateString('en-US', {
       weekday: 'long',
       timeZone: 'Asia/Kolkata'
     });
@@ -726,7 +726,7 @@ export class BulkJourneyMeetingComponent implements OnInit {
   rowDate(row: { startTime: string }): string {
     const ms = this.slotMs(row.startTime);
     if (!Number.isFinite(ms)) return '—';
-    return new Date(ms).toLocaleDateString('sr-Latn-RS', {
+    return new Date(ms).toLocaleDateString('en-GB', {
       timeZone: 'Asia/Kolkata',
       day: '2-digit',
       month: 'short',

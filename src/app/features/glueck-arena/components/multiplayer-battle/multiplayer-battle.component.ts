@@ -1,4 +1,4 @@
-﻿import { Component, OnDestroy, OnInit } from '@angular/core';
+import { Component, OnDestroy, OnInit } from '@angular/core';
 
 import { CommonModule } from '@angular/common';
 
@@ -84,15 +84,15 @@ import {
 
         <button mat-icon-button routerLink="/glueck-arena/multiplayer"><mat-icon>arrow_back</mat-icon></button>
 
-        <h1>Bitka · {{ roomCode }}</h1>
+        <h1>Battle · {{ roomCode }}</h1>
 
-        <span class="mpb__net" [attr.data-q]="networkQuality" matTooltip="Kvalitet veze">
+        <span class="mpb__net" [attr.data-q]="networkQuality" matTooltip="Connection quality">
 
           <mat-icon>{{ networkQuality === 'good' ? 'wifi' : networkQuality === 'fair' ? 'network_wifi_2_bar' : 'network_wifi_1_bar' }}</mat-icon>
 
         </span>
 
-        <button mat-icon-button (click)="copyInvite()" matTooltip="Kopiraj pozivnicu"><mat-icon>share</mat-icon></button>
+        <button mat-icon-button (click)="copyInvite()" matTooltip="Copy invite"><mat-icon>share</mat-icon></button>
 
       </div>
 
@@ -102,13 +102,13 @@ import {
 
         <mat-spinner diameter="40"></mat-spinner>
 
-        <p>Povezivanje s arenom…</p>
+        <p>Connecting to arena…</p>
 
       </div>
 
       <div class="mpb__reconnect" *ngIf="reconnecting">
 
-        <mat-icon class="mpb__spin">sync</mat-icon> Ponovo se povezuje…
+        <mat-icon class="mpb__spin">sync</mat-icon> Reconnecting…
 
       </div>
 
@@ -130,7 +130,7 @@ import {
 
       <div class="mpb__lobby" *ngIf="phase === 'lobby' && room">
 
-        <h3>{{ gameLabel }} · Igrači ({{ room.players.length }}/{{ room.maxPlayers }})</h3>
+        <h3>{{ gameLabel }} · Players ({{ room.players.length }}/{{ room.maxPlayers }})</h3>
 
         <div class="mpb__player" *ngFor="let p of room.players">
 
@@ -148,13 +148,13 @@ import {
 
           <button mat-raised-button color="primary" (click)="toggleReady()">
 
-            {{ iAmReady ? 'Nisam spreman' : 'Spreman' }}
+            {{ iAmReady ? 'Unready' : 'Ready' }}
 
           </button>
 
           <button mat-raised-button color="accent" *ngIf="isHost" (click)="start()" [disabled]="!allReady">
 
-            Počni bitku
+            Start battle
 
           </button>
 
@@ -168,7 +168,7 @@ import {
 
         <div class="mpb__countdown-num">{{ countdown }}</div>
 
-        <p>Spremi se!</p>
+        <p>Get ready!</p>
 
       </div>
 
@@ -310,7 +310,7 @@ import {
 
         <mat-spinner diameter="32"></mat-spinner>
 
-        <p>Učitavanje sledeće runde…</p>
+        <p>Loading next round…</p>
 
       </div>
 
@@ -320,7 +320,7 @@ import {
 
         <app-confetti-burst [active]="true"></app-confetti-burst>
 
-        <h2>Pobeda!</h2>
+        <h2>Victory!</h2>
 
         <div class="mpb__podium">
 
@@ -334,7 +334,7 @@ import {
 
             <strong>{{ r.name }}</strong>
 
-            <span>{{ r.score }} poena</span>
+            <span>{{ r.score }} pts</span>
 
           </div>
 
@@ -342,9 +342,9 @@ import {
 
         <div class="mpb__actions">
 
-          <button mat-raised-button color="primary" (click)="rematch()">Ponovi</button>
+          <button mat-raised-button color="primary" (click)="rematch()">Rematch</button>
 
-          <button mat-stroked-button routerLink="/glueck-arena">Nazad na igre</button>
+          <button mat-stroked-button routerLink="/glueck-arena">Back to games</button>
 
         </div>
 
@@ -456,7 +456,7 @@ export class MultiplayerBattleComponent implements OnInit, OnDestroy {
 
     if (this.room?.gameType === 'jumbled_words') return 'Jumbled Words';
 
-    return 'Bitka';
+    return 'Battle';
 
   }
 
@@ -738,7 +738,7 @@ export class MultiplayerBattleComponent implements OnInit, OnDestroy {
 
     navigator.clipboard?.writeText(url);
 
-    this.notify.success('Link za pozivnicu kopiran!');
+    this.notify.success('Invite link copied!');
 
   }
 

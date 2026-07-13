@@ -503,7 +503,7 @@ export class TeacherAnalyticsOverviewComponent implements OnInit {
   private formatMonthLabel(month: string): string {
     const [year, monthNumber] = month.split('-').map(Number);
     if (!year || !monthNumber) return month;
-    return new Date(year, monthNumber - 1, 1).toLocaleString('sr-Latn-RS', {
+    return new Date(year, monthNumber - 1, 1).toLocaleString('en-US', {
       month: 'long',
       year: 'numeric',
     });

@@ -1,4 +1,4 @@
-﻿import {
+import {
   Component, Input, Output, EventEmitter, OnInit, OnDestroy, HostListener, ChangeDetectorRef,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
@@ -44,14 +44,14 @@ const DEFAULT_SETTINGS: GenderStackSettings = {
   template: `
     <div class="gs">
       <header class="gs__hud">
-        <div class="gs__lives" aria-label="Životi">
+        <div class="gs__lives" aria-label="Lives">
           <mat-icon
             *ngFor="let h of lifeSlots"
             class="gs__heart"
             [class.gs__heart--off]="h > lives">favorite</mat-icon>
         </div>
         <div class="gs__score">{{ score }}</div>
-        <button mat-icon-button type="button" (click)="onPause()" aria-label="Pauza">
+        <button mat-icon-button type="button" (click)="onPause()" aria-label="Pause">
           <mat-icon>pause</mat-icon>
         </button>
       </header>
@@ -63,7 +63,7 @@ const DEFAULT_SETTINGS: GenderStackSettings = {
         <div class="gs__cloud gs__cloud--3"></div>
 
         <div class="gs__ceiling" [class.gs__ceiling--danger]="totalBlocks >= MAX_STACK - 1">
-          <span *ngIf="totalBlocks >= MAX_STACK - 1">Gomila je skoro puna!</span>
+          <span *ngIf="totalBlocks >= MAX_STACK - 1">Stack almost full!</span>
         </div>
 
         <div class="gs__playfield" [style.height.px]="playfieldHeight">
@@ -89,7 +89,7 @@ const DEFAULT_SETTINGS: GenderStackSettings = {
         </div>
 
         <div class="gs__shelf"></div>
-        <p class="gs__hint">Prevucite reč na DER, DIE ili DAS</p>
+        <p class="gs__hint">Drag a word onto DER, DIE, or DAS</p>
         <div class="gs__controls">
           <button
             type="button"
@@ -136,15 +136,15 @@ const DEFAULT_SETTINGS: GenderStackSettings = {
       </div>
 
       <div class="gs__overlay gs__overlay--dim" *ngIf="phase === 'paused'">
-        <button class="gs__play-btn" type="button" (click)="resume()" aria-label="Nastavi">
+        <button class="gs__play-btn" type="button" (click)="resume()" aria-label="Resume">
           <mat-icon>play_arrow</mat-icon>
         </button>
       </div>
 
       <div class="gs__overlay gs__overlay--dim" *ngIf="phase === 'gameover'">
         <mat-icon>{{ won ? 'emoji_events' : 'heart_broken' }}</mat-icon>
-        <h3>{{ won ? 'Odlično!' : 'Gomila se prelila!' }}</h3>
-        <p>Rezultat: {{ score }} · {{ accuracy }}% tačnost</p>
+        <h3>{{ won ? 'Great job!' : 'Stack overflow!' }}</h3>
+        <p>Score: {{ score }} · {{ accuracy }}% accuracy</p>
       </div>
 
       <app-xp-float [xp]="xpBurst" [trigger]="xpTrigger"></app-xp-float>
@@ -597,7 +597,7 @@ export class GenderStackComponent implements OnInit, OnDestroy {
           this.xpTrigger++;
           this.audio.playXpGain();
           this.removeBlock(live.uid);
-          this.showFeedback(true, 'Tačno!');
+          this.showFeedback(true, 'Correct!');
           this.checkWin();
         } else {
           this.audio.playWrong();
@@ -621,7 +621,7 @@ export class GenderStackComponent implements OnInit, OnDestroy {
       },
       error: (err) => {
         this.busy = false;
-        const msg = err?.error?.message || 'Nije moguće poslati — pokušajte ponovo';
+        const msg = err?.error?.message || 'Could not submit — try again';
         this.showFeedback(false, msg);
         this.cdr.markForCheck();
       },

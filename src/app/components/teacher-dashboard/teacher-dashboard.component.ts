@@ -1,4 +1,4 @@
-﻿// src/app/components/teacher-dashboard/teacher-dashboard.component.ts
+// src/app/components/teacher-dashboard/teacher-dashboard.component.ts
 
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
@@ -100,7 +100,7 @@ export class TeacherDashboardComponent implements OnInit {
   // Format date for display
   formatDate(date: string | Date | null | undefined): string {
     if (!date) return 'Never';
-    return new Date(date).toLocaleDateString('sr-Latn-RS', {
+    return new Date(date).toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'short',
       day: 'numeric'

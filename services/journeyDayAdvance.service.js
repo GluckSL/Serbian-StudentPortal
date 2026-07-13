@@ -412,7 +412,7 @@ async function applyJourneyDayRollovers() {
   // Compute "today" in the rollover timezone so batchStartDate calendar-day calculations
   // use the IST date (not UTC, which is still the previous day at midnight IST).
   const ROLLOVER_TZ = process.env.JOURNEY_ROLLOVER_TZ || 'Asia/Colombo';
-  const todayStrInTz = new Date().toLocaleDateString('sr-Latn-RS', { timeZone: ROLLOVER_TZ }); // "YYYY-MM-DD"
+  const todayStrInTz = new Date().toLocaleDateString('en-CA', { timeZone: ROLLOVER_TZ }); // "YYYY-MM-DD"
   const rolloverNow = new Date(todayStrInTz + 'T00:00:00Z');
 
   const configCache = new Map();

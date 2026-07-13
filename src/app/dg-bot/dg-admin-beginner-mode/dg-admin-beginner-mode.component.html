@@ -24,21 +24,21 @@
 
     <div class="text-center py-5" *ngIf="loading">
       <div class="spinner-border text-primary" role="status"></div>
-      <p class="mt-3 mb-0 text-muted small">U?itavanje?</p>
+      <p class="mt-3 mb-0 text-muted small">Loading…</p>
     </div>
 
     <div class="dg-bm-card card" *ngIf="!loading && moduleId">
       <div class="dg-bm-card__header card-header">
         <div class="dg-bm-card__header-text">
-          <h4 class="mb-1">?? Po?etni Mod</h4>
+          <h4 class="mb-1">🎯 Beginner Mode</h4>
           <p class="mb-0 text-muted small">{{ moduleTitle }}</p>
           <p class="mb-0 dg-bm-card__lead">
-            Izgradite kratke korake govora za Olly-a. Svako pitanje mo?e imati svoju sliku ? odli?no za azbuku, brojeve i re?nik.
+            Build short speaking steps for Olly. Each question can have its own picture — great for alphabet, numbers, and vocabulary.
           </p>
         </div>
         <div class="dg-bm-card__header-actions">
           <button type="button" class="btn btn-outline-secondary btn-sm" (click)="goBack()">
-            <i class="fas fa-arrow-left me-1"></i> Nazad na modul
+            <i class="fas fa-arrow-left me-1"></i> Back to module
           </button>
         </div>
       </div>
@@ -46,20 +46,20 @@
       <div class="card-body">
         <!-- Session intro -->
         <section class="dg-bm-section">
-          <label class="dg-bm-label">Pozdrav sesije <span class="text-muted fw-normal">(opcionalno)</span></label>
+          <label class="dg-bm-label">Session greeting <span class="text-muted fw-normal">(optional)</span></label>
           <textarea
             class="form-control"
             rows="2"
             [(ngModel)]="sessionIntro"
             name="sessionIntro"
-            placeholder="npr. Hallo! I'm Olly. Let's practice German together ? one short step at a time."
+            placeholder="e.g. Hallo! I'm Olly. Let's practice German together — one short step at a time."
           ></textarea>
-          <small class="text-muted">Olly mo?e ovo koristiti kada student po?ne. Neka bude kratko.</small>
+          <small class="text-muted">Olly may use this when the student starts. Keep it short.</small>
         </section>
 
         <!-- Grading threshold -->
         <section class="dg-bm-section">
-          <label class="dg-bm-label">Prag ocenjivanja odgovora</label>
+          <label class="dg-bm-label">Answer grading threshold</label>
           <div class="row g-2 align-items-center">
             <div class="col-12 col-md-4">
               <div class="input-group">
@@ -77,9 +77,9 @@
             </div>
             <div class="col-12 col-md-8">
               <small class="text-muted">
-                AI ocenjuje svaki odgovor studenta u pore?enju sa o?ekivanim odgovorom (0?100).
-                Student mora dosti?i najmanje ovaj rezultat da bi pre?ao dalje.
-                Podrazumevano: <strong>75%</strong>.
+                AI grades each student answer against the expected answer (0–100).
+                The student must reach at least this score to move on.
+                Default: <strong>75%</strong>.
               </small>
             </div>
           </div>
@@ -87,34 +87,34 @@
 
         <!-- Target batches -->
         <section class="dg-bm-section">
-          <h5 class="mb-2">Ciljne grupe</h5>
+          <h5 class="mb-2">Target batches</h5>
           <p class="text-muted small mb-3">
-            Izaberite koje grupe mogu videti ovaj modul. Ostavite prazno da prika?ete <strong>svim</strong> aktivnim grupama
-            (jo? uvek ograni?eno danom putovanja i vidljivo??u).
+            Choose which batches can see this module. Leave empty to show it to <strong>all</strong> active batches
+            (still gated by journey day and visibility).
           </p>
-          <label class="dg-bm-label">Dodaj grupu</label>
+          <label class="dg-bm-label">Add batch</label>
           <select
             class="form-select mb-2"
             [(ngModel)]="batchToAdd"
             name="batchToAdd"
             (change)="onBatchDropdownChange()"
           >
-            <option value="">Izaberite grupu?</option>
+            <option value="">Select batch…</option>
             <option *ngFor="let b of batches" [value]="b.batchName">{{ b.batchName }}</option>
           </select>
-          <small class="text-muted d-block mb-2">Grupe se u?itavaju iz Putovanja.</small>
-          <label class="dg-bm-label">Izabrane grupe</label>
-          <div *ngIf="targetBatches.length === 0" class="text-muted small">Nijedna grupa nije izabrana (vidljivo svima).</div>
+          <small class="text-muted d-block mb-2">Batches are loaded from Journey.</small>
+          <label class="dg-bm-label">Selected batches</label>
+          <div *ngIf="targetBatches.length === 0" class="text-muted small">No batch selected (visible to all).</div>
           <div class="d-flex flex-wrap gap-2" *ngIf="targetBatches.length > 0">
             <span *ngFor="let t of targetBatches" class="badge bg-primary d-inline-flex align-items-center gap-2">
               {{ t }}
-              <button type="button" class="btn btn-sm btn-light py-0 px-1" (click)="removeBatch(t)" aria-label="Ukloni grupu">
-                �
+              <button type="button" class="btn btn-sm btn-light py-0 px-1" (click)="removeBatch(t)" aria-label="Remove batch">
+                ×
               </button>
             </span>
           </div>
           <button type="button" class="btn btn-sm btn-outline-secondary mt-2" (click)="clearBatches()" [disabled]="targetBatches.length === 0">
-            Obri?i sve grupe
+            Clear all batches
           </button>
         </section>
 
@@ -122,22 +122,22 @@
         <section class="dg-bm-section">
           <div class="dg-bm-section__head">
             <div>
-              <h5 class="mb-1">Pitanja za Olly-a</h5>
+              <h5 class="mb-1">Questions for Olly</h5>
               <p class="text-muted small mb-0">
-                Dodajte jedno pitanje odjednom. Prilo?ite sliku kada Olly treba da pita "?ta vidi??" ili u?i re?.
+                Add one question at a time. Attach a picture when Olly should ask “What do you see?” or teach a word.
               </p>
             </div>
             <button type="button" class="btn btn-primary btn-sm dg-bm-add-btn" (click)="addQuestion()">
-              <i class="fas fa-plus me-1"></i> Dodaj pitanje
+              <i class="fas fa-plus me-1"></i> Add question
             </button>
           </div>
 
           <div *ngIf="questions.length === 0" class="dg-bm-empty">
             <i class="fas fa-comments fa-3x text-muted mb-3"></i>
-            <p class="fw-semibold mb-1">Jo? nema pitanja</p>
-            <p class="text-muted small mb-3">Kliknite <strong>Dodaj pitanje</strong> da kreirate prvi korak.</p>
+            <p class="fw-semibold mb-1">No questions yet</p>
+            <p class="text-muted small mb-3">Click <strong>Add question</strong> to create your first step.</p>
             <button type="button" class="btn btn-outline-primary" (click)="addQuestion()">
-              <i class="fas fa-plus me-1"></i> Dodaj prvo pitanje
+              <i class="fas fa-plus me-1"></i> Add first question
             </button>
           </div>
 
@@ -148,17 +148,17 @@
               cdkDrag
             >
               <div class="dg-bm-q__toolbar">
-                <span class="dg-bm-q__num" cdkDragHandle title="Prevucite za promenu redosleda">
+                <span class="dg-bm-q__num" cdkDragHandle title="Drag to reorder">
                   <i class="fas fa-grip-vertical me-1"></i> Q{{ i + 1 }}
                 </span>
                 <div class="dg-bm-q__tools">
-                  <button type="button" class="btn btn-sm btn-light" (click)="moveQuestion(i, -1)" [disabled]="i === 0" aria-label="Pomeri gore">
+                  <button type="button" class="btn btn-sm btn-light" (click)="moveQuestion(i, -1)" [disabled]="i === 0" aria-label="Move up">
                     <i class="fas fa-chevron-up"></i>
                   </button>
-                  <button type="button" class="btn btn-sm btn-light" (click)="moveQuestion(i, 1)" [disabled]="i === questions.length - 1" aria-label="Pomeri dole">
+                  <button type="button" class="btn btn-sm btn-light" (click)="moveQuestion(i, 1)" [disabled]="i === questions.length - 1" aria-label="Move down">
                     <i class="fas fa-chevron-down"></i>
                   </button>
-                  <button type="button" class="btn btn-sm btn-outline-danger" (click)="removeQuestion(i)" aria-label="Ukloni">
+                  <button type="button" class="btn btn-sm btn-outline-danger" (click)="removeQuestion(i)" aria-label="Remove">
                     <i class="fas fa-trash"></i>
                   </button>
                 </div>
@@ -167,12 +167,12 @@
               <div class="dg-bm-q__body">
                 <!-- Image -->
                 <div class="dg-bm-q__image-block">
-                  <label class="dg-bm-label">Slika za ovo pitanje</label>
+                  <label class="dg-bm-label">Picture for this question</label>
                   <div class="dg-bm-q__image-drop" [class.dg-bm-q__image-drop--has-img]="q.imageUrl">
-                    <img *ngIf="q.imageUrl" [src]="imagePreviewUrl(q.imageUrl)" alt="Pregled pitanja" class="dg-bm-q__preview" />
+                    <img *ngIf="q.imageUrl" [src]="imagePreviewUrl(q.imageUrl)" alt="Question image" class="dg-bm-q__preview" />
                     <div *ngIf="!q.imageUrl" class="dg-bm-q__image-placeholder">
                       <i class="fas fa-image fa-2x text-muted mb-2"></i>
-                      <span class="small text-muted">Bez slike ? pitanje samo sa tekstom je u redu</span>
+                      <span class="small text-muted">No image — text-only question is OK</span>
                     </div>
                   </div>
                   <div class="dg-bm-q__image-actions">
@@ -191,10 +191,10 @@
                     >
                       <span *ngIf="uploadingIndex === i" class="spinner-border spinner-border-sm me-1"></span>
                       <i class="fas fa-upload me-1" *ngIf="uploadingIndex !== i"></i>
-                      {{ uploadingIndex === i ? 'Otpremanje?' : 'Otpremi sliku' }}
+                      {{ uploadingIndex === i ? 'Uploading…' : 'Upload picture' }}
                     </button>
                     <button type="button" class="btn btn-outline-secondary btn-sm" *ngIf="q.imageUrl" (click)="clearImage(i)">
-                      Ukloni sliku
+                      Remove picture
                     </button>
                   </div>
                   <input
@@ -202,41 +202,41 @@
                     class="form-control form-control-sm mt-2"
                     [(ngModel)]="q.imageUrl"
                     [name]="'imgUrl' + i"
-                    placeholder="Ili nalepite URL slike"
+                    placeholder="Or paste image URL"
                   />
                 </div>
 
                 <!-- Question fields -->
                 <div class="dg-bm-q__fields">
                   <div class="mb-3">
-                    <label class="dg-bm-label">?ta Olly treba da pita? *</label>
+                    <label class="dg-bm-label">What should Olly ask? *</label>
                     <textarea
                       class="form-control"
                       rows="2"
                       [(ngModel)]="q.questionText"
                       [name]="'qText' + i"
-                      placeholder='npr. "Schauen wir das Bild an. Was siehst du?" ili "Kako se ka?e dobro jutro na nema?kom?"'
+                      placeholder='e.g. "Schauen wir das Bild an. Was siehst du?" or "How do you say good morning in German?"'
                     ></textarea>
                   </div>
                   <div class="row g-2">
                     <div class="col-12 col-md-6">
-                      <label class="dg-bm-label">O?ekivani odgovor <span class="text-muted fw-normal">(opcionalno)</span></label>
+                      <label class="dg-bm-label">Expected answer <span class="text-muted fw-normal">(optional)</span></label>
                       <input
                         type="text"
                         class="form-control"
                         [(ngModel)]="q.targetAnswer"
                         [name]="'qAns' + i"
-                        placeholder="npr. Guten Morgen"
+                        placeholder="e.g. Guten Morgen"
                       />
                     </div>
                     <div class="col-12 col-md-6">
-                      <label class="dg-bm-label">Nagove?taj za studenta <span class="text-muted fw-normal">(opcionalno)</span></label>
+                      <label class="dg-bm-label">Hint for student <span class="text-muted fw-normal">(optional)</span></label>
                       <input
                         type="text"
                         class="form-control"
                         [(ngModel)]="q.hint"
                         [name]="'qHint' + i"
-                        placeholder="npr. Po?inje sa Guten?"
+                        placeholder="e.g. Starts with Guten…"
                       />
                     </div>
                   </div>
@@ -248,27 +248,27 @@
 
         <!-- Tips -->
         <div class="dg-bm-tips alert alert-light border">
-          <strong><i class="fas fa-lightbulb text-warning me-1"></i> Saveti</strong>
+          <strong><i class="fas fa-lightbulb text-warning me-1"></i> Tips</strong>
           <ul class="mb-0 mt-2 small">
-            <li>Jedno pitanje = jedna ideja. Neka Olly-jeve linije budu ispod 10 re?i kada je mogu?e.</li>
-            <li>Koristite sliku za azbuku, brojeve ili aktivnosti "?ta vidi??".</li>
-            <li>Tipi?na sesija: pozdrav ? 2?3 pitanja sa slikama ? kratak pozdrav na kraju.</li>
+            <li>One question = one idea. Keep Olly's lines under 10 words when possible.</li>
+            <li>Use a picture for alphabet, numbers, or “What do you see?” activities.</li>
+            <li>Typical session: greeting → 2–3 picture questions → short goodbye.</li>
           </ul>
         </div>
 
         <!-- Footer actions -->
         <div class="dg-bm-footer">
           <button type="button" class="btn btn-outline-secondary btn-sm" (click)="disableBeginnerMode()" [disabled]="saving">
-            Isklju?i Po?etni Mod
+            Disable Beginner Mode
           </button>
           <div class="dg-bm-footer__primary">
             <button type="button" class="btn btn-outline-primary btn-sm" (click)="saveAndPreview()" [disabled]="saving || questions.length === 0">
-              <i class="fas fa-play me-1"></i> Sa?uvaj i pregled
+              <i class="fas fa-play me-1"></i> Save &amp; preview
             </button>
             <button type="button" class="btn btn-primary btn-sm" (click)="save()" [disabled]="saving">
               <span *ngIf="saving" class="spinner-border spinner-border-sm me-1"></span>
               <i class="fas fa-save me-1" *ngIf="!saving"></i>
-              {{ saving ? '?uvanje?' : 'Sa?uvaj pitanja' }}
+              {{ saving ? 'Saving…' : 'Save questions' }}
             </button>
           </div>
         </div>

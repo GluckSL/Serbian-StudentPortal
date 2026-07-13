@@ -29,7 +29,7 @@ const { getArenaMediaConfig } = require('../services/interactiveGames/arenaMedia
 
 function serverError(res, err) {
   console.error('[glueck-arena]', err);
-  return res.status(500).json({ success: false, message: err.message || 'Greška servera' });
+  return res.status(500).json({ success: false, message: err.message || 'Server error' });
 }
 
 // ── Streak 2.0 ────────────────────────────────────────────────────────────────
@@ -157,7 +157,7 @@ exports.joinMultiplayerRoom = async (req, res) => {
 exports.getMultiplayerRoom = async (req, res) => {
   try {
     const room = await multiplayerService.getRoomByCode(req.params.code);
-    if (!room) return res.status(404).json({ success: false, message: 'Soba nije pronađena' });
+    if (!room) return res.status(404).json({ success: false, message: 'Room not found' });
     res.json({ success: true, room });
   } catch (err) { serverError(res, err); }
 };
@@ -199,7 +199,7 @@ exports.assignClassroomGame = async (req, res) => {
 exports.getClassroomAnalytics = async (req, res) => {
   try {
     const data = await classroomsService.getClassroomAnalytics(req.user.id, req.params.classroomId);
-    if (!data) return res.status(404).json({ success: false, message: 'Nije pronađeno' });
+    if (!data) return res.status(404).json({ success: false, message: 'Not found' });
     res.json({ success: true, ...data });
   } catch (err) { serverError(res, err); }
 };
@@ -349,7 +349,7 @@ exports.getPremiumStatus = async (req, res) => {
 exports.adminGrantPremium = async (req, res) => {
   try {
     const { studentId, tier, days } = req.body;
-    if (!studentId) return res.status(400).json({ success: false, message: 'studentId je obavezan' });
+    if (!studentId) return res.status(400).json({ success: false, message: 'studentId required' });
     const sub = await premiumService.grantPremium(studentId, { tier, days });
     res.json({ success: true, subscription: sub });
   } catch (err) { serverError(res, err); }
@@ -476,7 +476,7 @@ exports.getRankedLeaderboard = async (req, res) => {
 exports.getTournament = async (req, res) => {
   try {
     const t = await tournamentsService.getTournament(req.params.id);
-    if (!t) return res.status(404).json({ success: false, message: 'Nije pronađeno' });
+    if (!t) return res.status(404).json({ success: false, message: 'Not found' });
     res.json({ success: true, tournament: t });
   } catch (err) { serverError(res, err); }
 };
@@ -520,7 +520,7 @@ exports.adminListTournaments = async (req, res) => {
 exports.getReplay = async (req, res) => {
   try {
     const timeline = await replayService.getReplayTimeline(req.params.idOrToken);
-    if (!timeline) return res.status(404).json({ success: false, message: 'Snimak nije pronađen' });
+    if (!timeline) return res.status(404).json({ success: false, message: 'Replay not found' });
     res.json({ success: true, replay: timeline });
   } catch (err) { serverError(res, err); }
 };
@@ -575,7 +575,7 @@ exports.listBattlefieldRooms = async (req, res) => {
 exports.createBattlefieldRoom = async (req, res) => {
   try {
     const { gameSetId, roomName, isPublic, password, maxPlayers } = req.body;
-    if (!gameSetId) return res.status(400).json({ success: false, message: 'gameSetId je obavezan' });
+    if (!gameSetId) return res.status(400).json({ success: false, message: 'gameSetId required' });
     const result = await battlefieldRoomManager.createRoom(
       req.user.id, req.user.name || 'Player', gameSetId, null,
       { roomName, isPublic, password, maxPlayers }
@@ -595,7 +595,7 @@ exports.joinBattlefieldRoom = async (req, res) => {
       return res.json({ success: true, room: result.room });
     }
     const room = await multiplayerService.getRoomByCode(code);
-    if (!room) return res.status(404).json({ success: false, message: 'Soba nije pronađena' });
+    if (!room) return res.status(404).json({ success: false, message: 'Room not found' });
     const result = await multiplayerService.joinRoom(req.user.id, req.user.name || 'Player', code);
     if (!result.ok) return res.status(400).json({ success: false, message: result.message });
     res.json({ success: true, room: result.room });
@@ -647,17 +647,17 @@ exports.cancelBattlefieldRoom = async (req, res) => {
     const bfRoom = battlefieldRoomManager.getRoom(code);
     if (!bfRoom) return res.status(404).json({ success: false, message: 'Room not found' });
     if (String(bfRoom.hostId) !== String(req.user.id) && !['ADMIN', 'TEACHER_ADMIN'].includes(req.user.role)) {
-      return res.status(403).json({ success: false, message: 'Samo domaćin može otkazati' });
+      return res.status(403).json({ success: false, message: 'Only the host can cancel' });
     }
     battlefieldRoomManager.cancelRoom(code, bfRoom.hostId);
-    res.json({ success: true, message: 'Soba je otkazana' });
+    res.json({ success: true, message: 'Room cancelled' });
   } catch (err) { serverError(res, err); }
 };
 
 exports.getTeamBattleScorecard = async (req, res) => {
   try {
     const battle = await teamBattleService.getScorecard(req.params.id);
-    if (!battle) return res.status(404).json({ success: false, message: 'Nije pronađeno' });
+    if (!battle) return res.status(404).json({ success: false, message: 'Not found' });
     res.json({ success: true, battle });
   } catch (err) { serverError(res, err); }
 };
@@ -673,16 +673,16 @@ exports.deleteTeamBattle = async (req, res) => {
   try {
     const result = await teamBattleService.deleteTeamBattle(req.params.id);
     if (!result.ok) return res.status(404).json({ success: false, message: result.message });
-    res.json({ success: true, message: 'Timska bitka je obrisana' });
+    res.json({ success: true, message: 'Team battle deleted' });
   } catch (err) { serverError(res, err); }
 };
 
 exports.cancelTeamBattle = async (req, res) => {
   try {
     const battle = await require('../models/BattlefieldTeamBattle').findById(req.params.id);
-    if (!battle) return res.status(404).json({ success: false, message: 'Nije pronađeno' });
+    if (!battle) return res.status(404).json({ success: false, message: 'Not found' });
     if (String(battle.createdBy) !== String(req.user.id) && !['ADMIN', 'TEACHER_ADMIN', 'TEACHER'].includes(req.user.role)) {
-      return res.status(403).json({ success: false, message: 'Neovlašćen pristup' });
+      return res.status(403).json({ success: false, message: 'Unauthorized' });
     }
 
     // Cancel the in-memory room if it exists

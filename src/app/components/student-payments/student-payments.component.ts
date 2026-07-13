@@ -1,4 +1,4 @@
-﻿import { Component, OnInit } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
@@ -95,18 +95,18 @@ export class StudentPaymentsComponent implements OnInit {
           const rzp = new Razorpay(options);
           rzp.on('payment.failed', () => {
             this.payActionLoading[invoice._id] = false;
-            this.showToast('Plaćanje nije uspelo. Pokušajte ponovo.', 'error');
+            this.showToast('Payment failed. Please try again.', 'error');
           });
           rzp.open();
         },
         error: (err) => {
           this.payActionLoading[invoice._id] = false;
-          this.showToast(err?.error?.message || 'Nije moguće pokrenuti plaćanje. Pokušajte ponovo.', 'error');
+          this.showToast(err?.error?.message || 'Could not initiate payment. Please try again.', 'error');
         }
       });
     }).catch(() => {
       this.payActionLoading[invoice._id] = false;
-      this.showToast('Nije moguće učitati platni gateway. Proverite internet konekciju.', 'error');
+      this.showToast('Failed to load payment gateway. Check your internet connection.', 'error');
     });
   }
 
@@ -119,13 +119,13 @@ export class StudentPaymentsComponent implements OnInit {
     }).subscribe({
       next: () => {
         this.payActionLoading[invoice._id] = false;
-        this.showToast('Plaćanje primljeno! Čeka se potvrda administratora.', 'success');
+        this.showToast('Payment received! Awaiting admin confirmation.', 'success');
         this.loadSubmissions();
         this.loadPaymentData();
       },
       error: (err) => {
         this.payActionLoading[invoice._id] = false;
-        this.showToast(err?.error?.message || 'Verifikacija plaćanja nije uspela. Kontaktirajte podršku.', 'error');
+        this.showToast(err?.error?.message || 'Payment verification failed. Contact support.', 'error');
       }
     });
   }
@@ -169,7 +169,7 @@ export class StudentPaymentsComponent implements OnInit {
       this.manualForm.proofFile = null;
       input.value = '';
       this.showToast(
-        file.size > 5 * 1024 * 1024 ? 'Fajl mora biti 5 MB ili manji.' : 'Izaberite fotografiju ili PDF.',
+        file.size > 5 * 1024 * 1024 ? 'File must be 5 MB or smaller.' : 'Please choose a photo or PDF.',
         'error',
       );
       return;
@@ -194,12 +194,12 @@ export class StudentPaymentsComponent implements OnInit {
       next: () => {
         this.manualSubmitting = false;
         this.closeManualModal();
-        this.showToast('Dokaz o plaćanju poslat! Čeka se potvrda administratora.', 'success');
+        this.showToast('Payment proof submitted! Awaiting admin confirmation.', 'success');
         this.loadSubmissions();
       },
       error: (err) => {
         this.manualSubmitting = false;
-        this.showToast(err?.error?.message || 'Slanje nije uspelo. Pokušajte ponovo.', 'error');
+        this.showToast(err?.error?.message || 'Failed to submit. Please try again.', 'error');
       }
     });
   }
@@ -227,10 +227,10 @@ export class StudentPaymentsComponent implements OnInit {
 
   submissionStatusLabel(status: string): string {
     switch (status) {
-      case 'confirmed': return '✓ Plaćanje potvrđeno';
-      case 'processing': return '⏳ Čeka potvrdu (Razorpay)';
-      case 'rejected': return '✗ Prijava odbijena';
-      default: return '🕐 Na pregledu';
+      case 'confirmed': return '✓ Payment Confirmed';
+      case 'processing': return '⏳ Awaiting Confirmation (Razorpay)';
+      case 'rejected': return '✗ Submission Rejected';
+      default: return '🕐 Under Review';
     }
   }
 
@@ -279,11 +279,11 @@ export class StudentPaymentsComponent implements OnInit {
   formatDate(d: string | Date): string {
     if (!d) return '';
     const dt = new Date(d);
-    return dt.toLocaleDateString('sr-Latn-RS', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    return dt.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
   }
 
   formatCurrency(amount: number): string {
     if (!amount && amount !== 0) return '0';
-    return amount.toLocaleString('sr-Latn-RS', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+    return amount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
   }
 }

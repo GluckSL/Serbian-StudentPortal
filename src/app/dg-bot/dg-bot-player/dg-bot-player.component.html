@@ -27,10 +27,16 @@
   <header class="dg-player__top">
     <div class="dg-player__progress-block">
       <div class="dg-player__progress-head">
+        <!--<span class="dg-player__step-pill" *ngIf="conversationMode && (conversationStarted || conversationComplete)">
+          <span *ngIf="conversationStarted && !conversationComplete">
+            {{ formatMmSs(sessionElapsedSec) }} / {{ formatMmSs(conversationMinTargetSeconds) }}
+          </span>
+          <span *ngIf="conversationComplete">Complete!</span>
+        </span>-->
           <div class="dg-player__progress-meta">
             <span class="dg-player__module-title">{{ payload.module.title }}</span>
             <p class="dg-player__progress-note" *ngIf="conversationMode">
-              Vežbajte dok tajmer ne istekne — zatim možete nastaviti ili završiti sesiju.
+              Practice until the timer runs out — then you can continue or end the session.
             </p>
           </div>
           <!-- Countdown timer -->
@@ -40,18 +46,18 @@
                [class.dg-conv__session-timer--overtime]="overtimeMode">
             <div class="dg-conv__session-timer__top">
               <span class="dg-conv__timer-label">
-                <ng-container *ngIf="!conversationStarted">Preostalo vreme</ng-container>
-                <ng-container *ngIf="conversationStarted && !overtimeMode">Preostalo vreme</ng-container>
-                <ng-container *ngIf="overtimeMode">Bonus vreme</ng-container>
+                <ng-container *ngIf="!conversationStarted">Time remaining</ng-container>
+                <ng-container *ngIf="conversationStarted && !overtimeMode">Time remaining</ng-container>
+                <ng-container *ngIf="overtimeMode">Bonus time</ng-container>
               </span>
               <span class="dg-conv__timer-caption dg-conv__timer-caption--muted">
-                Ciljna dužina
+                Target length
               </span>
               <span class="dg-conv__timer-overtime-badge" *ngIf="overtimeMode">
-                +{{ formatMmSs(conversationMinTargetSeconds) }} cilj dostignut ✓
+                +{{ formatMmSs(conversationMinTargetSeconds) }} goal reached ✓
               </span>
               <span class="dg-conv__timer-end-hint" *ngIf="conversationStarted && !conversationComplete && !overtimeMode">
-                Recite <strong>"end"</strong> ili <strong>"beenden"</strong> za zaustavljanje
+                Say <strong>"end"</strong> or <strong>"beenden"</strong> to stop
               </span>
             </div>
             <div class="dg-conv__timer-main">
@@ -82,7 +88,7 @@
           </div>
         </div>
       </div>
-    <div class="dg-player__exit" (click)="exit()" role="button" tabindex="0" aria-label="Izađi">
+    <div class="dg-player__exit" (click)="exit()" role="button" tabindex="0" aria-label="Exit">
       <mat-icon>close</mat-icon>
     </div>
   </header>
@@ -102,9 +108,9 @@
         <!-- Mobile: mic area in char header (big screens: hidden) -->
         <div class="dg-conv__char-header" *ngIf="isMobile">
           <div class="dg-conv__mic-area dg-conv__mic-area--intro">
-            <p class="dg-player__non-practice-text">Govorite za nastavak.</p>
+            <p class="dg-player__non-practice-text">Speak to continue.</p>
           </div>
-          <div class="dg-conv__turn-pill" *ngIf="showStudentTurnUi">VAŠA TURA</div>
+          <div class="dg-conv__turn-pill" *ngIf="showStudentTurnUi">YOUR TURN</div>
         </div>
         <!-- Context image / beginner panel -->
         <ng-container *ngTemplateOutlet="contextPanel"></ng-container>
@@ -127,7 +133,7 @@
               <mat-icon>smart_toy</mat-icon>
             </div>
             <div class="dg-conv__brand-text">
-              <h3>Sesija razgovora</h3>
+              <h3>Conversation Session</h3>
             </div>
           </div>
           <div class="dg-conv__actions-row">
@@ -150,12 +156,12 @@
               (click)="replayTts()"
             >
               <mat-icon>volume_up</mat-icon>
-              Ponovi
+              Replay
             </button>
           </div>
         </header>
         <div class="dg-conv__session-divider">
-          <span>Sesija počela - sada</span>
+          <span>Session started - now</span>
         </div>
 
         <div class="dg-conv__history">
@@ -201,7 +207,7 @@
               {{ statusPillText }}
             </div>
             <p class="dg-conv__mic-hint" *ngIf="conversationStarted && !conversationComplete">
-              🎧 Za najbolje rezultate, koristite slušalice u tihoj prostoriji — posebno za brojeve ili izgovorene reči.
+              🎧 For best results, use a headset in a quiet room — especially for numbers or spelled words.
             </p>
             <app-dg-practice
               #convPractice
@@ -220,7 +226,7 @@
 
             <div class="dg-conv__complete-msg" *ngIf="conversationComplete">
               <mat-icon>check_circle</mat-icon>
-              Razgovor završen!
+              Conversation complete!
             </div>
           </div>
         </div>
@@ -244,7 +250,7 @@
               <mat-icon>smart_toy</mat-icon>
             </div>
             <div class="dg-conv__brand-text">
-              <h3>Sesija razgovora</h3>
+              <h3>Conversation Session</h3>
             </div>
           </div>
           <div class="dg-conv__actions-row">
@@ -267,12 +273,12 @@
               (click)="replayTts()"
             >
               <mat-icon>volume_up</mat-icon>
-              Ponovi
+              Replay
             </button>
           </div>
         </header>
         <div class="dg-conv__session-divider">
-          <span>Sesija počela - sada</span>
+          <span>Session started - now</span>
         </div>
 
         
@@ -290,7 +296,7 @@
             <div class="dg-conv__msg-stack">
               <span class="dg-conv__msg-label" *ngIf="msg.speaker === 'ai'">{{ botDisplayName }}</span>
               <span class="dg-conv__msg-label dg-conv__msg-label--student" *ngIf="msg.speaker === 'student'">{{ studentDisplayName }}</span>
-              <span class="dg-conv__msg-label dg-conv__msg-label--hint" *ngIf="msg.speaker === 'hint'">Nagoveštaj</span>
+              <span class="dg-conv__msg-label dg-conv__msg-label--hint" *ngIf="msg.speaker === 'hint'">Hint</span>
               <div class="dg-conv__msg-bubble" [class.dg-conv__msg-bubble--hint]="msg.speaker === 'hint'">
                 <span class="dg-conv__msg-text" *ngIf="msg.speaker === 'ai'" [innerHTML]="highlightStartCue(msg.text)"></span>
                 <span class="dg-conv__msg-text" *ngIf="msg.speaker === 'student'">{{ msg.text }}</span>
@@ -300,7 +306,7 @@
                   [class.dg-conv__msg-score--pass]="msg.answerPassed"
                   [class.dg-conv__msg-score--fail]="msg.answerPassed === false"
                 >
-                  Ocena: {{ msg.answerScore }}%
+                  Grade: {{ msg.answerScore }}%
                 </span>
                 <div class="dg-conv__hint-de-row" *ngIf="msg.speaker === 'hint'">
                   <span class="dg-conv__msg-text dg-conv__msg-text--hint-de">{{ msg.text }}</span>
@@ -310,8 +316,8 @@
                     class="dg-conv__hint-speak-btn"
                     [disabled]="status === 'speaking' || isAiThinking || isTransitioning"
                     (click)="playHintPronunciation(msg.text)"
-                    aria-label="Reprodukuj izgovor"
-                    title="Reprodukuj izgovor"
+                    aria-label="Play pronunciation"
+                    title="Play pronunciation"
                   >
                     <mat-icon>volume_up</mat-icon>
                   </button>
@@ -347,10 +353,10 @@
           <div class="dg-conv__waiting" *ngIf="chatHistory.length === 0">
             <div class="dg-conv__start-prompt" *ngIf="!conversationStarted">
               <div class="dg-conv__start-icon">🦊</div>
-              <p class="dg-conv__start-heading">Spremi za vežbanje?</p>
+              <p class="dg-conv__start-heading">Ready to practice?</p>
               <p class="dg-conv__start-sub">
-                {{ botDisplayName }} će govoriti nemački — odgovorite na <strong>engleskom</strong>, zatim recite to na nemačkom.
-                Tajmer počinje kada kliknete ispod.
+                {{ botDisplayName }} will speak German — reply in <strong>English</strong>, then say it in German.
+                The timer starts when you click below.
               </p>
               <button
                 mat-flat-button
@@ -360,7 +366,7 @@
                 (click)="onStartConversationClick()"
               >
                 <mat-icon>play_arrow</mat-icon>
-                Počni vežbanje
+                Start Practice
               </button>
             </div>
             <p *ngIf="conversationStarted && displayLine">
@@ -369,15 +375,17 @@
           </div>
         </div>
 
+        <!-- Milestone row hidden; completion is handled by the overlay below -->
+
         <!-- Desktop: mic/practice area in chat footer (mobile: hidden) -->
           <div class="dg-conv__mic-area" *ngIf="!isMobile">
           
             <p class="dg-conv__mic-hint dg-conv__mic-hint--repeat" *ngIf="conversationStarted && !conversationComplete && awaitingGermanRepeat">
-              🎤 Izgovorite nemački izraz prikazan iznad — zatim će {{ botDisplayName }} nastaviti razgovor.
+              🎤 Speak the German phrase shown above — then {{ botDisplayName }} will continue the conversation.
             </p>
             <!-- German repeat banner -->
             <div class="dg-conv__german-repeat-banner" *ngIf="awaitingGermanRepeat">
-              <span class="dg-conv__german-repeat-label">Recite na nemačkom:</span>
+              <span class="dg-conv__german-repeat-label">Say in German:</span>
               <span class="dg-conv__german-repeat-phrase">{{ pendingGermanHint }}</span>
               <button
                 mat-icon-button
@@ -385,8 +393,8 @@
                 class="dg-conv__german-repeat-play"
                 [disabled]="status === 'speaking' || isAiThinking"
                 (click)="playHintPronunciation(pendingGermanHint)"
-                aria-label="Čujte izgovor"
-                title="Čujte izgovor"
+                aria-label="Hear pronunciation"
+                title="Hear pronunciation"
               >
                 <mat-icon>volume_up</mat-icon>
               </button>
@@ -420,7 +428,7 @@
 
           <div class="dg-conv__complete-msg" *ngIf="conversationComplete">
             <mat-icon>check_circle</mat-icon>
-            Razgovor završen!
+            Conversation complete!
           </div>
 
           <!-- Skip button -->
@@ -432,7 +440,7 @@
             [disabled]="status === 'speaking' || isAiThinking"
             (click)="onSkip()"
           >
-            Ne mogu da govorim sada
+            I can't speak right now
           </button>
         </div>
       </main>
@@ -445,18 +453,18 @@
         class="dg-completion-icon"
         [class.dg-completion-icon--progress]="completionPercentage < 100"
       >{{ completionPercentage >= 100 ? 'emoji_events' : 'trending_up' }}</mat-icon>
-      <h2 class="dg-completion-title" *ngIf="completionPercentage >= 100">Čestitamo!</h2>
+      <h2 class="dg-completion-title" *ngIf="completionPercentage >= 100">Congratulations!</h2>
       <h2 class="dg-completion-title dg-completion-title--progress" *ngIf="completionPercentage < 100 && completionPercentage >= 75">
-        Dobar trud — skoro ste tamo!
+        Good effort — almost there!
       </h2>
       <h2 class="dg-completion-title dg-completion-title--progress" *ngIf="completionPercentage < 75">
-        Dobar trud — probajte malo više!
+        Good effort — try a bit more!
       </h2>
       <p class="dg-completion-module-name" *ngIf="completionPercentage >= 100">
-        Završili ste "{{ payload != null ? payload.module.title : '' }}"
+        You completed "{{ payload != null ? payload.module.title : '' }}"
       </p>
       <p class="dg-completion-module-name" *ngIf="completionPercentage < 100">
-        Sesija sačuvana za "{{ payload != null ? payload.module.title : '' }}" — na ste na {{ completionPercentage }}% cilja vežbanja.
+        Session saved for "{{ payload != null ? payload.module.title : '' }}" — you're at {{ completionPercentage }}% of the practice goal.
       </p>
 
       <!-- Completion percentage block -->
@@ -464,14 +472,14 @@
         <div class="dg-completion-pct-ring"
              [class.dg-completion-pct-ring--full]="completionPercentage >= 100">
           <span class="dg-completion-pct-value">{{ completionPercentage }}%</span>
-          <span class="dg-completion-pct-label">Završeno</span>
+          <span class="dg-completion-pct-label">Completed</span>
         </div>
         <p class="dg-completion-pct-msg dg-completion-pct-msg--success" *ngIf="completionPercentage >= 100">
           <mat-icon>check_circle</mat-icon>
-          Potpuno završeno — ovaj modul će se prikazati pod Završeno.
+          Full completion — this module will show under Completed.
         </p>
         <p class="dg-completion-pct-msg dg-completion-pct-msg--partial" *ngIf="completionPercentage < 100">
-          Dostignite <strong>100%</strong> cilja vežbanja (ili završite ceo razgovor) da prebacite ovaj modul u Završeno.
+          Reach <strong>100%</strong> of the practice goal (or finish the full conversation) to move this module to Completed.
         </p>
       </div>
 
@@ -479,28 +487,28 @@
       <p class="dg-completion-motivation">{{ currentMotivationText }}</p>
 
       <p class="dg-completion-tip">
-        Možete kliknuti <strong>Nastavi</strong> za više vežbanja, ili <strong>Završi sesiju</strong> kada završite.
+        You can click <strong>Continue</strong> to practice more, or <strong>End Session</strong> when you are done.
       </p>
 
       <!-- Stats row -->
       <div class="dg-completion-stats">
         <div class="dg-completion-stat">
           <span class="dg-completion-stat__value">{{ formatMmSs(sessionElapsedSec) }}</span>
-          <span class="dg-completion-stat__label">Potrošeno vreme</span>
+          <span class="dg-completion-stat__label">Time Spent</span>
         </div>
         <div class="dg-completion-stat">
           <span class="dg-completion-stat__value">{{ adminVocabCovered.length }}</span>
-          <span class="dg-completion-stat__label">Naučeni rečnik</span>
+          <span class="dg-completion-stat__label">Vocab Learned</span>
         </div>
         <div class="dg-completion-stat">
           <span class="dg-completion-stat__value">{{ adminVocabList.length }}</span>
-          <span class="dg-completion-stat__label">Ukupan rečnik</span>
+          <span class="dg-completion-stat__label">Total Vocab</span>
         </div>
       </div>
 
       <!-- Vocab learned -->
       <div class="dg-vocab-block" *ngIf="adminVocabCovered.length">
-        <p class="dg-vocab-block__title">✅ Rečnik koji ste naučili</p>
+        <p class="dg-vocab-block__title">✅ Vocab You Learned</p>
         <div class="dg-vocab-chips">
           <span class="dg-vocab-chip dg-vocab-chip--covered"
                 *ngFor="let v of adminVocabCovered"
@@ -516,7 +524,7 @@
           [disabled]="isAiThinking || isTransitioning"
           (click)="continueAfterCompletion()"
         >
-          Nastavi
+          Continue
         </button>
         <button
           mat-stroked-button
@@ -524,7 +532,7 @@
           [disabled]="isAiThinking || isTransitioning"
           (click)="endAfterCompletion()"
         >
-          Završi sesiju
+          End Session
         </button>
       </div>
     </div>
@@ -541,16 +549,16 @@
         type="button"
         class="dg-conv__context-img-btn"
         (click)="openContextImageFullscreen()"
-        aria-label="Dodirnite za prikaz slike na punom ekranu"
+        aria-label="Tap to view image full screen"
       >
         <img
           [src]="beginnerContextImageUrl"
-          alt="Kontekst sesije"
+          alt="Session context"
           class="dg-conv__context-img"
         />
         <span class="dg-conv__context-tap-hint">
           <mat-icon aria-hidden="true">zoom_out_map</mat-icon>
-          Dodirnite sliku za prikaz na punom ekranu
+          Tap image to view full screen
         </span>
       </button>
       <p *ngIf="!beginnerContextImageUrl && beginnerContextCaption" class="dg-conv__context-caption">
@@ -570,26 +578,26 @@
     (click)="closeContextImageFullscreen()"
     role="dialog"
     aria-modal="true"
-    aria-label="Slika na punom ekranu"
+    aria-label="Full screen image"
   >
     <div class="dg-context-fs__toolbar" (click)="$event.stopPropagation()">
       <button
         type="button"
         class="dg-context-fs__close"
         (click)="closeContextImageFullscreen()"
-        aria-label="Zatvori prikaz na punom ekranu"
+        aria-label="Close full screen"
       >
         <span class="dg-context-fs__close-glyph" aria-hidden="true">✕</span>
-        <span class="dg-context-fs__close-label">Zatvori</span>
+        <span class="dg-context-fs__close-label">Close</span>
       </button>
     </div>
     <div class="dg-context-fs__frame" (click)="$event.stopPropagation()">
       <img
         [src]="beginnerContextImageUrl"
-        alt="Prikaz na punom ekranu"
+        alt="Full screen view"
         class="dg-context-fs__img"
       />
     </div>
-    <p class="dg-context-fs__footer-hint">Dodirnite spolja ili Zatvori za izlaz</p>
+    <p class="dg-context-fs__footer-hint">Tap outside or Close to exit</p>
   </div>
 </div><!-- /dg-player -->

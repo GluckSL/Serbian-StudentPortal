@@ -33,23 +33,23 @@ export interface UploadDialogData {
     <div class="ud-dialog">
       <h2 class="ud-title">
         <mat-icon>upload_file</mat-icon>
-        Otpremi snimak ekrana plaćanja
+        Upload Payment Screenshot
       </h2>
       <p class="ud-subtitle">
         {{ data.request.paymentType }}<span *ngIf="data.request.customType"> — {{ data.request.customType }}</span>
         &bull; {{ data.request.currency }} {{ fmt(data.installmentNumber ? (data.suggestedAmount ?? data.request.amount) : data.request.amount) }}
         <ng-container *ngIf="data.installmentNumber">
-          &bull; Rata {{ data.installmentNumber }}<ng-container *ngIf="data.request.totalInstallments"> od {{ data.request.totalInstallments }}</ng-container>
+          &bull; Installment {{ data.installmentNumber }}<ng-container *ngIf="data.request.totalInstallments"> of {{ data.request.totalInstallments }}</ng-container>
         </ng-container>
-        &bull; Rok {{ fmtDate(data.installmentNumber && data.suggestedDueDate ? data.suggestedDueDate : data.request.dueDate) }}
+        &bull; Due {{ fmtDate(data.installmentNumber && data.suggestedDueDate ? data.suggestedDueDate : data.request.dueDate) }}
       </p>
 
       <label class="ud-file-zone" [class.ud-file-selected]="selectedFile" for="paymentProofFile" (dragover)="$event.preventDefault()" (drop)="onDrop($event)">
         <input id="paymentProofFile" type="file" accept="image/jpeg,image/jpg,image/png,image/webp,image/heic,image/heif,application/pdf,.pdf,image/*" (change)="onFileSelect($event)" class="ud-file-input-offscreen" />
         <mat-icon class="ud-file-icon">{{ selectedFile ? 'check_circle' : 'cloud_upload' }}</mat-icon>
         <div *ngIf="!selectedFile">
-          <div class="ud-file-label">Kliknite ili prevucite za otpremanje snimka ekrana</div>
-          <div class="ud-file-hint">JPG, PNG, HEIC, PDF — maks. 15 MB</div>
+          <div class="ud-file-label">Click or drag to upload screenshot</div>
+          <div class="ud-file-hint">JPG, PNG, HEIC, PDF — max 15 MB</div>
         </div>
         <div *ngIf="selectedFile" class="ud-file-name">
           {{ selectedFile.name }} ({{ (selectedFile.size / 1024).toFixed(0) }} KB)
@@ -58,13 +58,13 @@ export interface UploadDialogData {
 
       <div class="ud-form-row">
         <mat-form-field appearance="outline" class="ud-field">
-          <mat-label>Ukupno plaćeni iznos</mat-label>
+          <mat-label>Total paid amount</mat-label>
           <input matInput type="number" [(ngModel)]="paidAmount" min="1" required />
-          <mat-hint>Unesite iznos koji ste zapravo preneli (delimično je OK)</mat-hint>
+          <mat-hint>Enter the amount you actually transferred (partial OK)</mat-hint>
         </mat-form-field>
 
         <mat-form-field appearance="outline" class="ud-field">
-          <mat-label>Valuta</mat-label>
+          <mat-label>Currency</mat-label>
           <mat-select [(ngModel)]="currency">
             <mat-option value="LKR">LKR</mat-option>
             <mat-option value="INR">INR</mat-option>
@@ -75,37 +75,37 @@ export interface UploadDialogData {
 
       <div class="ud-form-row">
         <mat-form-field appearance="outline" class="ud-field">
-          <mat-label>Datum i vreme plaćanja</mat-label>
+          <mat-label>Date &amp; time of payment</mat-label>
           <input matInput type="datetime-local" [(ngModel)]="paymentDateTimeLocal" required />
         </mat-form-field>
 
         <mat-form-field appearance="outline" class="ud-field">
-          <mat-label>Ime vlasnika računa</mat-label>
-          <input matInput [(ngModel)]="accountHolderName" placeholder="Ime na bankovnom / UPI računu" required />
+          <mat-label>Account holder name</mat-label>
+          <input matInput [(ngModel)]="accountHolderName" placeholder="Name on bank / UPI" required />
         </mat-form-field>
       </div>
 
       <div class="ud-field-block" (click)="$event.stopPropagation()">
-        <label class="ud-native-label" for="udPayMethod">Metoda plaćanja</label>
+        <label class="ud-native-label" for="udPayMethod">Payment method</label>
         <select id="udPayMethod" class="ud-native-select" name="paymentMethod" [(ngModel)]="paymentMethod">
-          <option value="Bank Transfer">Bankovni transfer</option>
+          <option value="Bank Transfer">Bank Transfer</option>
           <option value="UPI">UPI</option>
-          <option value="Cash">Gotovina</option>
-          <option value="Card">Kartica</option>
-          <option value="Other">Ostalo</option>
+          <option value="Cash">Cash</option>
+          <option value="Card">Card</option>
+          <option value="Other">Other</option>
         </select>
-        <span class="ud-native-hint">Izaberite kako ste platili.</span>
+        <span class="ud-native-hint">Select how you paid.</span>
       </div>
 
       <mat-form-field appearance="outline" class="ud-full">
-        <mat-label>ID transakcije (opciono)</mat-label>
-        <input matInput [(ngModel)]="transactionId" placeholder="npr. UTR / Ref broj" />
+        <mat-label>Transaction ID (optional)</mat-label>
+        <input matInput [(ngModel)]="transactionId" placeholder="e.g. UTR / Ref number" />
       </mat-form-field>
 
       <div class="ud-actions">
-        <button mat-button type="button" (click)="cancel()">Otkaži</button>
+        <button mat-button type="button" (click)="cancel()">Cancel</button>
         <button mat-flat-button color="primary" type="button" (click)="submit()" [disabled]="submitting || !selectedFile || !canSubmit">
-          {{ submitting ? 'Otpremanje...' : 'Potvrdi plaćanje' }}
+          {{ submitting ? 'Uploading...' : 'Submit Payment' }}
         </button>
       </div>
     </div>
@@ -294,11 +294,11 @@ export class PaymentUploadDialogComponent {
   }
 
   fmt(val: number): string {
-    return val?.toLocaleString('sr-Latn-RS') ?? '0';
+    return val?.toLocaleString('en-IN') ?? '0';
   }
 
   fmtDate(d: string | undefined | null): string {
     if (!d) return '—';
-    return new Date(d).toLocaleDateString('sr-Latn-RS', { day: '2-digit', month: 'short', year: 'numeric' });
+    return new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
   }
 }

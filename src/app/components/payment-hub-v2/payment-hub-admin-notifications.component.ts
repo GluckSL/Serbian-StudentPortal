@@ -92,7 +92,7 @@ export class PaymentHubAdminNotificationsComponent implements OnInit {
         },
         error: () => {
           this.loading = false;
-          this.snack.open('Nije moguće učitati obaveštenja', 'Zatvori', { duration: 4000 });
+          this.snack.open('Could not load notifications', 'Dismiss', { duration: 4000 });
         },
       });
   }
@@ -142,12 +142,12 @@ export class PaymentHubAdminNotificationsComponent implements OnInit {
     this.api.syncJourneyDueNotifications().subscribe({
       next: () => {
         this.syncing = false;
-        this.snack.open('Obaveštenja osvežena', 'OK', { duration: 3000 });
+        this.snack.open('Notifications refreshed', 'OK', { duration: 3000 });
         this.load();
       },
       error: (e) => {
         this.syncing = false;
-        this.snack.open(e?.error?.message || 'Sinhronizacija nije uspela', 'Zatvori', { duration: 4000 });
+        this.snack.open(e?.error?.message || 'Sync failed', 'Dismiss', { duration: 4000 });
       },
     });
   }
@@ -179,7 +179,7 @@ export class PaymentHubAdminNotificationsComponent implements OnInit {
     if (n.type === 'JOURNEY_EXERCISE_MISSED_TODAY' || n.type === 'JOURNEY_CLASS_ABSENT_TODAY') {
       return 'Status';
     }
-    return 'Dospelo';
+    return 'Due';
   }
 
   classAbsentItems(n: PaymentHubNotification): PaymentHubClassAbsentItem[] {
@@ -196,7 +196,7 @@ export class PaymentHubAdminNotificationsComponent implements OnInit {
       }
       return {
         ...item,
-        topic: item.topic || 'Direktan čas',
+        topic: item.topic || 'Live class',
         batch: item.batch || n.metadata?.batch,
         courseDay: item.courseDay ?? n.metadata?.journeyDay,
         status: 'missed' as const,
@@ -230,7 +230,7 @@ export class PaymentHubAdminNotificationsComponent implements OnInit {
 
   formatClassDate(startTime?: unknown): string {
     const d = this.parseClassStartTime(startTime);
-    if (!d) return 'Danas';
+    if (!d) return 'Today';
     return d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
   }
 
@@ -238,12 +238,12 @@ export class PaymentHubAdminNotificationsComponent implements OnInit {
     const m = n.metadata;
     if (n.type === 'JOURNEY_EXERCISE_MISSED_TODAY') {
       const count = Number(m?.missedCount || m?.missedItems?.length || 0);
-      return count > 0 ? `${count} propušteno` : '—';
+      return count > 0 ? `${count} missed` : '—';
     }
     if (n.type === 'JOURNEY_CLASS_ABSENT_TODAY') {
       const count = this.classAbsentItems(n).length || Number(m?.absentCount || 0);
       if (count <= 0) return '—';
-      return count === 1 ? 'Propušteno' : `${count} propušteno`;
+      return count === 1 ? 'Missed' : `${count} missed`;
     }
     if (m?.currency != null && m?.dueAmount != null) {
       return `${m.currency} ${Math.round(m.dueAmount).toLocaleString()}`;

@@ -1,4 +1,4 @@
-﻿import { Component, Input, Output, EventEmitter, OnInit, OnDestroy } from '@angular/core';
+import { Component, Input, Output, EventEmitter, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { DragDropModule, CdkDragDrop, transferArrayItem } from '@angular/cdk/drag-drop';
 import { MaterialModule } from '../../../../shared/material.module';
@@ -27,29 +27,29 @@ export interface SBResult {
             <mat-icon>star</mat-icon>
             <span>{{ score }}</span>
           </div>
-          <div class="sb-play__progress">Pitanje {{ currentIndex + 1 }} / {{ questions.length }}</div>
+          <div class="sb-play__progress">Question {{ currentIndex + 1 }} / {{ questions.length }}</div>
           <div class="sb-play__timer">
             <mat-icon>timer</mat-icon>
             <span>{{ formatElapsed(sessionElapsedSeconds) }}</span>
           </div>
-          <button mat-icon-button type="button" (click)="onPause()" aria-label="Pauza"><mat-icon>pause</mat-icon></button>
+          <button mat-icon-button type="button" (click)="onPause()" aria-label="Pause"><mat-icon>pause</mat-icon></button>
         </header>
 
         <div class="sb-board" *ngIf="currentQ && phase === 'playing'">
           <div class="sb-board__prompt">
             <div class="sb-board__prompt-row">
               <mat-icon>translate</mat-icon>
-              <p>{{ currentQ.translation || 'Složite reči u tačan redosled' }}</p>
+              <p>{{ currentQ.translation || 'Put the words in the correct order' }}</p>
               <button *ngIf="currentQ.sentenceAudioUrl" mat-icon-button type="button"
                 (click)="audio.unlock(); audio.playUrl(currentQ.sentenceAudioUrl!)">
                 <mat-icon>volume_up</mat-icon>
               </button>
             </div>
             <p class="sb-hint">
-              Prevucite reč da počnete — tačno mesto odmah postaje <span class="sb-hint__green">zeleno</span>, pogrešno <span class="sb-hint__red">crveno</span>.
+              Drag a word to begin — right spot turns <span class="sb-hint__green">green</span> instantly, wrong spot <span class="sb-hint__red">red</span>.
             </p>
             <div class="sb-progress-chips">
-              <span class="sb-progress-chips__label">{{ lockedCount }} / {{ slotCount }} zaključano</span>
+              <span class="sb-progress-chips__label">{{ lockedCount }} / {{ slotCount }} locked</span>
             </div>
           </div>
 
@@ -70,7 +70,7 @@ export interface SBResult {
           <div class="sb-row-wrap" [class.sb-row-wrap--complete]="allLocked">
             <div class="sb-row-wrap__title">
               <mat-icon>south</mat-icon>
-              <span>Spustite reči ovde da formirate rečenicu</span>
+              <span>Drop words here to build the sentence</span>
             </div>
             <div class="sb-row">
               <div
@@ -109,7 +109,7 @@ export interface SBResult {
 
         <div class="sb-complete" *ngIf="phase === 'complete'">
           <mat-icon class="sb-complete__spinner">hourglass_top</mat-icon>
-          <span class="sb-complete__calc">Računanje rezultata…</span>
+          <span class="sb-complete__calc">Calculating results…</span>
         </div>
       </main>
 
@@ -523,7 +523,7 @@ export class SentenceBuilderComponent implements OnInit, OnDestroy {
       }
     } else {
       this.wrongFlash[index] = true;
-      this.lastWrongHint = `"${token}" nije tačan na poziciji ${index + 1}.`;
+      this.lastWrongHint = `"${token}" is not correct in position ${index + 1}.`;
       this.audio.playWrong();
       setTimeout(() => { this.wrongFlash[index] = false; }, 350);
     }

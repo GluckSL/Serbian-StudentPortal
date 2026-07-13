@@ -1,12 +1,12 @@
 <div class="review-page">
   <header class="review-header">
     <button type="button" class="btn-back" (click)="back()">
-      <span class="material-icons">arrow_back</span> Nazad na vežbe
+      <span class="material-icons">arrow_back</span> Back to exercises
     </button>
     <div *ngIf="data" class="title-block">
       <h1>
         <span class="material-icons">analytics</span>
-        Vaši rezultati — {{ data.exercise.title }}
+        Your results — {{ data.exercise.title }}
       </h1>
       <p class="meta">{{ data.exercise.level }} · {{ data.exercise.category }}</p>
     </div>
@@ -14,18 +14,18 @@
 
   <div class="loading-state" *ngIf="loading">
     <div class="spinner"></div>
-    <p>Učitavanje pregleda…</p>
+    <p>Loading your breakdown…</p>
   </div>
 
   <div class="error-state" *ngIf="error && !loading">
     <span class="material-icons">error_outline</span>
     <p>{{ error }}</p>
-    <button type="button" class="btn-back" (click)="back()">Nazad</button>
+    <button type="button" class="btn-back" (click)="back()">Go back</button>
   </div>
 
   <div class="review-body" *ngIf="data && !loading">
     <section class="overall-card" aria-labelledby="overall-heading">
-      <div class="overall-label" id="overall-heading">Ukupna analitika</div>
+      <div class="overall-label" id="overall-heading">Overall analytics</div>
       <div class="overall-inner">
         <div class="donut-wrap" aria-hidden="true">
           <svg class="donut" viewBox="0 0 36 36">
@@ -38,29 +38,29 @@
           </svg>
           <div class="donut-center">
             <span class="donut-pct">{{ data.attempt.scorePercentage }}%</span>
-            <span class="donut-sub">rezultat</span>
+            <span class="donut-sub">score</span>
           </div>
         </div>
         <div class="overall-stats">
           <div class="stat">
             <span class="stat-value correct">{{ data.summary.correctCount }}</span>
-            <span class="stat-label">Tačno</span>
+            <span class="stat-label">Correct</span>
           </div>
           <div class="stat">
             <span class="stat-value wrong">{{ data.summary.wrongCount }}</span>
-            <span class="stat-label">Pogrešno</span>
+            <span class="stat-label">Wrong</span>
           </div>
           <div class="stat">
             <span class="stat-value">{{ data.summary.totalQuestions }}</span>
-            <span class="stat-label">Pitanja</span>
+            <span class="stat-label">Questions</span>
           </div>
           <p class="attempt-meta">
-            Pokušaj #{{ data.attempt.attemptNumber ?? '—' }} · {{ formatDate(data.attempt.completedAt) }}
+            Attempt #{{ data.attempt.attemptNumber ?? '—' }} · {{ formatDate(data.attempt.completedAt) }}
             <span *ngIf="data.attempt.earnedPoints != null && data.attempt.totalPoints != null">
-              · {{ data.attempt.earnedPoints }} / {{ data.attempt.totalPoints }} poena
+              · {{ data.attempt.earnedPoints }} / {{ data.attempt.totalPoints }} pts
             </span>
             <span class="auto-submit-note" *ngIf="data.attempt.autoSubmittedDueToLockBrowser">
-              · Automatski poslato
+              · Auto-submitted
             </span>
           </p>
         </div>
@@ -68,17 +68,17 @@
     </section>
 
     <section class="section" *ngIf="wrongRows(data.perQuestion).length > 0">
-      <h2><span class="material-icons">highlight_off</span> Pitanja za pregled</h2>
-      <p class="section-desc">Ovo su stavke koje ste propustili u najboljem ocenjenom pokušaju.</p>
+      <h2><span class="material-icons">highlight_off</span> Questions to review</h2>
+      <p class="section-desc">These are the items you missed on your best scored attempt.</p>
       <div class="table-wrap">
         <table class="data-table">
           <thead>
             <tr>
               <th>#</th>
-              <th>Pitanje</th>
-              <th>Vaš odgovor</th>
-              <th>Očekivano</th>
-              <th>Objašnjenje</th>
+              <th>Question</th>
+              <th>Your answer</th>
+              <th>Expected</th>
+              <th>Explanation</th>
             </tr>
           </thead>
           <tbody>
@@ -101,18 +101,18 @@
     </section>
 
     <section class="section">
-      <h2><span class="material-icons">fact_check</span> Sva pitanja</h2>
-      <p class="section-desc">Potpun pregled za svaku stavku.</p>
+      <h2><span class="material-icons">fact_check</span> All questions</h2>
+      <p class="section-desc">Full breakdown for every item.</p>
       <div class="table-wrap">
         <table class="data-table">
           <thead>
             <tr>
               <th>#</th>
-              <th>Rezultat</th>
-              <th>Pitanje</th>
-              <th>Vaš odgovor</th>
-              <th>Očekivano</th>
-              <th>Objašnjenje</th>
+              <th>Result</th>
+              <th>Question</th>
+              <th>Your answer</th>
+              <th>Expected</th>
+              <th>Explanation</th>
             </tr>
           </thead>
           <tbody>
@@ -120,7 +120,7 @@
               <td>{{ row.displayIndex }}</td>
               <td>
                 <span class="pill" [class.pill-ok]="row.isCorrect" [class.pill-bad]="!row.isCorrect">
-                  {{ row.isCorrect ? 'Tačno' : 'Pogrešno' }}
+                  {{ row.isCorrect ? 'Correct' : 'Wrong' }}
                 </span>
               </td>
               <td class="prompt">{{ row.promptSnippet }}</td>

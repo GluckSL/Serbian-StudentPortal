@@ -7,11 +7,11 @@
     <div class="jo-hero__stats">
       <div class="jo-hero__stat">
         <span class="jo-hero__stat-num">{{ stats.organizations }}+</span>
-        <span class="jo-hero__stat-label">Organizacije</span>
+        <span class="jo-hero__stat-label">Organizations</span>
       </div>
       <div class="jo-hero__stat">
         <span class="jo-hero__stat-num">{{ stats.openings }}+</span>
-        <span class="jo-hero__stat-label">Oglasi za posao</span>
+        <span class="jo-hero__stat-label">Job Openings</span>
       </div>
       <div class="jo-hero__stat">
         <span class="jo-hero__stat-num jo-hero__stat-num--sm">{{ stats.averagePackageLabel }}</span>
@@ -27,7 +27,7 @@
       [class.jo-tabs__btn--active]="activeTab === 'openings'"
       (click)="setTab('openings')"
     >
-      Otvoreni oglasi
+      Opening jobs
     </button>
     <button
       type="button"
@@ -35,7 +35,7 @@
       [class.jo-tabs__btn--active]="activeTab === 'closed'"
       (click)="setTab('closed')"
     >
-      Zatvoreni oglasi
+      Closed jobs
     </button>
     <button
       type="button"
@@ -43,7 +43,7 @@
       [class.jo-tabs__btn--active]="activeTab === 'placements'"
       (click)="setTab('placements')"
     >
-      Zaposleni kroz Glück
+      Placed via Glück
     </button>
   </nav>
 
@@ -51,54 +51,54 @@
     <aside class="jo-filters">
       <div class="jo-filters__head">
         <span class="material-icons jo-filters__icon">filter_list</span>
-        <span class="jo-filters__title">Filteri</span>
+        <span class="jo-filters__title">Filters</span>
         <button type="button" class="jo-filters__reset" (click)="resetFilters()">
           <span class="material-icons">restart_alt</span>
-          Resetuj
+          Reset
         </button>
       </div>
 
       <label class="jo-field">
-        <span class="jo-field__label">Tip posla</span>
+        <span class="jo-field__label">Job Type</span>
         <select class="jo-select" [(ngModel)]="filterJobType">
-          <option value="">Odaberite tip posla</option>
+          <option value="">Select job type</option>
           <option *ngFor="let t of jobTypes" [value]="t">{{ t }}</option>
         </select>
       </label>
 
       <label class="jo-field">
-        <span class="jo-field__label">Iskustvo</span>
+        <span class="jo-field__label">Experience</span>
         <select class="jo-select" [(ngModel)]="filterExperience">
-          <option value="">Odaberite iskustvo</option>
+          <option value="">Select experience</option>
           <option *ngFor="let e of experienceOptions" [value]="e">{{ e }}</option>
         </select>
       </label>
 
       <label class="jo-field">
-        <span class="jo-field__label">Kategorija posla</span>
+        <span class="jo-field__label">Job Category</span>
         <select class="jo-select" [(ngModel)]="filterCategory">
-          <option value="">Odaberite kategoriju posla</option>
+          <option value="">Select job category</option>
           <option *ngFor="let c of categoryOptions" [value]="c">{{ c }}</option>
         </select>
       </label>
 
       <label class="jo-field">
-        <span class="jo-field__label">Tip lokacije</span>
+        <span class="jo-field__label">Location Type</span>
         <select class="jo-select" [(ngModel)]="filterLocationType">
-          <option value="">Odaberite tip lokacije</option>
+          <option value="">Select location type</option>
           <option *ngFor="let l of locationTypes" [value]="l">{{ l }}</option>
         </select>
       </label>
 
       <label class="jo-field">
-        <span class="jo-field__label">Lokacija</span>
-        <input class="jo-input" type="text" placeholder="Pretraži lokacije..." [(ngModel)]="locationSearch" />
+        <span class="jo-field__label">Location</span>
+        <input class="jo-input" type="text" placeholder="Search locations..." [(ngModel)]="locationSearch" />
       </label>
 
       <label class="jo-toggle">
         <input type="checkbox" [(ngModel)]="viewAppliedOnly" (change)="onAppliedToggle()" />
         <span class="jo-toggle__track"></span>
-        <span class="jo-toggle__label">Prikaži prijavljene oglase</span>
+        <span class="jo-toggle__label">View Applied Jobs</span>
       </label>
     </aside>
 
@@ -109,8 +109,8 @@
 
       <div *ngIf="!loading && filteredJobs.length === 0" class="jo-empty">
         <span class="material-icons">work_off</span>
-        <p>Nema oglasa koji odgovaraju vašim filterima.</p>
-        <button type="button" class="jo-link" (click)="resetFilters()">Obriši filtere</button>
+        <p>No job openings match your filters.</p>
+        <button type="button" class="jo-link" (click)="resetFilters()">Clear filters</button>
       </div>
 
       <article
@@ -126,7 +126,7 @@
             <span *ngIf="!logoUrl(job)" class="jo-card__logo-fallback">{{ companyInitial(job.jobTitle) }}</span>
           </div>
           <p class="jo-card__deadline" *ngIf="job.applyBefore">
-            <span class="jo-card__deadline-text">Prijavite se pre {{ formatApplyBefore(job.applyBefore) }}</span>
+            <span class="jo-card__deadline-text">Apply before {{ formatApplyBefore(job.applyBefore) }}</span>
           </p>
         </aside>
 
@@ -157,7 +157,7 @@
               [class.jo-apply-btn--applied]="isApplied(job)"
               (click)="apply(job, $event)"
             >
-              {{ isApplied(job) ? 'Prijavljeno' : 'Prijavite se' }}
+              {{ isApplied(job) ? 'Applied' : 'Apply' }}
               <span class="material-icons">{{ isApplied(job) ? 'check_circle' : 'edit_note' }}</span>
             </button>
           </div>
@@ -172,7 +172,7 @@
     </div>
     <div class="jo-empty" *ngIf="!closedLoading && closedJobs.length === 0">
       <span class="material-icons">history</span>
-      <p>Nema navedenih zatvorenih oglasa.</p>
+      <p>No closed jobs listed yet.</p>
     </div>
     <article class="jo-card jo-card--closed" *ngFor="let job of closedJobs">
       <aside class="jo-card__aside">
@@ -181,13 +181,13 @@
           <span *ngIf="!closedLogoUrl(job)" class="jo-card__logo-fallback">{{ companyInitial(job.companyName) }}</span>
         </div>
         <p class="jo-card__deadline">
-          <span class="jo-card__deadline-text">Zatvoreno {{ formatClosedAt(job.closedAt) }}</span>
+          <span class="jo-card__deadline-text">Closed {{ formatClosedAt(job.closedAt) }}</span>
         </p>
       </aside>
       <div class="jo-card__body">
         <div class="jo-card__top">
           <h2 class="jo-card__title">{{ job.companyName }} — {{ job.jobTitle }}</h2>
-          <span class="jo-badge-closed">Zatvoreno</span>
+          <span class="jo-badge-closed">Closed</span>
         </div>
         <div class="jo-card__meta jo-card__meta--inline">
           <span *ngIf="job.jobType" class="jo-meta">{{ job.jobType }}</span>
@@ -208,8 +208,8 @@
     </div>
     <div class="jo-empty" *ngIf="!placementsLoading && placements.length === 0">
       <span class="material-icons">celebration</span>
-      <p>Nema priča o zapošljavanju.</p>
-      <span>Studenti zaposleni kroz Glück će se pojaviti ovde.</span>
+      <p>No placement stories yet.</p>
+      <span>Students hired through Glück will appear here.</span>
     </div>
     <div class="jo-placements-grid" *ngIf="!placementsLoading && placements.length > 0">
       <article class="jo-placement" *ngFor="let p of placements">
@@ -220,13 +220,13 @@
             <h3 class="jo-placement__student">{{ p.studentName }}</h3>
             <p class="jo-placement__role">{{ p.jobTitle }} · {{ p.companyName }}</p>
             <p class="jo-placement__meta" *ngIf="p.batch || p.studentRegNo">
-              {{ p.batch ? 'Grupa ' + p.batch : '' }}{{ p.batch && p.studentRegNo ? ' · ' : '' }}{{ p.studentRegNo }}
+              {{ p.batch ? 'Batch ' + p.batch : '' }}{{ p.batch && p.studentRegNo ? ' · ' : '' }}{{ p.studentRegNo }}
             </p>
           </div>
         </div>
         <p class="jo-placement__package" *ngIf="p.packageLabel">{{ p.packageLabel }}</p>
         <p class="jo-placement__story" *ngIf="p.story">{{ p.story }}</p>
-        <p class="jo-placement__date">Zaposleno {{ formatPlacedAt(p.placedAt) }}</p>
+        <p class="jo-placement__date">Placed {{ formatPlacedAt(p.placedAt) }}</p>
       </article>
     </div>
   </section>

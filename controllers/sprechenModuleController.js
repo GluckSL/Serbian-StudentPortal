@@ -31,7 +31,7 @@ exports.getAdminById = async (req, res) => {
     const mod = await SprechenExamModule.findById(req.params.id)
       .populate('characterId', 'name avatarUrl voice')
       .lean();
-    if (!mod) return res.status(404).json({ message: 'Nije pronađeno' });
+    if (!mod) return res.status(404).json({ message: 'Not found' });
     await resignMediaInObject(mod);
     res.json(mod);
   } catch (e) {
@@ -58,7 +58,7 @@ exports.update = async (req, res) => {
       { $set: payload },
       { new: true, runValidators: true }
     ).lean();
-    if (!mod) return res.status(404).json({ message: 'Nije pronađeno' });
+    if (!mod) return res.status(404).json({ message: 'Not found' });
     res.json(mod);
   } catch (e) {
     res.status(400).json({ message: e.message });
@@ -70,7 +70,7 @@ exports.patchMetadata = async (req, res) => {
   try {
     const payload = _sanitizeMetadataPayload(req.body);
     if (!Object.keys(payload).length) {
-      return res.status(400).json({ message: 'Nema polja za ažuriranje' });
+      return res.status(400).json({ message: 'No fields to update' });
     }
     const mod = await SprechenExamModule.findByIdAndUpdate(
       req.params.id,
@@ -81,7 +81,7 @@ exports.patchMetadata = async (req, res) => {
         'title description level visibleToStudents courseDay passThreshold targetBatchKeys characterId updatedAt'
       )
       .lean();
-    if (!mod) return res.status(404).json({ message: 'Nije pronađeno' });
+    if (!mod) return res.status(404).json({ message: 'Not found' });
     res.json(mod);
   } catch (e) {
     res.status(400).json({ message: e.message });
@@ -96,7 +96,7 @@ exports.patchVisibility = async (req, res) => {
       { visibleToStudents: Boolean(visibleToStudents) },
       { new: true }
     ).lean();
-    if (!mod) return res.status(404).json({ message: 'Nije pronađeno' });
+    if (!mod) return res.status(404).json({ message: 'Not found' });
     res.json({ visibleToStudents: mod.visibleToStudents });
   } catch (e) {
     res.status(400).json({ message: e.message });
@@ -119,7 +119,7 @@ exports.remove = async (req, res) => {
 exports.uploadCardImage = async (req, res) => {
   try {
     if (!req.file) {
-      return res.status(400).json({ message: 'Nijedna slika nije otpremljena' });
+      return res.status(400).json({ message: 'No image uploaded' });
     }
     const { presignS3Url, canonicalizeMediaUrl } = require('../config/presign');
     const rawUrl = req.file.location || `/uploads/sprechen-cards/${req.file.filename || ''}`;
@@ -127,7 +127,7 @@ exports.uploadCardImage = async (req, res) => {
     const url = req.file.location ? await presignS3Url(canonicalUrl) : canonicalUrl;
     res.json({ url, canonicalUrl });
   } catch (e) {
-    res.status(500).json({ message: e.message || 'Otpremanje nije uspelo' });
+    res.status(500).json({ message: e.message || 'Upload failed' });
   }
 };
 
@@ -177,7 +177,7 @@ exports.listStudent = async (req, res) => {
       String(req.query.gluckExamOnly) === 'true' || String(req.query.gluckExamOnly) === '1';
     const access = await getStudentSprechenJourneyAccess(req.user.id);
     if (!access.enabled) {
-      return res.status(403).json({ message: 'Putovanje nije aktivno.', code: 'JOURNEY_NOT_ACTIVE' });
+      return res.status(403).json({ message: 'Journey not active.', code: 'JOURNEY_NOT_ACTIVE' });
     }
 
     const moduleFilter = { isActive: true, visibleToStudents: true };
@@ -295,19 +295,19 @@ exports.getPlay = async (req, res) => {
     const mod = await SprechenExamModule.findById(req.params.id)
       .populate('characterId', 'name avatarUrl voice isDefault')
       .lean();
-    if (!mod || !mod.isActive) return res.status(404).json({ message: 'Nije pronađeno' });
+    if (!mod || !mod.isActive) return res.status(404).json({ message: 'Not found' });
 
     if (req.user.role === 'STUDENT') {
       if (!mod.visibleToStudents) {
-        return res.status(403).json({ message: 'Modul nije dostupan' });
+        return res.status(403).json({ message: 'Module not available' });
       }
       const access = await getStudentSprechenJourneyAccess(req.user.id);
       if (!access.enabled) {
-        return res.status(403).json({ message: 'Putovanje nije aktivno', code: 'JOURNEY_NOT_ACTIVE' });
+        return res.status(403).json({ message: 'Journey not active', code: 'JOURNEY_NOT_ACTIVE' });
       }
       if (!sprechenModuleUnlockedForStudentDay(mod.courseDay, access.courseDay)) {
         return res.status(403).json({
-          message: 'Modul se otključava kasnijeg dana vašeg kursa.',
+          message: 'Module unlocks on a later day of your course.',
           code: 'COURSE_DAY_LOCKED',
         });
       }

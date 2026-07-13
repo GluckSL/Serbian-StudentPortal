@@ -1376,7 +1376,7 @@ export class CrmPortalComponent implements OnInit, OnDestroy {
 
   salesReportPeriod(): 'morning' | 'evening' {
     const hour = Number(
-      new Date().toLocaleString('sr-Latn-RS', {
+      new Date().toLocaleString('en-GB', {
         timeZone: 'Asia/Colombo',
         hour: 'numeric',
         hour12: false,

@@ -1,4 +1,4 @@
-﻿/** Bank transfer details (same as student invoice PDFs). */
+/** Bank transfer details (same as student invoice PDFs). */
 
 export interface BankDetailRow {
   label: string;
@@ -53,5 +53,5 @@ export function detectCurrencyFromPhone(phone?: string, whatsapp?: string): 'INR
 
 export function formatMoney(amount: number, currency: 'INR' | 'LKR'): string {
   const symbol = currency === 'LKR' ? 'LKR ' : '₹';
-  return `${symbol}${amount.toLocaleString('sr-Latn-RS')}`;
+  return `${symbol}${amount.toLocaleString('en-IN')}`;
 }

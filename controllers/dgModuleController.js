@@ -87,11 +87,11 @@ exports.createFromLearning = async (req, res) => {
   try {
     const ids = req.body.learningModuleIds;
     if (!Array.isArray(ids) || ids.length === 0) {
-      return res.status(400).json({ message: 'learningModuleIds mora biti neprazan niz' });
+      return res.status(400).json({ message: 'learningModuleIds must be a non-empty array' });
     }
     if (ids.length > MAX_LEARNING_IMPORT_BATCH) {
       return res.status(400).json({
-        message: `Najviše ${MAX_LEARNING_IMPORT_BATCH} modula po zahtevu`,
+        message: `At most ${MAX_LEARNING_IMPORT_BATCH} modules per request`,
       });
     }
 
@@ -99,7 +99,7 @@ exports.createFromLearning = async (req, res) => {
     try {
       characterId = await resolveDefaultCharacterId();
     } catch (e) {
-      return res.status(400).json({ message: e.message || 'Nema podrazumevanog lika' });
+      return res.status(400).json({ message: e.message || 'No default character' });
     }
 
     const results = [];
@@ -110,7 +110,7 @@ exports.createFromLearning = async (req, res) => {
       try {
         const lm = await LearningModule.findById(learningModuleId).lean();
         if (!lm || lm.isDeleted) {
-          errors.push({ learningModuleId, message: 'Modul učenja nije pronađen' });
+          errors.push({ learningModuleId, message: 'Learning module not found' });
           continue;
         }
 
@@ -132,7 +132,7 @@ exports.createFromLearning = async (req, res) => {
       } catch (e) {
         errors.push({
           learningModuleId,
-          message: e.message || 'Kreiranje nije uspelo',
+          message: e.message || 'Create failed',
         });
       }
     }
@@ -140,7 +140,7 @@ exports.createFromLearning = async (req, res) => {
     const statusCode = results.length === 0 ? 400 : 200;
     res.status(statusCode).json({ results, errors });
   } catch (e) {
-    res.status(500).json({ message: e.message || 'Uvoz nije uspeo' });
+    res.status(500).json({ message: e.message || 'Import failed' });
   }
 };
 
@@ -167,7 +167,7 @@ exports.create = async (req, res) => {
       targetBatches: Array.isArray(plain.targetBatchKeys) ? plain.targetBatchKeys : [],
     });
   } catch (e) {
-    res.status(400).json({ message: e.message || 'Kreiranje modula nije uspelo' });
+    res.status(400).json({ message: e.message || 'Create module failed' });
   }
 };
 
@@ -175,7 +175,7 @@ exports.update = async (req, res) => {
   try {
     const existing = await DGModule.findById(req.params.id).select('createdBy version isActive').lean();
     if (!existing || existing.isActive === false) {
-      return res.status(404).json({ message: 'Modul nije pronađen' });
+      return res.status(404).json({ message: 'Module not found' });
     }
     const canEdit = await teacherCanAccessOwnedOrAssignedTab(
       req,
@@ -184,7 +184,7 @@ exports.update = async (req, res) => {
       'edit'
     );
     if (!canEdit) {
-      return res.status(403).json({ message: 'Zabranjeno' });
+      return res.status(403).json({ message: 'Forbidden' });
     }
 
     const body = normalizePracticeWindow({ ...req.body });
@@ -202,7 +202,7 @@ exports.update = async (req, res) => {
       new: true,
       runValidators: true,
     }).populate('characterId');
-    if (!doc) return res.status(404).json({ message: 'Modul nije pronađen' });
+    if (!doc) return res.status(404).json({ message: 'Module not found' });
     const plain = typeof doc.toObject === 'function' ? doc.toObject() : doc;
     res.json({
       ...plain,
@@ -210,7 +210,7 @@ exports.update = async (req, res) => {
       targetBatches: Array.isArray(plain.targetBatchKeys) ? plain.targetBatchKeys : [],
     });
   } catch (e) {
-    res.status(400).json({ message: e.message || 'Ažuriranje nije uspelo' });
+    res.status(400).json({ message: e.message || 'Update failed' });
   }
 };
 
@@ -218,7 +218,7 @@ exports.getAdminById = async (req, res) => {
   try {
     const doc = await DGModule.findById(req.params.id).populate('characterId');
     if (!doc || !doc.isActive) {
-      return res.status(404).json({ message: 'Modul nije pronađen' });
+      return res.status(404).json({ message: 'Module not found' });
     }
     const canView = await teacherCanAccessOwnedOrAssignedTab(
       req,
@@ -227,7 +227,7 @@ exports.getAdminById = async (req, res) => {
       'view'
     );
     if (!canView) {
-      return res.status(403).json({ message: 'Zabranjeno' });
+      return res.status(403).json({ message: 'Forbidden' });
     }
     const plain = typeof doc.toObject === 'function' ? doc.toObject() : doc;
     res.json({
@@ -236,7 +236,7 @@ exports.getAdminById = async (req, res) => {
       targetBatches: Array.isArray(plain.targetBatchKeys) ? plain.targetBatchKeys : [],
     });
   } catch (e) {
-    res.status(500).json({ message: e.message || 'Učitavanje nije uspelo' });
+    res.status(500).json({ message: e.message || 'Load failed' });
   }
 };
 
@@ -273,7 +273,7 @@ exports.listAdmin = async (req, res) => {
       })),
     });
   } catch (e) {
-    res.status(500).json({ message: e.message || 'Listanje nije uspelo' });
+    res.status(500).json({ message: e.message || 'List failed' });
   }
 };
 
@@ -282,10 +282,10 @@ exports.copyToV2 = async (req, res) => {
   try {
     const source = await DGModule.findById(req.params.id).lean();
     if (!source || !source.isActive) {
-      return res.status(404).json({ message: 'Modul nije pronađen' });
+      return res.status(404).json({ message: 'Module not found' });
     }
     if (source.version === 'v2') {
-      return res.status(400).json({ message: 'Modul je već v2 modul.' });
+      return res.status(400).json({ message: 'Module is already a v2 module.' });
     }
     const { _id, createdAt, updatedAt, __v, ...rest } = source;
     const copy = new DGModule({
@@ -307,7 +307,7 @@ exports.copyToV2 = async (req, res) => {
       },
     });
   } catch (e) {
-    res.status(500).json({ message: e.message || 'Kopiranje nije uspelo' });
+    res.status(500).json({ message: e.message || 'Copy failed' });
   }
 };
 
@@ -316,14 +316,14 @@ exports.patchTargetBatches = async (req, res) => {
   try {
     const { targetBatches } = req.body;
     if (!Array.isArray(targetBatches)) {
-      return res.status(400).json({ message: 'targetBatches mora biti niz.' });
+      return res.status(400).json({ message: 'targetBatches must be an array.' });
     }
     const doc = await DGModule.findById(req.params.id);
     if (!doc || !doc.isActive) {
-      return res.status(404).json({ message: 'Modul nije pronađen' });
+      return res.status(404).json({ message: 'Module not found' });
     }
     if (doc.version !== 'v2') {
-      return res.status(400).json({ message: 'Samo v2 moduli podržavaju ciljanje grupa putem ovog endpointa.' });
+      return res.status(400).json({ message: 'Only v2 modules support batch targeting via this endpoint.' });
     }
     doc.targetBatchKeys = normalizeBatchKeys(targetBatches);
     await doc.save();
@@ -333,7 +333,7 @@ exports.patchTargetBatches = async (req, res) => {
       targetBatches: Array.isArray(plain.targetBatchKeys) ? plain.targetBatchKeys : [],
     });
   } catch (e) {
-    res.status(500).json({ message: e.message || 'Ažuriranje ciljnih grupa nije uspelo' });
+    res.status(500).json({ message: e.message || 'Update target batches failed' });
   }
 };
 
@@ -469,7 +469,7 @@ exports.listStudent = async (req, res) => {
       dgWeekHint,
     });
   } catch (e) {
-    res.status(500).json({ message: e.message || 'Listanje nije uspelo' });
+    res.status(500).json({ message: e.message || 'List failed' });
   }
 };
 
@@ -481,18 +481,18 @@ exports.getPlay = async (req, res) => {
     }).populate('characterId');
 
     if (!mod) {
-      return res.status(404).json({ message: 'Modul nije pronađen' });
+      return res.status(404).json({ message: 'Module not found' });
     }
 
     if (req.user.role === 'STUDENT' && !mod.visibleToStudents) {
-      return res.status(403).json({ message: 'Modul nije dostupan' });
+      return res.status(403).json({ message: 'Module not available' });
     }
 
     if (req.user.role === 'STUDENT') {
       const access = await getStudentDgJourneyAccess(req.user.id);
       if (access.dgBotEnabled === false) {
         return res.status(403).json({
-          message: 'DG moduli nisu dostupni za vašu grupu.',
+          message: 'DG modules are not available for your batch.',
           code: 'LEARNING_CONTENT_DISABLED',
         });
       }
@@ -500,13 +500,13 @@ exports.getPlay = async (req, res) => {
       const modVersion = mod.version === 'v2' ? 'v2' : 'v1';
       if (batchType === 'new2' && modVersion !== 'v2') {
         return res.status(403).json({
-          message: 'Ovaj modul nije dostupan za vašu grupu.',
+          message: 'This module is not available for your batch.',
           code: 'VERSION_NOT_ALLOWED',
         });
       }
       if (batchType === 'new' && modVersion === 'v2') {
         return res.status(403).json({
-          message: 'Ovaj modul nije dostupan za vašu grupu.',
+          message: 'This module is not available for your batch.',
           code: 'VERSION_NOT_ALLOWED',
         });
       }
@@ -525,7 +525,7 @@ exports.getPlay = async (req, res) => {
           return res.status(403).json(weekLock);
         }
         return res.status(403).json({
-          message: 'Ovaj modul se otključava kasnijeg dana vašeg kursa.',
+          message: 'This module unlocks on a later day of your course.',
           code: 'COURSE_DAY_LOCKED',
           studentCourseDay: access.courseDay,
           moduleCourseDay: mod.courseDay,
@@ -534,7 +534,7 @@ exports.getPlay = async (req, res) => {
       const studentDoc = await User.findById(req.user.id).select('blockedJourneyLevels').lean();
       if (isContentBlockedForStudent(studentDoc, { courseDay: mod.courseDay, level: mod.level })) {
         return res.status(403).json({
-          message: 'Ovaj DG modul nije dostupan za vaš put učenja.',
+          message: 'This DG module is not available for your learning path.',
           code: 'CONTENT_LEVEL_BLOCKED',
         });
       }
@@ -552,7 +552,7 @@ exports.getPlay = async (req, res) => {
       });
       if (alreadyCompleted) {
         return res.status(403).json({
-          message: 'Već ste završili ovaj modul. Novi moduli se otključavaju kako napredujete kroz vaše putovanje.',
+          message: 'You have already completed this module. New modules unlock as you progress through your journey.',
           code: 'MODULE_ALREADY_COMPLETED',
         });
       }
@@ -652,7 +652,7 @@ exports.getPlay = async (req, res) => {
       character,
     });
   } catch (e) {
-    res.status(500).json({ message: e.message || 'Učitavanje nije uspelo' });
+    res.status(500).json({ message: e.message || 'Load failed' });
   }
 };
 
@@ -660,7 +660,7 @@ exports.patchVisibility = async (req, res) => {
   try {
     const visible = req.body.visibleToStudents === true || String(req.body.visibleToStudents) === 'true';
     const doc = await DGModule.findById(req.params.id);
-    if (!doc) return res.status(404).json({ message: 'Modul nije pronađen' });
+    if (!doc) return res.status(404).json({ message: 'Module not found' });
     const canEdit = await teacherCanAccessOwnedOrAssignedTab(
       req,
       dgTabIdForModule(doc),
@@ -668,20 +668,20 @@ exports.patchVisibility = async (req, res) => {
       'edit'
     );
     if (!canEdit) {
-      return res.status(403).json({ message: 'Zabranjeno' });
+      return res.status(403).json({ message: 'Forbidden' });
     }
     doc.visibleToStudents = visible;
     await doc.save();
     res.json({ success: true, visibleToStudents: doc.visibleToStudents });
   } catch (e) {
-    res.status(400).json({ message: e.message || 'Ažuriranje nije uspelo' });
+    res.status(400).json({ message: e.message || 'Update failed' });
   }
 };
 
 exports.remove = async (req, res) => {
   try {
     const doc = await DGModule.findById(req.params.id);
-    if (!doc) return res.status(404).json({ message: 'Modul nije pronađen' });
+    if (!doc) return res.status(404).json({ message: 'Module not found' });
     const canEdit = await teacherCanAccessOwnedOrAssignedTab(
       req,
       dgTabIdForModule(doc),
@@ -689,13 +689,13 @@ exports.remove = async (req, res) => {
       'edit'
     );
     if (!canEdit) {
-      return res.status(403).json({ message: 'Zabranjeno' });
+      return res.status(403).json({ message: 'Forbidden' });
     }
     doc.isActive = false;
     await doc.save();
     res.json({ success: true });
   } catch (e) {
-    res.status(500).json({ message: e.message || 'Brisanje nije uspelo' });
+    res.status(500).json({ message: e.message || 'Delete failed' });
   }
 };
 
@@ -716,7 +716,7 @@ exports.generateScenes = async (req, res) => {
     if (!rps.situation || !rps.studentRole || !rps.aiRole) {
       return res.status(400).json({
         message:
-          'Molimo popunite Situaciju, ulogu učenika i ulogu AI-a pre generisanja scena.',
+          'Please fill Situation, Student role, and AI role before generating scenes.',
       });
     }
 
@@ -726,7 +726,7 @@ exports.generateScenes = async (req, res) => {
     if (totalVocab === 0) {
       return res.status(400).json({
         message:
-          'Dodajte najmanje jednu reč iz rečnika (učenikovu ili AI) pre generisanja scena.',
+          'Add at least one vocabulary word (student or AI) before generating scenes.',
       });
     }
 

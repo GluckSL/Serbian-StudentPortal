@@ -171,7 +171,7 @@ export class StudentMeetingsComponent implements OnInit, OnDestroy {
     }).subscribe({
       next: (response) => {
         if (!response?.success) {
-          this.error = response?.message || 'Greška pri učitavanju časova';
+          this.error = response?.message || 'Failed to load meetings';
           this.loading = false;
           this.tabLoading = false;
           return;
@@ -204,7 +204,7 @@ export class StudentMeetingsComponent implements OnInit, OnDestroy {
       },
       error: (err) => {
         console.error('Error loading meetings:', err);
-        this.error = 'Greška pri učitavanju vaših časova';
+        this.error = 'Failed to load your meetings';
         this.loading = false;
         this.tabLoading = false;
       }
@@ -311,7 +311,7 @@ export class StudentMeetingsComponent implements OnInit, OnDestroy {
     if (totalItems === 0) return '';
     const start = (page - 1) * this.classesPageSize + 1;
     const end = Math.min(page * this.classesPageSize, totalItems);
-    return `Prikazano ${start}–${end} od ${totalItems}`;
+    return `Showing ${start}–${end} of ${totalItems}`;
   }
 
   setTab(tab: ClassTab): void {
@@ -321,7 +321,7 @@ export class StudentMeetingsComponent implements OnInit, OnDestroy {
   }
 
   joinMeeting(meeting: StudentMeeting): void {
-    if (meeting.journeyLocked && meeting.courseDay != null) { this.notify.info(`Ovaj čas je dostupan samo na danu putovanja ${meeting.courseDay}.`); return; }
+    if (meeting.journeyLocked && meeting.courseDay != null) { this.notify.info(`This class is available only on journey day ${meeting.courseDay}.`); return; }
     const canJoinNow = (meeting.canJoin || meeting.isOngoing) && !!meeting.joinUrl;
     if (canJoinNow) {
       this.joinClassFlow.openJoin(meeting, (msg) => this.notify.error(msg));
@@ -329,9 +329,9 @@ export class StudentMeetingsComponent implements OnInit, OnDestroy {
   }
 
   upcomingActionLabel(meeting: StudentMeeting): string {
-    if (meeting.journeyLocked && meeting.courseDay != null) return `Samo dan ${meeting.courseDay}`;
-    if (meeting.isOngoing) return 'Pridruži se odmah';
-    if (meeting.canJoin) return 'Pridruži se';
+    if (meeting.journeyLocked && meeting.courseDay != null) return `Only day ${meeting.courseDay}`;
+    if (meeting.isOngoing) return 'Join now';
+    if (meeting.canJoin) return 'Join';
     return this.getTimeUntilStart(meeting);
   }
 
@@ -357,11 +357,11 @@ export class StudentMeetingsComponent implements OnInit, OnDestroy {
   }
 
   formatDate(date: Date): string {
-    return new Date(date).toLocaleDateString('sr-Latn-RS', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+    return new Date(date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
   }
 
   formatTime(date: Date): string {
-    return new Date(date).toLocaleTimeString('sr-Latn-RS', { hour: '2-digit', minute: '2-digit' });
+    return new Date(date).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
   }
 
   formatDuration(minutes: number): string {
@@ -370,20 +370,20 @@ export class StudentMeetingsComponent implements OnInit, OnDestroy {
   }
 
   getTimeUntilStart(meeting: StudentMeeting): string {
-    if (meeting.timeUntilStart <= 0) return 'Odmah';
+    if (meeting.timeUntilStart <= 0) return 'Now';
     const minutes = Math.floor(meeting.timeUntilStart / 60000);
     const hours = Math.floor(minutes / 60), days = Math.floor(hours / 24);
-    if (days > 0) return `za ${days} dan${days > 1 ? 'a' : ''}`;
-    if (hours > 0) return `za ${hours} čas${hours > 1 ? 'a' : ''}`;
-    if (minutes > 0) return `za ${minutes} minut${minutes > 1 ? 'a' : ''}`;
-    return 'Uskoro počinje';
+    if (days > 0) return `in ${days} day${days > 1 ? 's' : ''}`;
+    if (hours > 0) return `in ${hours} hour${hours > 1 ? 's' : ''}`;
+    if (minutes > 0) return `in ${minutes} minute${minutes > 1 ? 's' : ''}`;
+    return 'Starting soon';
   }
 
   getStatusText(meeting: StudentMeeting): string {
-    if (meeting.isOngoing) return 'U toku';
-    if (meeting.hasEnded) return 'Završeno';
-    if (meeting.canJoin) return 'Spreman za ulaz';
-    return 'Predstojeći';
+    if (meeting.isOngoing) return 'Ongoing';
+    if (meeting.hasEnded) return 'Ended';
+    if (meeting.canJoin) return 'Ready to Join';
+    return 'Upcoming';
   }
 
   getAttendancePercent(meeting: StudentMeeting): number {
@@ -412,24 +412,24 @@ export class StudentMeetingsComponent implements OnInit, OnDestroy {
     return `${this.getAttendedMinutesDisplay(meeting)}/${total}`;
   }
 
-  getAttendanceStatus(meeting: StudentMeeting): string {
-    if (meeting.attended === true) return 'Prisustvovao';
+  getAttendanceStatus(meeting: StudentMeeting): 'Attended' | 'Not Attended' | 'Missed' {
+    if (meeting.attended === true) return 'Attended';
     const pct = this.getAttendancePercent(meeting);
-    if (pct >= 75) return 'Prisustvovao';
-    if (meeting.hasEnded && pct > 0) return 'Nije prisustvovao';
-    return 'Propustio';
+    if (pct >= 75) return 'Attended';
+    if (meeting.hasEnded && pct > 0) return 'Not Attended';
+    return 'Missed';
   }
 
   getAttendanceBadgeClass(meeting: StudentMeeting): string {
     const s = this.getAttendanceStatus(meeting);
-    if (s === 'Prisustvovao') return 'badge-attended';
-    if (s === 'Nije prisustvovao') return 'badge-not-attended';
+    if (s === 'Attended') return 'badge-attended';
+    if (s === 'Not Attended') return 'badge-not-attended';
     return 'badge-missed';
   }
 
   copyMeetingInfo(meeting: StudentMeeting): void {
     const info = `Meeting: ${meeting.topic}\nDate: ${this.formatDate(meeting.startTime)}\nTime: ${this.formatTime(meeting.startTime)}\nDuration: ${this.formatDuration(meeting.duration)}\nJoin URL: ${meeting.joinUrl}\nPassword: ${meeting.password}`;
-    navigator.clipboard.writeText(info).then(() => this.notify.success('Kopirano!'));
+    navigator.clipboard.writeText(info).then(() => this.notify.success('Copied!'));
   }
 
   openResources(m: StudentMeeting): void {
@@ -463,7 +463,7 @@ export class StudentMeetingsComponent implements OnInit, OnDestroy {
 
   formatDateShort(d: string | Date | null): string {
     if (!d) return '—';
-    return new Date(d).toLocaleDateString('sr-Latn-RS', { month: 'short', day: 'numeric', year: 'numeric' });
+    return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   }
 
   openDoubts(m: StudentMeeting): void {
@@ -498,7 +498,7 @@ export class StudentMeetingsComponent implements OnInit, OnDestroy {
 
   formatDateFull(d: string | Date | null): string {
     if (!d) return '';
-    return new Date(d).toLocaleString('sr-Latn-RS', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    return new Date(d).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
   }
 
   isClassEnded(m: StudentMeeting): boolean {
@@ -553,11 +553,11 @@ export class StudentMeetingsComponent implements OnInit, OnDestroy {
         const el = this.submissionFileRef?.nativeElement;
         if (el) el.value = '';
         this.uploading = false;
-        this.notify.success('Odgovor je uspešno otpremljen!');
+        this.notify.success('Answer uploaded successfully!');
       },
       error: (err) => {
         this.uploading = false;
-        const msg = err?.error?.message || 'Otpremanje nije uspelo. Pokušajte ponovo.';
+        const msg = err?.error?.message || 'Upload failed. Please try again.';
         this.notify.error(msg);
       }
     });
@@ -565,9 +565,9 @@ export class StudentMeetingsComponent implements OnInit, OnDestroy {
 
   submissionFeedbackLabel(sub: any): string {
     const status = sub?.feedback?.status;
-    if (status === 'correct') return 'Tačno';
-    if (status === 'wrong') return 'Pogrešno';
-    return 'Na čekanju';
+    if (status === 'correct') return 'Correct';
+    if (status === 'wrong') return 'Wrong';
+    return 'Pending';
   }
 
   submissionFeedbackClass(sub: any): string {

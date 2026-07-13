@@ -126,7 +126,7 @@ export class PaymentBulkLanguagePaidDialogComponent implements OnInit {
   }
 
   fmt(n: number): string {
-    return (n ?? 0).toLocaleString('sr-Latn-RS', { maximumFractionDigits: 0 });
+    return (n ?? 0).toLocaleString('en-IN', { maximumFractionDigits: 0 });
   }
 
   currencyLabel(currency: string | null | undefined): string {

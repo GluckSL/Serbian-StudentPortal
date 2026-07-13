@@ -560,7 +560,7 @@ router.get('/student/timetable', verifyToken, checkRole(['STUDENT']), async (req
       .select('role batch subscription medium goStatus currentCourseDay studentStatus level')
       .lean();
     if (!student) {
-      return res.status(404).json({ message: 'Učenik nije pronađen' });
+      return res.status(404).json({ message: 'Student not found' });
     }
     const { buildStudentJourneyTimetable } = require('../services/studentJourneyTimetable.service');
     const horizonDays = parseInt(String(req.query.horizonDays || '14'), 10);
@@ -583,7 +583,7 @@ router.post(
       const raw = String(req.params.batchName || '').trim();
       if (!raw) return res.status(400).json({ message: 'batchName is required' });
       if (!(await teacherCanAccessBatch(req, raw))) {
-        return res.status(403).json({ message: 'Nemate pristup ovoj grupi.' });
+        return res.status(403).json({ message: 'You do not have access to this batch.' });
       }
       let cfg = await BatchConfig.findOne({ batchName: new RegExp(`^${escapeRegExp(raw)}$`, 'i') });
       if (!cfg) {
@@ -615,7 +615,7 @@ router.post(
       const raw = String(req.params.batchName || '').trim();
       if (!raw) return res.status(400).json({ message: 'batchName is required' });
       if (!(await teacherCanAccessBatch(req, raw))) {
-        return res.status(403).json({ message: 'Nemate pristup ovoj grupi.' });
+        return res.status(403).json({ message: 'You do not have access to this batch.' });
       }
       const cfg = await BatchConfig.findOne({ batchName: new RegExp(`^${escapeRegExp(raw)}$`, 'i') });
       if (!cfg) {
@@ -640,7 +640,7 @@ router.get('/:batchName/students', verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
   try {
     const { batchName } = req.params;
     if (!(await teacherCanAccessBatch(req, batchName))) {
-      return res.status(403).json({ message: 'Nemate pristup ovoj grupi.' });
+      return res.status(403).json({ message: 'You do not have access to this batch.' });
     }
     const batchRx = batchNameRegex(batchName);
     const cfgForSync = await getOrCreateConfig(batchName);
@@ -729,7 +729,7 @@ router.get('/:batchName/timeline', verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
   try {
     const { batchName } = req.params;
     if (!(await teacherCanAccessBatch(req, batchName))) {
-      return res.status(403).json({ message: 'Nemate pristup ovoj grupi.' });
+      return res.status(403).json({ message: 'You do not have access to this batch.' });
     }
     const cfg = await getOrCreateConfig(batchName);
     const length = cfg.journeyLength;
@@ -1128,7 +1128,7 @@ router.post('/:batchName/assign-teacher', verifyToken, checkRole(['ADMIN', 'TEAC
     const teacher = await User.findOne({ _id: teacherId, role: { $in: ['TEACHER', 'TEACHER_ADMIN'] } })
       .select('name email')
       .lean();
-    if (!teacher) return res.status(404).json({ message: 'Nastavnik nije pronađen' });
+    if (!teacher) return res.status(404).json({ message: 'Teacher not found' });
 
     const result = await User.updateMany(
       { role: 'STUDENT', batch: bn },
@@ -1157,11 +1157,11 @@ router.post('/:batchName/assign-teacher', verifyToken, checkRole(['ADMIN', 'TEAC
 router.get('/student/:studentId/day-status', verifyToken, checkRole(['ADMIN', 'TEACHER_ADMIN', 'TEACHER']), async (req, res) => {
   try {
     if (!(await teacherCanAccessStudent(req, req.params.studentId))) {
-      return res.status(403).json({ message: 'Nemate pristup ovom učeniku.' });
+      return res.status(403).json({ message: 'You do not have access to this student.' });
     }
     let student = await User.findOne({ _id: req.params.studentId, role: 'STUDENT' })
       .select('name regNo batch currentCourseDay goStatus subscription').lean();
-    if (!student) return res.status(404).json({ message: 'Učenik nije pronađen' });
+    if (!student) return res.status(404).json({ message: 'Student not found' });
 
     const stBatchCfg = student.batch
       ? await BatchConfig.findOne({ batchName: batchNameRegex(student.batch) }).select('trialDayEnabled').lean()
@@ -1174,7 +1174,7 @@ router.get('/student/:studentId/day-status', verifyToken, checkRole(['ADMIN', 'T
       catchUpAdvanced = true;
       student = await User.findOne({ _id: req.params.studentId, role: 'STUDENT' })
         .select('name regNo batch currentCourseDay goStatus subscription').lean();
-      if (!student) return res.status(404).json({ message: 'Učenik nije pronađen' });
+      if (!student) return res.status(404).json({ message: 'Student not found' });
     }
 
     const day = resolveCourseDay(student.currentCourseDay, studentTrial);
@@ -1220,11 +1220,11 @@ router.post('/student/:studentId/advance-day', verifyToken, checkRole(['ADMIN', 
     const { force = false } = req.body || {};
     const student = await User.findOne({ _id: req.params.studentId, role: 'STUDENT' })
       .select('name regNo batch currentCourseDay goStatus subscription level').lean();
-    if (!student) return res.status(404).json({ message: 'Učenik nije pronađen' });
+    if (!student) return res.status(404).json({ message: 'Student not found' });
 
     const batchKeys = allStudentBatchStringsForContent(student);
     if (!batchKeys.length) {
-      return res.status(400).json({ message: 'Učenik nije dodeljen nijednoj grupi; nije moguće napredovati u programu.' });
+      return res.status(400).json({ message: 'Student has no batch assigned; cannot advance journey day.' });
     }
     const { primaryGoBatchFromKeys } = require('../utils/goSilverTrack');
     const cfgBatch = primaryGoBatchFromKeys(batchKeys) || batchKeys[0];
@@ -1235,7 +1235,7 @@ router.post('/student/:studentId/advance-day', verifyToken, checkRole(['ADMIN', 
     const currentDay = resolveCourseDay(student.currentCourseDay, !!stBatchCfg?.trialDayEnabled);
 
     if (currentDay >= cfg.journeyLength) {
-      return res.json({ advanced: false, message: 'Učenik je već završio program.', currentDay });
+      return res.json({ advanced: false, message: 'Student has already completed the journey.', currentDay });
     }
 
     const completion = await checkDayCompletion(student._id, batchKeys, currentDay, {
@@ -1301,7 +1301,7 @@ router.patch('/student/:studentId/day', verifyToken, checkRole(['ADMIN', 'TEACHE
     const existing = await User.findOne({ _id: studentId, role: 'STUDENT' })
       .select('goStatus batch subscription level')
       .lean();
-    if (!existing) return res.status(404).json({ message: 'Učenik nije pronađen' });
+    if (!existing) return res.status(404).json({ message: 'Student not found' });
 
     const batchName = String(existing.batch || '').trim();
     let trialDayEnabled = false;
@@ -1345,7 +1345,7 @@ router.patch('/student/:studentId/day', verifyToken, checkRole(['ADMIN', 'TEACHE
       },
       { new: true, select: 'name regNo batch currentCourseDay level' }
     );
-    if (!student) return res.status(404).json({ message: 'Učenik nije pronađen' });
+    if (!student) return res.status(404).json({ message: 'Student not found' });
 
     res.json({
       message: `Student "${student.name}" set to day ${targetDay}`,
@@ -1371,7 +1371,7 @@ router.get('/:batchName/progress/day/:day/exercise-analytics', verifyToken, chec
     const dayNum = clampDay(req.params.day);
     if (!bn) return res.status(400).json({ message: 'batchName is required' });
     if (!(await teacherCanAccessBatch(req, bn))) {
-      return res.status(403).json({ message: 'Nemate pristup ovoj grupi.' });
+      return res.status(403).json({ message: 'You do not have access to this batch.' });
     }
 
     const batchRegex = new RegExp(`^${escapeRegExp(bn)}$`, 'i');
@@ -1461,7 +1461,7 @@ router.get('/:batchName/progress/day/:day', verifyToken, checkRole(['ADMIN', 'TE
     const dayNum = clampDay(req.params.day);
     if (!bn) return res.status(400).json({ message: 'batchName is required' });
     if (!(await teacherCanAccessBatch(req, bn))) {
-      return res.status(403).json({ message: 'Nemate pristup ovoj grupi.' });
+      return res.status(403).json({ message: 'You do not have access to this batch.' });
     }
 
     const batchRegex = new RegExp(`^${escapeRegExp(bn)}$`, 'i');
@@ -1559,7 +1559,7 @@ router.get('/:batchName/progress', verifyToken, checkRole(['ADMIN', 'TEACHER_ADM
     const bn = String(req.params.batchName || '').trim();
     if (!bn) return res.status(400).json({ message: 'batchName is required' });
     if (!(await teacherCanAccessBatch(req, bn))) {
-      return res.status(403).json({ message: 'Nemate pristup ovoj grupi.' });
+      return res.status(403).json({ message: 'You do not have access to this batch.' });
     }
 
     const sectionsRaw = req.query.sections;
@@ -2076,7 +2076,7 @@ router.get('/:batchName/progress/week/:week/students', verifyToken, checkRole(['
     if (!bn) return res.status(400).json({ message: 'batchName is required' });
     if (!Number.isFinite(week) || week < 1) return res.status(400).json({ message: 'week must be >= 1' });
     if (!(await teacherCanAccessBatch(req, bn))) {
-      return res.status(403).json({ message: 'Nemate pristup ovoj grupi.' });
+      return res.status(403).json({ message: 'You do not have access to this batch.' });
     }
 
     const dayStart = (week - 1) * 7 + 1;
@@ -2235,12 +2235,12 @@ router.get('/student/:studentId/full-progress', verifyToken, checkRole(['ADMIN',
   try {
     const { studentId } = req.params;
     if (!(await teacherCanAccessStudent(req, studentId))) {
-      return res.status(403).json({ message: 'Nemate pristup ovom učeniku.' });
+      return res.status(403).json({ message: 'You do not have access to this student.' });
     }
 
     const student = await User.findOne({ _id: studentId, role: 'STUDENT' })
       .select('name regNo email level batch currentCourseDay goStatus subscription').lean();
-    if (!student) return res.status(404).json({ message: 'Učenik nije pronađen' });
+    if (!student) return res.status(404).json({ message: 'Student not found' });
 
     const stBatchCfg = student.batch
       ? await BatchConfig.findOne({ batchName: batchNameRegex(student.batch) }).select('trialDayEnabled').lean()

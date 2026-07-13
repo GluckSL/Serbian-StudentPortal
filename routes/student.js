@@ -38,7 +38,7 @@ router.get('/dashboard', verifyToken, checkRole('STUDENT'), async (req, res) => 
     });
   } catch (err) {
     console.error('Error fetching student dashboard data:', err);
-    res.status(500).json({ success: false, message: 'Greška pri dohvatanju podataka kontrolne table', error: err.message });
+    res.status(500).json({ success: false, message: 'Failed to fetch dashboard data', error: err.message });
   }
 });
 
@@ -54,7 +54,7 @@ router.get('/vapi-courses', verifyToken, checkRole('STUDENT'), async (req, res) 
     res.status(200).json( success, subscription.courses);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ success: false, message: 'Greška servera pri dohvatanju VAPI kurseva' });
+    res.status(500).json({ success: false, message: 'Server error while fetching VAPI courses' });
   }
 });
 
@@ -77,7 +77,7 @@ router.get('/profile', verifyToken, checkRole('STUDENT'), async (req, res) => {
       .lean();
 
     if (!user) {
-      return res.status(404).json({ msg: 'Učenik nije pronađen' });
+      return res.status(404).json({ msg: 'Student not found' });
     }
 
     res.status(200).json({
@@ -96,7 +96,7 @@ router.get('/profile', verifyToken, checkRole('STUDENT'), async (req, res) => {
     });
   } catch (err) {
     console.error('Student profile error:', err);
-    res.status(500).json({ msg: 'Greška pri dohvatanju profila učenika', error: err.message });
+    res.status(500).json({ msg: 'Error retrieving student profile', error: err.message });
   }
 });
 
@@ -105,12 +105,12 @@ router.get('/profile', verifyToken, checkRole('STUDENT'), async (req, res) => {
 router.get('/course-progress', verifyToken, checkRole('STUDENT'), async (req, res) => {
   try {
     const user = await User.findById(req.user.id).populate('courseProgress.courseId', 'name').lean();
-    if (!user) return res.status(404).json({ msg: 'Učenik nije pronađen' });
+    if (!user) return res.status(404).json({ msg: 'Student not found' });
 
     res.status(200).json(user.courseProgress);
   } catch (err) {
     console.error('Fetch progress error:', err);
-    res.status(500).json({ msg: 'Greška pri dohvatanju napretka u kursu' });
+    res.status(500).json({ msg: 'Failed to fetch course progress' });
   }
 });
 
@@ -123,7 +123,7 @@ router.get('/progress', verifyToken, checkRole('STUDENT'), async (req, res) => {
     res.status(200).json(progress);
   } catch (err) {
     console.error('Error fetching course progress:', err);
-    res.status(500).json({ msg: 'Greška servera pri dohvatanju napretka u kursu' });
+    res.status(500).json({ msg: 'Server error fetching course progress' });
   }
 });
 
@@ -133,7 +133,7 @@ router.put('/course-progress', verifyToken, checkRole('STUDENT'), async (req, re
     const { courseId, progressPercent } = req.body;
 
     const user = await User.findById(req.user.id);
-    if (!user) return res.status(404).json({ msg: 'Učenik nije pronađen' });
+    if (!user) return res.status(404).json({ msg: 'Student not found' });
 
     const existing = user.courseProgress.find(cp => cp.courseId.toString() === courseId);
     if (existing) {
@@ -144,10 +144,10 @@ router.put('/course-progress', verifyToken, checkRole('STUDENT'), async (req, re
     }
 
     await user.save();
-    res.status(200).json({ msg: 'Napredak ažuriran', courseProgress: user.courseProgress });
+    res.status(200).json({ msg: 'Progress updated', courseProgress: user.courseProgress });
   } catch (err) {
     console.error('Course progress update error:', err);
-    res.status(500).json({ msg: 'Greška pri ažuriranju napretka u kursu' });
+    res.status(500).json({ msg: 'Failed to update course progress' });
   }
 });
 

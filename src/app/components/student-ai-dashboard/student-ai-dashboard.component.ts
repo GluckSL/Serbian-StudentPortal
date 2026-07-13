@@ -98,15 +98,14 @@ constructor(
     if (!this.analytics?.weeklyActivity) return [];
 
     // Define days in proper order (starting from Monday for better UX)
-    const enDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-    const srDays = ['Ponedeljak', 'Utorak', 'Sreda', 'Četvrtak', 'Petak', 'Subota', 'Nedelja'];
-    const srShort = ['Pon', 'Uto', 'Sre', 'Čet', 'Pet', 'Sub', 'Ned'];
+    const daysOrder = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
-    return enDays.map((enDay, i) => {
-      const dayData = this.analytics?.weeklyActivity?.[enDay] || { sessions: 0, timeSpent: 0 };
+    // Create array with proper day order and ensure all days are present
+    return daysOrder.map(day => {
+      const dayData = this.analytics?.weeklyActivity?.[day] || { sessions: 0, timeSpent: 0 };
       return {
-        day: srDays[i],
-        dayShort: srShort[i],
+        day: day,
+        dayShort: day.substring(0, 3), // Mon, Tue, Wed, etc.
         sessions: dayData.sessions || 0,
         timeSpent: dayData.timeSpent || 0
       };
