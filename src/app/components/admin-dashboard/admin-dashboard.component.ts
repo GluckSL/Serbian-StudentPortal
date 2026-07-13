@@ -1,4 +1,4 @@
-﻿//src/app/components/admin-dashboard/admin-dashboard.component.ts
+//src/app/components/admin-dashboard/admin-dashboard.component.ts
 
 import { Component, HostListener, OnInit, TrackByFunction } from '@angular/core';
 import { AuthService } from '../../services/auth.service';
@@ -1265,7 +1265,7 @@ export class AdminDashboardComponent implements OnInit {
     try {
       const dateObj = new Date(date);
       if (isNaN(dateObj.getTime())) return emptyLabel;
-      return dateObj.toLocaleDateString('sr-Latn-RS', {
+      return dateObj.toLocaleDateString('en-US', {
         year: 'numeric',
         month: 'short',
         day: 'numeric',

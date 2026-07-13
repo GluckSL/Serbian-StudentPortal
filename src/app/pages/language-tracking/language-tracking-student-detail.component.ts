@@ -29,7 +29,7 @@ function formatDuration(secs: number): string {
 
 function fmtDate(iso: string | null | undefined): string {
   if (!iso) return '—';
-  return new Date(iso).toLocaleString('sr-Latn-RS', { dateStyle: 'medium', timeStyle: 'short' });
+  return new Date(iso).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
 }
 
 function journeyWeekFromDay(day: number): number {

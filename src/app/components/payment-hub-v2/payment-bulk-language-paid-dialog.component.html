@@ -1,10 +1,10 @@
 <div class="bp-root">
   <div class="bp-header">
     <div>
-      <h2 class="bp-title">Postavi saldo na nulu (jezička naknada)</h2>
-      <p class="bp-sub">Unapred popunjeni iznosi koriste zemlju telefona (LKR / INR) i vaš katalog cena kada je dostupan. Uredite bilo koje polje, pregledajte, zatim primenite.</p>
+      <h2 class="bp-title">Set balance to zero (language fee)</h2>
+      <p class="bp-sub">Prefilled amounts use phone country (LKR / INR) and your pricing catalog when available. Edit any cell, preview, then apply.</p>
     </div>
-    <button mat-icon-button type="button" (click)="close(false)" matTooltip="Zatvori">
+    <button mat-icon-button type="button" (click)="close(false)" matTooltip="Close">
       <mat-icon>close</mat-icon>
     </button>
   </div>
@@ -13,20 +13,20 @@
 
   <div *ngIf="loading" class="bp-loading">
     <mat-spinner diameter="36"></mat-spinner>
-    <span>Učitavanje cena…</span>
+    <span>Loading pricing…</span>
   </div>
 
   <ng-container *ngIf="!loading">
     <div class="bp-toolbar">
       <mat-form-field appearance="outline" class="bp-field-date">
-        <mat-label>Datum plaćanja (svi redovi)</mat-label>
+        <mat-label>Payment date (all rows)</mat-label>
         <input matInput [matDatepicker]="dp" [(ngModel)]="sharedPaymentDate" [disabled]="previewMode" />
         <mat-datepicker-toggle matSuffix [for]="dp"></mat-datepicker-toggle>
         <mat-datepicker #dp></mat-datepicker>
       </mat-form-field>
       <mat-form-field appearance="outline" class="bp-field-remarks">
-        <mat-label>Napomene (svi redovi)</mat-label>
-        <input matInput [(ngModel)]="sharedRemarks" placeholder="Opciono — podrazumevano napomena o grupnom jezičkom plaćanju" [disabled]="previewMode" />
+        <mat-label>Remarks (all rows)</mat-label>
+        <input matInput [(ngModel)]="sharedRemarks" placeholder="Optional — defaults to bulk language fee note" [disabled]="previewMode" />
       </mat-form-field>
     </div>
 
@@ -34,12 +34,12 @@
       <table class="bp-table">
         <thead>
           <tr>
-            <th>Učenik</th>
-            <th>Nivo</th>
-            <th>Valuta</th>
-            <th class="bp-num">Iznos</th>
-            <th class="bp-num">Trenutno plaćeno (portal)</th>
-            <th class="bp-num">Razlika (naknada − plaćeno)</th>
+            <th>Student</th>
+            <th>Level</th>
+            <th>Currency</th>
+            <th class="bp-num">Amount</th>
+            <th class="bp-num">Current paid (portal)</th>
+            <th class="bp-num">Gap (fee − paid)</th>
           </tr>
         </thead>
         <tbody>
@@ -68,20 +68,20 @@
     </div>
 
     <div class="bp-footer">
-      <button mat-button type="button" (click)="close(false)">Otkaži</button>
+      <button mat-button type="button" (click)="close(false)">Cancel</button>
       <button mat-stroked-button color="primary" type="button" (click)="togglePreview()">
         <mat-icon>{{ previewMode ? 'edit' : 'visibility' }}</mat-icon>
-        {{ previewMode ? 'Nazad na uređivanje' : 'Pregled' }}
+        {{ previewMode ? 'Back to edit' : 'Preview' }}
       </button>
       <button mat-flat-button color="primary" type="button" (click)="applyPayments()" [disabled]="saving || !previewMode">
         <mat-spinner *ngIf="saving" diameter="18" class="bp-spin"></mat-spinner>
         <mat-icon *ngIf="!saving">payments</mat-icon>
-        {{ saving ? 'Čuvanje…' : 'Plaćeno' }}
+        {{ saving ? 'Saving…' : 'Paid' }}
       </button>
     </div>
     <p class="bp-hint" *ngIf="!previewMode">
       <mat-icon class="bp-hint-ic">info</mat-icon>
-      Koristite Pregled, zatim <strong>Plaćeno</strong> da kreirate odobrena nasledna jezička plaćanja za sve u tabeli.
+      Use Preview, then <strong>Paid</strong> to create approved legacy language payments for everyone in the table.
     </p>
   </ng-container>
 </div>

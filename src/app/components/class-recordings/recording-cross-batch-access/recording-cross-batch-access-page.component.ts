@@ -383,7 +383,7 @@ export class RecordingCrossBatchAccessPageComponent implements OnInit {
 
   formatDate(d: string | null | undefined): string {
     if (!d) return '—';
-    return new Date(d).toLocaleDateString('sr-Latn-RS', { day: 'numeric', month: 'short', year: 'numeric' });
+    return new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
   }
 
   journeyCardTitle(rule: CrossBatchRule): string {

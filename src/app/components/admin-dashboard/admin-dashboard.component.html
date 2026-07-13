@@ -47,22 +47,22 @@
               <i class="fas fa-graduation-cap"></i>
             </span>
             <div>
-              <h1 class="admin-title">Upravljanje učenicima</h1>
-              <p class="admin-subtitle">Pretraži, filtriraj i upravljaj polaznicima sinhronizovanim iz vašeg CRM-a</p>
+              <h1 class="admin-title">Student Management</h1>
+              <p class="admin-subtitle">Search, filter, and manage learners synced from your CRM</p>
             </div>
           </div>
         </div>
         <div class="admin-header-stat" *ngIf="!hasActiveStudentFilters()">
           <div class="stat-item stat-item--elevated">
             <span class="stat-number">{{ portalStudentCounts.portalNonTest }}</span>
-            <span class="stat-label">Ukupno</span>
-            <span class="stat-hint stat-hint--ongoing">{{ portalStudentCounts.ongoingNonTest }} aktivnih</span>
+            <span class="stat-label">Total</span>
+            <span class="stat-hint stat-hint--ongoing">{{ portalStudentCounts.ongoingNonTest }} ongoing</span>
           </div>
         </div>
         <div class="admin-header-stat" *ngIf="hasActiveStudentFilters()">
           <div class="stat-item stat-item--elevated">
             <span class="stat-number">{{ displayStudentCount() }}</span>
-            <span class="stat-label">Odgovara filterima</span>
+            <span class="stat-label">Matching filters</span>
           </div>
         </div>
       </div>
@@ -76,7 +76,7 @@
         <span class="admin-plan-card__value">{{ portalStudentCounts.platinumTotal }}</span>
         <span class="admin-plan-card__label">Platinum</span>
       </div>
-      <div class="admin-plan-card__ongoing">{{ portalStudentCounts.platinumOngoing }} aktivnih</div>
+      <div class="admin-plan-card__ongoing">{{ portalStudentCounts.platinumOngoing }} ongoing</div>
       <div class="admin-plan-card__breakdown" *ngIf="portalStudentCounts.platinumStatusBreakdown?.length">
         <div class="admin-plan-card__status" *ngFor="let row of portalStudentCounts.platinumStatusBreakdown">
           <span>{{ formatStudentStatus(row.status) }}</span>
@@ -90,7 +90,7 @@
         <span class="admin-plan-card__value">{{ portalStudentCounts.silverTotal }}</span>
         <span class="admin-plan-card__label">Silver</span>
       </div>
-      <div class="admin-plan-card__ongoing">{{ portalStudentCounts.silverOngoing }} aktivnih</div>
+      <div class="admin-plan-card__ongoing">{{ portalStudentCounts.silverOngoing }} ongoing</div>
       <div class="admin-plan-card__breakdown" *ngIf="portalStudentCounts.silverStatusBreakdown?.length">
         <div class="admin-plan-card__status" *ngFor="let row of portalStudentCounts.silverStatusBreakdown">
           <span>{{ formatStudentStatus(row.status) }}</span>
@@ -102,9 +102,9 @@
     <div class="admin-plan-card admin-plan-card--visa">
       <div class="admin-plan-card__top">
         <span class="admin-plan-card__value">{{ portalStudentCounts.visaDocsTotal }}</span>
-        <span class="admin-plan-card__label">Viza i dokumenti</span>
+        <span class="admin-plan-card__label">Visa &amp; docs</span>
       </div>
-      <div class="admin-plan-card__ongoing">{{ portalStudentCounts.visaDocsOngoing }} aktivnih</div>
+      <div class="admin-plan-card__ongoing">{{ portalStudentCounts.visaDocsOngoing }} ongoing</div>
       <div class="admin-plan-card__breakdown" *ngIf="portalStudentCounts.visaDocsStatusBreakdown?.length">
         <div class="admin-plan-card__status" *ngFor="let row of portalStudentCounts.visaDocsStatusBreakdown">
           <span>{{ formatStudentStatus(row.status) }}</span>
@@ -124,27 +124,27 @@
           <div class="action-group-left">
             <div class="action-pill action-pill--primary">
               <button type="button" class="btn btn-action btn-action--primary" routerLink="/signup">
-                <i class="fas fa-plus"></i> Dodaj učenika
+                <i class="fas fa-plus"></i> Add student
               </button>
               <button type="button" class="btn btn-action btn-action--ghost" (click)="showBulkUpload = !showBulkUpload">
-                <i class="fas fa-cloud-upload-alt"></i> Masovno otpremanje
+                <i class="fas fa-cloud-upload-alt"></i> Bulk upload
               </button>
               <button type="button" class="btn btn-action btn-action--ghost"
                       (click)="showCorrectDetails = !showCorrectDetails; showBulkUpload = false"
                       [class.btn-action--warn-active]="showCorrectDetails">
-                <i class="fas fa-file-alt"></i> Ispravi podatke
+                <i class="fas fa-file-alt"></i> Correct Details
               </button>
               <button type="button" class="btn btn-action btn-action--ghost" (click)="openAssignTeacherByBatchModal()">
-                <i class="fas fa-chalkboard-teacher"></i> Dodeli tutora
+                <i class="fas fa-chalkboard-teacher"></i> Assign tutor
               </button>
             </div>
             <div class="action-pill action-pill--selection">
-              <span class="action-pill-label">Selekcija</span>
+              <span class="action-pill-label">Selection</span>
               <button type="button" class="btn btn-action btn-action--soft" (click)="openBulkEditPanel()" [disabled]="getSelectedCount() === 0">
-                <i class="fas fa-layer-group"></i> Uredi ({{ getSelectedCount() }})
+                <i class="fas fa-layer-group"></i> Edit ({{ getSelectedCount() }})
               </button>
               <button type="button" class="btn btn-action btn-action--soft" (click)="exportSelectedStudents()" [disabled]="getSelectedCount() === 0">
-                <i class="fas fa-file-export"></i> Izvezi odabrane
+                <i class="fas fa-file-export"></i> Export selected
               </button>
               <button
                 type="button"
@@ -153,10 +153,10 @@
                 [disabled]="exportingAll || displayStudentCount() === 0"
               >
                 <i class="fas" [class.fa-spinner]="exportingAll" [class.fa-spin]="exportingAll" [class.fa-download]="!exportingAll"></i>
-                {{ exportingAll ? 'Izvoženje…' : 'Izvezi sve (' + displayStudentCount() + ')' }}
+                {{ exportingAll ? 'Exporting…' : 'Export all (' + displayStudentCount() + ')' }}
               </button>
               <button type="button" class="btn btn-action btn-action--danger-outline" (click)="bulkDeleteStudents()" [disabled]="getSelectedCount() === 0">
-                <i class="fas fa-trash-alt"></i> Obriši
+                <i class="fas fa-trash-alt"></i> Delete
               </button>
             </div>
             <div class="action-pill action-pill--issues">
@@ -168,40 +168,40 @@
                 [disabled]="dataIssuesLoading"
               >
                 <i class="fas" [class.fa-spinner]="dataIssuesLoading" [class.fa-spin]="dataIssuesLoading" [class.fa-exclamation-triangle]="!dataIssuesLoading"></i>
-                Problemi sa podacima
+                Data issues
                 <span class="issues-badge" *ngIf="dataIssuesSummary && !dataIssuesLoading">{{ dataIssuesSummary.totalIssueRows }}</span>
               </button>
             </div>
           </div>
           <div class="action-group-right">
             <button type="button" class="btn btn-action btn-action--primary" (click)="openInviteModal()">
-              <i class="fas fa-envelope"></i> Pozovi
+              <i class="fas fa-envelope"></i> Invite
             </button>
             <button type="button" class="btn btn-action btn-action--ghost" routerLink="/admin/teacher-resources">
-              <i class="fas fa-file-powerpoint"></i> Resursi za nastavnike
+              <i class="fas fa-file-powerpoint"></i> Teacher Resources
             </button>
             <button type="button" class="btn btn-action btn-action--ghost" routerLink="/student-logs">
-              <i class="fas fa-history"></i> Evidencija
+              <i class="fas fa-history"></i> Logs
             </button>
             <button
               type="button"
               class="btn btn-action btn-action--changes-report"
               (click)="sendChangesReport()"
               [disabled]="sendingChangesReport"
-              title="E-mailom pošaljite izveštaj o svim promenama detalja učenika u poslednjih 24 sata"
+              title="Email a report of all student detail changes in the last 24 hours"
             >
               <i class="fas" [class.fa-paper-plane]="!sendingChangesReport" [class.fa-spinner]="sendingChangesReport" [class.fa-spin]="sendingChangesReport"></i>
-              {{ sendingChangesReport ? 'Slanje…' : 'Pošalji izveštaj o promenama' }}
+              {{ sendingChangesReport ? 'Sending…' : 'Send Update Report' }}
             </button>
             <button
               type="button"
               class="btn btn-action btn-action--uncertain"
               (click)="exportUncertainEngagementReport()"
               [disabled]="exportingUncertainReport"
-              title="Preuzmi Excel: grupe 35–45, Neizvestan i Povukao se — časovi, vežbe, DG bot, minuti, poslednja aktivnost"
+              title="Download Excel: batches 35–45, Uncertain &amp; Withdrew — classes, exercises, DG bot, minutes, last activity"
             >
               <i class="fas" [class.fa-file-excel]="!exportingUncertainReport" [class.fa-spinner]="exportingUncertainReport" [class.fa-spin]="exportingUncertainReport"></i>
-              {{ exportingUncertainReport ? 'Generisanje…' : 'Neizvestan' }}
+              {{ exportingUncertainReport ? 'Generating…' : 'Uncertain' }}
             </button>
           </div>
         </div>
@@ -210,30 +210,30 @@
         <div class="data-issues-panel" *ngIf="dataIssuesPanelOpen">
           <div class="data-issues-header">
             <div>
-              <h3 class="data-issues-title"><i class="fas fa-user-shield"></i> Učenici za pregled</h3>
+              <h3 class="data-issues-title"><i class="fas fa-user-shield"></i> Students to review</h3>
               <p class="data-issues-sub">
-                Nepodudaranje portala i CRM-a obično su duplirani e-mailovi ili nalozi samo na portalu koji nisu na Monday tabli.
+                Portal vs CRM mismatch is usually duplicate emails or portal-only accounts not on the Monday board.
               </p>
             </div>
             <div class="data-issues-header-actions">
               <button type="button" class="btn btn-action btn-action--ghost btn-action-sm" (click)="loadDataIssues()" [disabled]="dataIssuesLoading">
-                <i class="fas fa-sync-alt"></i> Ponovo skeniraj
+                <i class="fas fa-sync-alt"></i> Rescan
               </button>
               <button type="button" class="btn btn-action btn-action--ghost btn-action-sm" (click)="closeDataIssuesPanel()">
-                <i class="fas fa-times"></i> Zatvori
+                <i class="fas fa-times"></i> Close
               </button>
             </div>
           </div>
 
           <p class="data-issues-error" *ngIf="dataIssuesError">{{ dataIssuesError }}</p>
-          <p class="data-issues-loading" *ngIf="dataIssuesLoading">Skeniranje portala i Monday CRM-a…</p>
+          <p class="data-issues-loading" *ngIf="dataIssuesLoading">Scanning portal and Monday CRM…</p>
           <p class="data-issues-warn" *ngIf="dataIssuesMondayError && !dataIssuesLoading">{{ dataIssuesMondayError }}</p>
 
           <div class="data-issues-reconcile" *ngIf="dataIssuesReconciliation && !dataIssuesLoading">
-            <span><strong>{{ dataIssuesReconciliation.portalTotal }}</strong> u portalu</span>
-            <span><strong>{{ dataIssuesReconciliation.crmUniqueEmails }}</strong> jedinstvenih e-mailova na CRM-u</span>
+            <span><strong>{{ dataIssuesReconciliation.portalTotal }}</strong> in portal</span>
+            <span><strong>{{ dataIssuesReconciliation.crmUniqueEmails }}</strong> unique emails on CRM</span>
             <span class="data-issues-gap" *ngIf="dataIssuesReconciliation.portalExtraNotOnCrm > 0">
-              <strong>{{ dataIssuesReconciliation.portalExtraNotOnCrm }}</strong> samo na portalu (nije na CRM-u)
+              <strong>{{ dataIssuesReconciliation.portalExtraNotOnCrm }}</strong> portal-only (not on CRM)
             </span>
           </div>
 
@@ -244,7 +244,7 @@
               [class.issue-chip--active]="!dataIssuesTypeFilter"
               (click)="dataIssuesTypeFilter = ''"
             >
-              Sve ({{ dataIssuesSummary.totalIssueRows }})
+              All ({{ dataIssuesSummary.totalIssueRows }})
             </button>
             <button
               type="button"
@@ -253,7 +253,7 @@
               [class.issue-chip--active]="dataIssuesTypeFilter === 'duplicate_email'"
               (click)="filterDataIssuesByType('duplicate_email')"
             >
-              Dvostruki e-mail ({{ dataIssuesSummary.byType['duplicate_email'] }})
+              Duplicate email ({{ dataIssuesSummary.byType['duplicate_email'] }})
             </button>
             <button
               type="button"
@@ -262,7 +262,7 @@
               [class.issue-chip--active]="dataIssuesTypeFilter === 'portal_only'"
               (click)="filterDataIssuesByType('portal_only')"
             >
-              Nije na CRM-u ({{ dataIssuesSummary.byType['portal_only'] }})
+              Not on CRM ({{ dataIssuesSummary.byType['portal_only'] }})
             </button>
             <button
               type="button"
@@ -271,7 +271,7 @@
               [class.issue-chip--active]="dataIssuesTypeFilter === 'duplicate_crm_id'"
               (click)="filterDataIssuesByType('duplicate_crm_id')"
             >
-              Dvostruki CRM ID ({{ dataIssuesSummary.byType['duplicate_crm_id'] }})
+              Duplicate CRM id ({{ dataIssuesSummary.byType['duplicate_crm_id'] }})
             </button>
             <button
               type="button"
@@ -280,7 +280,7 @@
               [class.issue-chip--active]="dataIssuesTypeFilter === 'placeholder_email'"
               (click)="filterDataIssuesByType('placeholder_email')"
             >
-              Privremeni e-mail ({{ dataIssuesSummary.byType['placeholder_email'] }})
+              Placeholder email ({{ dataIssuesSummary.byType['placeholder_email'] }})
             </button>
             <button
               type="button"
@@ -289,7 +289,7 @@
               [class.issue-chip--active]="dataIssuesTypeFilter === 'no_crm_link'"
               (click)="filterDataIssuesByType('no_crm_link')"
             >
-              Nema CRM veze ({{ dataIssuesSummary.byType['no_crm_link'] }})
+              No CRM link ({{ dataIssuesSummary.byType['no_crm_link'] }})
             </button>
           </div>
 
@@ -298,9 +298,9 @@
               <thead>
                 <tr>
                   <th>Reg #</th>
-                  <th>Učenik</th>
-                  <th>Problem</th>
-                  <th>Detalj</th>
+                  <th>Student</th>
+                  <th>Issue</th>
+                  <th>Detail</th>
                   <th></th>
                 </tr>
               </thead>
@@ -320,17 +320,17 @@
                   </td>
                   <td class="di-detail">{{ row.issueDetail }}</td>
                   <td>
-                    <a class="btn btn-action btn-action--soft btn-action-sm" [routerLink]="['/signup', row._id]">Popravi</a>
+                    <a class="btn btn-action btn-action--soft btn-action-sm" [routerLink]="['/signup', row._id]">Fix</a>
                   </td>
                 </tr>
               </tbody>
             </table>
           </div>
           <p class="data-issues-empty" *ngIf="!dataIssuesLoading && !dataIssuesError && filteredDataIssuesStudents.length === 0 && dataIssuesStudents.length">
-            Nema problema u ovoj kategoriji.
+            No issues in this category.
           </p>
           <p class="data-issues-empty data-issues-empty--ok" *ngIf="!dataIssuesLoading && !dataIssuesError && dataIssuesStudents.length === 0">
-            Nisu pronađeni problemi sa podacima — brojevi portala i CRM-a bi trebalo da se poklapaju.
+            No data issues found — portal and CRM counts should align.
           </p>
         </div>
 
@@ -338,19 +338,19 @@
         <div *ngIf="showAssignTeacherByBatch" class="card mt-3 p-3">
           <div class="row g-3 align-items-end">
             <div class="col-md-4">
-              <label class="form-label">Broj grupe</label>
+              <label class="form-label">Batch Number</label>
               <input type="number" class="form-control" [(ngModel)]="assignBatchNo" (ngModelChange)="onBatchChange($event)">
             </div>
             <div class="col-md-4">
-              <label class="form-label">Nastavnik</label>
+              <label class="form-label">Teacher</label>
               <select class="form-select" [(ngModel)]="assignTeacherId" [disabled]="batchTeachers.length === 0">
-                <option value="">Izaberi nastavnika</option>
+                <option value="">Select Teacher</option>
                 <option *ngFor="let teacher of batchTeachers" [value]="teacher._id">{{ teacher.name }}</option>
               </select>
-              <small *ngIf="assignBatchNo && batchTeachers.length === 0" class="text-muted">Nema nastavnika registrovanih za ovu grupu</small>
+              <small *ngIf="assignBatchNo && batchTeachers.length === 0" class="text-muted">No teachers registered for this batch</small>
             </div>
             <div class="col-md-4">
-              <button class="btn btn-success w-100 btn-assign-teacher" (click)="updateAssignedTeacherByBatchNo(assignBatchNo, assignTeacherId)">Dodeli nastavnika</button>
+              <button class="btn btn-success w-100 btn-assign-teacher" (click)="updateAssignedTeacherByBatchNo(assignBatchNo, assignTeacherId)">Assign Teacher</button>
             </div>
           </div>
         </div>
@@ -374,17 +374,17 @@
               <div class="filter-header-title">
                 <span class="filter-header-icon"><i class="fas fa-sliders-h"></i></span>
                 <div>
-                  <h2 class="filter-card-heading">Filteri</h2>
+                  <h2 class="filter-card-heading">Filters</h2>
                   <p class="filter-card-sub">
-                    <ng-container *ngIf="filtersPanelOpen">Postavite filtere i kliknite Primeni — uključuje polja Monday CRM-a.</ng-container>
-                    <ng-container *ngIf="!filtersPanelOpen">Otvorite za pretragu po imenu, kursu, grupi, usluzi i više.</ng-container>
+                    <ng-container *ngIf="filtersPanelOpen">Set filters and click Apply — includes Monday CRM fields.</ng-container>
+                    <ng-container *ngIf="!filtersPanelOpen">Open to search by name, course, batch, service, and more.</ng-container>
                   </p>
                 </div>
               </div>
               <div class="filter-header-actions">
                 <div class="filter-total-count">
                   <span class="count-number">{{ displayStudentCount() }}</span>
-                  <span class="count-label">ukupno</span>
+                  <span class="count-label">total</span>
                 </div>
                 <button
                   type="button"
@@ -393,7 +393,7 @@
                   [attr.aria-expanded]="filtersPanelOpen"
                   aria-controls="student-filters-panel"
                 >
-                  <span>Filtriranje</span>
+                  <span>Filter</span>
                   <i class="fas fa-chevron-down btn-filter-toggle-chevron" [class.is-open]="filtersPanelOpen"></i>
                 </button>
               </div>
@@ -404,18 +404,18 @@
             class="card-body filter-card-body"
             *ngIf="filtersPanelOpen"
           >
-            <p class="filter-section-label"><span class="filter-section-dot"></span> Pretraga i kurs</p>
+            <p class="filter-section-label"><span class="filter-section-dot"></span> Search &amp; course</p>
             <div class="row g-3 align-items-end filter-row-full">
               <!-- Student search: name, reg no, or email -->
               <div class="col-xl-2 col-lg-3 col-md-6">
-                <label class="form-label">Ime učenika, ID ili e-mail</label>
+                <label class="form-label">Student name, ID or email</label>
                 <mat-form-field class="filter-autocomplete" appearance="outline">
                   <input 
                     type="text" 
                     matInput 
                     [formControl]="studentNameControl"
                     [matAutocomplete]="autoStudentName"
-                    placeholder="Ime, reg. broj ili e-mail..."
+                    placeholder="Name, reg no, or email..."
                     (keyup.enter)="applySearchFilters()"
                   >
                   <mat-autocomplete #autoStudentName="matAutocomplete" (optionSelected)="onStudentNameSelected($event.option.value)">
@@ -428,14 +428,14 @@
               
               <!-- Teacher Name Filter -->
               <div class="col-xl-2 col-lg-3 col-md-6">
-                <label class="form-label">Nastavnik</label>
+                <label class="form-label">Teacher</label>
                 <mat-form-field class="filter-autocomplete" appearance="outline">
                   <input 
                     type="text" 
                     matInput 
                     [formControl]="teacherNameControl"
                     [matAutocomplete]="autoTeacherName"
-                    placeholder="Pretraži..."
+                    placeholder="Search..."
                     (keyup.enter)="applySearchFilters()"
                   >
                   <mat-autocomplete #autoTeacherName="matAutocomplete" (optionSelected)="onTeacherNameSelected($event.option.value)">
@@ -448,9 +448,9 @@
               
               <!-- Level Filter -->
               <div class="col-xl-1 col-lg-2 col-md-4 col-6">
-                <label class="form-label">Nivo</label>
+                <label class="form-label">Level</label>
                 <select class="form-select filter-select" [(ngModel)]="filters.level">
-                  <option value="">Sve</option>
+                  <option value="">All</option>
                   <option value="A1">A1</option>
                   <option value="A2">A2</option>
                   <option value="B1">B1</option>
@@ -464,10 +464,10 @@
               <div class="col-xl-1 col-lg-2 col-md-4 col-6">
                 <label class="form-label">Plan</label>
                 <select class="form-select filter-select" [(ngModel)]="filters.plan">
-                  <option value="">Sve</option>
+                  <option value="">All</option>
                   <option value="PLATINUM">Platinum</option>
                   <option value="SILVER">Silver</option>
-                  <option value="VISA_DOC_ONLY">Samo viza / dokument</option>
+                  <option value="VISA_DOC_ONLY">Visa / doc only</option>
                 </select>
               </div>
               
@@ -475,17 +475,17 @@
               <div class="col-xl-1 col-lg-2 col-md-4 col-6">
                 <label class="form-label">Status</label>
                 <select class="form-select filter-select" [(ngModel)]="filters.studentStatus">
-                  <option value="">Sve</option>
-                  <option value="UNCERTAIN">Neizvestan</option>
-                  <option value="ONGOING">U toku</option>
-                  <option value="COMPLETED">Završen</option>
-                  <option value="WITHDREW">Povukao se</option>
+                  <option value="">All</option>
+                  <option value="UNCERTAIN">Uncertain</option>
+                  <option value="ONGOING">Ongoing</option>
+                  <option value="COMPLETED">Completed</option>
+                  <option value="WITHDREW">Withdrew</option>
                 </select>
               </div>
               
               <!-- Batch (CRM) — single or multi-select -->
               <div class="col-xl-2 col-lg-3 col-md-6">
-                <label class="form-label">Grupa</label>
+                <label class="form-label">Batch</label>
                 <div class="student-batch-multi" (click)="$event.stopPropagation()">
                   <button
                     type="button"
@@ -503,7 +503,7 @@
                         [checked]="allBatchesSelected"
                         (change)="selectAllBatches($event)"
                       />
-                      <span>Sve grupe</span>
+                      <span>All batches</span>
                     </label>
                     <div class="student-batch-multi__divider"></div>
                     <label class="student-batch-multi__item" *ngFor="let b of filterOptions.batches">
@@ -519,37 +519,37 @@
               </div>
 
               <div class="col-xl-2 col-lg-3 col-md-6">
-                <label class="form-label">Izabrana usluga</label>
+                <label class="form-label">Service opted</label>
                 <select class="form-select filter-select" [(ngModel)]="filters.servicesOpted">
-                  <option value="">Sve usluge</option>
+                  <option value="">All services</option>
                   <option *ngFor="let s of filterOptions.servicesOpted" [value]="s">{{ s }}</option>
                 </select>
               </div>
               <div class="col-xl-2 col-lg-3 col-md-6">
-                <label class="form-label">Kvalifikacija</label>
+                <label class="form-label">Qualification</label>
                 <select class="form-select filter-select" [(ngModel)]="filters.qualifications">
-                  <option value="">Sve kvalifikacije</option>
+                  <option value="">All qualifications</option>
                   <option *ngFor="let q of filterOptions.qualifications" [value]="q">{{ q }}</option>
                 </select>
               </div>
               <div class="col-xl-2 col-lg-3 col-md-6">
-                <label class="form-label">Odabrani nivo jezika</label>
+                <label class="form-label">Language level opted</label>
                 <select class="form-select filter-select" [(ngModel)]="filters.languageLevelOpted">
-                  <option value="">Svi nivoi</option>
+                  <option value="">All levels</option>
                   <option *ngFor="let l of filterOptions.languageLevelOpted" [value]="l">{{ l }}</option>
                 </select>
               </div>
               <div class="col-xl-2 col-lg-3 col-md-6">
-                <label class="form-label">Zemlja telefona</label>
+                <label class="form-label">Phone country</label>
                 <select class="form-select filter-select" [(ngModel)]="filters.phoneCountry">
-                  <option value="">Sve države</option>
+                  <option value="">All countries</option>
                   <option *ngFor="let c of filterOptions.phoneCountries" [value]="c">{{ c }}</option>
                 </select>
               </div>
               <div class="col-xl-2 col-lg-3 col-md-6">
-                <label class="form-label">Zemlja prijave</label>
+                <label class="form-label">Login country</label>
                 <select class="form-select filter-select" [(ngModel)]="filters.loginCountry">
-                  <option value="">Sve države</option>
+                  <option value="">All countries</option>
                   <option *ngFor="let c of filterOptions.loginCountries" [value]="c">{{ c }}</option>
                 </select>
               </div>
@@ -558,10 +558,10 @@
               <div class="col-xl-12 col-lg-12">
                 <div class="filter-actions-bar">
                   <button type="button" class="btn btn-filter-apply" (click)="applySearchFilters()">
-                    <i class="fas fa-search"></i> Primeni filtere
+                    <i class="fas fa-search"></i> Apply filters
                   </button>
                   <button type="button" class="btn btn-filter-reset" (click)="clearFilters()">
-                    <i class="fas fa-undo-alt"></i> Poništi sve
+                    <i class="fas fa-undo-alt"></i> Reset all
                   </button>
                 </div>
               </div>
@@ -577,8 +577,8 @@
             <div class="table-toolbar-main">
               <span class="table-toolbar-icon"><i class="fas fa-table"></i></span>
               <div>
-                <span class="table-toolbar-title">Imenik</span>
-                <span class="table-toolbar-meta">Stranica {{ currentPage }} od {{ totalPages }}</span>
+                <span class="table-toolbar-title">Directory</span>
+                <span class="table-toolbar-meta">Page {{ currentPage }} of {{ totalPages }}</span>
               </div>
             </div>
             <span class="table-toolbar-actions">
@@ -588,8 +588,8 @@
                 class="table-columns-btn table-expire-sessions-btn"
                 [disabled]="getSelectedCount() === 0 || bulkForcingPasswordReset"
                 (click)="bulkForcePasswordReset()"
-                matTooltip="Odjavite odabrane učenike (poništava prijavu) — moraju se ponovo prijaviti i promeniti lozinku"
-                aria-label="Odjavi odabrane učenike"
+                matTooltip="Sign out selected students (expires login) — they must log in again and change password"
+                aria-label="Sign out selected students"
               >
                 <mat-icon [class.table-expire-spin]="bulkForcingPasswordReset">{{ bulkForcingPasswordReset ? 'sync' : 'logout' }}</mat-icon>
               </button>
@@ -598,14 +598,14 @@
                 type="button"
                 class="table-columns-btn"
                 [matMenuTriggerFor]="studentColMenu"
-                matTooltip="Prikaži ili sakrij kolone"
-                aria-label="Prikaži ili sakrij kolone"
+                matTooltip="Show or hide columns"
+                aria-label="Show or hide columns"
               >
                 <mat-icon>view_column</mat-icon>
               </button>
               <mat-menu #studentColMenu="matMenu" class="student-column-picker-menu">
                 <div class="student-column-picker-inner" (click)="$event.stopPropagation()">
-                  <div class="student-column-picker-title">Opcionalne kolone</div>
+                  <div class="student-column-picker-title">Optional columns</div>
                   <mat-checkbox
                     *ngFor="let c of optionalColumns"
                     class="student-column-picker-check"
@@ -630,25 +630,25 @@
                       (change)="toggleSelectAll()"
                     >
                   </th>
-                  <th>Reg. br.</th>
-                  <th>Informacije o učeniku</th>
-                  <th>Plan i nivo</th>
-                  <th>Grupa i medijum</th>
-                  <th *ngIf="isColVisible('servicesOpted')">Izabrana usluga</th>
-                  <th *ngIf="isColVisible('qualifications')">Kvalifikacija</th>
-                  <th *ngIf="isColVisible('languageLevelOpted')">Odab. nivo jezika</th>
-                  <th *ngIf="isColVisible('leadSource')">Izvor kontakta</th>
-                  <th *ngIf="isColVisible('stream')">Smer</th>
-                  <th *ngIf="isColVisible('enrollmentDate')">Upis</th>
-                  <th *ngIf="isColVisible('teacherIncharge')">Zaduženi nastavnik</th>
+                  <th>Reg No</th>
+                  <th>Student Info</th>
+                  <th>Plan & Level</th>
+                  <th>Batch & Medium</th>
+                  <th *ngIf="isColVisible('servicesOpted')">Service opted</th>
+                  <th *ngIf="isColVisible('qualifications')">Qualification</th>
+                  <th *ngIf="isColVisible('languageLevelOpted')">Lang. level opted</th>
+                  <th *ngIf="isColVisible('leadSource')">Lead source</th>
+                  <th *ngIf="isColVisible('stream')">Stream</th>
+                  <th *ngIf="isColVisible('enrollmentDate')">Enrollment</th>
+                  <th *ngIf="isColVisible('teacherIncharge')">Teacher in charge</th>
                   <th *ngIf="isColVisible('whatsappNumber')">WhatsApp</th>
-                  <th *ngIf="isColVisible('phoneCountry')">Zemlja telefona</th>
-                  <th *ngIf="isColVisible('lastLoginCountry')">Zemlja prijave</th>
+                  <th *ngIf="isColVisible('phoneCountry')">Phone country</th>
+                  <th *ngIf="isColVisible('lastLoginCountry')">Login country</th>
                   <th>Status</th>
-                  <th>Dodeljeni nastavnik</th>
-                  <th>Pristupni podaci i prijava</th>
-                  <th *ngIf="isFullAdmin" class="text-center">Lozinka</th>
-                  <th class="text-center actions-col">Akcije</th>
+                  <th>Assigned Teacher</th>
+                  <th>Credentials &amp; login</th>
+                  <th *ngIf="isFullAdmin" class="text-center">Password</th>
+                  <th class="text-center actions-col">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -681,7 +681,7 @@
                   </td>
                   <td>
                     <div class="batch-medium">
-                      <div class="batch">Grupa: {{ student.batch || 'N/A' }}</div>
+                      <div class="batch">Batch: {{ student.batch || 'N/A' }}</div>
                       <div class="medium">{{ student.medium || 'N/A' }}</div>
                     </div>
                   </td>
@@ -711,17 +711,17 @@
                   </td>
                   <td>
                     <div class="teacher-info">
-                      {{ student.assignedTeacher?.name || 'Nije dodeljen' }}
+                      {{ student.assignedTeacher?.name || 'Unassigned' }}
                     </div>
                   </td>
                   <td>
                     <div class="credentials-sent-info">
                       <small class="text-muted">
-                        <span class="cred-meta-label">Pristupni podaci:</span>
+                        <span class="cred-meta-label">Credentials:</span>
                         {{ formatDate(student.lastCredentialsEmailSent) }}
                       </small>
                       <small class="text-muted">
-                        <span class="cred-meta-label">Poslednja prijava:</span>
+                        <span class="cred-meta-label">Last login:</span>
                         {{ formatLastLogin(student.lastLogin) }}
                       </small>
                     </div>
@@ -742,14 +742,14 @@
                         type="button"
                         class="btn btn-sm btn-outline-info"
                         (click)="viewStudentDetails(student)"
-                        title="Prikaži detalje učenika"
+                        title="View student details"
                       >
                         <i class="fas fa-eye"></i>
                       </button>
                       <button 
                         class="btn btn-sm btn-outline-primary"
                         [routerLink]="['/signup', student._id]"
-                        title="Uredi učenika"
+                        title="Edit Student"
                       >
                         <i class="fas fa-edit"></i>
                       </button>
@@ -757,7 +757,7 @@
                         class="btn btn-sm btn-outline-success"
                         (click)="resendCredentials(student)"
                         [disabled]="resendingCredentials[student._id]"
-                        title="Pošalji e-mail sa pristupnim podacima"
+                        title="Send Credentials Email"
                       >
                         <i class="fas fa-envelope" *ngIf="!resendingCredentials[student._id]"></i>
                         <i class="fas fa-spinner fa-spin" *ngIf="resendingCredentials[student._id]"></i>
@@ -767,7 +767,7 @@
                         class="btn btn-sm btn-outline-warning"
                         (click)="forcePasswordReset(student)"
                         [disabled]="forcingPasswordReset[student._id]"
-                        title="Prisilno resetovanje lozinke (odjava + OTP e-mail)"
+                        title="Force password reset (logout + OTP email)"
                       >
                         <i class="fas fa-key" *ngIf="!forcingPasswordReset[student._id]"></i>
                         <i class="fas fa-spinner fa-spin" *ngIf="forcingPasswordReset[student._id]"></i>
@@ -775,7 +775,7 @@
                       <button
                         class="btn btn-sm btn-outline-danger"
                         (click)="deleteUser(student._id)"
-                        title="Obriši učenika"
+                        title="Delete Student"
                       >
                         <i class="fas fa-trash"></i>
                       </button>
@@ -788,11 +788,11 @@
 
           <div class="table-pagination-bar d-flex justify-content-between align-items-center flex-wrap gap-2 px-3 py-3 border-top" *ngIf="totalPages > 1">
             <small class="text-muted">
-              Prikazano {{ pageStart }}–{{ pageEnd }} od {{ totalStudents }}
+              Showing {{ pageStart }}-{{ pageEnd }} of {{ totalStudents }}
             </small>
             <div class="btn-group btn-group-sm" role="group">
               <button class="btn btn-outline-secondary" (click)="changePage(currentPage - 1)" [disabled]="currentPage === 1">
-                Preth.
+                Prev
               </button>
               <button
                 class="btn"
@@ -803,7 +803,7 @@
                 {{ page }}
               </button>
               <button class="btn btn-outline-secondary" (click)="changePage(currentPage + 1)" [disabled]="currentPage === totalPages">
-                Sledeća
+                Next
               </button>
             </div>
           </div>
@@ -822,21 +822,21 @@
       <div class="modal-header bg-warning text-dark">
         <h5 class="modal-title">
           <i class="fas fa-edit"></i>
-          Masovno uređivanje učenika ({{ getSelectedCount() }} odabrano)
+          Bulk Edit Students ({{ getSelectedCount() }} selected)
         </h5>
         <button type="button" class="btn-close" (click)="closeBulkEditPanel()"></button>
       </div>
       <div class="modal-body">
         <div class="alert alert-info">
           <i class="fas fa-info-circle"></i>
-          Popunite samo polja koja želite da ažurirate. Prazna polja će biti zanemarena.
+          Only fill in the fields you want to update. Empty fields will be ignored.
         </div>
 
         <div class="row g-3">
           <div class="col-md-6">
-            <label class="form-label">Dodeljeni nastavnik</label>
+            <label class="form-label">Assigned Teacher</label>
             <select class="form-select" [(ngModel)]="bulkUpdates.assignedTeacher">
-              <option value="">-- Bez promene --</option>
+              <option value="">-- No Change --</option>
               <option *ngFor="let teacher of teachers" [value]="teacher._id">
                 {{ teacher.name }}
               </option>
@@ -844,9 +844,9 @@
           </div>
 
           <div class="col-md-6">
-            <label class="form-label">Nivo</label>
+            <label class="form-label">Level</label>
             <select class="form-select" [(ngModel)]="bulkUpdates.level">
-              <option value="">-- Bez promene --</option>
+              <option value="">-- No Change --</option>
               <option value="A1">A1</option>
               <option value="A2">A2</option>
               <option value="B1">B1</option>
@@ -855,43 +855,43 @@
           </div>
 
           <div class="col-md-6">
-            <label class="form-label">Status učenika</label>
+            <label class="form-label">Student Status</label>
             <select class="form-select" [(ngModel)]="bulkUpdates.studentStatus">
-              <option value="">-- Bez promene --</option>
-              <option value="UNCERTAIN">Neizvestan</option>
-              <option value="ONGOING">U toku</option>
-              <option value="COMPLETED">Završen</option>
-              <option value="WITHDREW">Povukao se</option>
+              <option value="">-- No Change --</option>
+              <option value="UNCERTAIN">Uncertain</option>
+              <option value="ONGOING">Ongoing</option>
+              <option value="COMPLETED">Completed</option>
+              <option value="WITHDREW">Withdrew</option>
             </select>
           </div>
 
           <div class="col-md-6">
-            <label class="form-label">Plan pretplate</label>
+            <label class="form-label">Subscription Plan</label>
             <select class="form-select" [(ngModel)]="bulkUpdates.subscription">
-              <option value="">-- Bez promene --</option>
+              <option value="">-- No Change --</option>
               <option value="PLATINUM">Platinum</option>
               <option value="SILVER">Silver</option>
             </select>
           </div>
 
           <div class="col-md-6">
-            <label class="form-label">Grupa</label>
+            <label class="form-label">Batch</label>
             <input 
               type="number" 
               class="form-control" 
               [(ngModel)]="bulkUpdates.batch"
-              placeholder="Ostavite prazno za bez promene"
+              placeholder="Leave empty for no change"
             >
           </div>
         </div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" (click)="closeBulkEditPanel()">
-          Otkaži
+          Cancel
         </button>
         <button type="button" class="btn btn-warning" (click)="applyBulkUpdate()">
           <i class="fas fa-save"></i>
-          Primeni promene
+          Apply Changes
         </button>
       </div>
     </div>
@@ -907,16 +907,16 @@
       <div class="modal-header">
         <h5 class="modal-title">
           <i class="fas fa-envelope"></i>
-          Pozovi za registraciju
+          Invite to register
         </h5>
         <button type="button" class="btn-close" (click)="closeInviteModal()" [disabled]="inviteSending"></button>
       </div>
       <div class="modal-body">
         <p class="text-muted small mb-3">
-          Pošaljite e-mail s pozivnicom za registraciju. Primalac će dobiti dugme <strong>Upis</strong> koje otvara javnu stranicu za registraciju.
+          Send a registration invite email. The recipient will get an <strong>Enroll</strong> button that opens the public registration page.
         </p>
         <div class="mb-3">
-          <label class="form-label" for="inviteEmail">E-mail adresa <span class="text-danger">*</span></label>
+          <label class="form-label" for="inviteEmail">Email address <span class="text-danger">*</span></label>
           <input
             id="inviteEmail"
             type="email"
@@ -928,13 +928,13 @@
           />
         </div>
         <div class="mb-3">
-          <label class="form-label" for="inviteName">Ime (opcionalno)</label>
+          <label class="form-label" for="inviteName">Name (optional)</label>
           <input
             id="inviteName"
             type="text"
             class="form-control"
             [(ngModel)]="inviteName"
-            placeholder="Ime učenika"
+            placeholder="Student name"
             [disabled]="inviteSending"
           />
         </div>
@@ -942,12 +942,12 @@
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" (click)="closeInviteModal()" [disabled]="inviteSending">
-          Otkaži
+          Cancel
         </button>
         <button type="button" class="btn btn-primary" (click)="sendRegisterInvite()" [disabled]="inviteSending">
           <i class="fas fa-spinner fa-spin" *ngIf="inviteSending"></i>
           <i class="fas fa-paper-plane" *ngIf="!inviteSending"></i>
-          {{ inviteSending ? 'Slanje…' : 'Pozovi' }}
+          {{ inviteSending ? 'Sending…' : 'Invite' }}
         </button>
       </div>
     </div>

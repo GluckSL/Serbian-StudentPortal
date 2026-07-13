@@ -3,11 +3,11 @@
     <div class="ph-insights-header-inner">
       <a routerLink="/admin/payment-hub" class="ph-insights-back">
         <mat-icon>arrow_back</mat-icon>
-        Nazad na centar
+        Back to hub
       </a>
-      <h1 class="ph-insights-title">Uvidi u plaćanja grupe</h1>
+      <h1 class="ph-insights-title">Batch payment insights</h1>
       <p class="ph-insights-sub">
-        Ukupno po grupama u realnom vremenu — ista pravila kao u Centru plaćanja (odobrena plaćanja, naknada iz kataloga, saldo i zakašnjelo).
+        Live totals per batch — same rules as Payment Hub (approved payments, catalog expected fees, balance &amp; overdue).
       </p>
     </div>
   </div>
@@ -17,12 +17,12 @@
       <mat-form-field appearance="outline" class="ph-filter">
         <mat-label>Batch</mat-label>
         <mat-select [(ngModel)]="filterBatch" (selectionChange)="applyFilter()" [disabled]="loading">
-          <mat-option value="">Sve grupe</mat-option>
+          <mat-option value="">All batches</mat-option>
           <mat-option *ngFor="let b of batchOptions" [value]="b">{{ b }}</mat-option>
         </mat-select>
       </mat-form-field>
       <mat-form-field appearance="outline" class="ph-filter">
-        <mat-label>Tip grupe</mat-label>
+        <mat-label>Batch type</mat-label>
         <mat-select [(ngModel)]="filterBatchType" (selectionChange)="applyBatchTypeFilter()" [disabled]="loading">
           <mat-option *ngFor="let opt of batchTypeOptions" [value]="opt.value">{{ opt.label }}</mat-option>
         </mat-select>
@@ -35,7 +35,7 @@
       </mat-form-field>
       <div class="ph-filter-test" matTooltip="Test accounts are excluded by default from batch totals.">
         <mat-checkbox [(ngModel)]="includeTestAccounts" (change)="applyFilter()" [disabled]="loading">
-          Uključi test naloge
+          Include test accounts
         </mat-checkbox>
       </div>
     </div>
@@ -43,35 +43,35 @@
     <ng-container *ngIf="!loading; else skeleton">
       <div class="ph-insights-cards ph-insights-cards--wide">
         <div class="ph-insight-card">
-          <div class="ph-insight-card-label">{{ showDetailsPanel ? 'Izabrane grupe' : 'Grupe' }}</div>
+          <div class="ph-insight-card-label">{{ showDetailsPanel ? 'Selected batches' : 'Batches' }}</div>
           <div class="ph-insight-card-value">{{ cardBatches }}</div>
-          <div class="ph-insight-card-hint">U trenutnom filteru</div>
+          <div class="ph-insight-card-hint">In current filter</div>
         </div>
         <div class="ph-insight-card">
-          <div class="ph-insight-card-label">Učenici</div>
+          <div class="ph-insight-card-label">Students</div>
           <div class="ph-insight-card-value">{{ fmt(cardStudents) }}</div>
-          <div class="ph-insight-card-hint">Upisano u prikazu</div>
+          <div class="ph-insight-card-hint">Enrolled in view</div>
         </div>
         <div class="ph-insight-card ph-accent-slate">
-          <div class="ph-insight-card-label">Očekivano (katalog)</div>
+          <div class="ph-insight-card-label">Expected (catalog)</div>
           <div class="ph-insight-card-value ph-insight-card-value--compact">
             LKR {{ fmtCompact(cardExpected.totalPaidLKR) }}
             <span class="ph-insight-card-subline" *ngIf="cardExpected.totalPaidINR">· INR {{ fmtCompact(cardExpected.totalPaidINR) }}</span>
           </div>
-          <div class="ph-insight-card-hint">Naknada za nivo × učenici</div>
+          <div class="ph-insight-card-hint">Level fee × students</div>
         </div>
         <div class="ph-insight-card ph-accent-violet ph-insight-card--currency">
-          <div class="ph-insight-card-label">Primljeno</div>
+          <div class="ph-insight-card-label">Received</div>
           <app-payment-currency-totals
             [lkr]="cardReceived.totalPaidLKR"
             [inr]="cardReceived.totalPaidINR"
             [usd]="cardReceived.totalPaidUSD"
             [compact]="true"
           ></app-payment-currency-totals>
-          <div class="ph-insight-card-hint">Odobrena plaćanja</div>
+          <div class="ph-insight-card-hint">Approved payments</div>
         </div>
         <div class="ph-insight-card ph-accent-amber ph-insight-card--currency">
-          <div class="ph-insight-card-label">Na čekanju / saldo</div>
+          <div class="ph-insight-card-label">Pending / balance</div>
           <app-payment-currency-pending-totals
             [lkr]="cardPending.pendingApprovalAmountLKR"
             [inr]="cardPending.pendingApprovalAmountINR"
@@ -80,7 +80,7 @@
           ></app-payment-currency-pending-totals>
         </div>
         <div class="ph-insight-card ph-accent-red ph-insight-card--currency">
-          <div class="ph-insight-card-label">Zakašnjelo</div>
+          <div class="ph-insight-card-label">Overdue</div>
           <app-payment-currency-overdue-totals
             [lkr]="cardOverdue.overdueAmountLKR"
             [inr]="cardOverdue.overdueAmountINR"
@@ -89,49 +89,49 @@
           ></app-payment-currency-overdue-totals>
         </div>
         <div class="ph-insight-card ph-insight-card--pct">
-          <div class="ph-insight-card-label">Prikupljeni iznos</div>
+          <div class="ph-insight-card-label">Amount collected</div>
           <div class="ph-insight-card-value" [ngClass]="collectedPctClass(cardAmountCollectedPct)">
             {{ collectionLabel(cardAmountCollectedPct) }}
           </div>
-          <div class="ph-insight-card-hint">Primljeno ÷ očekivano (LKR)</div>
+          <div class="ph-insight-card-hint">Received ÷ expected (LKR)</div>
         </div>
         <div class="ph-insight-card ph-insight-card--pct">
-          <div class="ph-insight-card-label">Saldo / zakašnjelo</div>
+          <div class="ph-insight-card-label">Balance / overdue</div>
           <div class="ph-insight-card-value" [ngClass]="outstandingPctClass(cardAmountOutstandingPct)">
             {{ collectionLabel(cardAmountOutstandingPct) }}
           </div>
-          <div class="ph-insight-card-hint">Na čekanju + zakašnjelo ÷ očekivano (LKR)</div>
+          <div class="ph-insight-card-hint">Pending + overdue ÷ expected (LKR)</div>
         </div>
       </div>
 
       <div class="ph-insights-cards ph-insights-cards--health">
         <div class="ph-insight-card ph-health-card ph-health-card--green">
-          <div class="ph-insight-card-label">Potpuno plaćeno</div>
+          <div class="ph-insight-card-label">Paid full</div>
           <div class="ph-insight-card-value">{{ viewTotals.fullyPaidStudents }}</div>
-          <div class="ph-insight-card-hint">{{ studentPct(viewTotals.fullyPaidStudents ?? 0, cardStudents) }} učenika</div>
+          <div class="ph-insight-card-hint">{{ studentPct(viewTotals.fullyPaidStudents ?? 0, cardStudents) }} of students</div>
         </div>
         <div class="ph-insight-card ph-health-card ph-health-card--amber">
-          <div class="ph-insight-card-label">Imaju saldo</div>
+          <div class="ph-insight-card-label">Have balance</div>
           <div class="ph-insight-card-value">{{ viewTotals.balanceStudents }}</div>
-          <div class="ph-insight-card-hint">{{ studentPct(viewTotals.balanceStudents ?? 0, cardStudents) }} učenika</div>
+          <div class="ph-insight-card-hint">{{ studentPct(viewTotals.balanceStudents ?? 0, cardStudents) }} of students</div>
         </div>
         <div class="ph-insight-card ph-health-card ph-health-card--red">
-          <div class="ph-insight-card-label">Zakašnjelo</div>
+          <div class="ph-insight-card-label">Overdue</div>
           <div class="ph-insight-card-value">{{ viewTotals.overdueStudents }}</div>
-          <div class="ph-insight-card-hint">{{ studentPct(viewTotals.overdueStudents ?? 0, cardStudents) }} učenika</div>
+          <div class="ph-insight-card-hint">{{ studentPct(viewTotals.overdueStudents ?? 0, cardStudents) }} of students</div>
         </div>
         <div class="ph-insight-card ph-health-card ph-health-card--teal">
-          <div class="ph-insight-card-label">Platili dokumenta</div>
+          <div class="ph-insight-card-label">Paid docs</div>
           <div class="ph-insight-card-value">{{ viewTotals.docsPaidStudents }}</div>
           <div class="ph-insight-card-hint">Docs payment approved</div>
         </div>
         <div class="ph-insight-card ph-health-card ph-health-card--indigo">
-          <div class="ph-insight-card-label">Platili vizu</div>
+          <div class="ph-insight-card-label">Paid visa</div>
           <div class="ph-insight-card-value">{{ viewTotals.visaPaidStudents }}</div>
           <div class="ph-insight-card-hint">Visa payment approved</div>
         </div>
         <div class="ph-insight-card">
-          <div class="ph-insight-card-label">Najplaćenija grupa (LKR)</div>
+          <div class="ph-insight-card-label">Top batch (LKR)</div>
           <div class="ph-insight-card-value ph-value-sm">{{ cardLargestBatch }}</div>
           <div class="ph-insight-card-hint">Highest received in view</div>
         </div>
@@ -139,8 +139,8 @@
 
       <div class="ph-insights-split ph-insights-split--charts">
         <div class="ph-insights-panel">
-          <h2 class="ph-insights-panel-title">Primljeno naspram neizmirenog (LKR)</h2>
-          <p class="ph-panel-caption">Top grupe — primljeno (zeleno) naspram na čekanju + zakašnjelo (narandžasto)</p>
+          <h2 class="ph-insights-panel-title">Received vs outstanding (LKR)</h2>
+          <p class="ph-panel-caption">Top batches — received (green) vs pending + overdue (amber)</p>
           <div class="ph-insights-chart-wrap">
             <canvas
               *ngIf="batchRows.length"
@@ -149,11 +149,11 @@
               [options]="barChartOptions"
               type="bar"
             ></canvas>
-            <p *ngIf="!batchRows.length" class="ph-empty-note">Nema grupa za ovaj filter.</p>
+            <p *ngIf="!batchRows.length" class="ph-empty-note">No batches for this filter.</p>
           </div>
         </div>
         <div class="ph-insights-panel">
-          <h2 class="ph-insights-panel-title">Zdravlje plaćanja učenika</h2>
+          <h2 class="ph-insights-panel-title">Student payment health</h2>
           <p class="ph-panel-caption">Stacked counts — paid full, balance, overdue (per batch)</p>
           <div class="ph-insights-chart-wrap ph-insights-chart-wrap--tall">
             <canvas
@@ -170,8 +170,8 @@
 
       <div class="ph-batch-toolbar">
         <div class="ph-batch-toolbar-left">
-          <span class="ph-batch-select-hint" *ngIf="selectedBatches.size">{{ selectedBatches.size }} grupa(e) izabrana</span>
-          <span class="ph-batch-select-hint ph-muted" *ngIf="!selectedBatches.size">Izaberite redove za fokusiranje grafikona i izvoz</span>
+          <span class="ph-batch-select-hint" *ngIf="selectedBatches.size">{{ selectedBatches.size }} batch(es) selected</span>
+          <span class="ph-batch-select-hint ph-muted" *ngIf="!selectedBatches.size">Select rows to focus charts &amp; export</span>
         </div>
         <div class="ph-batch-toolbar-actions">
           <button
@@ -182,38 +182,38 @@
             [disabled]="exporting || !batchRows.length"
           >
             <mat-icon>download</mat-icon>
-            {{ exporting ? 'Izvoz u toku…' : 'Izvezi' }}
+            {{ exporting ? 'Exporting…' : 'Export' }}
           </button>
           <mat-menu #exportMenu="matMenu">
             <button mat-menu-item type="button" (click)="exportBatches('xlsx', 'all')">
               <mat-icon>grid_on</mat-icon>
-              <span>Excel — sve grupe ({{ batchRows.length }})</span>
+              <span>Excel — all batches ({{ batchRows.length }})</span>
             </button>
             <button mat-menu-item type="button" (click)="exportBatches('csv', 'all')">
               <mat-icon>description</mat-icon>
-              <span>CSV — sve grupe</span>
+              <span>CSV — all batches</span>
             </button>
             <button mat-menu-item type="button" (click)="exportBatches('xlsx', 'visible')" [disabled]="!displayBatchRows.length">
               <mat-icon>filter_list</mat-icon>
-              <span>Excel — filter tabele ({{ displayBatchRows.length }})</span>
+              <span>Excel — table filter ({{ displayBatchRows.length }})</span>
             </button>
             <button mat-menu-item type="button" (click)="exportBatches('xlsx', 'selected')" [disabled]="!selectedBatches.size">
               <mat-icon>checklist</mat-icon>
-              <span>Excel — izabrane ({{ selectedBatches.size }})</span>
+              <span>Excel — selected ({{ selectedBatches.size }})</span>
             </button>
           </mat-menu>
           <button mat-stroked-button type="button" (click)="clearSelection()" [disabled]="!selectedBatches.size">
-            Obriši izbor
+            Clear
           </button>
           <button mat-flat-button color="primary" type="button" (click)="showSelectedDetails()" [disabled]="!selectedBatches.size">
             <mat-icon>visibility</mat-icon>
-            Fokusiraj izbor
+            Focus selection
           </button>
         </div>
       </div>
 
       <section *ngIf="showDetailsPanel && selectedBatchRows.length" class="ph-selected-details">
-        <h2 class="ph-insights-panel-title">Izabrane grupe</h2>
+        <h2 class="ph-insights-panel-title">Selected batches</h2>
         <div class="ph-selected-cards">
           <div class="ph-selected-card" *ngFor="let r of selectedBatchRows">
             <div class="ph-selected-card-head">
@@ -226,11 +226,11 @@
 
             <div class="ph-selected-card-hero">
               <div class="ph-selected-stat">
-                <span class="ph-selected-stat__label">Učenici</span>
+                <span class="ph-selected-stat__label">Students</span>
                 <span class="ph-selected-stat__value">{{ r.studentCount }}</span>
               </div>
               <div class="ph-selected-stat ph-selected-stat--collection">
-                <span class="ph-selected-stat__label">Prikupljeno LKR</span>
+                <span class="ph-selected-stat__label">LKR collected</span>
                 <span class="ph-collection-pill ph-selected-stat__pill" [ngClass]="collectionClass(r.collectionRateLKR)">
                   {{ collectionLabel(r.collectionRateLKR) }}
                 </span>
@@ -238,7 +238,7 @@
             </div>
 
             <div class="ph-selected-card-section">
-              <span class="ph-selected-section-label">Primljeno</span>
+              <span class="ph-selected-section-label">Received</span>
               <app-payment-currency-totals
                 [lkr]="r.totalPaidLKR"
                 [inr]="r.totalPaidINR"
@@ -249,36 +249,36 @@
             </div>
 
             <div class="ph-selected-card-section">
-              <span class="ph-selected-section-label">Status plaćanja</span>
+              <span class="ph-selected-section-label">Payment status</span>
               <div class="ph-health-chips ph-health-chips--card">
-                <span class="ph-health-chip ph-health-chip--green" matTooltip="Plaćeno u potpunosti">
+                <span class="ph-health-chip ph-health-chip--green" matTooltip="Paid in full">
                   <mat-icon>check_circle</mat-icon>{{ r.fullyPaidStudents }}
-                  <span class="ph-health-chip__text">Potpuno</span>
+                  <span class="ph-health-chip__text">Full</span>
                 </span>
-                <span class="ph-health-chip ph-health-chip--amber" matTooltip="Imaju saldo">
+                <span class="ph-health-chip ph-health-chip--amber" matTooltip="Have balance">
                   <mat-icon>hourglass_empty</mat-icon>{{ r.balanceStudents }}
-                  <span class="ph-health-chip__text">Saldo</span>
+                  <span class="ph-health-chip__text">Balance</span>
                 </span>
-                <span class="ph-health-chip ph-health-chip--red" matTooltip="Zakašnjelo">
+                <span class="ph-health-chip ph-health-chip--red" matTooltip="Overdue">
                   <mat-icon>warning</mat-icon>{{ r.overdueStudents }}
-                  <span class="ph-health-chip__text">Zakašnjelo</span>
+                  <span class="ph-health-chip__text">Overdue</span>
                 </span>
               </div>
             </div>
 
             <div class="ph-selected-card-footer">
               <div class="ph-selected-meta">
-                <span class="ph-selected-meta__label">Dan putovanja</span>
+                <span class="ph-selected-meta__label">Journey day</span>
                 <span class="ph-day-badge">{{ journeyDayRatio(r) }}</span>
               </div>
               <div class="ph-selected-meta ph-selected-meta--levels" *ngIf="r.levelSummary !== '—'">
-                <span class="ph-selected-meta__label">Nivoi</span>
+                <span class="ph-selected-meta__label">Levels</span>
                 <span class="ph-selected-meta__val">{{ r.levelSummary }}</span>
               </div>
             </div>
 
             <button mat-stroked-button color="primary" type="button" class="ph-selected-card-btn" (click)="openBatchStudents(r.batch)">
-              <mat-icon>groups</mat-icon> Pregled učenika
+              <mat-icon>groups</mat-icon> Student breakdown
             </button>
           </div>
         </div>
@@ -287,13 +287,13 @@
       <section class="ph-batch-table-section">
         <div class="ph-batch-table-head">
           <div class="ph-batch-table-head__text">
-            <h2 class="ph-insights-panel-title">Pregled po grupama</h2>
-            <p class="ph-panel-caption">{{ batchRows.length }} grupe · sortirano po primljenom LKR</p>
+            <h2 class="ph-insights-panel-title">Batch breakdown</h2>
+            <p class="ph-panel-caption">{{ batchRows.length }} batches · sorted by LKR received</p>
           </div>
           <mat-form-field appearance="outline" class="ph-batch-table-search">
-            <mat-label>Pretraži grupu</mat-label>
+            <mat-label>Search batch</mat-label>
             <mat-icon matPrefix>search</mat-icon>
-            <input matInput [(ngModel)]="tableSearch" placeholder="Naziv grupe ili nivo…" />
+            <input matInput [(ngModel)]="tableSearch" placeholder="Batch name or level…" />
           </mat-form-field>
         </div>
 
@@ -301,9 +301,9 @@
           <table class="ph-batch-table">
             <thead>
               <tr class="ph-batch-table__groups">
-                <th colspan="4" class="ph-th-group">Grupa</th>
-                <th colspan="6" class="ph-th-group ph-th-group--money">Finansije</th>
-                <th colspan="1" class="ph-th-group ph-th-group--health">Zdravlje</th>
+                <th colspan="4" class="ph-th-group">Batch</th>
+                <th colspan="6" class="ph-th-group ph-th-group--money">Finances</th>
+                <th colspan="1" class="ph-th-group ph-th-group--health">Health</th>
                 <th colspan="2" class="ph-th-group"></th>
               </tr>
               <tr class="ph-batch-table__cols">
@@ -315,16 +315,16 @@
                   ></mat-checkbox>
                 </th>
                 <th class="ph-col-rank ph-sticky">#</th>
-                <th class="ph-sticky ph-col-batch">Grupa</th>
-                <th>Nivoi</th>
-                <th class="ph-num">Učenici</th>
-                <th class="ph-num">Očekivano</th>
-                <th class="ph-num">Primljeno</th>
-                <th class="ph-num">Na čekanju</th>
-                <th class="ph-num">Zakašnjelo</th>
+                <th class="ph-sticky ph-col-batch">Batch</th>
+                <th>Levels</th>
+                <th class="ph-num">Students</th>
+                <th class="ph-num">Expected</th>
+                <th class="ph-num">Received</th>
+                <th class="ph-num">Pending</th>
+                <th class="ph-num">Overdue</th>
                 <th class="ph-num">LKR %</th>
-                <th class="ph-col-health">Zdravlje plaćanja</th>
-                <th class="ph-num">Putovanje</th>
+                <th class="ph-col-health">Payment health</th>
+                <th class="ph-num">Journey</th>
                 <th class="ph-col-actions"></th>
               </tr>
             </thead>
@@ -400,16 +400,16 @@
                 </td>
                 <td class="ph-col-health">
                   <div class="ph-health-chips">
-                    <span class="ph-health-chip ph-health-chip--green" matTooltip="Potpuno plaćeno">
+                    <span class="ph-health-chip ph-health-chip--green" matTooltip="Paid full">
                       <mat-icon>check_circle</mat-icon>{{ r.fullyPaidStudents }}
                     </span>
-                    <span class="ph-health-chip ph-health-chip--amber" matTooltip="Imaju saldo">
+                    <span class="ph-health-chip ph-health-chip--amber" matTooltip="Have balance">
                       <mat-icon>hourglass_empty</mat-icon>{{ r.balanceStudents }}
                     </span>
-                    <span class="ph-health-chip ph-health-chip--red" matTooltip="Zakašnjelo">
+                    <span class="ph-health-chip ph-health-chip--red" matTooltip="Overdue">
                       <mat-icon>warning</mat-icon>{{ r.overdueStudents }}
                     </span>
-                    <span class="ph-health-chip ph-health-chip--muted" *ngIf="r.docsPaidStudents || r.visaPaidStudents" matTooltip="Plaćeni dokumenti / viza">
+                    <span class="ph-health-chip ph-health-chip--muted" *ngIf="r.docsPaidStudents || r.visaPaidStudents" matTooltip="Docs / Visa paid">
                       D{{ r.docsPaidStudents }} V{{ r.visaPaidStudents }}
                     </span>
                   </div>
@@ -423,8 +423,8 @@
                     color="primary"
                     type="button"
                     (click)="openBatchStudents(r.batch)"
-                    matTooltip="Pregled učenika"
-                    aria-label="Otvori učenike"
+                    matTooltip="Student breakdown"
+                    aria-label="Open students"
                   >
                     <mat-icon>groups</mat-icon>
                   </button>
@@ -434,19 +434,19 @@
           </table>
         </div>
         <ng-template #emptyTable>
-          <p class="ph-empty-note">{{ tableSearch ? 'Nema grupa koje odgovaraju pretrazi.' : 'Nema grupa za ovaj filter.' }}</p>
+          <p class="ph-empty-note">{{ tableSearch ? 'No batches match your search.' : 'No batches for this filter.' }}</p>
         </ng-template>
       </section>
 
       <details class="ph-insights-help">
-        <summary>Kako se ovi brojevi izračunavaju</summary>
+        <summary>How these numbers are calculated</summary>
         <ul class="ph-bullets">
-          <li><strong>Primljeno</strong> — zbir odobrenih uplata (živi podaci, ne keširani profili).</li>
+          <li><strong>Received</strong> — sum of approved payment submissions (live data, not cached profiles).</li>
           <li><strong>Expected</strong> — catalog language fee × each student’s current level in the batch.</li>
-          <li><strong>Na čekanju / zakašnjelo</strong> — ista pravila kao u glavnoj tabeli Payment Hub-a.</li>
-          <li><strong>LKR prikupljanje %</strong> — primljeni LKR ÷ očekivani LKR za tu grupu (INR/Euro prikazani zasebno u kolonama).</li>
-          <li><strong>Dan putovanja</strong> — kalendarski dan grupe iz konfiguracije putovanja kada je podešen; inače najviši dan učenika / ukupno za nivo (npr. 23/42).</li>
-          <li><strong>Pregled učenika</strong> — po učeniku A1–C2 plaćeno, dokumenti, viza, na čekanju i status.</li>
+          <li><strong>Pending / overdue</strong> — same rules as the main Payment Hub student table.</li>
+          <li><strong>LKR collection %</strong> — received LKR ÷ expected LKR for that batch (INR/Euro shown separately in columns).</li>
+          <li><strong>Journey day</strong> — batch calendar day from journey config when set; otherwise highest student day / level total (e.g. 23/42).</li>
+          <li><strong>Student breakdown</strong> — per-student A1–C2 paid, docs, visa, pending, and status.</li>
         </ul>
       </details>
     </ng-container>

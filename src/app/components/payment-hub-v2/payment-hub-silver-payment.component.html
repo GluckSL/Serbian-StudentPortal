@@ -3,7 +3,7 @@
     <div class="ph-insights-header-inner">
       <a routerLink="/admin/finance-dashboard" class="ph-insights-back">
         <mat-icon>arrow_back</mat-icon>
-          Nazad na finansijsku kontrolnu tablu
+        Back to Finance Dashboard
       </a>
       <div class="ph-silver-payment-header-row">
         <div>
@@ -11,7 +11,7 @@
             <mat-icon class="ph-silver-payment-title-icon">workspace_premium</mat-icon>
             Silver Payment
           </h1>
-          <p class="ph-insights-sub">Praćenje Silver plaćanja po učeniku. Dodajte učenike iz GO Tamil, GO Sinhala, drugih grupa ili pojedinačno pretragom.</p>
+          <p class="ph-insights-sub">Student-level Silver payment tracking. Add students from GO Tamil, GO Sinhala, other batches, or individually by search.</p>
         </div>
         <button
           type="button"
@@ -19,7 +19,7 @@
           (click)="openAddModal()"
         >
           <mat-icon>person_add</mat-icon>
-          <span>Dodaj učenike</span>
+          <span>Add Students</span>
         </button>
       </div>
     </div>
@@ -34,14 +34,14 @@
           <mat-icon>groups</mat-icon>
           <div class="ph-finance-students-kpi__body">
             <span class="ph-finance-students-kpi__value">{{ insightCounts['all'] || 0 }}</span>
-            <span class="ph-finance-students-kpi__label">Ukupno učenika</span>
+            <span class="ph-finance-students-kpi__label">Total students</span>
           </div>
         </div>
 
         <div class="ph-finance-students-kpi ph-finance-students-kpi--paid">
           <mat-icon>payments</mat-icon>
           <div class="ph-finance-students-kpi__body">
-            <span class="ph-finance-students-kpi__label">Ukupno primljeno</span>
+            <span class="ph-finance-students-kpi__label">Total received</span>
             <div class="ph-finance-students-kpi__amounts">
               <span *ngIf="totalPaidLKR > 0" class="ph-finance-students-kpi__amount ph-finance-students-kpi__amount--lkr">
                 LKR {{ totalPaidLKR | number:'1.0-0' }}
@@ -60,7 +60,7 @@
         <div class="ph-finance-students-kpi ph-finance-students-kpi--pending">
           <mat-icon>pending_actions</mat-icon>
           <div class="ph-finance-students-kpi__body">
-            <span class="ph-finance-students-kpi__label">Ukupno preostalo</span>
+            <span class="ph-finance-students-kpi__label">Total remaining</span>
             <div class="ph-finance-students-kpi__amounts">
               <span *ngIf="totalPendingLKR > 0" class="ph-finance-students-kpi__amount ph-finance-students-kpi__amount--pending">
                 LKR {{ totalPendingLKR | number:'1.0-0' }}
@@ -79,7 +79,7 @@
 
       <!-- ── Insight filter cards ── -->
       <div class="ph-health-grid" *ngIf="rows.length || insightCounts['all']">
-        <p class="ph-health-grid-heading">Pregled plaćanja · kliknite za filtriranje</p>
+        <p class="ph-health-grid-heading">Payment breakdown · click to filter</p>
         <div class="ph-health-cards">
           <button
             type="button"
@@ -112,15 +112,15 @@
                   [hideZero]="true"
                 ></app-payment-currency-pending-totals>
               </div>
-              <span class="ph-health-card-hint" *ngIf="opt.key === 'all'">Primljeno + preostalo</span>
+              <span class="ph-health-card-hint" *ngIf="opt.key === 'all'">Received + remaining</span>
               <span class="ph-health-card-hint" *ngIf="opt.key === 'paid_full'">
-                Sve primljeno · {{ studentPct(insightCount(opt.key), insightCount('all')) }} potpuno plaćeno
+                All received · {{ studentPct(insightCount(opt.key), insightCount('all')) }} fully paid
               </span>
               <span class="ph-health-card-hint" *ngIf="opt.key === 'have_balance'">
-                Sve neizmireno · {{ studentPct(insightCount(opt.key), insightCount('all')) }} sa saldom
+                All outstanding · {{ studentPct(insightCount(opt.key), insightCount('all')) }} with balance
               </span>
               <span class="ph-health-card-hint" *ngIf="opt.key === 'all' && notStartedCount() > 0">
-                {{ notStartedCount() }} još nije počelo
+                {{ notStartedCount() }} not started yet
               </span>
             </div>
             <mat-icon class="ph-health-card-chevron" *ngIf="isInsightActive(opt.value)">filter_alt</mat-icon>
@@ -129,7 +129,7 @@
           <article class="ph-silver-kpi-card ph-silver-kpi-card--last-level">
             <div class="ph-silver-kpi-card__head">
               <mat-icon class="ph-silver-kpi-card__icon">history</mat-icon>
-              <span class="ph-silver-kpi-card__label">Poslednji nivo na čekanju</span>
+              <span class="ph-silver-kpi-card__label">Last level pending</span>
             </div>
             <span class="ph-silver-kpi-card__count">{{ lastLevelPendingStudentCount }}</span>
             <div class="ph-silver-kpi-card__amount" *ngIf="hasLastLevelPendingTotals()">
@@ -142,7 +142,7 @@
               ></app-payment-currency-pending-totals>
             </div>
             <p class="ph-silver-kpi-card__hint">
-              Na čekanju sa ranijih nivoa · odgovara tabeli tekućih grupa
+              Pending from earlier levels · matches ongoing batches table
             </p>
           </article>
         </div>
@@ -152,7 +152,7 @@
       <section class="ph-table-section ph-surface" id="ph-silver-stu-table">
         <div class="ph-table-toolbar">
           <div class="ph-table-toolbar-left">
-            <h2 class="ph-section-title">Učenici</h2>
+            <h2 class="ph-section-title">Students</h2>
             <span class="ph-insight-filter-chip" *ngIf="studentInsight">
               <mat-icon>filter_alt</mat-icon>
               {{ activeInsightLabel() }}
@@ -173,23 +173,23 @@
               </button>
             </span>
             <span class="ph-select-meta">
-              {{ pageStart }}-{{ pageEnd }} od {{ totalStudents }} prikazano
+              {{ pageStart }}-{{ pageEnd }} of {{ totalStudents }} shown
             </span>
             <label class="ph-finance-students-page-size">
-              <span>Staza</span>
+              <span>Track</span>
               <select
                 [ngModel]="goTrackFilter"
                 (ngModelChange)="onGoTrackFilterChange($event)"
                 [disabled]="loading"
                 aria-label="Filter by GO track"
               >
-                <option value="">Oba</option>
-                <option value="tamil">Samo GO Tamil</option>
-                <option value="sinhala">Samo GO Sinhala</option>
+                <option value="">Both</option>
+                <option value="tamil">GO Tamil only</option>
+                <option value="sinhala">GO Sinhala only</option>
               </select>
             </label>
             <label class="ph-finance-students-page-size">
-              <span>Redovi</span>
+              <span>Rows</span>
               <select
                 [ngModel]="pageSize"
                 (ngModelChange)="onPageSizeChange($event)"
@@ -209,8 +209,8 @@
               type="search"
               [(ngModel)]="searchQuery"
               (ngModelChange)="onSearchChange()"
-              placeholder="Pretraži po imenu, emailu ili stazi…"
-              aria-label="Pretraži učenike"
+              placeholder="Search by name, email, or track…"
+              aria-label="Search students"
             />
           </div>
         </div>

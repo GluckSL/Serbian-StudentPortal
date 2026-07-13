@@ -1,4 +1,4 @@
-﻿import { Component, Input, OnChanges, OnDestroy, SimpleChanges } from '@angular/core';
+import { Component, Input, OnChanges, OnDestroy, SimpleChanges } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatCardModule } from '@angular/material/card';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
@@ -192,7 +192,7 @@ export class PortalAnalyticsDashboardComponent implements OnChanges, OnDestroy {
     const span = this.daysInclusiveInRange();
     const tz = this.portalChartTimeZone;
     if (span <= 14) {
-      return new Intl.DateTimeFormat('sr-Latn-RS', {
+      return new Intl.DateTimeFormat('en-IN', {
         timeZone: tz,
         weekday: 'short',
         day: 'numeric',
@@ -200,15 +200,15 @@ export class PortalAnalyticsDashboardComponent implements OnChanges, OnDestroy {
       }).format(d);
     }
     if (span <= 62) {
-      return new Intl.DateTimeFormat('sr-Latn-RS', { timeZone: tz, day: 'numeric', month: 'short' }).format(d);
+      return new Intl.DateTimeFormat('en-IN', { timeZone: tz, day: 'numeric', month: 'short' }).format(d);
     }
-    return new Intl.DateTimeFormat('sr-Latn-RS', { timeZone: tz, month: 'short', year: 'numeric' }).format(d);
+    return new Intl.DateTimeFormat('en-IN', { timeZone: tz, month: 'short', year: 'numeric' }).format(d);
   }
 
   private formatTimeSeriesTooltipTitle(ymd: string): string {
     const d = this.parseSeriesDay(ymd);
     if (!d) return String(ymd || '');
-    return new Intl.DateTimeFormat('sr-Latn-RS', {
+    return new Intl.DateTimeFormat('en-IN', {
       timeZone: this.portalChartTimeZone,
       weekday: 'long',
       day: 'numeric',

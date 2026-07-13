@@ -1,5 +1,5 @@
 <div class="ph-request-tabs">
-  <div class="ph-view-tabs" role="tablist" aria-label="Prikazi plaćanja zahteva">
+  <div class="ph-view-tabs" role="tablist" aria-label="Req Payment views">
     <button
       type="button"
       role="tab"
@@ -7,7 +7,7 @@
       [class.ph-view-tab--active]="activeView === 'send'"
       [attr.aria-selected]="activeView === 'send'"
       (click)="setActiveView('send')">
-      Pošalji zahtev
+      Send Request
     </button>
     <button
       type="button"
@@ -16,7 +16,7 @@
       [class.ph-view-tab--active]="activeView === 'approvals'"
       [attr.aria-selected]="activeView === 'approvals'"
       (click)="setActiveView('approvals')">
-      Na čekanju odobrenja
+      Pending Approvals
       <span class="badge-count" *ngIf="pendingQueueTotal > 0">{{ pendingQueueTotal }}</span>
     </button>
   </div>
@@ -27,29 +27,29 @@
       <div class="ap-signup-banner" *ngIf="pendingSignupTotal > 0" role="status">
         <mat-icon>person_add</mat-icon>
         <div>
-          <strong>{{ pendingSignupTotal }} novi dokaz o plaćanju prijave{{ pendingSignupTotal > 1 ? '' : '' }} čeka</strong>
-          <span> — nije prikazano u okviru postojećih učenika. Otvorite Na čekanju odobrenja za pregled.</span>
+          <strong>{{ pendingSignupTotal }} new signup payment proof{{ pendingSignupTotal > 1 ? 's' : '' }} waiting</strong>
+          <span> — not shown under existing students. Open Pending Approvals to review.</span>
         </div>
-        <button type="button" class="ap-signup-banner__btn" (click)="setActiveView('approvals')">Pregledaj prijave</button>
+        <button type="button" class="ap-signup-banner__btn" (click)="setActiveView('approvals')">Review signups</button>
       </div>
 
       <!-- Filter Bar -->
       <div class="filter-bar">
         <mat-form-field appearance="outline" class="filter-field filter-search">
-          <mat-label>Pretraži ime ili email</mat-label>
+          <mat-label>Search name or email</mat-label>
           <mat-icon matPrefix>search</mat-icon>
-          <input matInput [(ngModel)]="filterSearch" placeholder="npr. Amal" (keyup.enter)="applyFilters()" />
+          <input matInput [(ngModel)]="filterSearch" placeholder="e.g. Amal" (keyup.enter)="applyFilters()" />
         </mat-form-field>
 
         <mat-form-field appearance="outline" class="filter-field">
-          <mat-label>Grupa</mat-label>
-          <input matInput [(ngModel)]="filterBatch" placeholder="npr. A1-2024" />
+          <mat-label>Batch</mat-label>
+          <input matInput [(ngModel)]="filterBatch" placeholder="e.g. A1-2024" />
         </mat-form-field>
 
         <mat-form-field appearance="outline" class="filter-field">
-          <mat-label>Nivo</mat-label>
+          <mat-label>Level</mat-label>
           <mat-select [(ngModel)]="filterLevel">
-            <mat-option value="">Svi nivoi</mat-option>
+            <mat-option value="">All Levels</mat-option>
             <mat-option *ngFor="let l of levelOptions" [value]="l">{{ l }}</mat-option>
           </mat-select>
         </mat-form-field>
@@ -57,17 +57,17 @@
         <mat-form-field appearance="outline" class="filter-field">
           <mat-label>Plan</mat-label>
           <mat-select [(ngModel)]="filterPlan">
-            <mat-option value="">Svi planovi</mat-option>
+            <mat-option value="">All Plans</mat-option>
             <mat-option *ngFor="let p of planOptions" [value]="p.value">{{ p.label }}</mat-option>
           </mat-select>
         </mat-form-field>
 
         <div class="filter-actions">
           <button mat-flat-button color="primary" (click)="applyFilters()">
-            <mat-icon>filter_list</mat-icon> Primeni
+            <mat-icon>filter_list</mat-icon> Apply
           </button>
           <button mat-stroked-button (click)="resetFilters()">
-            <mat-icon>clear</mat-icon> Resetuj
+            <mat-icon>clear</mat-icon> Reset
           </button>
         </div>
       </div>
@@ -76,10 +76,10 @@
       <div class="selection-bar" *ngIf="selectedIds.size > 0">
         <span class="selection-count">
           <mat-icon>check_circle</mat-icon>
-          {{ selectedIds.size }} učenik{{ selectedIds.size > 1 ? 'a' : '' }} izabrano
+          {{ selectedIds.size }} student{{ selectedIds.size > 1 ? 's' : '' }} selected
         </span>
         <button mat-stroked-button color="warn" (click)="deselectAll()">
-          <mat-icon>deselect</mat-icon> Obriši izbor
+          <mat-icon>deselect</mat-icon> Clear Selection
         </button>
       </div>
 
@@ -87,12 +87,12 @@
       <div class="students-section">
         <div class="section-header">
           <h3>
-            Učenici
+            Students
             <span class="total-badge" *ngIf="studentTotal > 0">{{ studentTotal }}</span>
           </h3>
           <div class="header-actions" *ngIf="studentList.length > 0">
             <button mat-stroked-button (click)="toggleSelectAll()">
-              {{ allPageSelected ? 'Poništi sve' : 'Izaberi sve' }}
+              {{ allPageSelected ? 'Deselect All' : 'Select All' }}
             </button>
           </div>
         </div>
@@ -103,7 +103,7 @@
 
         <div *ngIf="!loadingStudents && studentList.length === 0" class="empty-state">
           <mat-icon>people_outline</mat-icon>
-          <p>Nisu pronađeni učenici. Pokušajte da prilagodite filtere.</p>
+          <p>No students found. Try adjusting your filters.</p>
         </div>
 
         <div *ngIf="!loadingStudents && studentList.length > 0" class="students-table-wrap">
@@ -111,12 +111,12 @@
             <thead>
               <tr>
                 <th class="col-check"></th>
-                <th>Ime</th>
+                <th>Name</th>
                 <th>Email</th>
-                <th>Nivo</th>
+                <th>Level</th>
                 <th>Plan</th>
-                <th class="col-num">Ukupno primljeno</th>
-                <th class="col-num">Saldo</th>
+                <th class="col-num">Total received</th>
+                <th class="col-num">Balance</th>
                 <th>Status</th>
                 <th></th>
               </tr>
@@ -147,7 +147,7 @@
                 <td class="col-num" [class.overdue-text]="row.balanceDue > 0">{{ fmt(row.balanceDue) }}</td>
                 <td><span class="pill" [ngClass]="overallStatusClass(row.overallStatus)">{{ row.overallStatus }}</span></td>
                 <td>
-                  <button mat-icon-button color="primary" matTooltip="Prikaži punu istoriju"
+                  <button mat-icon-button color="primary" matTooltip="View full history"
                     (click)="$event.stopPropagation(); viewMore(row)">
                     <mat-icon>open_in_new</mat-icon>
                   </button>
@@ -173,72 +173,72 @@
       <div class="request-form-card" *ngIf="selectedIds.size > 0">
         <h3>
           <mat-icon>send</mat-icon>
-          Pošalji zahtev za plaćanje za {{ selectedIds.size }} učenik{{ selectedIds.size > 1 ? 'a' : 'a' }}
+          Send Payment Request to {{ selectedIds.size }} student{{ selectedIds.size > 1 ? 's' : '' }}
         </h3>
 
         <!-- Currency auto-detection notice -->
         <div class="currency-notice currency-notice--locked" *ngIf="currencyLocked">
           <mat-icon>flag</mat-icon>
-          Valuta automatski detektovana kao <strong>{{ currencyLabel(currency) }}</strong> na osnovu broja telefona učenika.
+          Currency auto-detected as <strong>{{ currencyLabel(currency) }}</strong> from the student's phone number.
         </div>
         <div class="currency-notice currency-notice--warn" *ngIf="currencyMixedWarning">
           <mat-icon>warning_amber</mat-icon>
-          Izabrani učenici dolaze iz različitih zemalja. Molimo ručno izaberite ispravnu valutu.
+          Selected students have different countries. Please choose the correct currency manually.
         </div>
 
         <div class="form-grid">
           <mat-form-field appearance="outline">
-            <mat-label>Iznos</mat-label>
+            <mat-label>Amount</mat-label>
             <input matInput type="number" [(ngModel)]="amount" placeholder="35000" />
           </mat-form-field>
 
           <!-- Show locked currency as a read-only chip when auto-detected; dropdown when mixed/unknown -->
           <div class="currency-locked-field" *ngIf="currencyLocked">
-            <span class="currency-locked-label">Valuta</span>
+            <span class="currency-locked-label">Currency</span>
             <span class="currency-locked-value">{{ currencyLabel(currency) }}</span>
           </div>
           <mat-form-field appearance="outline" *ngIf="!currencyLocked">
-            <mat-label>Valuta</mat-label>
+            <mat-label>Currency</mat-label>
             <mat-select [(ngModel)]="currency">
               <mat-option *ngFor="let c of currencies" [value]="c">{{ currencyLabel(c) }}</mat-option>
             </mat-select>
           </mat-form-field>
 
           <mat-form-field appearance="outline">
-            <mat-label>Vrsta plaćanja</mat-label>
+            <mat-label>Payment Type</mat-label>
             <mat-select [(ngModel)]="paymentType">
               <mat-option *ngFor="let t of paymentTypes" [value]="t">{{ t }}</mat-option>
             </mat-select>
           </mat-form-field>
 
           <mat-form-field appearance="outline" *ngIf="paymentType === 'Custom'">
-            <mat-label>Prilagođena oznaka</mat-label>
-            <input matInput [(ngModel)]="customType" placeholder="npr. Depozit za knjige" />
+            <mat-label>Custom Label</mat-label>
+            <input matInput [(ngModel)]="customType" placeholder="e.g. Book Deposit" />
           </mat-form-field>
 
           <mat-form-field appearance="outline">
-            <mat-label>Rok</mat-label>
-            <input matInput [matDatepicker]="duePicker" [(ngModel)]="dueDate" placeholder="Izaberi datum" />
+            <mat-label>Due Date</mat-label>
+            <input matInput [matDatepicker]="duePicker" [(ngModel)]="dueDate" placeholder="Select date" />
             <mat-datepicker-toggle matSuffix [for]="duePicker"></mat-datepicker-toggle>
             <mat-datepicker #duePicker></mat-datepicker>
           </mat-form-field>
         </div>
 
         <mat-form-field appearance="outline" class="full-width">
-          <mat-label>Opis / Svrha</mat-label>
-          <textarea matInput rows="3" [(ngModel)]="remarks" placeholder="Za šta je ovo plaćanje? Ovo će biti prikazano učeniku podebljano."></textarea>
+          <mat-label>Description / Purpose</mat-label>
+          <textarea matInput rows="3" [(ngModel)]="remarks" placeholder="What is this payment for? This will be shown to the student in bold."></textarea>
         </mat-form-field>
 
         <div class="form-toggles">
-          <mat-slide-toggle [(ngModel)]="installmentAllowed">Dozvoli rate</mat-slide-toggle>
-          <mat-slide-toggle [(ngModel)]="notificationToggle" color="accent">Pošalji email obaveštenje</mat-slide-toggle>
+          <mat-slide-toggle [(ngModel)]="installmentAllowed">Allow Installments</mat-slide-toggle>
+          <mat-slide-toggle [(ngModel)]="notificationToggle" color="accent">Send Email Notification</mat-slide-toggle>
         </div>
 
         <div class="form-actions">
           <button mat-flat-button color="primary" (click)="sendRequest()" [disabled]="sendingRequest">
             <mat-spinner *ngIf="sendingRequest" diameter="16" class="btn-spinner"></mat-spinner>
             <mat-icon *ngIf="!sendingRequest">send</mat-icon>
-            {{ sendingRequest ? 'Slanje…' : 'Pošalji zahtev' }}
+            {{ sendingRequest ? 'Sending…' : 'Send Request' }}
           </button>
         </div>
       </div>
@@ -255,15 +255,15 @@
             <mat-icon>pending_actions</mat-icon>
           </div>
           <div>
-            <h3 class="ap-queue-title">Red za odobrenje</h3>
+            <h3 class="ap-queue-title">Approval queue</h3>
             <p class="ap-queue-sub" *ngIf="pendingQueueTotal > 0">
-              <span class="ap-queue-pending">{{ pendingQueueTotal }}</span> čeka pregled
-              <ng-container *ngIf="pendingSignupTotal > 0"> — uključuje {{ pendingSignupTotal }} novu prijavu{{ pendingSignupTotal > 1 ? '' : '' }}</ng-container>.
+              <span class="ap-queue-pending">{{ pendingQueueTotal }}</span> awaiting review
+              <ng-container *ngIf="pendingSignupTotal > 0"> — includes {{ pendingSignupTotal }} new signup{{ pendingSignupTotal > 1 ? 's' : '' }}</ng-container>.
             </p>
-            <p class="ap-queue-sub" *ngIf="pendingQueueTotal === 0">Trenutno nema podnošenja koja čekaju pregled.</p>
+            <p class="ap-queue-sub" *ngIf="pendingQueueTotal === 0">No submissions waiting for review right now.</p>
           </div>
         </div>
-        <button type="button" class="ap-refresh-btn" (click)="refreshApprovalsTab()" matTooltip="Osveži listu" aria-label="Osveži listu">
+        <button type="button" class="ap-refresh-btn" (click)="refreshApprovalsTab()" matTooltip="Refresh list" aria-label="Refresh list">
           <mat-icon>refresh</mat-icon>
         </button>
       </header>
@@ -274,13 +274,13 @@
           <div class="ap-signup-section__head-left">
             <span class="ap-signup-section__icon"><mat-icon>person_add</mat-icon></span>
             <div>
-              <h4 class="ap-signup-section__title">Nove prijave učenika</h4>
-              <p class="ap-signup-section__sub">Dokazi o bankovnom transferu sa javnog formulara za registraciju — odobravanje kreira nalog učenika i šalje email dobrodošlice. Odbijte ako su podaci pogrešni; učenik može ponovo da podnese dokaz.</p>
+              <h4 class="ap-signup-section__title">New student signups</h4>
+              <p class="ap-signup-section__sub">Bank-transfer proofs from the public registration form — approving creates the student account and sends the welcome email. Reject if details are wrong; the student can re-submit proof.</p>
             </div>
           </div>
           <mat-form-field appearance="outline" class="ap-signup-batch-field" *ngIf="signupRows.length > 0">
-            <mat-label>Grupa (opciono)</mat-label>
-            <input matInput [(ngModel)]="signupApproveBatch" placeholder="npr. A1-2026" />
+            <mat-label>Batch (optional)</mat-label>
+            <input matInput [(ngModel)]="signupApproveBatch" placeholder="e.g. A1-2026" />
           </mat-form-field>
         </header>
 
@@ -290,7 +290,7 @@
 
         <div *ngIf="!loadingSignups && signupRows.length === 0" class="ap-signup-empty ap-signup-empty--inset">
           <mat-icon>person_add</mat-icon>
-          <p>Nema novih dokaza o plaćanju prijave koji čekaju.</p>
+          <p>No new signup payment proofs waiting.</p>
         </div>
 
         <div *ngIf="!loadingSignups && signupRows.length > 0" class="ap-table-shell ap-signup-table">
@@ -298,17 +298,17 @@
             <table class="ap-table">
               <thead>
                 <tr>
-                  <th>Podnosilac</th>
-                  <th>Kontakt</th>
-                  <th>Nivo</th>
+                  <th>Applicant</th>
+                  <th>Contact</th>
+                  <th>Level</th>
                   <th>Plan</th>
-                  <th class="ap-num">Deklarisano</th>
-                  <th class="ap-num">Navedena naknada</th>
-                  <th>Datum plaćanja</th>
-                  <th>Vlasnik računa</th>
-                  <th>Podneto</th>
-                  <th>Dokaz</th>
-                  <th class="ap-col-actions">Radnje</th>
+                  <th class="ap-num">Declared</th>
+                  <th class="ap-num">Quoted fee</th>
+                  <th>Payment date</th>
+                  <th>Account holder</th>
+                  <th>Submitted</th>
+                  <th>Proof</th>
+                  <th class="ap-col-actions">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -335,9 +335,9 @@
                       class="ap-proof-btn"
                       (click)="viewSignupProof(row)">
                       <mat-icon>image</mat-icon>
-                      Prikaži dokaz
+                      View proof
                     </button>
-                    <span *ngIf="!row.proofViewUrl" class="ap-no-proof">Nema datoteke</span>
+                    <span *ngIf="!row.proofViewUrl" class="ap-no-proof">No file</span>
                   </td>
                   <td class="ap-col-actions">
                     <div class="ap-action-btns">
@@ -347,7 +347,7 @@
                         [disabled]="loadingSignupToken === row.applicationToken"
                         (click)="openSignupEdit(row, $event)">
                         <mat-icon>edit</mat-icon>
-                        Uredi
+                        Edit
                       </button>
                       <button
                         type="button"
@@ -356,7 +356,7 @@
                         (click)="approveSignup(row, $event)">
                         <mat-spinner *ngIf="loadingSignupToken === row.applicationToken" diameter="14" class="ap-action-spinner"></mat-spinner>
                         <mat-icon *ngIf="loadingSignupToken !== row.applicationToken">check_circle</mat-icon>
-                        Odobri
+                        Approve
                       </button>
                       <button
                         type="button"
@@ -364,7 +364,7 @@
                         [disabled]="loadingSignupToken === row.applicationToken"
                         (click)="rejectSignup(row, $event)">
                         <mat-icon>close</mat-icon>
-                        Odbij
+                        Reject
                       </button>
                     </div>
                   </td>
@@ -375,9 +375,9 @@
         </div>
       </section>
 
-      <h4 class="ap-existing-title">Plaćanja postojećih učenika</h4>
+      <h4 class="ap-existing-title">Existing student payments</h4>
 
-      <div class="ap-filter-row" role="group" aria-label="Filtriraj po statusu">
+      <div class="ap-filter-row" role="group" aria-label="Filter by status">
         <button
           *ngFor="let s of approvalStatuses"
           type="button"
@@ -394,30 +394,30 @@
 
       <div *ngIf="!loadingApprovals && approvalRows.length === 0" class="empty-state ap-empty">
         <mat-icon>inbox</mat-icon>
-          <p>Nema podnošenja u ovoj kategoriji.</p>
+        <p>No submissions in this category.</p>
       </div>
 
       <div *ngIf="!loadingApprovals && approvalRows.length > 0" class="ap-table-shell">
-        <p class="ap-table-hint">Koristite <strong>Odobri</strong> ili <strong>Odbij</strong> u koloni Radnje, ili kliknite na red za dokaz, ponovni upload i napomene.</p>
+        <p class="ap-table-hint">Use <strong>Approve</strong> or <strong>Reject</strong> in the Actions column, or click a row for proof, re-upload, and notes.</p>
         <div class="ap-table-scroll">
           <table class="ap-table">
             <thead>
               <tr>
                 <th class="ap-col-expand" aria-hidden="true"></th>
-                <th>Učenik</th>
-                <th>Vrsta plaćanja</th>
-                <th>Grupa</th>
-                <th>Nivo</th>
-                <th class="ap-num">Deklarisano</th>
-                <th class="ap-num">Navedena naknada</th>
-                <th class="ap-num">Saldo</th>
-                <th>Datum plaćanja</th>
-                <th>Vlasnik računa</th>
-                <th>Metoda</th>
+                <th>Student</th>
+                <th>Payment type</th>
+                <th>Batch</th>
+                <th>Level</th>
+                <th class="ap-num">Declared</th>
+                <th class="ap-num">Quoted fee</th>
+                <th class="ap-num">Balance</th>
+                <th>Payment date</th>
+                <th>Account holder</th>
+                <th>Method</th>
                 <th>Status</th>
-                <th>Podneto</th>
-                <th>Dokaz</th>
-                <th class="ap-col-actions">Radnje</th>
+                <th>Submitted</th>
+                <th>Proof</th>
+                <th class="ap-col-actions">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -456,7 +456,7 @@
                   <td>
                     <button type="button" class="ap-proof-btn" (click)="viewScreenshot(sub); $event.stopPropagation()">
                       <mat-icon>image</mat-icon>
-                      Prikaži dokaz
+                      View proof
                     </button>
                   </td>
                   <td class="ap-col-actions">
@@ -468,7 +468,7 @@
                         (click)="quickApprove(sub, $event)">
                         <mat-spinner *ngIf="loadingActionId === sub._id" diameter="14" class="ap-action-spinner"></mat-spinner>
                         <mat-icon *ngIf="loadingActionId !== sub._id">check</mat-icon>
-                        Odobri
+                        Approve
                       </button>
                       <button
                         type="button"
@@ -476,7 +476,7 @@
                         [disabled]="loadingActionId === sub._id"
                         (click)="quickReject(sub, $event)">
                         <mat-icon>close</mat-icon>
-                        Odbij
+                        Reject
                       </button>
                     </div>
                     <span *ngIf="!isPendingStatus(sub.status)" class="ap-muted">—</span>
@@ -488,35 +488,35 @@
               <div class="ap-summary-card">
                 <div class="ap-summary-head">
                   <mat-icon>receipt_long</mat-icon>
-                  <span>Detalji o podnošenju</span>
+                  <span>Submission details</span>
                   <button mat-stroked-button type="button" class="ap-link-student" (click)="openStudentPaymentPage(sub, $event)">
                     <mat-icon>open_in_new</mat-icon>
-                    Stranica plaćanja učenika
+                    Student payment page
                   </button>
                 </div>
                 <div class="ap-summary-grid">
                   <div class="ap-sum-cell">
-                    <span class="ap-sum-label">Biće odobreno</span>
+                    <span class="ap-sum-label">Will credit on approve</span>
                     <span class="ap-sum-value ap-sum-highlight">{{ sub.currency }} {{ fmt(sub.paidAmount) }}</span>
                   </div>
                   <div class="ap-sum-cell">
-                    <span class="ap-sum-label">Navedena naknada za kurs</span>
+                    <span class="ap-sum-label">Quoted course fee</span>
                     <span class="ap-sum-value">{{ sub.paymentRequestId.currency }} {{ fmt(sub.paymentRequestId.amount) }}</span>
                   </div>
                   <div class="ap-sum-cell">
-                    <span class="ap-sum-label">Saldo na zahtev</span>
+                    <span class="ap-sum-label">Balance on request</span>
                     <span class="ap-sum-value">{{ sub.paymentRequestId.currency }} {{ fmt(sub.paymentRequestId.amountRemaining ?? sub.paymentRequestId.amount) }}</span>
                   </div>
                   <div class="ap-sum-cell">
-                    <span class="ap-sum-label">Vlasnik računa</span>
+                    <span class="ap-sum-label">Account holder</span>
                     <span class="ap-sum-value">{{ sub.accountHolderName || '—' }}</span>
                   </div>
                   <div class="ap-sum-cell">
-                    <span class="ap-sum-label">Datum plaćanja</span>
+                    <span class="ap-sum-label">Payment date</span>
                     <span class="ap-sum-value">{{ formatPaymentDateTime(sub) }}</span>
                   </div>
                   <div class="ap-sum-cell">
-                    <span class="ap-sum-label">Metoda</span>
+                    <span class="ap-sum-label">Method</span>
                     <span class="ap-sum-value">{{ sub.paymentMethod || '—' }}</span>
                   </div>
                 </div>
@@ -524,70 +524,70 @@
                   <span class="inst-chip">{{ ib }}</span>
                 </p>
                 <p *ngIf="sub.paymentRequestId.remarks" class="ap-remarks-line">
-                  <strong>Svrha:</strong> {{ sub.paymentRequestId.remarks }}
+                  <strong>Purpose:</strong> {{ sub.paymentRequestId.remarks }}
                 </p>
                 <p *ngIf="sub.status === 'APPROVED' && sub.approvedAt" class="ap-outcome ap-outcome--ok">
-                  Odobreno {{ sub.approvedAt | date:'dd MMM y, HH:mm' }} — {{ sub.currency }} {{ fmt(sub.paidAmount) }} odobreno.
+                  Approved on {{ sub.approvedAt | date:'dd MMM y, HH:mm' }} — {{ sub.currency }} {{ fmt(sub.paidAmount) }} credited.
                 </p>
                 <p *ngIf="sub.status === 'REJECTED'" class="ap-outcome ap-outcome--bad">
-                  Odbijeno<ng-container *ngIf="sub.rejectionReason">: {{ sub.rejectionReason }}</ng-container>
+                  Rejected<ng-container *ngIf="sub.rejectionReason">: {{ sub.rejectionReason }}</ng-container>
                 </p>
                 <p *ngIf="isInstallmentRequest(sub)" class="ap-summary-foot">
-                  Plan rata — deklarisani iznos se odnosi na
-                  <ng-container *ngIf="sub.installmentNumber != null">deo {{ sub.installmentNumber }}</ng-container>
-                  <ng-container *ngIf="sub.installmentNumber == null">aktivnu ratu</ng-container>.
+                  Instalment plan — declared amount applies to
+                  <ng-container *ngIf="sub.installmentNumber != null">part {{ sub.installmentNumber }}</ng-container>
+                  <ng-container *ngIf="sub.installmentNumber == null">the active instalment</ng-container>.
                 </p>
               </div>
 
               <div class="ap-proof-block">
                 <div class="ap-proof-copy">
-                  <span class="ap-proof-title">Snimak ekrana plaćanja</span>
-                  <span class="ap-proof-sub">Proverite da li se iznos i naziv računa podudaraju sa dokazom.</span>
+                  <span class="ap-proof-title">Payment screenshot</span>
+                  <span class="ap-proof-sub">Verify amount and account name match the proof.</span>
                 </div>
                 <button mat-flat-button color="primary" type="button" (click)="viewScreenshot(sub)">
                   <mat-icon>open_in_new</mat-icon>
-                  Otvori dokaz
+                  Open proof
                 </button>
               </div>
 
               <ng-container *ngIf="isPendingStatus(sub.status)">
                 <mat-form-field appearance="outline" class="ap-admin-remarks" subscriptSizing="dynamic">
-                  <mat-label>Admin napomene (opciono)</mat-label>
-                  <input matInput [(ngModel)]="adminRemarks" placeholder="Interna napomena — nije prikazana učeniku" />
+                  <mat-label>Admin remarks (optional)</mat-label>
+                  <input matInput [(ngModel)]="adminRemarks" placeholder="Internal note — not shown to student" />
                 </mat-form-field>
 
                 <div class="ap-review-section">
-                  <h4 class="ap-review-heading">Odluka</h4>
+                  <h4 class="ap-review-heading">Decision</h4>
                   <div class="ap-approve-block">
                     <button mat-flat-button color="primary" class="ap-approve-btn" type="button" (click)="openApprovalDecision(sub, 'approve', $event)"
                       [disabled]="loadingActionId === sub._id">
                       <mat-spinner *ngIf="loadingActionId === sub._id" diameter="18" class="btn-spinner"></mat-spinner>
                       <mat-icon *ngIf="loadingActionId !== sub._id">check_circle</mat-icon>
-                      Odobri {{ sub.currency }} {{ fmt(sub.paidAmount) }}
+                      Approve {{ sub.currency }} {{ fmt(sub.paidAmount) }}
                     </button>
-                    <p class="ap-approve-hint">Odobrava tačno deklarisani iznos iznad (podržava delimična plaćanja).</p>
+                    <p class="ap-approve-hint">Credits exactly the declared amount above (supports partial payments).</p>
                   </div>
                   <div class="ap-secondary-row">
                     <div class="ap-mini-card ap-mini-reject">
-                      <div class="ap-mini-title"><mat-icon>cancel</mat-icon> Odbij</div>
+                      <div class="ap-mini-title"><mat-icon>cancel</mat-icon> Reject</div>
                       <mat-form-field appearance="outline" class="ap-stack-field" subscriptSizing="dynamic">
-                        <mat-label>Razlog (obavezno)</mat-label>
+                        <mat-label>Reason (required)</mat-label>
                         <input matInput [(ngModel)]="rejectReason" />
                       </mat-form-field>
                       <button mat-stroked-button color="warn" class="ap-mini-btn" type="button" (click)="openApprovalDecision(sub, 'reject', $event)"
                         [disabled]="loadingActionId === sub._id">
-                        <mat-icon>block</mat-icon> Odbij
+                        <mat-icon>block</mat-icon> Reject
                       </button>
                     </div>
                     <div class="ap-mini-card ap-mini-reupload">
-                      <div class="ap-mini-title"><mat-icon>upload</mat-icon> Zatraži novi dokaz</div>
+                      <div class="ap-mini-title"><mat-icon>upload</mat-icon> Ask for new proof</div>
                       <mat-form-field appearance="outline" class="ap-stack-field" subscriptSizing="dynamic">
-                        <mat-label>Poruka učeniku</mat-label>
-                        <input matInput [(ngModel)]="reuploadNote" placeholder="npr. Iznos nije vidljiv" />
+                        <mat-label>Message to student</mat-label>
+                        <input matInput [(ngModel)]="reuploadNote" placeholder="e.g. Amount not visible" />
                       </mat-form-field>
                       <button mat-stroked-button class="ap-mini-btn btn-amber-outline" type="button" (click)="reupload(sub)"
                         [disabled]="loadingActionId === sub._id">
-                        <mat-icon>refresh</mat-icon> Zatraži ponovni upload
+                        <mat-icon>refresh</mat-icon> Request re-upload
                       </button>
                     </div>
                   </div>
@@ -604,16 +604,16 @@
         <footer class="ap-pager" *ngIf="approvalTotal > approvalPageSize">
           <button type="button" class="ap-pager-btn" [disabled]="approvalPage === 1" (click)="prevApproval()">
             <mat-icon>arrow_back</mat-icon>
-            Prethodno
+            Previous
           </button>
           <span class="ap-pager-info">{{ approvalPaginationLabel }}</span>
           <button type="button" class="ap-pager-btn" [disabled]="approvalPage * approvalPageSize >= approvalTotal" (click)="nextApproval()">
-            Sledeće
+            Next
             <mat-icon>arrow_forward</mat-icon>
           </button>
         </footer>
         <p class="ap-pager-static" *ngIf="approvalTotal > 0 && approvalTotal <= approvalPageSize">
-          Prikazano {{ approvalPaginationLabel }}
+          Showing {{ approvalPaginationLabel }}
         </p>
       </div>
 

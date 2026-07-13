@@ -72,7 +72,7 @@ export class PaymentHubSettingsComponent implements OnInit {
       },
       error: () => {
         this.loading = false;
-        this.snack.open('Nije moguće učitati podešavanja', 'Zatvori', { duration: 4000 });
+        this.snack.open('Could not load settings', 'Dismiss', { duration: 4000 });
       },
     });
   }
@@ -100,18 +100,18 @@ export class PaymentHubSettingsComponent implements OnInit {
       next: (res) => {
         this.saving = false;
         this.lastUpdated = res.data.updatedAt ?? null;
-        this.snack.open('Podešavanja uspešno sačuvana.', 'OK', { duration: 4000 });
+        this.snack.open('Settings saved successfully.', 'OK', { duration: 4000 });
       },
       error: (e) => {
         this.saving = false;
-        this.snack.open(e?.error?.message || 'Čuvanje nije uspelo. Pokušajte ponovo.', 'Zatvori', { duration: 5000 });
+        this.snack.open(e?.error?.message || 'Save failed. Please try again.', 'Dismiss', { duration: 5000 });
       },
     });
   }
 
   fmtDate(d: string | null | undefined): string {
     if (!d) return '—';
-    return new Date(d).toLocaleString('sr-Latn-RS', { dateStyle: 'medium', timeStyle: 'short' });
+    return new Date(d).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
   }
 
 }

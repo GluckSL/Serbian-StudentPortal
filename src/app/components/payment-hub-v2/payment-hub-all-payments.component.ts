@@ -1,4 +1,4 @@
-﻿import { Component, OnInit } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
@@ -101,29 +101,29 @@ export class PaymentHubAllPaymentsComponent implements OnInit {
   filterStudentInsight = '';
 
   readonly studentInsightOptions = [
-    { value: '', key: 'all', label: 'Svi učenici', icon: 'groups', hint: 'Prikaži sve učenike', color: 'slate' },
-    { value: 'paid_full', key: 'paid_full', label: 'Potpuno plaćeno', icon: 'check_circle', hint: 'Jezička naknada potpuno plaćena', color: 'green' },
-    { value: 'have_balance', key: 'have_balance', label: 'Imaju saldo', icon: 'account_balance_wallet', hint: 'Preostali saldo', color: 'amber' },
-    { value: 'overdue', key: 'overdue', label: 'Zakašnjelo', icon: 'warning_amber', hint: 'Plaćanja van roka', color: 'red' },
-    { value: 'paid_docs', key: 'paid_docs', label: 'Plaćeni dokumenti', icon: 'description', hint: 'Plaćanje dokumenata odobreno', color: 'teal' },
-    { value: 'paid_visa', key: 'paid_visa', label: 'Plaćena viza', icon: 'flight', hint: 'Plaćanje vize odobreno', color: 'indigo' },
+    { value: '', key: 'all', label: 'Total students', icon: 'groups', hint: 'Show all students', color: 'slate' },
+    { value: 'paid_full', key: 'paid_full', label: 'Paid full', icon: 'check_circle', hint: 'Language fee fully paid', color: 'green' },
+    { value: 'have_balance', key: 'have_balance', label: 'Have balance', icon: 'account_balance_wallet', hint: 'Outstanding balance', color: 'amber' },
+    { value: 'overdue', key: 'overdue', label: 'Overdue', icon: 'warning_amber', hint: 'Past due payments', color: 'red' },
+    { value: 'paid_docs', key: 'paid_docs', label: 'Paid docs', icon: 'description', hint: 'Docs payment approved', color: 'teal' },
+    { value: 'paid_visa', key: 'paid_visa', label: 'Paid visa', icon: 'flight', hint: 'Visa payment approved', color: 'indigo' },
   ] as const;
 
   readonly levels = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
   readonly currencies = ['LKR', 'INR', 'USD'];
   readonly languageFeeStatusOptions = LANGUAGE_FEE_STATUS_OPTIONS;
   readonly studentStatusOptions = [
-    { value: '', label: 'Svi statusi učenika' },
-    { value: 'ONGOING', label: 'U toku' },
-    { value: 'COMPLETED', label: 'Završeno' },
-    { value: 'WITHDREW', label: 'Povukao se' },
-    { value: 'UNCERTAIN', label: 'Neizvesno' },
+    { value: '', label: 'All student statuses' },
+    { value: 'ONGOING', label: 'Ongoing' },
+    { value: 'COMPLETED', label: 'Completed' },
+    { value: 'WITHDREW', label: 'Withdrew' },
+    { value: 'UNCERTAIN', label: 'Uncertain' },
   ];
   readonly subscriptionOptions = [
-    { value: '', label: 'Svi planovi' },
+    { value: '', label: 'All plans' },
     { value: 'PLATINUM', label: 'Platinum' },
     { value: 'SILVER', label: 'Silver' },
-    { value: 'VISA_DOC_ONLY', label: 'Samo viza/dokumenti' },
+    { value: 'VISA_DOC_ONLY', label: 'Visa doc only' },
   ];
   /** Distinct student `batch` values from `/api/studentLog/batch-options` */
   batchOptions: string[] = [];
@@ -155,8 +155,8 @@ export class PaymentHubAllPaymentsComponent implements OnInit {
   get activeFilterLabel(): string {
     if (this.stats?.filterSummary) return this.stats.filterSummary;
     const parts: string[] = [];
-    if (this.filterBatch) parts.push(`Grupa ${this.filterBatch}`);
-    if (this.filterLevel) parts.push(`Nivo ${this.filterLevel}`);
+    if (this.filterBatch) parts.push(`Batch ${this.filterBatch}`);
+    if (this.filterLevel) parts.push(`Level ${this.filterLevel}`);
     if (this.filterSubscription) {
       const o = this.subscriptionOptions.find((x) => x.value === this.filterSubscription);
       parts.push(o?.label || this.filterSubscription);
@@ -170,9 +170,9 @@ export class PaymentHubAllPaymentsComponent implements OnInit {
       parts.push(o?.label || this.filterLanguageFeeStatus);
     }
     if (this.filterCurrency) parts.push(this.filterCurrency);
-    if (this.includeTestAccounts) parts.push('Uklj. test naloge');
-    else parts.push('Iskl. test naloge');
-    return parts.length ? parts.join(' · ') : 'Iskl. test naloge';
+    if (this.includeTestAccounts) parts.push('Incl. test accounts');
+    else parts.push('Excl. test accounts');
+    return parts.length ? parts.join(' · ') : 'Excl. test accounts';
   }
 
   constructor(
@@ -206,7 +206,7 @@ export class PaymentHubAllPaymentsComponent implements OnInit {
       error: () => {
         this.loadingStats = false;
         this.stats = null;
-        this.snack.open('Greška pri učitavanju statistike plaćanja', 'Zatvori', { duration: 4000 });
+        this.snack.open('Could not load payment stats', 'Dismiss', { duration: 4000 });
       },
     });
   }
@@ -224,7 +224,7 @@ export class PaymentHubAllPaymentsComponent implements OnInit {
         },
         error: () => {
           this.loadingTable = false;
-          this.snack.open('Greška pri učitavanju tabele učenika', 'Zatvori', { duration: 4000 });
+          this.snack.open('Could not load student table', 'Dismiss', { duration: 4000 });
         },
       });
   }
@@ -405,11 +405,11 @@ export class PaymentHubAllPaymentsComponent implements OnInit {
           }
           this.selectedStudentIds = next;
           this.selectingAllMatching = false;
-          this.snack.open(`Izabrano ${res.data?.length || 0} učenik(a) koji odgovaraju filteru`, 'OK', { duration: 4000 });
+          this.snack.open(`Selected ${res.data?.length || 0} student(s) matching current filters`, 'OK', { duration: 4000 });
         },
         error: () => {
           this.selectingAllMatching = false;
-          this.snack.open('Greška pri učitavanju učenika za izbor', 'Zatvori', { duration: 4000 });
+          this.snack.open('Could not load students for selection', 'Dismiss', { duration: 4000 });
         },
       });
   }
@@ -421,11 +421,11 @@ export class PaymentHubAllPaymentsComponent implements OnInit {
   exportPayments(format: 'xlsx' | 'csv', scope: 'all' | 'selected'): void {
     if (this.exporting) return;
     if (scope === 'selected' && this.selectedCount === 0) {
-      this.snack.open('Izaberite najmanje jednog učenika za izvoz.', 'Zatvori', { duration: 3500 });
+      this.snack.open('Select at least one student to export.', 'Dismiss', { duration: 3500 });
       return;
     }
     if (scope === 'all' && this.total === 0) {
-      this.snack.open('Nema učenika za izvoz za trenutne filtere.', 'Zatvori', { duration: 3500 });
+      this.snack.open('No students to export for the current filters.', 'Dismiss', { duration: 3500 });
       return;
     }
 
@@ -456,7 +456,7 @@ export class PaymentHubAllPaymentsComponent implements OnInit {
         },
         error: () => {
           this.exporting = false;
-          this.snack.open('Greška pri učitavanju učenika za izvoz', 'Zatvori', { duration: 4000 });
+          this.snack.open('Could not load students for export', 'Dismiss', { duration: 4000 });
         },
       });
   }
@@ -479,7 +479,7 @@ export class PaymentHubAllPaymentsComponent implements OnInit {
         },
         error: () => {
           this.exporting = false;
-          this.snack.open('Greška pri učitavanju izabranih učenika za izvoz', 'Zatvori', { duration: 4000 });
+          this.snack.open('Could not load selected students for export', 'Dismiss', { duration: 4000 });
         },
       });
   }
@@ -487,7 +487,7 @@ export class PaymentHubAllPaymentsComponent implements OnInit {
   private finishExport(format: 'xlsx' | 'csv', rows: StudentTableRow[], scope: 'all' | 'selected'): void {
     this.exporting = false;
     if (!rows.length) {
-      this.snack.open('Nema redova za izvoz.', 'Zatvori', { duration: 3500 });
+      this.snack.open('No rows to export.', 'Dismiss', { duration: 3500 });
       return;
     }
     const formatters = defaultPaymentHubExportFormatters((r) => this.languageFeeStatusLabel(r));
@@ -500,20 +500,20 @@ export class PaymentHubAllPaymentsComponent implements OnInit {
     } else {
       downloadPaymentHubCsv(base, paymentHubRowsToCsv(rows, formatters));
     }
-    this.snack.open(`Izvezeno ${rows.length} učenik(a) kao ${format === 'xlsx' ? 'Excel' : 'CSV'}`, 'OK', { duration: 4000 });
+    this.snack.open(`Exported ${rows.length} student(s) as ${format === 'xlsx' ? 'Excel' : 'CSV'}`, 'OK', { duration: 4000 });
   }
 
   resetSelectedPayments(): void {
     const ids = Array.from(this.selectedStudentIds);
     if (!ids.length) {
-      this.snack.open('Izaberite najmanje jednog učenika.', 'Zatvori', { duration: 4000 });
+      this.snack.open('Select at least one student.', 'Dismiss', { duration: 4000 });
       return;
     }
 
     const msg =
-      `Resetovati podatke o plaćanju za ${ids.length} izabrani(h) učenik(a)?\n\n` +
-      'Ovo briše ukupno primljeno, na čekanju i zakašnjelo na 0 arhiviranjem svih njihovih zapisa o plaćanju. ' +
-      'Koristite ovo pre ponovnog uvoza iz Excel-a. Ova radnja se ne može poništiti.';
+      `Reset payment data for ${ids.length} selected student(s)?\n\n` +
+      'This clears total received, pending, and overdue to 0 by archiving all their payment records. ' +
+      'Use this before re-importing from Excel. This cannot be undone.';
     if (!window.confirm(msg)) return;
 
     this.resettingPayments = true;
@@ -526,7 +526,7 @@ export class PaymentHubAllPaymentsComponent implements OnInit {
         next: (res) => {
           this.resettingPayments = false;
           this.selectedStudentIds = new Set();
-          this.snack.open(res.message || 'Podaci o plaćanju resetovani', 'OK', { duration: 5000 });
+          this.snack.open(res.message || 'Payment data reset', 'OK', { duration: 5000 });
           this.loadStats();
           this.loadTable();
         },
@@ -541,7 +541,7 @@ export class PaymentHubAllPaymentsComponent implements OnInit {
   openCorrectReceived(): void {
     const picked = this.rows.filter((r) => this.isRowSelected(r));
     if (picked.length !== 1) {
-      this.snack.open('Izaberite tačno jednog učenika za ispravku ukupno primljenog.', 'Zatvori', { duration: 4000 });
+      this.snack.open('Select exactly one student to correct total received.', 'Dismiss', { duration: 4000 });
       return;
     }
     const ref = this.dialog.open(PaymentCorrectReceivedDialogComponent, {
@@ -564,13 +564,13 @@ export class PaymentHubAllPaymentsComponent implements OnInit {
     const picked = this.rows.filter((r) => this.isRowSelected(r));
     if (this.selectedCount > picked.length) {
       this.snack.open(
-        'Neki izabrani učenici su na drugoj stranici. Otvaraju se samo redovi sa ove stranice — koristite Sledeća/Prethodna i ponovite, ili suzite filtere.',
+        'Some checked students are on another page. Only rows on this page are opened — use Next/Previous and repeat, or narrow filters.',
         'OK',
         { duration: 8000 },
       );
     }
     if (!picked.length) {
-      this.snack.open('Izaberite najmanje jednog učenika na ovoj stranici.', 'Zatvori', { duration: 4000 });
+      this.snack.open('Select at least one student on this page.', 'Dismiss', { duration: 4000 });
       return;
     }
     const ref = this.dialog.open(PaymentBulkLanguagePaidDialogComponent, {
@@ -627,20 +627,20 @@ export class PaymentHubAllPaymentsComponent implements OnInit {
     this.api.runOverdueDetection().subscribe({
       next: () => {
         this.runningOverdue = false;
-        this.snack.open('Detekcija zakašnjelih završena', 'OK', { duration: 3000 });
+        this.snack.open('Overdue detection finished', 'OK', { duration: 3000 });
         this.loadStats();
         this.loadTable();
       },
       error: () => {
         this.runningOverdue = false;
-        this.snack.open('Zadatak za zakašnjela plaćanja nije uspeo', 'Zatvori', { duration: 4000 });
+        this.snack.open('Overdue job failed', 'Dismiss', { duration: 4000 });
       },
     });
   }
 
   fmt(val: number | undefined | null): string {
     if (val === undefined || val === null) return '0';
-    return val.toLocaleString('sr-Latn-RS');
+    return val.toLocaleString('en-IN');
   }
 
   studentName(row: StudentTableRow): string {
@@ -661,7 +661,7 @@ export class PaymentHubAllPaymentsComponent implements OnInit {
 
   studentDateJoined(row: StudentTableRow): string {
     const d = row.studentId?.dateJoined || row.studentId?.enrollmentDate || row.studentId?.createdAt;
-    return d ? new Date(d).toLocaleDateString('sr-Latn-RS', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+    return d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
   }
 
   journeyDayDisplay(row: StudentTableRow): string {

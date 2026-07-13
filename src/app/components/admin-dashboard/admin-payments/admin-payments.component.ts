@@ -1,4 +1,4 @@
-﻿import { Component, OnInit } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
@@ -133,7 +133,7 @@ export class AdminPaymentsComponent implements OnInit {
   formatCurrency(amount: number, currency?: string): string {
     if (!amount && amount !== 0) return '0';
     const prefix = currency === 'INR' ? '₹' : currency === 'EUR' ? '€' : 'LKR ';
-    return prefix + amount.toLocaleString('sr-Latn-RS', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+    return prefix + amount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
   }
 
   downloadTemplate(): void {
@@ -186,7 +186,7 @@ export class AdminPaymentsComponent implements OnInit {
     const rows = [headers];
     this.filtered.forEach(p => {
       const cur = p.currency === 'INR' ? '₹' : p.currency === 'EUR' ? '€' : 'LKR ';
-      const fmt = (v: any) => v != null && v !== 0 ? ` ${cur} ${Number(v).toLocaleString('sr-Latn-RS', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ` : '';
+      const fmt = (v: any) => v != null && v !== 0 ? ` ${cur} ${Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ` : '';
       rows.push([
         p.studentName || '',
         p.email || '',

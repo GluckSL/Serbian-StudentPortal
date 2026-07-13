@@ -87,18 +87,18 @@ export class PaymentHubBatchStudentsComponent implements OnInit {
   readonly skeletonRows = [1, 2, 3, 4, 5, 6, 7, 8];
 
   readonly studentStatusOptions: ReadonlyArray<{ value: string; label: string }> = [
-    { value: '', label: 'Svi statusi' },
-    { value: 'ONGOING', label: 'Aktivan' },
-    { value: 'COMPLETED', label: 'Završen' },
-    { value: 'UNCERTAIN', label: 'Neizvestan' },
-    { value: 'WITHDREW', label: 'Povukao se' },
-    { value: 'DROPPED', label: 'Odustao' },
+    { value: '', label: 'All statuses' },
+    { value: 'ONGOING', label: 'Ongoing' },
+    { value: 'COMPLETED', label: 'Completed' },
+    { value: 'UNCERTAIN', label: 'Uncertain' },
+    { value: 'WITHDREW', label: 'Withdrew' },
+    { value: 'DROPPED', label: 'Dropped' },
   ];
 
   readonly scopeButtons: ReadonlyArray<{ value: BatchStudentPaymentScope; label: string }> = [
-    { value: 'current_level', label: 'Trenutni nivo' },
-    { value: 'all_language', label: 'Sve naknade za jezik' },
-    { value: 'all_payment', label: 'Sva plaćanja' },
+    { value: 'current_level', label: 'Current Level' },
+    { value: 'all_language', label: 'All Language Fees' },
+    { value: 'all_payment', label: 'All Payment' },
   ];
 
   readonly slotScopeOptions: ReadonlyArray<{ value: BatchStudentPaymentScope; label: string }> = [
@@ -106,7 +106,7 @@ export class PaymentHubBatchStudentsComponent implements OnInit {
     { value: 'A2', label: 'A2' },
     { value: 'B1', label: 'B1' },
     { value: 'B2', label: 'B2' },
-    { value: 'DOCS', label: 'Dokumenti' },
+    { value: 'DOCS', label: 'Document' },
   ];
 
   get isSlotScope(): boolean {
@@ -114,7 +114,7 @@ export class PaymentHubBatchStudentsComponent implements OnInit {
   }
 
   get slotScopeLabel(): string {
-    return this.slotScopeOptions.find((o) => o.value === this.paymentScope)?.label ?? 'Nivo / Vrsta';
+    return this.slotScopeOptions.find((o) => o.value === this.paymentScope)?.label ?? 'Level / Type';
   }
 
   setPaymentScope(scope: BatchStudentPaymentScope): void {
@@ -122,7 +122,7 @@ export class PaymentHubBatchStudentsComponent implements OnInit {
   }
 
   studentStatusLabel(status: string): string {
-    if (!status) return 'Svi statusi';
+    if (!status) return 'All statuses';
     return formatStudentStatusLabel(status);
   }
 
@@ -132,12 +132,12 @@ export class PaymentHubBatchStudentsComponent implements OnInit {
   }
 
   readonly studentInsightOptions = [
-    { value: '' as StudentInsightFilter, key: 'all', label: 'Ukupno učenika', icon: 'groups', hint: 'Prikaži sve učenike', color: 'slate', amountKind: 'expected' as const },
-    { value: 'paid_full' as StudentInsightFilter, key: 'paid_full', label: 'Potpuno plaćeno', icon: 'check_circle', hint: 'Naknada za jezik potpuno plaćena', color: 'green', amountKind: 'received' as const },
-    { value: 'have_balance' as StudentInsightFilter, key: 'have_balance', label: 'Ima saldo', icon: 'account_balance_wallet', hint: 'Neizmireni saldo', color: 'amber', amountKind: 'pending' as const },
-    { value: 'overdue' as StudentInsightFilter, key: 'overdue', label: 'Zakašnjelo', icon: 'warning_amber', hint: 'Plaćanja koja su prošla rok', color: 'red', amountKind: 'overdue' as const },
-    { value: 'paid_docs' as StudentInsightFilter, key: 'paid_docs', label: 'Plaćeni dokumenti', icon: 'description', hint: 'Plaćanje dokumentacije odobreno', color: 'teal', amountKind: 'docs' as const },
-    { value: 'paid_visa' as StudentInsightFilter, key: 'paid_visa', label: 'Plaćena viza', icon: 'flight', hint: 'Plaćanje vize odobreno', color: 'indigo', amountKind: 'visa' as const },
+    { value: '' as StudentInsightFilter, key: 'all', label: 'Total students', icon: 'groups', hint: 'Show all students', color: 'slate', amountKind: 'expected' as const },
+    { value: 'paid_full' as StudentInsightFilter, key: 'paid_full', label: 'Paid full', icon: 'check_circle', hint: 'Language fee fully paid', color: 'green', amountKind: 'received' as const },
+    { value: 'have_balance' as StudentInsightFilter, key: 'have_balance', label: 'Have balance', icon: 'account_balance_wallet', hint: 'Outstanding balance', color: 'amber', amountKind: 'pending' as const },
+    { value: 'overdue' as StudentInsightFilter, key: 'overdue', label: 'Overdue', icon: 'warning_amber', hint: 'Past due payments', color: 'red', amountKind: 'overdue' as const },
+    { value: 'paid_docs' as StudentInsightFilter, key: 'paid_docs', label: 'Paid docs', icon: 'description', hint: 'Docs payment approved', color: 'teal', amountKind: 'docs' as const },
+    { value: 'paid_visa' as StudentInsightFilter, key: 'paid_visa', label: 'Paid visa', icon: 'flight', hint: 'Visa payment approved', color: 'indigo', amountKind: 'visa' as const },
   ] as const;
 
   constructor(

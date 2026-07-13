@@ -105,23 +105,23 @@ export class SignupApprovalEditDialogComponent {
     const quoted = Number(this.quotedFee);
     const paid = Number(this.declaredPaid);
     if (!this.level) {
-      this.validationError = 'Molimo izaberite nivo.';
+      this.validationError = 'Please select a level.';
       return;
     }
     if (!this.subscription) {
-      this.validationError = 'Molimo izaberite plan.';
+      this.validationError = 'Please select a plan.';
       return;
     }
     if (!Number.isFinite(quoted) || quoted <= 0) {
-      this.validationError = 'Navedena naknada za kurs mora biti veća od nule.';
+      this.validationError = 'Quoted course fee must be greater than zero.';
       return;
     }
     if (!Number.isFinite(paid) || paid <= 0) {
-      this.validationError = 'Plaćeni iznos mora biti veći od nule.';
+      this.validationError = 'Amount paid must be greater than zero.';
       return;
     }
     if (!this.accountHolderName.trim()) {
-      this.validationError = 'Ime vlasnika računa je obavezno.';
+      this.validationError = 'Account holder name is required.';
       return;
     }
 
