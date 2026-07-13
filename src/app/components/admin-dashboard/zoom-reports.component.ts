@@ -467,7 +467,7 @@ export class ZoomReportsComponent implements OnInit {
   }
 
   formatDateShort(date: Date): string {
-    return new Date(date).toLocaleDateString('sr-Latn-RS', { month: 'short', day: 'numeric', year: 'numeric' });
+    return new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   }
 
   formatTime(date: Date): string {

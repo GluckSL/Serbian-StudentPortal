@@ -1,4 +1,4 @@
-<section class="ph-notif ph-surface" aria-label="Obaveštenja o plaćanjima">
+<section class="ph-notif ph-surface" aria-label="Payment notifications">
   <div class="ph-notif__toolbar">
     <div class="ph-notif__filters">
       <button
@@ -7,7 +7,7 @@
         class="ph-pill-btn"
         [class.ph-notif__filter--on]="category === 'language'"
         (click)="setCategory('language')">
-        Dospelo jezičko
+        Language due
       </button>
       <button
         type="button"
@@ -15,7 +15,7 @@
         class="ph-pill-btn"
         [class.ph-notif__filter--on]="category === 'exercises'"
         (click)="setCategory('exercises')">
-        Vežbe
+        Exercises
       </button>
       <button
         type="button"
@@ -23,7 +23,7 @@
         class="ph-pill-btn"
         [class.ph-notif__filter--on]="category === 'classes'"
         (click)="setCategory('classes')">
-        Časovi
+        Classes
       </button>
       <button
         type="button"
@@ -31,7 +31,7 @@
         class="ph-pill-btn"
         [class.ph-notif__filter--on]="filter === 'all'"
         (click)="setFilter('all')">
-        Sve
+        All
       </button>
       <button
         type="button"
@@ -39,18 +39,18 @@
         class="ph-pill-btn"
         [class.ph-notif__filter--on]="filter === 'unread'"
         (click)="setFilter('unread')">
-        Nepročitano
+        Unread
         <span class="ph-notif__badge" *ngIf="unreadCount > 0">{{ unreadCount }}</span>
       </button>
       <select class="ph-notif__select" [(ngModel)]="batch" (ngModelChange)="onFilterChange()">
-        <option [ngValue]="''">Sve grupe</option>
-        <option *ngFor="let b of batchOptions" [ngValue]="b">Grupa {{ b }}</option>
+        <option [ngValue]="''">All batches</option>
+        <option *ngFor="let b of batchOptions" [ngValue]="b">Batch {{ b }}</option>
       </select>
       <select class="ph-notif__select" [(ngModel)]="batchLevel" (ngModelChange)="onFilterChange()">
-        <option *ngFor="let lvl of levelOptions" [ngValue]="lvl">{{ lvl || 'Svi nivoi' }}</option>
+        <option *ngFor="let lvl of levelOptions" [ngValue]="lvl">{{ lvl || 'All levels' }}</option>
       </select>
       <select class="ph-notif__select" [(ngModel)]="studentStatus" (ngModelChange)="onFilterChange()">
-        <option *ngFor="let st of studentStatusOptions" [ngValue]="st">{{ st || 'Svi statusi' }}</option>
+        <option *ngFor="let st of studentStatusOptions" [ngValue]="st">{{ st || 'All statuses' }}</option>
       </select>
     </div>
     <div class="ph-notif__actions">
@@ -60,7 +60,7 @@
         class="ph-pill-btn"
         (click)="markAllRead()"
         [disabled]="!unreadCount">
-        Označi sve kao pročitano
+        Mark all read
       </button>
       <button
         type="button"
@@ -70,13 +70,13 @@
         (click)="runSync()"
         [disabled]="syncing">
         <mat-icon>sync</mat-icon>
-        {{ syncing ? 'Osvežavanje…' : 'Osveži upozorenja' }}
+        {{ syncing ? 'Refreshing…' : 'Refresh alerts' }}
       </button>
     </div>
   </div>
 
   <p class="ph-notif__hint">
-    Pratite upozorenja o dospelim jezičkim naknadama, propuštenim vežbama za trenutni dan putovanja i odsustvima s časova.
+    Monitor language fee due alerts, missed exercises for the current journey day, and absent classes for the current journey day.
   </p>
 
   <div *ngIf="loading" class="ph-notif__loading">
@@ -99,28 +99,28 @@
             <li *ngFor="let c of classAbsentItems(n)" class="ph-notif__class-row">
               <dl class="ph-notif__class-grid">
                 <div class="ph-notif__class-field">
-                  <dt>Sastanak</dt>
+                  <dt>Meeting</dt>
                   <dd>{{ c.topic }}</dd>
                 </div>
                 <div class="ph-notif__class-field">
-                  <dt>Vreme</dt>
+                  <dt>Time</dt>
                   <dd>{{ formatClassTime(c.startTime) }}</dd>
                 </div>
                 <div class="ph-notif__class-field">
-                  <dt>Grupa</dt>
+                  <dt>Batch</dt>
                   <dd>{{ c.batch || n.metadata?.batch || '—' }}</dd>
                 </div>
                 <div class="ph-notif__class-field">
-                  <dt>Dan i datum</dt>
+                  <dt>Day & date</dt>
                   <dd>
-                    <span *ngIf="c.courseDay != null">Dan {{ c.courseDay }}</span>
+                    <span *ngIf="c.courseDay != null">Day {{ c.courseDay }}</span>
                     <span *ngIf="c.courseDay != null"> · </span>
                     {{ formatClassDate(c.startTime) }}
                   </dd>
                 </div>
                 <div class="ph-notif__class-field ph-notif__class-field--status">
                   <dt>Status</dt>
-                  <dd><span class="ph-notif__missed">Propušteno</span></dd>
+                  <dd><span class="ph-notif__missed">Missed</span></dd>
                 </div>
               </dl>
             </li>
@@ -128,15 +128,15 @@
         </div>
         <div class="ph-notif__stats" *ngIf="showJourneyStats(n)">
           <div class="ph-notif__stat">
-            <span class="ph-notif__stat-label">Trenutni dan</span>
+            <span class="ph-notif__stat-label">Current day</span>
             <strong class="ph-notif__stat-value">{{ journeyDay(n) ?? '—' }}</strong>
           </div>
           <div class="ph-notif__stat">
-            <span class="ph-notif__stat-label">Grupa</span>
+            <span class="ph-notif__stat-label">Batch</span>
             <strong class="ph-notif__stat-value">{{ n.metadata?.batch || '—' }}</strong>
           </div>
           <div class="ph-notif__stat">
-            <span class="ph-notif__stat-label">Nivo</span>
+            <span class="ph-notif__stat-label">Level</span>
             <strong class="ph-notif__stat-value">{{ n.metadata?.level || '—' }}</strong>
           </div>
         </div>
@@ -146,13 +146,13 @@
         </div>
       </div>
       <div class="ph-notif__item-actions">
-        <a mat-stroked-button [routerLink]="studentLink(n)" class="ph-pill-btn">Pogledaj učenika</a>
+        <a mat-stroked-button [routerLink]="studentLink(n)" class="ph-pill-btn">View student</a>
         <button
           type="button"
           mat-button
           *ngIf="!n.isRead"
           (click)="markRead(n)">
-          Označi kao pročitano
+          Mark read
         </button>
       </div>
     </li>
@@ -160,20 +160,20 @@
 
   <div *ngIf="!loading && !items.length" class="ph-notif__empty">
     <mat-icon>notifications_none</mat-icon>
-    <p>Trenutno nema upozorenja o plaćanjima na putovanju.</p>
+    <p>No journey payment alerts right now.</p>
   </div>
 
   <div *ngIf="!loading && total > 0" class="ph-pager">
     <button mat-button type="button" class="ph-pager-btn" (click)="prevPage()" [disabled]="page <= 1">
-      <mat-icon>chevron_left</mat-icon> Prethodno
+      <mat-icon>chevron_left</mat-icon> Previous
     </button>
     <span class="ph-pager-info">
-      Prikazano {{ showingFrom }}–{{ showingTo }} od {{ total }}
+      Showing {{ showingFrom }}–{{ showingTo }} of {{ total }}
       <span class="ph-pager-info__sep">·</span>
-      Stranica {{ page }} od {{ totalPages }}
+      Page {{ page }} of {{ totalPages }}
     </span>
     <button mat-button type="button" class="ph-pager-btn" (click)="nextPage()" [disabled]="page >= totalPages">
-      Sledeće <mat-icon>chevron_right</mat-icon>
+      Next <mat-icon>chevron_right</mat-icon>
     </button>
   </div>
 </section>

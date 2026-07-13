@@ -429,7 +429,7 @@ export class UniversityApplicationsComponent implements OnInit {
 
   formatDate(d: string | Date | null | undefined): string {
     if (!d) return '—';
-    return new Date(d).toLocaleDateString('sr-Latn-RS', { day: '2-digit', month: 'short', year: 'numeric' });
+    return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
   }
 
   getStageDef(stageNum: number): UniversityStageDefinition | undefined {

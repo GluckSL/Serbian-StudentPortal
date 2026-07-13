@@ -1,4 +1,4 @@
-﻿import { Component, DestroyRef, HostListener, OnInit, inject } from '@angular/core';
+import { Component, DestroyRef, HostListener, OnInit, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -395,7 +395,7 @@ export class AttendanceDashboardComponent implements OnInit {
   }
 
   formatDateTime(iso: string): string {
-    return new Date(iso).toLocaleString('sr-Latn-RS', {
+    return new Date(iso).toLocaleString('en-US', {
       month: 'short',
       day: 'numeric',
       year: 'numeric',

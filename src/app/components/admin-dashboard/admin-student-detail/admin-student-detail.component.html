@@ -1,9 +1,9 @@
-﻿<div class="asd-page">
+<div class="asd-page">
   <header class="asd-hero">
     <div class="asd-hero__left">
       <a routerLink="/admin-dashboard" class="asd-back">
         <i class="fas fa-arrow-left"></i>
-        Imenik
+        Directory
       </a>
       <div class="asd-hero__profile">
         <div class="asd-avatar" aria-hidden="true">{{ avatarInitial }}</div>
@@ -13,7 +13,7 @@
             <span class="asd-status-badge" *ngIf="preview?.studentStatus"
               [class.asd-status-badge--active]="preview?.studentStatus === 'ONGOING'"
               [class.asd-status-badge--inactive]="preview?.studentStatus !== 'ONGOING'"
-            ><i class="fas" [class.fa-check-circle]="preview?.studentStatus === 'ONGOING'" [class.fa-pause-circle]="preview?.studentStatus !== 'ONGOING'"></i> {{ preview?.studentStatus === 'ONGOING' ? 'Aktivan' : preview?.studentStatus }}</span>
+            ><i class="fas" [class.fa-check-circle]="preview?.studentStatus === 'ONGOING'" [class.fa-pause-circle]="preview?.studentStatus !== 'ONGOING'"></i> {{ preview?.studentStatus === 'ONGOING' ? 'Active' : preview?.studentStatus }}</span>
             <app-test-account-badge *ngIf="preview?.isTestAccount" [show]="true"></app-test-account-badge>
             <a
               *ngIf="studentId"
@@ -21,42 +21,42 @@
               [routerLink]="['/signup', studentId]"
               target="_blank"
               rel="noopener"
-              title="Uredi profil"
-            ><i class="fas fa-external-link-alt"></i> Uredi</a>
+              title="Edit profile"
+            ><i class="fas fa-external-link-alt"></i> Edit</a>
           </div>
           <div class="asd-hero__badges-row" *ngIf="preview">
             <span class="asd-badge asd-badge--plan" *ngIf="preview.subscription">{{ preview.subscription }}</span>
-            <span class="asd-badge" *ngIf="preview.level">Nivo {{ preview.level }}</span>
-            <span class="asd-badge" *ngIf="preview.batch">Grupa {{ preview.batch }}</span>
+            <span class="asd-badge" *ngIf="preview.level">Level {{ preview.level }}</span>
+            <span class="asd-badge" *ngIf="preview.batch">Batch {{ preview.batch }}</span>
             <span class="asd-badge" *ngIf="preview.medium">{{ preview.medium }}</span>
           </div>
           <div class="asd-hero__grid" *ngIf="preview">
             <div class="asd-hero__field asd-hero__field--wide">
-              <span class="asd-hero__field-lbl">E-mail</span>
+              <span class="asd-hero__field-lbl">Email</span>
               <span class="asd-hero__field-val">{{ preview.email || '—' }}</span>
             </div>
             <div class="asd-hero__field">
-              <span class="asd-hero__field-lbl">Dan kursa</span>
-              <span class="asd-hero__field-val">Dan {{ preview.currentCourseDay || '—' }}</span>
+              <span class="asd-hero__field-lbl">Journey day</span>
+              <span class="asd-hero__field-val">Day {{ preview.currentCourseDay || '—' }}</span>
             </div>
             <div class="asd-hero__field">
-              <span class="asd-hero__field-lbl">Nastavnik</span>
+              <span class="asd-hero__field-lbl">Teacher</span>
               <span class="asd-hero__field-val">{{ preview.teacher || '—' }}</span>
             </div>
             <div class="asd-hero__field">
-              <span class="asd-hero__field-lbl">Usluga</span>
+              <span class="asd-hero__field-lbl">Service</span>
               <span class="asd-hero__field-val">{{ preview.servicesOpted || '—' }}</span>
             </div>
             <div class="asd-hero__field">
-              <span class="asd-hero__field-lbl">Ruta vize</span>
-              <span class="asd-hero__field-val">{{ preview.visaRoute || 'Nije postavljeno' }}</span>
+              <span class="asd-hero__field-lbl">Visa route</span>
+              <span class="asd-hero__field-val">{{ preview.visaRoute || 'Not set' }}</span>
             </div>
             <div class="asd-hero__field">
-              <span class="asd-hero__field-lbl">Putanja nivoa</span>
+              <span class="asd-hero__field-lbl">Level path</span>
               <span class="asd-hero__field-val">{{ preview.levelPath || '—' }}</span>
             </div>
             <div class="asd-hero__field">
-              <span class="asd-hero__field-lbl">Upisano</span>
+              <span class="asd-hero__field-lbl">Enrolled</span>
               <span class="asd-hero__field-val">{{ formatDate(preview.enrollmentDate || '') }}</span>
             </div>
           </div>
@@ -73,7 +73,7 @@
             [attr.aria-selected]="activeTab === 'overview'"
             (click)="setTab('overview')"
           >
-            Pregled
+            Overview
           </button>
           <button
             type="button"
@@ -83,13 +83,13 @@
             [attr.aria-selected]="activeTab === 'learning'"
             (click)="setTab('learning')"
           >
-            Učenje i kurs
+            Learning &amp; journey
           </button>
         </nav>
         <div class="asd-creds" *ngIf="preview?.regNo">
-          <span class="asd-creds__item"><span class="asd-creds__key">Reg. br.</span> <strong class="asd-creds__val">{{ preview?.regNo }}</strong></span>
+          <span class="asd-creds__item"><span class="asd-creds__key">Reg No</span> <strong class="asd-creds__val">{{ preview?.regNo }}</strong></span>
           <span class="asd-creds__sep"></span>
-          <span class="asd-creds__item"><span class="asd-creds__key">Lozinka</span> <strong class="asd-creds__val" [class.asd-creds__val--missing]="!preview?.displayPassword">{{ preview?.displayPassword || '—' }}</strong></span>
+          <span class="asd-creds__item"><span class="asd-creds__key">Password</span> <strong class="asd-creds__val" [class.asd-creds__val--missing]="!preview?.displayPassword">{{ preview?.displayPassword || '—' }}</strong></span>
         </div>
       </div>
   </header>
@@ -118,37 +118,37 @@
     <div *ngIf="learningError && !learningLoading" class="asd-state asd-state--error">
       <i class="fas fa-exclamation-triangle" style="font-size:28px;margin-bottom:8px;color:#b91c1c;"></i>
       <p>{{ learningError }}</p>
-      <button type="button" class="asd-btn asd-btn--primary" (click)="loadLearning()">Pokušaj ponovo</button>
+      <button type="button" class="asd-btn asd-btn--primary" (click)="loadLearning()">Retry</button>
     </div>
 
     <ng-container *ngIf="!learningLoading && !learningError && learningProfile">
       <div class="asd-stats">
         <div class="asd-stat">
-          <span class="asd-stat__val">Dan {{ learningProfile.currentCourseDay }}</span>
-          <span class="asd-stat__lbl">Trenutni dan kursa</span>
+          <span class="asd-stat__val">Day {{ learningProfile.currentCourseDay }}</span>
+          <span class="asd-stat__lbl">Current journey day</span>
         </div>
         <div class="asd-stat">
           <span class="asd-stat__val">{{ learningDays.length }}</span>
-          <span class="asd-stat__lbl">Otključani dani</span>
+          <span class="asd-stat__lbl">Days unlocked</span>
         </div>
         <div class="asd-stat asd-stat--warn" *ngIf="blockedDayCount">
           <span class="asd-stat__val">{{ blockedDayCount }}</span>
-          <span class="asd-stat__lbl">Blokirani dani</span>
+          <span class="asd-stat__lbl">Days blocked</span>
         </div>
         <div class="asd-stat">
           <span class="asd-stat__val">{{ totalContentCount }}</span>
-          <span class="asd-stat__lbl">Stavke sadržaja (vidljivi opseg)</span>
+          <span class="asd-stat__lbl">Content items (visible range)</span>
         </div>
       </div>
 
       <div class="asd-card asd-card--accent">
         <div class="asd-card__head">
-          <h2 class="asd-card__title"><i class="fas fa-info-circle" style="font-size:14px;margin-right:6px;color:#0369a1;"></i>Kontrola pristupa sadržaju</h2>
-          <span class="asd-saving" *ngIf="savingBlocks">Čuvanje…</span>
+          <h2 class="asd-card__title"><i class="fas fa-info-circle" style="font-size:14px;margin-right:6px;color:#0369a1;"></i>Content access control</h2>
+          <span class="asd-saving" *ngIf="savingBlocks">Saving…</span>
         </div>
         <p class="asd-card__text">
-          Blokirajte CEFR nivo da biste sakrili sadržaj kursa samo za ovog učenika (moduli, vežbe, snimci, DG bot).
-          Za učenike koji počinju od <strong>A2</strong>, blokirajte <strong>A1</strong> da dani 1–42 ostanu zaključani; oni pristupaju od dana 43 nadalje.
+          Block a CEFR level to hide its journey content for this student only (modules, exercises, recordings, DG bot).
+          For students who start at <strong>A2</strong>, block <strong>A1</strong> so days 1–42 stay locked; they access from day 43 onward.
         </p>
         <div class="asd-quick-action">
           <button
@@ -158,7 +158,7 @@
             [class.asd-btn--outline]="isLevelBlocked('A1')"
             [disabled]="savingBlocks"
             (click)="blockA1ForA2Starter()"
-          ><i class="fas fa-lock"></i> {{ isLevelBlocked('A1') ? 'A1 blokiran (dani 1–42) — kliknite za otključavanje' : 'Blokiraj sadržaj A1 (dani 1–42)' }}</button>
+          ><i class="fas fa-lock"></i> {{ isLevelBlocked('A1') ? 'A1 blocked (days 1–42) — click to unblock' : 'Block A1 content (days 1–42)' }}</button>
         </div>
         <div class="asd-level-segments">
           <div
@@ -168,10 +168,10 @@
           >
             <div class="asd-segment__top">
               <span class="asd-segment__level">{{ seg.level }}</span>
-              <span class="asd-segment__range">Dani {{ seg.dayStart }}–{{ seg.dayEnd }}</span>
+              <span class="asd-segment__range">Days {{ seg.dayStart }}–{{ seg.dayEnd }}</span>
             </div>
             <span class="asd-segment__status" [class.asd-segment__status--blocked]="seg.blocked">
-              {{ seg.blocked ? 'Blokiran' : 'Dostupno' }}
+              {{ seg.blocked ? 'Blocked' : 'Accessible' }}
             </span>
             <button
               type="button"
@@ -180,7 +180,7 @@
               [class.asd-btn--outline]="seg.blocked"
               [disabled]="savingBlocks"
               (click)="toggleLevelBlock(seg.level)"
-            ><i class="fas" [class.fa-lock]="!seg.blocked" [class.fa-unlock]="seg.blocked"></i> {{ seg.blocked ? 'Otključaj' : 'Blokiraj' }} {{ seg.level }}</button>
+            ><i class="fas" [class.fa-lock]="!seg.blocked" [class.fa-unlock]="seg.blocked"></i> {{ seg.blocked ? 'Unblock' : 'Block' }} {{ seg.level }}</button>
           </div>
         </div>
       </div>
@@ -188,9 +188,9 @@
       <div class="asd-card">
         <div class="asd-card__head asd-card__head--split">
           <div>
-            <h2 class="asd-card__title">Dani kursa</h2>
+            <h2 class="asd-card__title">Journey days</h2>
             <p class="asd-card__sub">
-              Dani 1–{{ learningProfile.currentCourseDay }} · oznaceno = danasnji dan
+              Days 1–{{ learningProfile.currentCourseDay }} · highlight = today’s day
             </p>
           </div>
           <div class="asd-filter-chips">
@@ -199,7 +199,7 @@
               class="asd-chip"
               [class.asd-chip--on]="levelFilter === 'ALL'"
               (click)="setLevelFilter('ALL')"
-            >Sve</button>
+            >All</button>
             <button
               type="button"
               class="asd-chip"
@@ -211,9 +211,9 @@
         </div>
 
         <div class="asd-legend">
-          <span class="asd-legend__item"><span class="asd-legend__swatch asd-legend__swatch--ok"></span> Dostupno</span>
-          <span class="asd-legend__item"><span class="asd-legend__swatch asd-legend__swatch--blocked"></span> Blokirano</span>
-          <span class="asd-legend__item"><span class="asd-legend__swatch asd-legend__swatch--current"></span> Trenutni dan</span>
+          <span class="asd-legend__item"><span class="asd-legend__swatch asd-legend__swatch--ok"></span> Accessible</span>
+          <span class="asd-legend__item"><span class="asd-legend__swatch asd-legend__swatch--blocked"></span> Blocked</span>
+          <span class="asd-legend__item"><span class="asd-legend__swatch asd-legend__swatch--current"></span> Current day</span>
         </div>
 
         <div class="asd-days-grid">
@@ -229,24 +229,24 @@
             <span class="asd-day__num">{{ d.day }}</span>
             <span class="asd-day__lvl">{{ d.level }}</span>
             <span class="asd-day__icons" *ngIf="d.modules + d.exercises + d.dgModules + d.recordings > 0">
-              <span *ngIf="d.modules" title="Moduli"><i class="fas fa-book"></i> {{ d.modules }}</span>
-              <span *ngIf="d.exercises" title="Vežbe"><i class="fas fa-pen"></i> {{ d.exercises }}</span>
+              <span *ngIf="d.modules" title="Modules"><i class="fas fa-book"></i> {{ d.modules }}</span>
+              <span *ngIf="d.exercises" title="Exercises"><i class="fas fa-pen"></i> {{ d.exercises }}</span>
             </span>
           </button>
         </div>
 
         <div class="asd-day-detail" *ngIf="selectedDay">
           <div class="asd-day-detail__head">
-            <h3>Dan {{ selectedDay.day }} · {{ selectedDay.level }}</h3>
+            <h3>Day {{ selectedDay.day }} · {{ selectedDay.level }}</h3>
             <span class="asd-pill" [class.asd-pill--blocked]="selectedDay.blocked">
-              {{ selectedDay.blocked ? 'Blokirano za učenika' : 'Dostupno' }}
+              {{ selectedDay.blocked ? 'Blocked for student' : 'Accessible' }}
             </span>
           </div>
           <div class="asd-day-detail__grid">
-            <div class="asd-mini-stat"><strong><i class="fas fa-book"></i> {{ selectedDay.modules }}</strong><span>Moduli</span></div>
-            <div class="asd-mini-stat"><strong><i class="fas fa-pen"></i> {{ selectedDay.exercises }}</strong><span>Vežbe</span></div>
+            <div class="asd-mini-stat"><strong><i class="fas fa-book"></i> {{ selectedDay.modules }}</strong><span>Modules</span></div>
+            <div class="asd-mini-stat"><strong><i class="fas fa-pen"></i> {{ selectedDay.exercises }}</strong><span>Exercises</span></div>
             <div class="asd-mini-stat"><strong><i class="fas fa-robot"></i> {{ selectedDay.dgModules }}</strong><span>DG bot</span></div>
-            <div class="asd-mini-stat"><strong><i class="fas fa-microphone"></i> {{ selectedDay.recordings }}</strong><span>Snimci</span></div>
+            <div class="asd-mini-stat"><strong><i class="fas fa-microphone"></i> {{ selectedDay.recordings }}</strong><span>Recordings</span></div>
           </div>
         </div>
       </div>

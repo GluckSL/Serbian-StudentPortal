@@ -5,11 +5,11 @@
     <div class="lm-header-left">
       <mat-icon class="lm-header-icon">upload_file</mat-icon>
       <div>
-        <h2 class="lm-title">Mapiranje starog plaćanja</h2>
-        <p class="lm-subtitle">Ručno unošenje istorijskih plaćanja iz Excela u portal</p>
+        <h2 class="lm-title">Map Legacy Payment</h2>
+        <p class="lm-subtitle">Manually record historical payments from Excel into the portal</p>
       </div>
     </div>
-    <button mat-icon-button type="button" class="lm-close-btn" (click)="close()" matTooltip="Zatvori">
+    <button mat-icon-button type="button" class="lm-close-btn" (click)="close()" matTooltip="Close">
       <mat-icon>close</mat-icon>
     </button>
   </div>
@@ -20,16 +20,16 @@
   <section class="lm-section">
     <div class="lm-section-title">
       <span class="lm-step-badge">1</span>
-      Pretraga učenika
+      Student Lookup
     </div>
 
     <mat-form-field appearance="outline" class="lm-full-width">
-      <mat-label>Pretraži po imenu ili emailu</mat-label>
+      <mat-label>Search by name or email</mat-label>
       <input
         matInput
         [formControl]="studentSearchCtrl"
         [matAutocomplete]="studentAuto"
-        placeholder="Unesite najmanje 2 karaktera..."
+        placeholder="Type at least 2 characters..."
       />
       <mat-icon matSuffix>search</mat-icon>
       <mat-autocomplete #studentAuto [displayWith]="displayFn" (optionSelected)="onStudentSelected($event.option.value)">
@@ -44,7 +44,7 @@
           </span>
         </mat-option>
         <mat-option *ngIf="!searchingStudents && studentOptions.length === 0 && studentSearchTextLength >= 2" disabled>
-          Učenici nisu pronađeni
+          No students found
         </mat-option>
       </mat-autocomplete>
     </mat-form-field>
@@ -57,11 +57,11 @@
           <div class="lm-student-name">{{ selectedStudent.studentId.name }}</div>
           <div class="lm-student-email">{{ selectedStudent.studentId.email }}</div>
           <div class="lm-student-meta">
-            <span class="lm-badge lm-badge-blue" *ngIf="selectedStudent.studentId.level">Nivo {{ selectedStudent.studentId.level }}</span>
+            <span class="lm-badge lm-badge-blue" *ngIf="selectedStudent.studentId.level">Level {{ selectedStudent.studentId.level }}</span>
             <span class="lm-badge lm-badge-grey" *ngIf="selectedStudent.studentId.batch">{{ selectedStudent.studentId.batch }}</span>
           </div>
         </div>
-        <button mat-icon-button type="button" class="lm-clear-student" (click)="clearStudent()" matTooltip="Promeni učenika">
+        <button mat-icon-button type="button" class="lm-clear-student" (click)="clearStudent()" matTooltip="Change student">
           <mat-icon>edit</mat-icon>
         </button>
       </div>
@@ -75,57 +75,57 @@
     <section class="lm-section">
       <div class="lm-section-title">
         <span class="lm-step-badge">2</span>
-        Plaćanje jezičkog kursa
-        <span class="lm-type-badge lm-badge-blue">Jezik</span>
+        Language Course Payment
+        <span class="lm-type-badge lm-badge-blue">Language</span>
       </div>
 
       <form [formGroup]="languageForm" class="lm-form-grid">
         <mat-form-field appearance="outline">
-          <mat-label>Ukupna naknada za kurs</mat-label>
+          <mat-label>Total Course Fee</mat-label>
           <input matInput type="number" formControlName="totalCourseFee" min="1" />
           <span matPrefix class="lm-currency-prefix">{{ languageForm.get('currency')?.value }}&nbsp;</span>
-          <mat-hint *ngIf="loadingCatalog">Učitavanje kataloga…</mat-hint>
-          <mat-error *ngIf="languageForm.get('totalCourseFee')?.hasError('required')">Obavezno</mat-error>
-          <mat-error *ngIf="languageForm.get('totalCourseFee')?.hasError('min')">Mora biti > 0</mat-error>
+          <mat-hint *ngIf="loadingCatalog">Loading catalog…</mat-hint>
+          <mat-error *ngIf="languageForm.get('totalCourseFee')?.hasError('required')">Required</mat-error>
+          <mat-error *ngIf="languageForm.get('totalCourseFee')?.hasError('min')">Must be > 0</mat-error>
         </mat-form-field>
 
         <mat-form-field appearance="outline">
-          <mat-label>Plaćeni iznos</mat-label>
+          <mat-label>Amount Paid</mat-label>
           <input matInput type="number" formControlName="amountPaid" min="1" />
           <span matPrefix class="lm-currency-prefix">{{ languageForm.get('currency')?.value }}&nbsp;</span>
-          <mat-error *ngIf="languageForm.get('amountPaid')?.hasError('required')">Obavezno</mat-error>
-          <mat-error *ngIf="languageForm.get('amountPaid')?.hasError('min')">Mora biti > 0</mat-error>
+          <mat-error *ngIf="languageForm.get('amountPaid')?.hasError('required')">Required</mat-error>
+          <mat-error *ngIf="languageForm.get('amountPaid')?.hasError('min')">Must be > 0</mat-error>
         </mat-form-field>
 
         <mat-form-field appearance="outline">
-          <mat-label>Saldo (automatski)</mat-label>
+          <mat-label>Balance (auto)</mat-label>
           <input matInput formControlName="balance" readonly />
           <span matPrefix class="lm-currency-prefix">{{ languageForm.get('currency')?.value }}&nbsp;</span>
         </mat-form-field>
 
         <mat-form-field appearance="outline">
-          <mat-label>Valuta</mat-label>
+          <mat-label>Currency</mat-label>
           <mat-select formControlName="currency">
             <mat-option *ngFor="let c of currencies" [value]="c">{{ currencyLabel(c) }}</mat-option>
           </mat-select>
         </mat-form-field>
 
         <mat-form-field appearance="outline">
-          <mat-label>Datum plaćanja</mat-label>
+          <mat-label>Payment Date</mat-label>
           <input matInput [matDatepicker]="langPicker" formControlName="paymentDate" />
           <mat-datepicker-toggle matSuffix [for]="langPicker"></mat-datepicker-toggle>
           <mat-datepicker #langPicker></mat-datepicker>
-          <mat-error>Obavezno</mat-error>
+          <mat-error>Required</mat-error>
         </mat-form-field>
 
         <mat-form-field appearance="outline" class="lm-span-two">
-          <mat-label>Napomene</mat-label>
-          <input matInput formControlName="remarks" placeholder="Opciona napomena…" />
+          <mat-label>Remarks</mat-label>
+          <input matInput formControlName="remarks" placeholder="Optional note…" />
         </mat-form-field>
 
         <div class="lm-checkbox-row lm-span-two">
           <mat-checkbox formControlName="markFullyPaid">
-            Označi kao potpuno plaćeno (saldo postaje 0)
+            Mark as fully paid (sets balance to 0)
           </mat-checkbox>
         </div>
       </form>
@@ -136,47 +136,47 @@
     <section class="lm-section">
       <div class="lm-section-title">
         <span class="lm-step-badge">3</span>
-        Plaćanje dokumentacije
-        <span class="lm-type-badge lm-badge-orange">Dokumenti</span>
+        Docs Payment
+        <span class="lm-type-badge lm-badge-orange">Docs</span>
         <span class="lm-count-badge" *ngIf="docsArray.length > 0">{{ docsArray.length }}</span>
       </div>
 
       <div class="lm-items-list" *ngFor="let ctrl of docsControls; let i = index" [formGroup]="$any(ctrl)">
         <div class="lm-item-header">
-          <span class="lm-item-num">Unos dokumentacije {{ i + 1 }}</span>
-          <button mat-icon-button type="button" color="warn" (click)="removeDocs(i)" matTooltip="Ukloni">
+          <span class="lm-item-num">Docs Entry {{ i + 1 }}</span>
+          <button mat-icon-button type="button" color="warn" (click)="removeDocs(i)" matTooltip="Remove">
             <mat-icon>delete</mat-icon>
           </button>
         </div>
         <div class="lm-form-grid">
           <mat-form-field appearance="outline">
-            <mat-label>Iznos</mat-label>
+            <mat-label>Amount</mat-label>
             <input matInput type="number" formControlName="amount" min="1" />
             <span matPrefix class="lm-currency-prefix">{{ groupCurrency(ctrl) }}&nbsp;</span>
-            <mat-error>Obavezno, mora biti > 0</mat-error>
+            <mat-error>Required, must be > 0</mat-error>
           </mat-form-field>
           <mat-form-field appearance="outline">
-            <mat-label>Valuta</mat-label>
+            <mat-label>Currency</mat-label>
             <mat-select formControlName="currency">
               <mat-option *ngFor="let c of currencies" [value]="c">{{ currencyLabel(c) }}</mat-option>
             </mat-select>
           </mat-form-field>
           <mat-form-field appearance="outline">
-            <mat-label>Datum plaćanja</mat-label>
+            <mat-label>Payment Date</mat-label>
             <input matInput [matDatepicker]="docsPicker" formControlName="paymentDate" />
             <mat-datepicker-toggle matSuffix [for]="docsPicker"></mat-datepicker-toggle>
             <mat-datepicker #docsPicker></mat-datepicker>
-            <mat-error>Obavezno</mat-error>
+            <mat-error>Required</mat-error>
           </mat-form-field>
           <mat-form-field appearance="outline">
-            <mat-label>Napomene</mat-label>
-            <input matInput formControlName="remarks" placeholder="npr. Dokumenti ambasade, APS…" />
+            <mat-label>Remarks</mat-label>
+            <input matInput formControlName="remarks" placeholder="e.g. Embassy docs, APS…" />
           </mat-form-field>
         </div>
       </div>
 
       <button mat-stroked-button type="button" class="lm-add-btn lm-add-docs" (click)="addDocs()">
-        <mat-icon>add</mat-icon> Dodaj plaćanje dokumentacije
+        <mat-icon>add</mat-icon> Add Docs Payment
       </button>
     </section>
 
@@ -185,47 +185,47 @@
     <section class="lm-section">
       <div class="lm-section-title">
         <span class="lm-step-badge">4</span>
-        Plaćanje vize
-        <span class="lm-type-badge lm-badge-green">Viza</span>
+        Visa Payment
+        <span class="lm-type-badge lm-badge-green">Visa</span>
         <span class="lm-count-badge" *ngIf="visaArray.length > 0">{{ visaArray.length }}</span>
       </div>
 
       <div class="lm-items-list" *ngFor="let ctrl of visaControls; let i = index" [formGroup]="$any(ctrl)">
         <div class="lm-item-header">
-          <span class="lm-item-num">Unos vize {{ i + 1 }}</span>
-          <button mat-icon-button type="button" color="warn" (click)="removeVisa(i)" matTooltip="Ukloni">
+          <span class="lm-item-num">Visa Entry {{ i + 1 }}</span>
+          <button mat-icon-button type="button" color="warn" (click)="removeVisa(i)" matTooltip="Remove">
             <mat-icon>delete</mat-icon>
           </button>
         </div>
         <div class="lm-form-grid">
           <mat-form-field appearance="outline">
-            <mat-label>Iznos</mat-label>
+            <mat-label>Amount</mat-label>
             <input matInput type="number" formControlName="amount" min="1" />
             <span matPrefix class="lm-currency-prefix">{{ groupCurrency(ctrl) }}&nbsp;</span>
-            <mat-error>Obavezno, mora biti > 0</mat-error>
+            <mat-error>Required, must be > 0</mat-error>
           </mat-form-field>
           <mat-form-field appearance="outline">
-            <mat-label>Valuta</mat-label>
+            <mat-label>Currency</mat-label>
             <mat-select formControlName="currency">
               <mat-option *ngFor="let c of currencies" [value]="c">{{ currencyLabel(c) }}</mat-option>
             </mat-select>
           </mat-form-field>
           <mat-form-field appearance="outline">
-            <mat-label>Datum plaćanja</mat-label>
+            <mat-label>Payment Date</mat-label>
             <input matInput [matDatepicker]="visaPicker" formControlName="paymentDate" />
             <mat-datepicker-toggle matSuffix [for]="visaPicker"></mat-datepicker-toggle>
             <mat-datepicker #visaPicker></mat-datepicker>
-            <mat-error>Obavezno</mat-error>
+            <mat-error>Required</mat-error>
           </mat-form-field>
           <mat-form-field appearance="outline">
-            <mat-label>Napomene</mat-label>
-            <input matInput formControlName="remarks" placeholder="npr. Taksa za zahtev za vizu…" />
+            <mat-label>Remarks</mat-label>
+            <input matInput formControlName="remarks" placeholder="e.g. Visa application fee…" />
           </mat-form-field>
         </div>
       </div>
 
       <button mat-stroked-button type="button" class="lm-add-btn lm-add-visa" (click)="addVisa()">
-        <mat-icon>add</mat-icon> Dodaj plaćanje vize
+        <mat-icon>add</mat-icon> Add Visa Payment
       </button>
     </section>
 
@@ -234,52 +234,52 @@
     <section class="lm-section">
       <div class="lm-section-title">
         <span class="lm-step-badge">5</span>
-        Prilagođena plaćanja
-        <span class="lm-type-badge lm-badge-purple">Prilagođeno</span>
+        Custom Payments
+        <span class="lm-type-badge lm-badge-purple">Custom</span>
         <span class="lm-count-badge" *ngIf="customArray.length > 0">{{ customArray.length }}</span>
       </div>
 
       <div class="lm-items-list" *ngFor="let ctrl of customControls; let i = index" [formGroup]="$any(ctrl)">
         <div class="lm-item-header">
-          <span class="lm-item-num">Prilagođeni unos {{ i + 1 }}</span>
-          <button mat-icon-button type="button" color="warn" (click)="removeCustom(i)" matTooltip="Ukloni">
+          <span class="lm-item-num">Custom Entry {{ i + 1 }}</span>
+          <button mat-icon-button type="button" color="warn" (click)="removeCustom(i)" matTooltip="Remove">
             <mat-icon>delete</mat-icon>
           </button>
         </div>
         <div class="lm-form-grid">
           <mat-form-field appearance="outline" class="lm-span-two">
-            <mat-label>Vrsta plaćanja</mat-label>
-            <input matInput formControlName="paymentType" placeholder="npr. Naknada za smeštaj, taksa za ispit…" />
-            <mat-error>Obavezno</mat-error>
+            <mat-label>Payment Type</mat-label>
+            <input matInput formControlName="paymentType" placeholder="e.g. Hostel fee, Exam fee…" />
+            <mat-error>Required</mat-error>
           </mat-form-field>
           <mat-form-field appearance="outline">
-            <mat-label>Iznos</mat-label>
+            <mat-label>Amount</mat-label>
             <input matInput type="number" formControlName="amount" min="1" />
             <span matPrefix class="lm-currency-prefix">{{ groupCurrency(ctrl) }}&nbsp;</span>
-            <mat-error>Obavezno, mora biti > 0</mat-error>
+            <mat-error>Required, must be > 0</mat-error>
           </mat-form-field>
           <mat-form-field appearance="outline">
-            <mat-label>Valuta</mat-label>
+            <mat-label>Currency</mat-label>
             <mat-select formControlName="currency">
               <mat-option *ngFor="let c of currencies" [value]="c">{{ currencyLabel(c) }}</mat-option>
             </mat-select>
           </mat-form-field>
           <mat-form-field appearance="outline">
-            <mat-label>Datum plaćanja</mat-label>
+            <mat-label>Payment Date</mat-label>
             <input matInput [matDatepicker]="custPicker" formControlName="paymentDate" />
             <mat-datepicker-toggle matSuffix [for]="custPicker"></mat-datepicker-toggle>
             <mat-datepicker #custPicker></mat-datepicker>
-            <mat-error>Obavezno</mat-error>
+            <mat-error>Required</mat-error>
           </mat-form-field>
           <mat-form-field appearance="outline">
-            <mat-label>Napomene</mat-label>
-            <input matInput formControlName="remarks" placeholder="Opciono…" />
+            <mat-label>Remarks</mat-label>
+            <input matInput formControlName="remarks" placeholder="Optional…" />
           </mat-form-field>
         </div>
       </div>
 
       <button mat-stroked-button type="button" class="lm-add-btn lm-add-custom" (click)="addCustom()">
-        <mat-icon>add</mat-icon> Dodaj prilagođeno plaćanje
+        <mat-icon>add</mat-icon> Add Custom Payment
       </button>
     </section>
 
@@ -289,40 +289,40 @@
       <section class="lm-section lm-summary-section">
         <div class="lm-section-title">
           <span class="lm-step-badge lm-step-badge-final">6</span>
-          Pregled plaćanja
+          Payment Summary
         </div>
 
         <mat-card class="lm-summary-card">
           <div class="lm-summary-row">
-            <span class="lm-summary-label"><span class="lm-dot lm-dot-blue"></span> Plaćeno jezik</span>
+            <span class="lm-summary-label"><span class="lm-dot lm-dot-blue"></span> Language Paid</span>
             <span class="lm-summary-value">{{ languageForm.get('currency')?.value }} {{ fmt(languagePaid) }}</span>
           </div>
           <div class="lm-summary-row" *ngIf="docsPaid > 0">
-            <span class="lm-summary-label"><span class="lm-dot lm-dot-orange"></span> Plaćeni dokumenti</span>
+            <span class="lm-summary-label"><span class="lm-dot lm-dot-orange"></span> Docs Paid</span>
             <span class="lm-summary-value">{{ fmt(docsPaid) }}</span>
           </div>
           <div class="lm-summary-row" *ngIf="visaPaid > 0">
-            <span class="lm-summary-label"><span class="lm-dot lm-dot-green"></span> Plaćena viza</span>
+            <span class="lm-summary-label"><span class="lm-dot lm-dot-green"></span> Visa Paid</span>
             <span class="lm-summary-value">{{ fmt(visaPaid) }}</span>
           </div>
           <div class="lm-summary-row" *ngIf="customPaid > 0">
-            <span class="lm-summary-label"><span class="lm-dot lm-dot-purple"></span> Plaćeno prilagođeno</span>
+            <span class="lm-summary-label"><span class="lm-dot lm-dot-purple"></span> Custom Paid</span>
             <span class="lm-summary-value">{{ fmt(customPaid) }}</span>
           </div>
           <mat-divider class="lm-summary-divider"></mat-divider>
           <div class="lm-summary-row lm-summary-total">
-            <span class="lm-summary-label">Ukupno plaćeno</span>
+            <span class="lm-summary-label">Total Paid</span>
             <span class="lm-summary-value">{{ fmt(totalPaid) }}</span>
           </div>
           <div class="lm-summary-row lm-summary-balance">
-            <span class="lm-summary-label">Preostali jezički saldo</span>
+            <span class="lm-summary-label">Language Balance Remaining</span>
             <span class="lm-summary-value">{{ languageForm.get('currency')?.value }} {{ fmt(languageBalance) }}</span>
           </div>
         </mat-card>
 
         <p class="lm-summary-note">
           <mat-icon class="lm-info-icon">info</mat-icon>
-          Svi zapisi biće kreirani kao <strong>odobrena</strong> istorijska plaćanja. Učeniku neće biti poslat email ni priznanica.
+          All records will be created as <strong>approved</strong> historical payments. No email or receipt will be sent to the student.
         </p>
       </section>
     </ng-container>
@@ -331,7 +331,7 @@
     <mat-divider></mat-divider>
     <div class="lm-footer">
       <button mat-button type="button" (click)="showSummary ? cancelSummary() : close()">
-        {{ showSummary ? 'Nazad' : 'Otkaži' }}
+        {{ showSummary ? 'Back' : 'Cancel' }}
       </button>
 
       <button
@@ -342,7 +342,7 @@
         (click)="openSummary()"
       >
         <mat-icon>preview</mat-icon>
-        Pregledaj rezime
+        Preview Summary
       </button>
 
       <button
@@ -355,7 +355,7 @@
       >
         <mat-spinner *ngIf="saving" diameter="18" class="lm-save-spinner"></mat-spinner>
         <mat-icon *ngIf="!saving">save</mat-icon>
-        {{ saving ? 'Čuvanje…' : 'Sačuvaj stara plaćanja' }}
+        {{ saving ? 'Saving…' : 'Save Legacy Payments' }}
       </button>
     </div>
 
@@ -364,7 +364,7 @@
   <!-- Placeholder when no student yet -->
   <div class="lm-no-student" *ngIf="!selectedStudent">
     <mat-icon class="lm-no-student-icon">person_search</mat-icon>
-    <p>Pretražite i izaberite učenika gore da biste počeli mapiranje plaćanja.</p>
+    <p>Search and select a student above to start mapping payments.</p>
   </div>
 
 </div>

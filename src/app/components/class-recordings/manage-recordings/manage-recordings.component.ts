@@ -1,4 +1,4 @@
-﻿import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
@@ -1013,7 +1013,7 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
   }
 
   formatDate(d: string): string {
-    return new Date(d).toLocaleDateString('sr-Latn-RS', { year: 'numeric', month: 'short', day: 'numeric' });
+    return new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
   }
 
   getSafeUrl(url: string): SafeResourceUrl {
@@ -1246,7 +1246,7 @@ export class ManageRecordingsComponent implements OnInit, OnDestroy {
 
   formatDateTime(d: string): string {
     if (!d) return '—';
-    return new Date(d).toLocaleString('sr-Latn-RS', {
+    return new Date(d).toLocaleString('en-US', {
       year: 'numeric', month: 'short', day: 'numeric',
       hour: '2-digit', minute: '2-digit'
     });

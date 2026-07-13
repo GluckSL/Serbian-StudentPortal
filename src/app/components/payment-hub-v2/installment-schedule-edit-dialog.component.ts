@@ -44,35 +44,35 @@ interface EditableRow {
   template: `
     <h2 mat-dialog-title>
       <mat-icon>edit_calendar</mat-icon>
-      Uredi raspored rata
+      Edit instalment schedule
     </h2>
     <mat-dialog-content class="isd-body">
       <p class="isd-hint">
-        Iznosi moraju i dalje biti jednaki <strong>{{ data.currency }} {{ fmt(data.parentAmount) }}</strong>.
-        Ovo možete promeniti samo kada nema dokaza o plaćanju u toku (samo odbijeni dokazi su OK).
+        Amounts must still add up to <strong>{{ data.currency }} {{ fmt(data.parentAmount) }}</strong>.
+        You can only change this when there are no payment proofs in progress (only rejected proofs are OK).
       </p>
       <div class="isd-rows">
         <div *ngFor="let row of rows" class="isd-row">
-          <span class="isd-part">Deo {{ row.installmentNumber }}</span>
+          <span class="isd-part">Part {{ row.installmentNumber }}</span>
           <mat-form-field appearance="outline" class="isd-amt">
-            <mat-label>Iznos</mat-label>
+            <mat-label>Amount</mat-label>
             <input matInput type="number" min="1" [(ngModel)]="row.requestedAmount" />
           </mat-form-field>
           <mat-form-field appearance="outline" class="isd-due">
-            <mat-label>Rok</mat-label>
+            <mat-label>Due date</mat-label>
             <input matInput [matDatepicker]="dp" [(ngModel)]="row.dueDate" />
             <mat-datepicker-toggle matSuffix [for]="dp"></mat-datepicker-toggle>
             <mat-datepicker #dp></mat-datepicker>
           </mat-form-field>
         </div>
       </div>
-      <p class="isd-sum" [class.isd-sum-bad]="!sumOk">Suma: {{ data.currency }} {{ fmt(sumAmount) }}</p>
+      <p class="isd-sum" [class.isd-sum-bad]="!sumOk">Sum: {{ data.currency }} {{ fmt(sumAmount) }}</p>
     </mat-dialog-content>
     <mat-dialog-actions align="end">
-      <button mat-button type="button" (click)="cancel()">Otkaži</button>
+      <button mat-button type="button" (click)="cancel()">Cancel</button>
       <button mat-flat-button color="primary" type="button" (click)="save()" [disabled]="saveDisabled">
         <mat-spinner *ngIf="saving" diameter="18"></mat-spinner>
-        <span *ngIf="!saving">Sačuvaj</span>
+        <span *ngIf="!saving">Save</span>
       </button>
     </mat-dialog-actions>
   `,
@@ -122,7 +122,7 @@ export class InstallmentScheduleEditDialogComponent {
   }
 
   fmt(v: number): string {
-    return (v ?? 0).toLocaleString('sr-Latn-RS');
+    return (v ?? 0).toLocaleString('en-IN');
   }
 
   cancel(): void {
@@ -146,7 +146,7 @@ export class InstallmentScheduleEditDialogComponent {
       },
       error: (e) => {
         this.saving = false;
-        this.snack.open(e?.error?.message || 'Čuvanje nije uspelo', 'Zatvori', { duration: 6000 });
+        this.snack.open(e?.error?.message || 'Save failed', 'Dismiss', { duration: 6000 });
       },
     });
   }

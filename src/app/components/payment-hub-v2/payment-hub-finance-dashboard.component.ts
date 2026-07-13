@@ -1,4 +1,4 @@
-﻿import { Component, OnDestroy, OnInit } from '@angular/core';
+import { Component, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, NavigationEnd, Router, RouterModule } from '@angular/router';
@@ -115,9 +115,9 @@ export class PaymentHubFinanceDashboardComponent implements OnInit, OnDestroy {
   paymentScope: FinancePaymentScope = 'current_level';
 
   readonly scopeButtons: ReadonlyArray<{ value: FinancePaymentScope; label: string }> = [
-    { value: 'current_level', label: 'Trenutni nivo' },
-    { value: 'all_language', label: 'Sve naknade za jezik' },
-    { value: 'all_payment', label: 'Sva plaćanja' },
+    { value: 'current_level', label: 'Current Level' },
+    { value: 'all_language', label: 'All Language Fees' },
+    { value: 'all_payment', label: 'All Payment' },
   ];
 
   readonly slotScopeOptions: ReadonlyArray<{ value: FinancePaymentScope; label: string }> = [
@@ -125,7 +125,7 @@ export class PaymentHubFinanceDashboardComponent implements OnInit, OnDestroy {
     { value: 'A2', label: 'A2' },
     { value: 'B1', label: 'B1' },
     { value: 'B2', label: 'B2' },
-    { value: 'DOCS', label: 'Dokumenti' },
+    { value: 'DOCS', label: 'Document' },
   ];
 
   get isSlotScope(): boolean {
@@ -169,12 +169,12 @@ export class PaymentHubFinanceDashboardComponent implements OnInit, OnDestroy {
   private urlCohortStatus = '';
 
   readonly studentStatusOptions: ReadonlyArray<{ value: string; label: string }> = [
-    { value: '', label: 'Svi statusi' },
-    { value: 'ONGOING', label: 'Aktivan' },
-    { value: 'COMPLETED', label: 'Završen' },
-    { value: 'UNCERTAIN', label: 'Neizvestan' },
-    { value: 'WITHDREW', label: 'Povukao se' },
-    { value: 'DROPPED', label: 'Odustao' },
+    { value: '', label: 'All statuses' },
+    { value: 'ONGOING', label: 'Ongoing' },
+    { value: 'COMPLETED', label: 'Completed' },
+    { value: 'UNCERTAIN', label: 'Uncertain' },
+    { value: 'WITHDREW', label: 'Withdrew' },
+    { value: 'DROPPED', label: 'Dropped' },
   ];
 
   readonly levelStatusFilterOptions: ReadonlyArray<{ value: string; label: string }> = [
@@ -188,12 +188,12 @@ export class PaymentHubFinanceDashboardComponent implements OnInit, OnDestroy {
   ];
 
   readonly studentInsightOptions = [
-    { value: '' as BatchInsightFilter, key: 'all', label: 'Ukupno učenika', icon: 'groups', hint: 'Prikaži sve grupe', color: 'slate', amountKind: 'expected' as const },
-    { value: 'paid_full' as BatchInsightFilter, key: 'paid_full', label: 'Plaćanje izmireno', icon: 'check_circle', hint: 'Grupe sa potpuno plaćenim učenicima', color: 'green', amountKind: 'received' as const },
-    { value: 'have_balance' as BatchInsightFilter, key: 'have_balance', label: 'Preostalo', icon: 'account_balance_wallet', hint: 'Grupe sa učenicima koji imaju saldo', color: 'amber', amountKind: 'pending' as const },
-    { value: 'overdue' as BatchInsightFilter, key: 'overdue', label: 'Zakašnjelo', icon: 'warning_amber', hint: 'Grupe sa zakašnjelim učenicima', color: 'red', amountKind: 'overdue' as const },
-    { value: 'paid_docs' as BatchInsightFilter, key: 'paid_docs', label: 'Plaćeni dokumenti', icon: 'description', hint: 'Grupe sa plaćanjem dokumentacije', color: 'teal', amountKind: 'docs' as const },
-    { value: 'paid_visa' as BatchInsightFilter, key: 'paid_visa', label: 'Plaćena viza', icon: 'flight', hint: 'Grupe sa plaćanjem vize', color: 'indigo', amountKind: 'visa' as const },
+    { value: '' as BatchInsightFilter, key: 'all', label: 'Total students', icon: 'groups', hint: 'Show all batches', color: 'slate', amountKind: 'expected' as const },
+    { value: 'paid_full' as BatchInsightFilter, key: 'paid_full', label: 'Payment clear', icon: 'check_circle', hint: 'Batches with fully paid students', color: 'green', amountKind: 'received' as const },
+    { value: 'have_balance' as BatchInsightFilter, key: 'have_balance', label: 'Remaining', icon: 'account_balance_wallet', hint: 'Batches with balance students', color: 'amber', amountKind: 'pending' as const },
+    { value: 'overdue' as BatchInsightFilter, key: 'overdue', label: 'Overdue', icon: 'warning_amber', hint: 'Batches with overdue students', color: 'red', amountKind: 'overdue' as const },
+    { value: 'paid_docs' as BatchInsightFilter, key: 'paid_docs', label: 'Paid docs', icon: 'description', hint: 'Batches with docs payment', color: 'teal', amountKind: 'docs' as const },
+    { value: 'paid_visa' as BatchInsightFilter, key: 'paid_visa', label: 'Paid visa', icon: 'flight', hint: 'Batches with visa payment', color: 'indigo', amountKind: 'visa' as const },
   ] as const;
 
   private summaryRows: BatchPaymentSummaryRow[] = [];
@@ -349,11 +349,11 @@ export class PaymentHubFinanceDashboardComponent implements OnInit, OnDestroy {
   get pageTitle(): string {
     if (this.isLanguageMode) {
       if (this.cohortStatus) {
-        return `Jezičko plaćanje · ${formatStudentStatusLabel(this.cohortStatus)}`;
+        return `Language Payment · ${formatStudentStatusLabel(this.cohortStatus)}`;
       }
-      return 'Jezičko plaćanje';
+      return 'Language Payment';
     }
-    if (!this.hasCohortFilter && !this.filterLevel) return 'Finansijska kontrolna tabla';
+    if (!this.hasCohortFilter && !this.filterLevel) return 'Finance Dashboard';
     if (this.filterLevel && this.cohortStatus) {
       return `${this.filterLevel} · ${formatStudentStatusLabel(this.cohortStatus)}`;
     }
@@ -364,13 +364,13 @@ export class PaymentHubFinanceDashboardComponent implements OnInit, OnDestroy {
 
   get pageSubtitle(): string {
     if (this.isLanguageMode) {
-      const statusLabel = this.cohortStatus ? formatStudentStatusLabel(this.cohortStatus).toLowerCase() : 'aktivan';
-      return `Pregled plaćanja za ${this.cardTotals.studentCount} ${statusLabel} učenika u ${this.languageBatches.length} jezičkih grupa.`;
+      const statusLabel = this.cohortStatus ? formatStudentStatusLabel(this.cohortStatus).toLowerCase() : 'ongoing';
+      return `Payment breakdown for ${this.cardTotals.studentCount} ${statusLabel} student(s) across ${this.languageBatches.length} language batch(es).`;
     }
     if (!this.hasCohortFilter) {
-      return 'Dodajte grupe da kontrolišete šta se ovde prikazuje svim administratorima. Ukupna plaćanja i tabela uključuju samo grupe koje dodate.';
+      return 'Add batches to control what appears here for all admins and sub-admins. Payment totals and the table only include batches you add.';
     }
-    return `Pregled plaćanja za ${this.cardTotals.studentCount} učenika u dodanim grupama.`;
+    return `Payment breakdown for ${this.cardTotals.studentCount} student(s) across added batches.`;
   }
 
   get paymentSummaryTotals(): {
@@ -833,7 +833,7 @@ export class PaymentHubFinanceDashboardComponent implements OnInit, OnDestroy {
 
   toggleBatchPendingExclusion(batch: string): void {
     this.pendingExclusion.toggleBatchPendingExclusion(batch).subscribe({
-      error: () => this.snack.open('Nije moguće sačuvati isključenje — pokušajte ponovo', 'Zatvori', { duration: 4000 }),
+      error: () => this.snack.open('Could not save exclusion — try again', 'Dismiss', { duration: 4000 }),
     });
   }
 
@@ -941,7 +941,7 @@ export class PaymentHubFinanceDashboardComponent implements OnInit, OnDestroy {
       lastLevel: { lkr: lastLkr, inr: lastInr, usd: lastUsd },
       commencement10: { lkr: commLkr, inr: commInr, usd: commUsd },
       commencementBatchCount: commCount,
-      commencementCutoffLabel: cutoff.toLocaleDateString('sr-Latn-RS', { day: 'numeric', month: 'short' }),
+      commencementCutoffLabel: cutoff.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }),
     };
   }
 
@@ -1000,7 +1000,7 @@ export class PaymentHubFinanceDashboardComponent implements OnInit, OnDestroy {
   }
 
   batchTypeLabel(type: 'new' | 'old'): string {
-    return type === 'old' ? 'Stara' : 'Nova';
+    return type === 'old' ? 'Old' : 'New';
   }
 
   journeyDayRatio(r: {
@@ -1049,16 +1049,16 @@ export class PaymentHubFinanceDashboardComponent implements OnInit, OnDestroy {
   overdueDaysLabel(r: BatchPaymentRow): string {
     const days = this.overdueDaysSince(r.overdueSince);
     if (days == null) return '—';
-    if (days === 0) return 'Danas';
-    if (days === 1) return '1 dan';
-    return `${days} dana`;
+    if (days === 0) return 'Today';
+    if (days === 1) return '1 day';
+    return `${days} days`;
   }
 
   formatOverdueSince(iso?: string | null): string {
     if (!iso) return '';
     const d = new Date(iso);
     if (Number.isNaN(d.getTime())) return '';
-    return d.toLocaleDateString('sr-Latn-RS', { day: 'numeric', month: 'short', year: 'numeric' });
+    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
   }
 
   private loadCatalogFees(): void {
@@ -1216,10 +1216,10 @@ export class PaymentHubFinanceDashboardComponent implements OnInit, OnDestroy {
         this.manualNextPaymentDates = new Map(Object.entries(dates));
         this.editingPaymentDateBatch = null;
         this.editingPaymentDateValue = '';
-        this.snack.open('Datum početka sačuvan.', 'OK', { duration: 2500 });
+        this.snack.open('Commencement date saved.', 'OK', { duration: 2500 });
       },
       error: (err) => {
-        this.snack.open(err?.error?.message || 'Nije moguće sačuvati datum početka.', 'Zatvori', { duration: 4000 });
+        this.snack.open(err?.error?.message || 'Could not save commencement date.', 'Dismiss', { duration: 4000 });
       },
     });
   }
@@ -1232,13 +1232,13 @@ export class PaymentHubFinanceDashboardComponent implements OnInit, OnDestroy {
         const dates = res.data?.manualNextPaymentDates || {};
         this.manualNextPaymentDates = new Map(Object.entries(dates));
         this.snack.open(
-          isNew ? 'Datum početka resetovan na automatski izračunat.' : 'Datum početka uklonjen.',
+          isNew ? 'Commencement date reset to auto-calculated.' : 'Commencement date removed.',
           'OK',
           { duration: 2500 },
         );
       },
       error: (err) => {
-        this.snack.open(err?.error?.message || 'Nije moguće ukloniti datum početka.', 'Zatvori', { duration: 4000 });
+        this.snack.open(err?.error?.message || 'Could not remove commencement date.', 'Dismiss', { duration: 4000 });
       },
     });
   }
@@ -1303,7 +1303,7 @@ export class PaymentHubFinanceDashboardComponent implements OnInit, OnDestroy {
       error: (err) => {
         this.savingRemarkBatch = null;
         this.batchRemarkDrafts[batch] = this.batchRemarks[batch] ?? '';
-        this.snack.open(err?.error?.message || 'Nije moguće sačuvati napomenu.', 'Zatvori', { duration: 4000 });
+        this.snack.open(err?.error?.message || 'Could not save remark.', 'Dismiss', { duration: 4000 });
       },
     });
   }
@@ -1334,7 +1334,7 @@ export class PaymentHubFinanceDashboardComponent implements OnInit, OnDestroy {
     const lkr = this.parseAmountInput(this.editingCommencementAmountLkr);
     const inr = this.parseAmountInput(this.editingCommencementAmountInr);
     if (lkr == null && inr == null) {
-      this.snack.open('Unesite barem jedan iznos (LKR ili INR).', 'Zatvori', { duration: 3500 });
+      this.snack.open('Enter at least one amount (LKR or INR).', 'Dismiss', { duration: 3500 });
       return;
     }
 
@@ -1344,11 +1344,11 @@ export class PaymentHubFinanceDashboardComponent implements OnInit, OnDestroy {
         this.manualCommencementAmounts = { ...(res.data?.manualCommencementAmounts || {}) };
         this.cancelEditCommencementAmount();
         this.savingCommencementAmountBatch = null;
-        this.snack.open('Projektovani iznos sačuvan.', 'OK', { duration: 2500 });
+        this.snack.open('Projected amount saved.', 'OK', { duration: 2500 });
       },
       error: (err) => {
         this.savingCommencementAmountBatch = null;
-        this.snack.open(err?.error?.message || 'Nije moguće sačuvati projektovani iznos.', 'Zatvori', { duration: 4000 });
+        this.snack.open(err?.error?.message || 'Could not save projected amount.', 'Dismiss', { duration: 4000 });
       },
     });
   }
@@ -1361,11 +1361,11 @@ export class PaymentHubFinanceDashboardComponent implements OnInit, OnDestroy {
         this.manualCommencementAmounts = { ...(res.data?.manualCommencementAmounts || {}) };
         this.cancelEditCommencementAmount();
         this.savingCommencementAmountBatch = null;
-        this.snack.open('Resetovano na automatski izračunati iznos.', 'OK', { duration: 2500 });
+        this.snack.open('Reset to auto-calculated amount.', 'OK', { duration: 2500 });
       },
       error: (err) => {
         this.savingCommencementAmountBatch = null;
-        this.snack.open(err?.error?.message || 'Nije moguće resetovati iznos.', 'Zatvori', { duration: 4000 });
+        this.snack.open(err?.error?.message || 'Could not reset amount.', 'Dismiss', { duration: 4000 });
       },
     });
   }
@@ -1416,7 +1416,7 @@ export class PaymentHubFinanceDashboardComponent implements OnInit, OnDestroy {
       return null;
     }
 
-    const dateStr = d.toLocaleDateString('sr-Latn-RS', { day: 'numeric', month: 'short', year: 'numeric' });
+    const dateStr = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
     const today = new Date();
     const todayUtc = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
     const dUtc = Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
@@ -1445,17 +1445,17 @@ export class PaymentHubFinanceDashboardComponent implements OnInit, OnDestroy {
        (nextSlot.overdueLKR ?? 0) + (nextSlot.overdueINR ?? 0)) > 0;
 
     const tooltipParts: string[] = [];
-    if (isManualDate) tooltipParts.push('Ručni datum početka');
-    if (nextLevel) tooltipParts.push(`Sledeći nivo: ${nextLevel}`);
+    if (isManualDate) tooltipParts.push('Manual commencement date');
+    if (nextLevel) tooltipParts.push(`Next level: ${nextLevel}`);
     if (isPast) {
-      tooltipParts.push(`pre ${Math.abs(daysUntil)} dan${Math.abs(daysUntil) === 1 ? 'a' : 'a'}`);
+      tooltipParts.push(`${Math.abs(daysUntil)} day${Math.abs(daysUntil) === 1 ? '' : 's'} ago`);
     } else if (daysUntil === 0) {
-      tooltipParts.push('Dospeva danas');
+      tooltipParts.push('Due today');
     } else {
-      tooltipParts.push(`za ${daysUntil} dan${daysUntil === 1 ? '' : 'a'}`);
+      tooltipParts.push(`${daysUntil} day${daysUntil === 1 ? '' : 's'} away`);
     }
     if (isManualAmount) {
-      tooltipParts.push('Ručni projektovani iznos');
+      tooltipParts.push('Manual projected amount');
       if (!hasManualLkr || !hasManualInr) {
         const auto = projected;
         const autoParts: string[] = [];
@@ -1469,22 +1469,22 @@ export class PaymentHubFinanceDashboardComponent implements OnInit, OnDestroy {
         const parts: string[] = [];
         if (preCollectedLkr > 0 || (nextSlot?.pendingLKR ?? 0) > 0 || (nextSlot?.overdueLKR ?? 0) > 0) {
           const totalLkr = preCollectedLkr + (nextSlot?.pendingLKR ?? 0) + (nextSlot?.overdueLKR ?? 0);
-          parts.push(`LKR ${this.fmtPayment(preCollectedLkr)} prikupljeno od ${this.fmtPayment(totalLkr)}`);
+          parts.push(`LKR ${this.fmtPayment(preCollectedLkr)} collected of ${this.fmtPayment(totalLkr)}`);
         }
         if (preCollectedInr > 0 || (nextSlot?.pendingINR ?? 0) > 0 || (nextSlot?.overdueINR ?? 0) > 0) {
           const totalInr = preCollectedInr + (nextSlot?.pendingINR ?? 0) + (nextSlot?.overdueINR ?? 0);
-          parts.push(`INR ${this.fmtPayment(preCollectedInr)} prikupljeno od ${this.fmtPayment(totalInr)}`);
+          parts.push(`INR ${this.fmtPayment(preCollectedInr)} collected of ${this.fmtPayment(totalInr)}`);
         }
         if (parts.length) tooltipParts.push(parts.join(' · '));
       } else {
         const fee = nextLevel ? this.catalogFeesByLevel.get(nextLevel.toUpperCase()) : null;
         if (fee && (fee.lkr > 0 || fee.inr > 0)) {
           const parts: string[] = [];
-          if (fee.lkr > 0) parts.push(`LKR ${this.fmtPayment(fee.lkr)} po učeniku`);
-          if (fee.inr > 0) parts.push(`INR ${this.fmtPayment(fee.inr)} po učeniku`);
-          tooltipParts.push(`${r.studentCount} učenika × ${parts.join(' / ')} (procena)`);
+          if (fee.lkr > 0) parts.push(`LKR ${this.fmtPayment(fee.lkr)} each`);
+          if (fee.inr > 0) parts.push(`INR ${this.fmtPayment(fee.inr)} each`);
+          tooltipParts.push(`${r.studentCount} students × ${parts.join(' / ')} (est.)`);
         } else {
-          tooltipParts.push(`${r.studentCount} učenika`);
+          tooltipParts.push(`${r.studentCount} students`);
         }
       }
     }
@@ -1525,7 +1525,7 @@ export class PaymentHubFinanceDashboardComponent implements OnInit, OnDestroy {
   addBatchesToDashboard(): void {
     if (!this.batchesToAdd.length || this.savingVisibleBatches) return;
     const next = [...new Set([...this.visibleBatches, ...this.batchesToAdd])];
-    this.persistVisibleBatches(next, `Dodato ${this.batchesToAdd.length} grupe na kontrolnu tablu.`);
+    this.persistVisibleBatches(next, `Added ${this.batchesToAdd.length} batch(es) to the dashboard.`);
     this.batchesToAdd = [];
   }
 
@@ -1539,17 +1539,17 @@ export class PaymentHubFinanceDashboardComponent implements OnInit, OnDestroy {
           this.languageBatches = [...(res.data?.languageBatches || next)];
           this.savingVisibleBatches = false;
           this.batchRows = this.batchRows.filter((r) => r.batch !== batch);
-          this.snack.open(`Uklonjeno "${batch}" iz Jezičkog plaćanja.`, 'OK', { duration: 3500 });
+          this.snack.open(`Removed "${batch}" from Language Payment.`, 'OK', { duration: 3500 });
         },
         error: (err) => {
           this.savingVisibleBatches = false;
-          this.snack.open(err?.error?.message || 'Nije moguće ažurirati jezičke grupe.', 'Zatvori', { duration: 4500 });
+          this.snack.open(err?.error?.message || 'Could not update language batches.', 'Dismiss', { duration: 4500 });
         },
       });
       return;
     }
     const next = this.visibleBatches.filter((b) => b !== batch);
-    this.persistVisibleBatches(next, `Uklonjeno "${batch}" sa kontrolne table.`);
+    this.persistVisibleBatches(next, `Removed "${batch}" from the dashboard.`);
   }
 
   private persistVisibleBatches(batches: string[], successMessage: string): void {
@@ -1563,7 +1563,7 @@ export class PaymentHubFinanceDashboardComponent implements OnInit, OnDestroy {
       },
       error: (err) => {
         this.savingVisibleBatches = false;
-        this.snack.open(err?.error?.message || 'Nije moguće ažurirati grupe na tabli.', 'Zatvori', { duration: 4500 });
+        this.snack.open(err?.error?.message || 'Could not update dashboard batches.', 'Dismiss', { duration: 4500 });
       },
     });
   }
@@ -1599,13 +1599,13 @@ export class PaymentHubFinanceDashboardComponent implements OnInit, OnDestroy {
     this.api.triggerFinanceReport(type).subscribe({
       next: () => {
         this.triggeringReport = null;
-        const label = type === 'morning' ? 'jutarnji u 10h' : 'večernji u 18h';
-        this.snack.open(`✅ ${label} izveštaj poslat finansijskom timu!`, 'OK', { duration: 5000 });
+        const label = type === 'morning' ? '10 AM morning' : '6 PM evening';
+        this.snack.open(`✅ ${label} report sent to finance team!`, 'OK', { duration: 5000 });
       },
       error: (err) => {
         this.triggeringReport = null;
-        const msg = err?.error?.message || err?.message || 'Slanje izveštaja nije uspelo.';
-        this.snack.open(`Greška pri slanju izveštaja: ${msg}`, 'Zatvori', { duration: 5000 });
+        const msg = err?.error?.message || err?.message || 'Failed to send report.';
+        this.snack.open(`Report failed: ${msg}`, 'Dismiss', { duration: 5000 });
       },
     });
   }
@@ -1619,7 +1619,7 @@ export class PaymentHubFinanceDashboardComponent implements OnInit, OnDestroy {
       rows = this.rowsInDashboard;
     }
     if (!rows.length) {
-      this.snack.open('Nema grupa za izvoz. Prvo dodajte grupe na kontrolnu tablu.', 'Zatvori', { duration: 3500 });
+      this.snack.open('No batches to export. Add batches to the dashboard first.', 'Dismiss', { duration: 3500 });
       return;
     }
     rows = this.rowsForExport(rows);
@@ -1635,7 +1635,7 @@ export class PaymentHubFinanceDashboardComponent implements OnInit, OnDestroy {
     } else {
       downloadBatchInsightsCsv(base, batchRowsToCsv(rows, formatters));
     }
-    this.snack.open(`Izvezeno ${rows.length} grupe`, 'OK', { duration: 4000 });
+    this.snack.open(`Exported ${rows.length} batch(es)`, 'OK', { duration: 4000 });
   }
 
   openBatchStudents(batch: string): void {
