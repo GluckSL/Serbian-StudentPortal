@@ -135,7 +135,7 @@ export class NavService {
         { id: 'students',   label: 'Students',  icon: 'school',    route: '/admin/students',  subGroup: 'Student Management' },
         { id: 'teachers',   label: 'Teachers',  icon: 'group',     route: '/teachers',        subGroup: 'Teacher Management' },
         { id: 'user-roles', label: 'User Roles', icon: 'key',      route: '/user-roles',      subGroup: null },
-        { id: 'account-audit-log', label: 'Account Audit Log', icon: 'history', route: '/account-audit-log', subGroup: null },
+        { id: 'account-audit-log', label: 'Activity Log', icon: 'history', route: '/account-audit-log', subGroup: null },
         { id: 'crm',        label: 'CRM',        icon: 'hub',       route: '/admin/crm',       subGroup: null }
       ]
     },
@@ -144,13 +144,12 @@ export class NavService {
     // Timetable → live sessions → attendance → recordings — full class lifecycle
     {
       group: 'Classes & Attendance',
-      items: [
+      items: 
         { id: 'timetable',        label: 'Timetable',        icon: 'calendar_today', route: '/time-table-view-admin',  subGroup: null },
         { id: 'manage-classes',   label: 'Manage Classes',   icon: 'videocam',       route: '/teacher/meetings',       subGroup: null },
-        { id: 'gluck-room',       label: 'Gluck Room',       icon: 'meeting_room',   route: '/gluck-room',             subGroup: null },
-        { id: 'attendance',       label: 'Attendance',       icon: 'bar_chart',      route: '/admin/zoom-reports',     subGroup: null },
+
+        { id: 'manage-classes',   label: 'Class Management',   icon: 'videocam',       route: '/teacher/meetings',       subGroup: null },
         { id: 'class-recordings', label: 'Class Recordings', icon: 'play_circle',    route: '/class-recordings',       subGroup: null }
-      ]
     },
 
     // ── Learning Content ─────────────────────────────────
@@ -203,9 +202,9 @@ export class NavService {
         { id: 'enrollment-overview', label: 'Enrollment Overview', icon: 'storefront',             route: '/admin/enrollment-overview', subGroup: null },
         { id: 'finance-dashboard',   label: 'Finance Dashboard',   icon: 'account_balance_wallet', route: '/admin/finance-dashboard',   subGroup: null },
         { id: 'payment-hub',         label: 'Payment Hub',         icon: 'credit_card',            route: '/admin/payment-hub',         subGroup: null },
-        { id: 'payment-request',     label: 'Request Payment',     icon: 'send',                   route: '/admin/payment-request',     subGroup: null }
-        // Legacy payment tabs hidden — use Payment Hub instead
-        // { id: 'payments', label: 'Payments', icon: 'payments', route: '/admin/payments', subGroup: null },
+        { id: 'payment-request',     label: 'Payment Request',     icon: 'send',                   route: '/admin/payment-request',     subGroup: null }
+        // Legacy payment tabs hidden � use Payment Hub instead
+        // { id: 'payments', label: 'Placanja', icon: 'payments', route: '/admin/payments', subGroup: null },
         // { id: 'invoices', label: 'Invoices', icon: 'receipt_long', route: '/admin/invoices', subGroup: null },
         // { id: 'payment-approvals', label: 'Payment Approvals', icon: 'check_circle', route: '/admin/payment-approvals', subGroup: null }
       ]
@@ -224,13 +223,13 @@ export class NavService {
 
     // ── Support & Comms ────────────────────────────────────────
     {
-      group: 'Support & Comms',
+      group: 'Support & Communication',
       items: [
         { id: 'announcements',   label: 'Announcements',    icon: 'campaign',            route: '/admin/announcements',   subGroup: null },
         { id: 'job-openings',    label: 'Job Openings',     icon: 'work',                route: '/admin/job-openings',    subGroup: null },
         { id: 'support-tickets', label: 'Support Tickets',  icon: 'confirmation_number', route: '/admin/support-tickets', subGroup: null },
-        { id: 'olly-chat',       label: 'Olly Live Chat 🦊', icon: 'forum',             route: '/admin/olly-chat',       subGroup: null },
-        { id: 'class-feedback',  label: 'Class Feedback 🦊', icon: 'rate_review',       route: '/admin/class-feedback',  subGroup: null },
+        { id: 'olly-chat',       label: 'Olly Live Chat', icon: 'forum',             route: '/admin/olly-chat',       subGroup: null },
+        { id: 'class-feedback',  label: 'Class Feedback', icon: 'rate_review',       route: '/admin/class-feedback',  subGroup: null },
         { id: 'help',            label: 'Help & Support',   icon: 'help',                route: '/help',                  subGroup: null }
       ]
     },
