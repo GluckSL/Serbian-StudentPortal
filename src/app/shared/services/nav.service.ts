@@ -144,12 +144,13 @@ export class NavService {
     // Timetable → live sessions → attendance → recordings — full class lifecycle
     {
       group: 'Classes & Attendance',
-      items: 
+      items: [
         { id: 'timetable',        label: 'Timetable',        icon: 'calendar_today', route: '/time-table-view-admin',  subGroup: null },
-        { id: 'manage-classes',   label: 'Manage Classes',   icon: 'videocam',       route: '/teacher/meetings',       subGroup: null },
-
         { id: 'manage-classes',   label: 'Class Management',   icon: 'videocam',       route: '/teacher/meetings',       subGroup: null },
+        { id: 'gluck-room',       label: 'Gluck Room',       icon: 'meeting_room',   route: '/gluck-room',             subGroup: null },
+        { id: 'attendance',       label: 'Attendance',       icon: 'bar_chart',      route: '/admin/zoom-reports',     subGroup: null },
         { id: 'class-recordings', label: 'Class Recordings', icon: 'play_circle',    route: '/class-recordings',       subGroup: null }
+      ]
     },
 
     // ── Learning Content ─────────────────────────────────
