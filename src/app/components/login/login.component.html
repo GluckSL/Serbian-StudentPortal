@@ -20,7 +20,7 @@
       <div class="wd-modal__question-box">
         <p class="wd-modal__question-text">Da li želite da nastavite sa Gluck Global?</p>
       </div>
-      <ul class="wd-modal__choices" aria-label="Your options">
+      <ul class="wd-modal__choices" aria-label="Vaše opcije">
         <li class="wd-modal__choice wd-modal__choice--yes">
           <strong>DA</strong> - Želim da ostanem aktivan/na i nastavim svoju prijavu/program.
         </li>
@@ -35,11 +35,11 @@
     </div>
     <footer class="wd-modal__footer">
       <button type="button" class="wd-modal__btn wd-modal__btn--yes" [disabled]="!!confirmingDecision" (click)="confirmWithdrawal('YES')">
-        <ng-container *ngIf="confirmingDecision !== 'YES'">YES</ng-container>
+        <ng-container *ngIf="confirmingDecision !== 'YES'">DA</ng-container>
         <ng-container *ngIf="confirmingDecision === 'YES'"><span class="wd-spinner"></span> Molimo sačekajte...</ng-container>
       </button>
       <button type="button" class="wd-modal__btn wd-modal__btn--no" [disabled]="!!confirmingDecision" (click)="confirmWithdrawal('NO')">
-        <ng-container *ngIf="confirmingDecision !== 'NO'">NO</ng-container>
+        <ng-container *ngIf="confirmingDecision !== 'NO'">NE</ng-container>
         <ng-container *ngIf="confirmingDecision === 'NO'"><span class="wd-spinner wd-spinner--dark"></span> Molimo sačekajte...</ng-container>
       </button>
     </footer>

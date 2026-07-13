@@ -102,7 +102,7 @@
         <p class="sw-inbox-tips__title"><i class="fas fa-inbox"></i> Ne vidite e-mail?</p>
         <ul>
           <li>Prijavite se na Gmail kao <strong>{{ email }}</strong> (ikona profila → e-mail naloga).</li>
-          <li>Proverite <strong>Promotions</strong>, <strong>Spam</strong> i <strong>All Mail</strong>; pretražite <code>from:gluckglobal.com verification</code>.</li>
+          <li>Proverite <strong>Promocije</strong>, <strong>Spam</strong> i <strong>Sva pošta</strong>; pretražite <code>from:gluckglobal.com verification</code>.</li>
           <li>Sačekajte 1–2 minuta, zatim koristite Ponovo pošalji kod.</li>
         </ul>
       </div>
@@ -185,7 +185,7 @@
         (click)="selectPaymentMethod('manual')">
         <span class="sw-pay-method-card__icon"><i class="fas fa-receipt"></i></span>
         <span class="sw-pay-method-card__title">Već plaćeno</span>
-        <span class="sw-pay-method-card__desc">Uplatili ste na {{ activeBankTitle }} račun — priložite screenshot uplate.</span>
+        <span class="sw-pay-method-card__desc">Uplatili ste na {{ activeBankTitle }} račun — priložite snimak ekrana uplate.</span>
       </button>
     </div>
 
@@ -212,7 +212,7 @@
       </button>
       <div class="sw-pay-header__text">
         <h3 class="sw-pay-header__title">Bankarski transfer i dokaz o uplati</h3>
-        <p class="sw-pay-header__sub">Uplatite na naš račun, zatim unesite podatke i priložite screenshot ili PDF.</p>
+        <p class="sw-pay-header__sub">Uplatite na naš račun, zatim unesite podatke i priložite snimak ekrana ili PDF.</p>
       </div>
     </header>
 
@@ -221,7 +221,7 @@
       <div>
         <strong>Vaš prethodni dokaz o uplati nije odobren.</strong>
         <p *ngIf="applicationRejectionReason">Razlog: {{ applicationRejectionReason }}</p>
-        <p *ngIf="!applicationRejectionReason">Molimo proverite detalje uplate i priložite ispravljeni screenshot ispod.</p>
+        <p *ngIf="!applicationRejectionReason">Molimo proverite detalje uplate i priložite ispravljeni snimak ekrana ispod.</p>
       </div>
     </div>
 
@@ -244,7 +244,7 @@
 
       <div class="sw-pay-layout__proof">
         <h4 class="sw-pay-proof__title"><i class="fas fa-receipt"></i> Priložite dokaz o uplati</h4>
-        <p class="sw-pay-proof__hint">Nakon uplate na {{ activeBankTitle }} račun gore, unesite detalje uplate i priložite screenshot ili PDF. Delimične uplate su OK — unesite iznos koji ste stvarno uplatili.</p>
+        <p class="sw-pay-proof__hint">Nakon uplate na {{ activeBankTitle }} račun gore, unesite detalje uplate i priložite snimak ekrana ili PDF. Delimične uplate su u redu — unesite iznos koji ste stvarno uplatili.</p>
 
         <div class="sw-proof-fields">
           <label class="sw-field">

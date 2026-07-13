@@ -90,13 +90,13 @@
 
 
 <div class="assigned-assignments-card">
-  <h3>Assigned Exams & Assignments</h3>
+  <h3>Dodeljeni ispiti i zadaci</h3>
 
-  <div *ngIf="loading">Loading assigned work...</div>
+  <div *ngIf="loading">Učitavanje dodeljenih zadataka...</div>
   <p class="text-danger" *ngIf="error">{{ error }}</p>
 
   <div *ngIf="!loading && templates.length === 0">
-    No exams or assignments assigned yet.
+    Još nema dodeljenih ispita ili zadataka.
   </div>
 
   <ul class="assigned-list" *ngIf="!loading && templates.length">
@@ -113,16 +113,16 @@
           rel="noopener"
           download
         >
-          Download "{{ t.title }}"
+          Preuzmite "{{ t.title }}"
         </a>
       </div>
 
       <div class="meta">
         <span *ngIf="t.dueDate">
-          Due: {{ t.dueDate | date:'mediumDate' }}
+          Rok: {{ t.dueDate | date:'mediumDate' }}
         </span>
         <span *ngIf="t.teacherId">
-          By: {{ t.teacherId.name }}
+          Od: {{ t.teacherId.name }}
         </span>
       </div>
 
@@ -132,7 +132,7 @@
 
       <!-- Optional: show all files -->
       <div class="files" *ngIf="t.files.length">
-        <span>Files:</span>
+        <span>Datoteke:</span>
         <a
           *ngFor="let f of t.files"
           [href]="getFileUrl(f)"
