@@ -59,7 +59,7 @@ const DigitalExerciseSchema = new mongoose.Schema({
   },
   nativeLanguage: {
     type: String,
-    enum: ['English', 'Tamil', 'Sinhala'],
+    enum: ['English', 'Tamil', 'Sinhala', 'Serbian'],
     default: 'English'
   },
   level: {

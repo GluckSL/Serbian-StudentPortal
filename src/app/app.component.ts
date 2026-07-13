@@ -9,6 +9,7 @@ import { AuthService } from './services/auth.service';
 import { SupportFabComponent } from './components/support-fab/support-fab.component';
 import { WelcomeBackOverlayComponent } from './components/welcome-back-overlay/welcome-back-overlay.component';
 import { PortalTrackingService } from './services/portal-tracking.service';
+import { PortalLocaleService } from './services/portal-locale.service';
 
 @Component({
   selector: 'app-root',
@@ -33,7 +34,8 @@ export class AppComponent implements OnInit, OnDestroy {
   constructor(
     private router: Router,
     private authService: AuthService,
-    private portalTracking: PortalTrackingService
+    private portalTracking: PortalTrackingService,
+    private portalLocale: PortalLocaleService,
   ) {
     this.router.events.pipe(
       filter(event => event instanceof NavigationEnd)
@@ -61,6 +63,7 @@ export class AppComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit() {
+    this.portalLocale.init();
     this.portalTracking.start();
     const initialPath = this.router.url.split('?')[0];
     this.applyRouteLayout(initialPath);

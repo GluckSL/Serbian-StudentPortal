@@ -272,7 +272,7 @@ export class PdfExerciseGeneratorComponent implements OnInit, OnDestroy {
   readonly levels = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
   readonly difficulties: Array<'Beginner' | 'Intermediate' | 'Advanced'> = ['Beginner', 'Intermediate', 'Advanced'];
   readonly languages = ['German', 'English'];
-  readonly nativeLanguages = ['English', 'Tamil', 'Sinhala'];
+  readonly nativeLanguages = ['English', 'Tamil', 'Sinhala', 'Serbian'];
   readonly categories = ['Grammar', 'Vocabulary', 'Conversation', 'Reading', 'Writing', 'Listening', 'Pronunciation'];
 
   constructor(

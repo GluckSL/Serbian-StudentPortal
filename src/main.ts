@@ -58,9 +58,9 @@ bootstrapApplication(AppComponent, {
 
     ),
 
-    ...provideTranslateHttpLoader({ prefix: './assets/i18n/', suffix: '.json' }),
+    ...provideTranslateHttpLoader({ prefix: '/assets/i18n/', suffix: '.json' }),
 
-    ...provideTranslateService({ lang: 'sr-Latn', fallbackLang: 'sr-Latn' }),
+    ...provideTranslateService({ lang: 'en', fallbackLang: 'en' }),
 
     provideHttpClient(withInterceptors([authTokenInterceptor, authExpiredInterceptor])),
 

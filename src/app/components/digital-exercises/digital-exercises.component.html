@@ -4,12 +4,12 @@
   <!-- Page Header -->
   <div class="page-header" *ngIf="!embedded">
     <div class="header-text">
-      <h1>Digital Exercises</h1>
-      <p class="header-subtitle">Refine your linguistic precision through our curated set of grammar, vocabulary, and contextual comprehension modules.</p>
+      <h1>Digitalne vežbe</h1>
+      <p class="header-subtitle">Usavršite jezičku preciznost kroz našu kuriranu kolekciju modula za gramatiku, vokabular i kontekstualno razumevanje.</p>
     </div>
     <div class="header-right">
       <div class="proficiency-badge" *ngIf="!isTeacherOrAdmin && exercises.length > 0">
-        {{ currentProficiency }}% CURRENT PROFICIENCY
+        {{ currentProficiency }}% TRENUTNA PROFICIJENCIJA
       </div>
       <div class="header-actions" *ngIf="isTeacherOrAdmin">
         <button class="btn-manage" (click)="navigateToAdmin()">
@@ -31,7 +31,7 @@
           class="dex-filter"
           (click)="toggleFilter('level')"
         >
-          <span>{{ selectedLevel || 'All Levels' }}</span>
+          <span>{{ selectedLevel || 'Svi nivoi' }}</span>
           <span class="material-icons dex-filter__arrow">expand_{{ levelFilterOpen ? 'less' : 'more' }}</span>
         </button>
         <div class="dex-filter-menu" *ngIf="levelFilterOpen">
@@ -40,7 +40,7 @@
             class="dex-filter-option"
             [class.on]="!selectedLevel"
             (click)="selectedLevel = ''; levelFilterOpen = false; onFilterChange()"
-          >All Levels</button>
+          >Svi nivoi</button>
           <button
             type="button"
             class="dex-filter-option"
@@ -56,7 +56,7 @@
           class="dex-filter"
           (click)="toggleFilter('category')"
         >
-          <span>{{ selectedCategory || 'All Categories' }}</span>
+          <span>{{ selectedCategory ? categoryDisplayLabel(selectedCategory) : 'Sve kategorije' }}</span>
           <span class="material-icons dex-filter__arrow">expand_{{ categoryFilterOpen ? 'less' : 'more' }}</span>
         </button>
         <div class="dex-filter-menu" *ngIf="categoryFilterOpen">
@@ -65,14 +65,14 @@
             class="dex-filter-option"
             [class.on]="!selectedCategory"
             (click)="selectedCategory = ''; categoryFilterOpen = false; onFilterChange()"
-          >All Categories</button>
+          >Sve kategorije</button>
           <button
             type="button"
             class="dex-filter-option"
             *ngFor="let c of categories"
             [class.on]="selectedCategory === c"
             (click)="selectedCategory = c; categoryFilterOpen = false; onFilterChange()"
-          >{{ c }}</button>
+          >{{ categoryDisplayLabel(c) }}</button>
         </div>
       </div>
       <div class="dex-filter-wrap">
@@ -81,7 +81,7 @@
           class="dex-filter"
           (click)="toggleFilter('difficulty')"
         >
-          <span>{{ selectedDifficulty || 'All Difficulties' }}</span>
+          <span>{{ selectedDifficulty ? difficultyDisplayLabel(selectedDifficulty) : 'Sve težine' }}</span>
           <span class="material-icons dex-filter__arrow">expand_{{ difficultyFilterOpen ? 'less' : 'more' }}</span>
         </button>
         <div class="dex-filter-menu" *ngIf="difficultyFilterOpen">
@@ -90,14 +90,14 @@
             class="dex-filter-option"
             [class.on]="!selectedDifficulty"
             (click)="selectedDifficulty = ''; difficultyFilterOpen = false; onFilterChange()"
-          >All Difficulties</button>
+          >Sve težine</button>
           <button
             type="button"
             class="dex-filter-option"
             *ngFor="let d of difficulties"
             [class.on]="selectedDifficulty === d"
             (click)="selectedDifficulty = d; difficultyFilterOpen = false; onFilterChange()"
-          >{{ d }}</button>
+          >{{ difficultyDisplayLabel(d) }}</button>
         </div>
       </div>
       <div class="search-wrap">
@@ -114,7 +114,7 @@
         </button>
       </div>
       <button class="clear-filters-btn" *ngIf="hasActiveFilters()" (click)="clearFilters()">
-        <span class="material-icons">filter_alt_off</span> Clear
+        <span class="material-icons">filter_alt_off</span> Obriši
       </button>
       <span class="journey-week-hint" *ngIf="userRole === 'STUDENT'">{{ journeyWeekHint }}</span>
     </div>
@@ -123,19 +123,19 @@
   <!-- Tabs + compact analytics entry (students) -->
   <div class="mc-tabs-wrap" *ngIf="!loading">
     <div class="mc-tabs">
-      <button type="button" class="mc-tab" [class.mc-tab--on]="activeTab === 'completed'" (click)="setTab('completed'); onTabChange()">Completed</button>
-      <button type="button" class="mc-tab" [class.mc-tab--on]="activeTab === 'pending'" (click)="setTab('pending'); onTabChange()">Pending</button>
-      <button type="button" class="mc-tab" [class.mc-tab--on]="activeTab === 'new'" (click)="setTab('new'); onTabChange()">New</button>
+      <button type="button" class="mc-tab" [class.mc-tab--on]="activeTab === 'completed'" (click)="setTab('completed'); onTabChange()">Završeno</button>
+      <button type="button" class="mc-tab" [class.mc-tab--on]="activeTab === 'pending'" (click)="setTab('pending'); onTabChange()">Na čekanju</button>
+      <button type="button" class="mc-tab" [class.mc-tab--on]="activeTab === 'new'" (click)="setTab('new'); onTabChange()">Novo</button>
     </div>
     <button
       *ngIf="userRole === 'STUDENT'"
       type="button"
       class="tabs-analytics-btn"
       (click)="openStudentAnalyticsPage()"
-      title="Open full analytics: overall summary and every exercise"
+      title="Otvorite kompletnu analitiku: ukupan pregled i svaka vežba"
     >
       <span class="material-icons">analytics</span>
-      <span class="tabs-analytics-label">Analytics</span>
+      <span class="tabs-analytics-label">Analitika</span>
     </button>
   </div>
 
@@ -149,21 +149,21 @@
   <!-- Exercise List (Card-based rows) -->
   <div class="exercise-list" *ngIf="!loading && filteredExercises.length > 0" [class.exercise-list--student]="userRole === 'STUDENT'">
     <div class="list-headers">
-      <span class="col-details">EXERCISE DETAILS</span>
-      <span class="col-level">LEVEL</span>
-      <span class="col-cat">CATEGORY</span>
-      <span class="col-day" *ngIf="userRole === 'STUDENT'">DAY / SEQ</span>
-      <span class="col-vol">VOLUME</span>
-      <span class="col-dur">DURATION</span>
+      <span class="col-details">DETALJI VEŽBE</span>
+      <span class="col-level">NIVO</span>
+      <span class="col-cat">KATEGORIJA</span>
+      <span class="col-day" *ngIf="userRole === 'STUDENT'">DAN / SEQ</span>
+      <span class="col-vol">OBIM</span>
+      <span class="col-dur">TRAJANJE</span>
       <span class="col-priority">STATUS</span>
-      <span class="col-action">ACTION</span>
+      <span class="col-action">AKCIJA</span>
     </div>
   <div class="exercise-row" *ngFor="let ex of paginatedExercises">
       <div class="row-icon">
         <span class="material-icons">{{ getCategoryIcon(ex.category) }}</span>
       </div>
       <div class="row-details">
-        <span class="ex-category">{{ ex.category }}</span>
+        <span class="ex-category">{{ categoryDisplayLabel(ex.category) }}</span>
         <span class="ex-title">{{ ex.title }}</span>
         <span class="ex-desc">{{ ex.description }}</span>
       </div>
@@ -176,15 +176,15 @@
         <div class="row-stats-group">
           <div class="row-day" *ngIf="userRole === 'STUDENT'">
             <span class="vol-num">{{ journeyDaySequenceLabel(ex) }}</span>
-            <span class="vol-label">DAY / SEQ</span>
+            <span class="vol-label">DAN / SEQ</span>
           </div>
           <div class="row-volume">
             <span class="vol-num">{{ getQuestionCount(ex) }}</span>
-            <span class="vol-label">ITEMS</span>
+            <span class="vol-label">STAVKE</span>
           </div>
           <div class="row-duration">
             <span class="dur-num">{{ ex.estimatedDuration || 15 }}m</span>
-            <span class="dur-label">EST.</span>
+            <span class="dur-label">PROC.</span>
           </div>
           <div class="row-priority">
             <div class="status-ring" [class.completed]="ex.studentAttempt" [class.pending]="!ex.studentAttempt">
@@ -203,7 +203,7 @@
             class="btn-start"
             (click)="startExercise(ex)"
           >
-            {{ ex.studentAttempt ? 'Retry' : 'Start' }}
+            {{ ex.studentAttempt ? 'Pokušaj ponovo' : 'Započni' }}
           </button>
         </div>
       </div>
@@ -211,7 +211,7 @@
 
       <!-- Desktop-only elements (grid items) -->
       <div class="desktop-only-wrapper">
-        <div class="row-category">{{ ex.category }}</div>
+        <div class="row-category">{{ categoryDisplayLabel(ex.category) }}</div>
         <div class="row-day" *ngIf="userRole === 'STUDENT'">
           <span class="journey-day-pill" [class.journey-day-pill--any]="ex.courseDay == null">
             {{ journeyDaySequenceLabel(ex) }}
@@ -219,11 +219,11 @@
         </div>
         <div class="row-volume">
           <span class="vol-num">{{ getQuestionCount(ex) }}</span>
-          <span class="vol-label">ITEMS</span>
+          <span class="vol-label">STAVKE</span>
         </div>
         <div class="row-duration">
           <span class="dur-num">{{ ex.estimatedDuration || 15 }}m</span>
-          <span class="dur-label">EST.</span>
+          <span class="dur-label">PROC.</span>
         </div>
         <div class="row-priority">
           <div class="priority-stack">
@@ -243,7 +243,7 @@
               type="button"
               class="btn-icon-analytics"
               (click)="openExerciseReview(ex, $event)"
-              title="Analytics"
+              title="Analitika"
             >
               <span class="material-icons">analytics</span>
             </button>
@@ -253,7 +253,7 @@
               class="btn-start"
               (click)="startExercise(ex)"
             >
-              {{ ex.studentAttempt ? 'Retry' : 'Start' }}
+              {{ ex.studentAttempt ? 'Pokušaj ponovo' : 'Započni' }}
             </button>
             <button
               *ngIf="isExerciseJourneyLocked(ex)"
@@ -273,19 +273,19 @@
   <div class="empty-state" *ngIf="!loading && exercises.length === 0">
     <span class="material-icons empty-icon">search_off</span>
     <ng-container *ngIf="hasActiveFilters()">
-      <h3>No exercises match your filters</h3>
-      <p>Try adjusting or clearing your filters</p>
-      <button class="btn-clear-filters" (click)="clearFilters()">Clear Filters</button>
+      <h3>Nijedna vežba ne odgovara filterima</h3>
+      <p>Pokušajte da prilagodite ili obrišete filtere</p>
+      <button class="btn-clear-filters" (click)="clearFilters()">Obriši filtere</button>
     </ng-container>
     <ng-container *ngIf="!hasActiveFilters() && accessDenied">
-      <h3>Exercises not available</h3>
-      <p *ngIf="accessReason === 'BATCH_NOT_ACTIVE'">Your batch is not yet active. Please contact your teacher to enable access.</p>
-      <p *ngIf="accessReason === 'LEARNING_DISABLED'">Exercise access is not enabled for your batch type. Please contact your teacher.</p>
-      <p *ngIf="!accessReason">Exercise access is currently unavailable. Please contact your teacher.</p>
+      <h3>Vežbe nisu dostupne</h3>
+      <p *ngIf="accessReason === 'BATCH_NOT_ACTIVE'">Vaša grupa još nije aktivna. Kontaktirajte nastavnika da omogući pristup.</p>
+      <p *ngIf="accessReason === 'LEARNING_DISABLED'">Pristup vežbama nije omogućen za tip vaše grupe. Kontaktirajte nastavnika.</p>
+      <p *ngIf="!accessReason">Pristup vežbama trenutno nije dostupan. Kontaktirajte nastavnika.</p>
     </ng-container>
     <ng-container *ngIf="!hasActiveFilters() && !accessDenied && !isTeacherOrAdmin">
-      <h3>No exercises yet</h3>
-      <p>Exercises will appear here once your teacher creates them</p>
+      <h3>Još nema vežbi</h3>
+      <p>Vežbe će se pojaviti ovde kada ih nastavnik kreira</p>
     </ng-container>
     <ng-container *ngIf="!hasActiveFilters() && !accessDenied && isTeacherOrAdmin">
       <h3>No exercises yet</h3>
@@ -299,9 +299,9 @@
   <!-- Empty tab state -->
   <div class="empty-state" *ngIf="!loading && exercises.length > 0 && filteredExercises.length === 0">
     <span class="material-icons empty-icon">inbox</span>
-    <h3>No {{ activeTab === 'all' ? '' : activeTab + ' ' }}exercises found</h3>
-    <p>Try {{ activeTab !== 'all' ? 'another tab or ' : '' }}adjusting your filters</p>
-    <button class="btn-clear-filters" *ngIf="hasActiveFilters()" (click)="clearFilters()">Clear Filters</button>
+    <h3>{{ emptyTabHeading }}</h3>
+    <p>{{ emptyTabHint }}</p>
+    <button class="btn-clear-filters" *ngIf="hasActiveFilters()" (click)="clearFilters()">Obriši filtere</button>
   </div>
 
   <!-- Pagination -->

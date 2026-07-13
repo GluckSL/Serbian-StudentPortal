@@ -8,7 +8,7 @@
     <img src="assets/gluck-logo.png" alt="Glück Global" class="sidebar-logo-img">
     <div class="brand-info">
       <div class="brand-name">Glück Global</div>
-      <div class="role-badge" [style.background]="badgeColor">{{ userRole }}</div>
+      <div class="role-badge" [style.background]="badgeColor">{{ displayRole }}</div>
     </div>
     <a
       *ngIf="showPaymentDueNotifications"
@@ -41,7 +41,7 @@
           routerLinkActive="active"
           (click)="closeSidebar.emit()">
           <span class="nav-icon" [class.material-icons]="isMaterialIcon(group.items[0].icon)">{{ group.items[0].icon }}</span>
-          <span class="nav-label">{{ group.items[0].label }}</span>
+          <span class="nav-label">{{ resolveNavLabel(group.items[0]) }}</span>
         </a>
       </ng-container>
 
@@ -65,7 +65,7 @@
               routerLinkActive="active"
               (click)="closeSidebar.emit()">
               <span class="nav-icon" [class.material-icons]="isMaterialIcon(item.icon)">{{ item.icon }}</span>
-              <span class="nav-label">{{ item.label }}</span>
+              <span class="nav-label">{{ resolveNavLabel(item) }}</span>
               <span
                 *ngIf="item.id === 'payment-request' && paymentRequestPendingCount > 0"
                 class="nav-pending-badge"
@@ -90,16 +90,16 @@
         <div class="profile-name">
           <span class="profile-name">{{ userName }}</span>
         </div>
-        <div class="profile-role">{{ userRole }}</div>
+        <div class="profile-role">{{ displayRole }}</div>
       </div>
     </a>
     <button *ngIf="isStudent || isTeacher" class="tour-btn" (click)="restartTour()">
       <span class="material-icons">school</span>
-      Take a Tour
+      {{ isStudent ? 'Obilazak portala' : 'Take a Tour' }}
     </button>
     <button class="logout-btn" (click)="logout()">
       <span class="material-icons">logout</span>
-      Logout
+      {{ isStudent ? 'Odjava' : 'Logout' }}
     </button>
   </div>
 </nav>

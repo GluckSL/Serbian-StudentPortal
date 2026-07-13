@@ -14,7 +14,7 @@
       *ngIf="showTts"
       [disabled]="disabled || !line"
       (click)="replayTts.emit()"
-      aria-label="Replay speech"
+      aria-label="Ponovi govor"
     >
       <mat-icon>volume_up</mat-icon>
     </button>
@@ -30,7 +30,7 @@
       class="dg-bubble__cc-btn"
       [class.dg-bubble__cc-btn--active]="ccMode === 'en'"
       (click)="toggleCc('en')"
-      aria-label="Toggle English subtitles"
+      aria-label="Uključi/isključi engleske titlove"
     >
       CC EN
     </button>
@@ -40,7 +40,7 @@
       class="dg-bubble__cc-btn"
       [class.dg-bubble__cc-btn--active]="ccMode === 'ta'"
       (click)="toggleCc('ta')"
-      aria-label="Toggle Tamil subtitles"
+      aria-label="Uključi/isključi tamilške titlove"
     >
       CC தமிழ்
     </button>

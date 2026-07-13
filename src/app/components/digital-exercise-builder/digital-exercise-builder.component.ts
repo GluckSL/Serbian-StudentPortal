@@ -243,7 +243,7 @@ export class DigitalExerciseBuilderComponent implements OnInit {
   categories = ['Grammar', 'Vocabulary', 'Conversation', 'Reading', 'Writing', 'Listening', 'Pronunciation'];
   difficulties: Array<'Beginner' | 'Intermediate' | 'Advanced'> = ['Beginner', 'Intermediate', 'Advanced'];
   languages = ['English', 'German'];
-  nativeLanguages = ['English', 'Tamil', 'Sinhala'];
+  nativeLanguages = ['English', 'Tamil', 'Sinhala', 'Serbian'];
 
   questionTypes: Array<{ value: string; label: string; icon: string; description: string }> = [
     { value: 'mcq',             label: 'Multiple Choice',   icon: 'quiz',              description: 'Options with one correct answer. Supports images.' },

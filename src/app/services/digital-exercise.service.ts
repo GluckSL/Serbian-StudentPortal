@@ -1,7 +1,8 @@
 // src/app/services/digital-exercise.service.ts
 
-import { Injectable } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
+import { TranslateService } from '@ngx-translate/core';
 import { Observable, from, of, shareReplay, throwError } from 'rxjs';
 import { switchMap, tap, timeout } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
@@ -481,6 +482,7 @@ export interface ExerciseFilters {
 
 @Injectable({ providedIn: 'root' })
 export class DigitalExerciseService {
+  private readonly translate = inject(TranslateService, { optional: true });
   private apiUrl = `${environment.apiUrl}/digital-exercises`;
   private readonly exerciseListCache = new Map<string, Observable<any>>();
 
@@ -982,6 +984,46 @@ export class DigitalExerciseService {
   getDifficulties(): string[] { return ['Beginner', 'Intermediate', 'Advanced']; }
   getLanguages(): string[] { return ['English', 'German']; }
 
+  /** Display label for stored category key (DB stays English). */
+  getCategoryLabel(category: string | null | undefined): string {
+    const key = String(category || '').trim();
+    if (!key) return '—';
+    const map: Record<string, string> = {
+      Grammar: 'Gramatika',
+      Vocabulary: 'Vokabular',
+      Conversation: 'Konverzacija',
+      Reading: 'Čitanje',
+      Writing: 'Pisanje',
+      Listening: 'Slušanje',
+      Pronunciation: 'Izgovor',
+    };
+    if (map[key]) return map[key];
+    const i18nKey = `EXERCISES.CATEGORIES.${key.toUpperCase()}`;
+    if (this.translate) {
+      const t = this.translate.instant(i18nKey);
+      if (t && t !== i18nKey) return t;
+    }
+    return key;
+  }
+
+  /** Display label for stored difficulty key (DB stays English). */
+  getDifficultyLabel(difficulty: string | null | undefined): string {
+    const key = String(difficulty || '').trim();
+    if (!key) return '—';
+    const map: Record<string, string> = {
+      Beginner: 'Početnik',
+      Intermediate: 'Srednji nivo',
+      Advanced: 'Napredni nivo',
+    };
+    if (map[key]) return map[key];
+    const i18nKey = `EXERCISES.DIFFICULTY.${key.toUpperCase()}`;
+    if (this.translate) {
+      const t = this.translate.instant(i18nKey);
+      if (t && t !== i18nKey) return t;
+    }
+    return key;
+  }
+
   getLevelColor(level: string): string {
     const colors: Record<string, string> = {
       A1: '#4CAF50', A2: '#8BC34A', B1: '#FFC107', B2: '#FF9800', C1: '#F44336', C2: '#9C27B0'
@@ -990,7 +1032,44 @@ export class DigitalExerciseService {
   }
 
   getQuestionTypeLabel(type: QuestionType): string {
-    const labels: Record<QuestionType, string> = {
+    const i18nKeys: Partial<Record<QuestionType, string>> = {
+      mcq: 'EXERCISES.TYPES.MCQ',
+      matching: 'EXERCISES.TYPES.MATCHING',
+      'fill-blank': 'EXERCISES.TYPES.FILL_BLANK',
+      word_bank_fill: 'EXERCISES.TYPES.WORD_BANK_FILL',
+      pronunciation: 'EXERCISES.TYPES.PRONUNCIATION',
+      'question-answer': 'EXERCISES.TYPES.QUESTION_ANSWER',
+      singular_plural: 'EXERCISES.TYPES.SINGULAR_PLURAL',
+      listening: 'EXERCISES.TYPES.LISTENING',
+      'video-pronunciation': 'EXERCISES.TYPES.VIDEO_PRONUNCIATION',
+      'jumble-word': 'EXERCISES.TYPES.JUMBLE_WORD',
+      rearrange: 'EXERCISES.TYPES.REARRANGE',
+      image_pin_match: 'EXERCISES.TYPES.IMAGE_MATCHING',
+    };
+    const key = i18nKeys[type];
+    if (key && this.translate) {
+      const translated = this.translate.instant(key);
+      if (translated && translated !== key) return translated;
+    }
+    const lang = this.translate?.getCurrentLang?.();
+    const useSerbian =
+      lang === 'sr-Latn' ||
+      (!lang && environment.portalStudentLocale === 'sr-Latn');
+    const srLabels: Record<QuestionType, string> = {
+      mcq: 'Višestruki izbor',
+      matching: 'Podudaranje',
+      'fill-blank': 'Dopunjavanje',
+      word_bank_fill: 'Dopunjavanje iz banke reči',
+      pronunciation: 'Izgovor',
+      'question-answer': 'Pitanje / odgovor',
+      singular_plural: 'Jednina / množina',
+      listening: 'Slušanje',
+      'video-pronunciation': 'Video izgovor',
+      'jumble-word': 'Mešanje slova',
+      rearrange: 'Preuređivanje',
+      image_pin_match: 'Podudaranje slike i reči',
+    };
+    const enLabels: Record<QuestionType, string> = {
       mcq: 'Multiple Choice',
       matching: 'Matching Exercise',
       'fill-blank': 'Fill in the Blanks',
@@ -1002,8 +1081,9 @@ export class DigitalExerciseService {
       'video-pronunciation': 'Video Pronunciation',
       'jumble-word': 'Jumble Word',
       rearrange: 'Rearrange',
-      image_pin_match: 'Image Pin Match'
+      image_pin_match: 'Image Pin Match',
     };
+    const labels = useSerbian ? srLabels : enLabels;
     return labels[type] || type;
   }
 

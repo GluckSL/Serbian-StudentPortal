@@ -1,0 +1,5 @@
+version: 3
+tunnels:
+  gluck-portal:
+    proto: http
+    addr: 4000

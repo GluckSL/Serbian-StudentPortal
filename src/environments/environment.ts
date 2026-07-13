@@ -2,6 +2,8 @@
 
 export const environment = {
   production: false,
+  /** Student/auth/help UI locale for Serbia deployment (admin stays English). */
+  portalStudentLocale: 'sr-Latn' as 'sr-Latn' | 'en',
   /** Verbose DG Bot client logs (dev only). */
   dgDevLogging: true,
   /**

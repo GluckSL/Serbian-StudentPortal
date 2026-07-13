@@ -16,30 +16,30 @@ export interface JourneyPendingCelebrationData {
   imports: [CommonModule, MatDialogModule, MatButtonModule],
   template: `
     <h2 mat-dialog-title class="jp-title">
-      {{ data.instant ? '🎉 Day Complete!' : 'Congratulations!' }}
+      {{ data.instant ? '🎉 Dan završen!' : 'Čestitamo!' }}
     </h2>
     <mat-dialog-content class="jp-body">
       <ng-container *ngIf="data.instant; else pendingMode">
         <p>
-          Amazing work! You've completed <strong>all tasks for Day {{ data.currentDay }}</strong>
-          — exercises, Gluck Buddy, and your class recording.
+          Odličan rad! Završili ste <strong>sve zadatke za Dan {{ data.currentDay }}</strong>
+          — vežbe, Gluck Buddy i snimak časa.
         </p>
         <p class="jp-hint jp-instant">
-          You've been instantly promoted to <strong>Day {{ data.nextDay }}</strong>!
-          Your new day's content is unlocked right now. Keep going! 🚀
+          Trenutno ste unapređeni na <strong>Dan {{ data.nextDay }}</strong>!
+          Sadržaj novog dana je sada otključan. Nastavite tako! 🚀
         </p>
       </ng-container>
       <ng-template #pendingMode>
         <p>
-          You attended your live class for <strong>Day {{ data.currentDay }}</strong>. You're eligible to move on in your journey.
+          Prisustvovali ste uživo času za <strong>Dan {{ data.currentDay }}</strong>. Ispunjavate uslove da nastavite putovanje.
         </p>
         <p class="jp-hint">
-          Your journey day will advance to <strong>Day {{ data.nextDay }}</strong> at <strong>midnight</strong> (course timezone). Until then, keep practicing on Day {{ data.currentDay }}.
+          Vaš dan putovanja će se pomeriti na <strong>Dan {{ data.nextDay }}</strong> u <strong>ponoć</strong> (vremenska zona kursa). Do tada nastavite da vežbate na Danu {{ data.currentDay }}.
         </p>
       </ng-template>
     </mat-dialog-content>
     <mat-dialog-actions align="end">
-      <button mat-flat-button color="primary" (click)="close()">{{ data.instant ? "Let's go!" : 'Got it' }}</button>
+      <button mat-flat-button color="primary" (click)="close()">{{ data.instant ? 'Idemo!' : 'Razumem' }}</button>
     </mat-dialog-actions>
   `,
   styles: [

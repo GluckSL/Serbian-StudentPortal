@@ -140,6 +140,15 @@
 
   "AUTH": {
     "LOGIN": {
+      "HERO_TITLE": "Dobrodošli u",
+      "HERO_TITLE_ACCENT": "Glück Global Drugar za učenje nemačkog",
+      "HERO_LEAD": "Savladajte nemački uz pomoć veštačke inteligencije. Personalizovano, interaktivno i napravljeno za moderne učenike.",
+      "HERO_STUDENTS": "Za učenike",
+      "HERO_STUDENTS_DESC": "Interaktivni glasovni trening i strukturisane AI putanje učenja.",
+      "HERO_TEACHERS": "Za nastavnike",
+      "HERO_TEACHERS_DESC": "Napredno praćenje napretka i upravljanje nastavnim planom.",
+      "HERO_STAT": "Učenika",
+      "HERO_COMMUNITY": "Pridružite se našoj međunarodnoj zajednici učenika",
       "TITLE": "Prijavite se za učenje",
       "SUBTITLE": "Unesite svoje podatke za pristup lekcijama.",
       "EMAIL_LABEL": "ID portala ili e-mail",
@@ -149,12 +158,15 @@
       "FORGOT_PASSWORD": "Zaboravili ste lozinku?",
       "REMEMBER_DEVICE": "Zapamti ovaj uređaj",
       "SUBMIT_BTN": "Hajde da učimo!",
-      "SUBMITTING": "Prijava u toku...",
+      "SUBMITTING": "Prijava u toku…",
       "NO_ACCOUNT": "Nemate nalog?",
       "REGISTER_LINK": "Registrujte se ovde",
-      "CHECKING_SESSION": "Proveravanje sesije...",
+      "CHECKING_SESSION": "Proveravanje sesije…",
       "SHOW_PASSWORD": "Prikaži lozinku",
-      "HIDE_PASSWORD": "Sakrij lozinku"
+      "HIDE_PASSWORD": "Sakrij lozinku",
+      "PRIVACY": "Politika privatnosti",
+      "TERMS": "Uslovi korišćenja",
+      "HELP": "Pomoć i podrška"
     },
     "SESSION_EXPIRED": {
       "TITLE": "Sesija je istekla",
@@ -162,16 +174,17 @@
       "DISMISS": "Zatvori"
     },
     "WITHDRAWAL": {
-      "ACTION_REQUIRED": "Gluck Global - Potrebna radnja",
+      "ACTION_REQUIRED": "Glück Global — Potrebna radnja",
       "TITLE": "Potvrda statusa naloga",
-      "GREETING": "Poštovani Kandidate",
+      "GREETING": "Poštovani kandidate",
       "MESSAGE": "Naši podaci ukazuju da ste trenutno evidentirani kao",
       "STATUS": "Neizvesno / Povučeno",
-      "PROGRAM_TEXT": "iz programa Gluck Global. Pre nego što nastavimo, želeli bismo da direktno od vas potvrdimo vašu nameru.",
-      "QUESTION": "Da li želite da nastavite sa Gluck Global?",
-      "YES_CHOICE": "DA - Želim da ostanem aktivan/na i nastavim svoju prijavu/program.",
-      "NO_CHOICE": "NE - Potvrđujem povlačenje i više ne želim da budem deo Gluck Global.",
-      "TEAM_SIGN": "- Tim Gluck Global"
+      "PROGRAM_TEXT": "iz programa Glück Global. Pre nego što nastavimo, želeli bismo da direktno od vas potvrdimo vašu nameru.",
+      "QUESTION": "Da li želite da nastavite sa Glück Global?",
+      "YES_CHOICE": "DA — Želim da ostanem aktivan/na i nastavim svoju prijavu/program.",
+      "NO_CHOICE": "NE — Potvrđujem povlačenje i više ne želim da budem deo Glück Global.",
+      "TEAM_SIGN": "— Tim Glück Global",
+      "PLEASE_WAIT": "Molimo sačekajte..."
     },
     "PASSWORD_SETUP": {
       "TAG": "Glück Global — Zaštitite svoj nalog",
@@ -209,29 +222,49 @@
     }
   },
 
+  "FORGOT_PASSWORD": {
+    "HERO_TITLE": "Resetujte lozinku",
+    "HERO_LEAD": "Unesite registrovanu e-mail adresu i poslaćemo vam jednokratni kod za sigurno resetovanje lozinke.",
+    "STEP_EMAIL": "Unesite e-mail",
+    "STEP_VERIFY": "Verifikujte kod",
+    "STEP_NEW": "Nova lozinka",
+    "TITLE": "Zaboravili ste lozinku?",
+    "SUBTITLE": "Unesite e-mail povezan sa vašim Glück Global nalogom i poslaćemo vam kod za resetovanje.",
+    "EMAIL_LABEL": "E-mail adresa",
+    "EMAIL_PLACEHOLDER": "vi@primer.com",
+    "SEND_CODE": "Pošalji kod",
+    "SENDING": "Slanje...",
+    "BACK_LOGIN": "Nazad na prijavu"
+  },
+
   "HOME": {
     "NAV": {
       "FEATURES": "Funkcionalnosti",
       "ROADMAP": "Plan puta",
       "CAREERS_VISA": "Karijera i viza",
       "HELP": "Pomoć",
-      "LOGIN": "Prijavite se"
+      "LOGIN": "Prijava na portal"
     },
     "HERO": {
       "KICKER": "Zagarantovano zaposlenje",
-      "TITLE": "Vaš put ka Nemačkoj",
-      "TITLE_ACCENT": "za 200 dana!",
+      "TITLE": "Vaših 200 dana",
+      "TITLE_ACCENT": "Put ka Nemačkoj!",
       "LEAD": "Savladajte jezik, obezbedite vizu i nađite posao iz snova u Nemačkoj za 200 dana. Vrhunsko iskustvo učenja sa 100% garancijom zaposlenja.",
-      "CTA_PRIMARY": "Počni putovanje ka Nemačkoj",
+      "CTA_PRIMARY": "Počnite putovanje ka Nemačkoj",
       "JOURNEY_LABEL": "Vaše putovanje",
-      "LIVE_NOW": "Uživo",
+      "JOURNEY_DAY": "Dan 87 od 200",
+      "LIVE_NOW": "Uživo sada",
+      "LIVE_CLASS": "A2 nemački — čas uživo",
+      "LIVE_TIME": "Danas · 19:30",
+      "ARENA_XP": "+120 XP danas",
+      "BUDDY_LABEL": "Glück Buddy · AI partner",
       "VISA_APPROVED": "Viza odobrena",
       "STAGE": "Faza 4 od 4"
     },
     "STATS": {
-      "JOURNEY_DAYS": "Dan strukturiranog putovanja",
-      "STUDENTS": "Učenika koji uče",
-      "BATCHES": "Aktivnih grupa"
+      "JOURNEY_DAYS": "Dana strukturiranog putovanja",
+      "STUDENTS": "Učenika u učenju",
+      "BATCHES": "Aktivnih grupa uživo"
     },
     "FEATURES": {
       "SECTION_KICKER": "Unutar studentskog portala",
@@ -242,7 +275,7 @@
       "LIVE_CLASSES_CHIP1": "Dnevne sesije uživo",
       "LIVE_CLASSES_CHIP2": "HD snimci časova",
       "LIVE_CLASSES_CHIP3": "Pametna evidencija prisustva",
-      "BUDDY_TITLE": "Gluck Buddy — AI partner za govor",
+      "BUDDY_TITLE": "Glück Buddy — AI partner za govor",
       "BUDDY_DESC": "Upoznajte vašeg lisičijeg tutora. Vežbajte prave nemačke razgovore naglas, u bilo koje doba dana, i dobijte trenutne povratne informacije o izgovoru i odgovorima.",
       "BUDDY_CHIP1": "Vežbanje govora 24/7",
       "BUDDY_CHIP2": "Trenutne AI povratne informacije",
@@ -274,7 +307,7 @@
       "SUB": "Ne samo kurs jezika — potpuni motor za preseljenje, od vašeg prvog 'Guten Tag' do potpisivanja ugovora o radu u Nemačkoj.",
       "DAY1_LABEL": "Dan 1",
       "DAY1_TITLE": "Početak",
-      "DAY1_DESC": "Upoznajte svoju grupu, nastavnika i Gluck Buddy — A1 počinje prvog dana.",
+      "DAY1_DESC": "Upoznajte svoju grupu, nastavnika i Glück Buddy — A1 počinje prvog dana.",
       "DAY50_LABEL": "Dan 50",
       "DAY50_TITLE": "Razgovori teku",
       "DAY50_DESC": "Dnevni časovi i vežbanje govora se gomilaju — A2 prekretnica savladana.",
@@ -303,17 +336,52 @@
       "VISA_CHIP2": "Pravno vođstvo",
       "VISA_CHIP3": "Ažuriranje statusa uživo",
       "JOB_TITLE": "Posao čeka na kraju",
-      "JOB_DESC": "Kurirana lista nemačkih poslova ažurirana sedmično. Prijavite se direktno iz portala.",
-      "JOB_CHIP1": "Oglasi za posao",
-      "JOB_CHIP2": "Podudaranje poslodavaca",
-      "JOB_CHIP3": "Pomoć pri prijavi"
+      "JOB_DESC": "Kurirani oglasi nemačkih poslodavaca pojavljuju se u vašem portalu kako pristupate potrebnom nivou jezika — uz našu 100% garanciju zaposlenja.",
+      "JOB1_TITLE": "Zdravstveni radnik",
+      "JOB1_META": "Minhen · Puno radno vreme · B1 nemački",
+      "JOB2_TITLE": "Inženjerski pripravnik",
+      "JOB2_META": "Berlin · Puno radno vreme · B1 nemački",
+      "JOB3_TITLE": "IT podrška",
+      "JOB3_META": "Hamburg · Otključava se na B1",
+      "JOB_MATCHED": "Podudaranje",
+      "JOB_CHIP1": "100% garancija zaposlenja",
+      "JOB_CHIP2": "Priprema za intervju",
+      "JOB_CHIP3": "Podrška pri preseljenju"
+    },
+    "FAQ": {
+      "KICKER": "Pitanja",
+      "TITLE": "Često postavljana pitanja",
+      "SUB": "Sve što biste mogli da znate pre nego što započnete svojih 200 dana.",
+      "Q1": "Da li mi treba nemački pre nego što se pridružim?",
+      "A1": "Prethodno znanje nemačkog nije potrebno. Putovanje počinje od A1 prvog dana — potpuni početnici su upravo oni za koje je plan od 200 dana napravljen, a Glück Buddy vam pomaže da vežbate govor od prve lekcije.",
+      "Q2": "Kako funkcioniše 100% garancija zaposlenja?",
+      "A2": "Kako dostignete potreban nivo jezika, kurirani oglasi naših nemačkih partnera pojavljuju se u vašem portalu, a naš tim vas podržava kroz intervjue i zaposlenje. Garancija je potkrepljena pisanom saglasnošću pri upisu.",
+      "Q3": "Da li su časovi uživo ili snimljeni?",
+      "A3": "Oba. Pohađate dnevne časove uživo sa stručnim nastavnicima, a svaka sesija se snima u HD kvalitetu tako da možete ponovo da je gledate. Prisustvo i napredak gledanja se automatski prate u portalu.",
+      "Q4": "Da li se bavite i procesom vize?",
+      "A4": "Da. Jednom otpremite dokumente u sigurni trezor, a mi vodimo vašu prijavu kroz svaku fazu — verifikacija, podnošenje, priprema za intervju i odobrenje — sa ažuriranjima statusa uživo.",
+      "Q5": "Mogu li da učim van Sri Lanke?",
+      "A5": "Apsolutno. Celokupno iskustvo — časovi uživo, vežbe, Glück Buddy, GlückArena i kontrolna tabla napretka — radi u portalu sa bilo kog uređaja, bilo gde sa internet konekcijom.",
+      "MORE": "Imate još pitanja?",
+      "MORE_LINK": "Posetite Pomoć i podršku"
     },
     "CTA": {
-      "TITLE": "Spremni da počnete?",
-      "SUBTITLE": "Pridružite se stotinama učenika na putu ka Nemačkoj.",
-      "BTN": "Počni danas"
+      "TITLE": "Spremni da započnete svojih 200 dana?",
+      "SUBTITLE": "Pridružite se 700+ učenika koji savladavaju nemački, obezbeđuju vize i nalaze posao u Nemačkoj — sve iz jednog portala.",
+      "BTN": "Započnite prijavu",
+      "CHIP1": "100% garancija zaposlenja",
+      "CHIP2": "Podrška za vizu uključena",
+      "CHIP3": "Učite odakle god"
     },
     "FOOTER": {
+      "TAG": "Vaš put od 200 dana ka savladavanju nemačkog, obezbeđivanju vize i karijeri u Nemačkoj.",
+      "CTA": "Počnite putovanje",
+      "EXPLORE": "Istražite",
+      "PORTAL": "Portal",
+      "FAQ": "FAQ",
+      "START_APPLICATION": "Započnite prijavu",
+      "COPYRIGHT": "© {{year}} Glück Global Pvt Ltd. Sva prava zadržana.",
+      "MADE": "Vaš put ka Nemačkoj 🇩🇪",
       "PRIVACY": "Politika privatnosti",
       "TERMS": "Uslovi korišćenja",
       "CONTACT": "Kontakt"
@@ -372,7 +440,7 @@
       "MODULES_TITLE": "Moduli za učenje",
       "MODULES_DESC": "Kreirajte i upravljajte AI modulima za učenje i scenarijima za igranje uloga za vaše učenike.",
       "EXERCISES_TITLE": "Online vežbe",
-      "EXERCISES_DESC": "Kreirajte i upravljajte digitalnim vežbama — višestruki izbor, popunjavanje praznina, podudaranje, slušanje i još mnogo toga.",
+      "EXERCISES_DESC": "Kreirajte i upravljajte digitalnim vežbama — višestruki izbor, dopunjavanje, podudaranje, slušanje i još mnogo toga.",
       "CLASSES_TITLE": "Upravljanje časovima",
       "CLASSES_DESC": "Kreirajte Zoom sastanke, pozovite učenike i upravljajte rasporedom časova.",
       "ATTENDANCE_TITLE": "Prisustvo",
@@ -416,6 +484,8 @@
 
   "STUDENT": {
     "DASHBOARD_TITLE": "Kontrolna tabla",
+    "MY_CLASS": "Moj čas",
+    "MY_CLASSES": "Moji časovi",
     "MY_COURSE": "Moj kurs",
     "MY_PAYMENTS": "Moja plaćanja",
     "DOCUMENTS": "Dokumenti",
@@ -508,9 +578,17 @@
     },
     "TYPES": {
       "MCQ": "Višestruki izbor",
-      "FILL_BLANK": "Popunite praznine",
+      "FILL_BLANK": "Dopunjavanje",
       "MATCHING": "Podudaranje",
+      "IMAGE_MATCHING": "Podudaranje slike i reči",
       "PRONUNCIATION": "Izgovor",
+      "QUESTION_ANSWER": "Pitanje / odgovor",
+      "WORD_BANK_FILL": "Dopunjavanje iz banke reči",
+      "SINGULAR_PLURAL": "Jednina / množina",
+      "LISTENING": "Slušanje",
+      "VIDEO_PRONUNCIATION": "Video izgovor",
+      "JUMBLE_WORD": "Mešanje slova",
+      "REARRANGE": "Preuređivanje",
       "ESSAY": "Esej",
       "TRANSLATION": "Prevod",
       "CONVERSATION": "Konverzacija"

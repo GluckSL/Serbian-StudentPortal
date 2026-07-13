@@ -200,7 +200,7 @@ export class LearningModulesService {
   }
 
   getAvailableNativeLanguages(): string[] {
-    return ['English', 'Tamil', 'Sinhala'];
+    return ['English', 'Tamil', 'Sinhala', 'Serbian'];
   }
 
   markModuleCompleted(moduleId: string, sessionData?: any): Observable<any> {

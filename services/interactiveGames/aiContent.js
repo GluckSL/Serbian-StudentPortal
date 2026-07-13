@@ -50,12 +50,17 @@ async function callProvider(prompt, systemPrompt) {
 }
 
 async function generatePreview(adminId, { gameType, topic, count = 5, level = 'A1' }) {
-  const systemPrompt = 'You are a German language teacher. Return JSON only: { "items": [...] }. No markdown.';
+  const { isSerbiaPortal } = require('../../utils/portalRegion');
+  const serbia = isSerbiaPortal();
+  const hintLanguage = serbia ? 'Serbian (Latin script, e.g. š, č, ć, đ, dž)' : 'English';
+  const systemPrompt =
+    'You are a German language teacher. All vocabulary words and sentences shown to students MUST stay in German. ' +
+    'Hints/translations are support text only — never replace German words with English. Return JSON only: { "items": [...] }. No markdown.';
   let prompt = '';
   if (gameType === 'scramble_rush') {
-    prompt = `Generate ${count} German vocabulary words for level ${level} about "${topic}". Each item: word (UPPERCASE), hint (English), difficultyLevel 1-5.`;
+    prompt = `Generate ${count} German vocabulary words for level ${level} about "${topic}". Each item: word (UPPERCASE German), hint (${hintLanguage} meaning — NOT English if Serbia), difficultyLevel 1-5.`;
   } else {
-    prompt = `Generate ${count} German sentences for level ${level} about "${topic}". Each: correctSentence, translation (English), randomizeWords true.`;
+    prompt = `Generate ${count} German sentences for level ${level} about "${topic}". Each: correctSentence (German), translation (${hintLanguage} — NOT English if Serbia), randomizeWords true.`;
   }
 
   let parsed;

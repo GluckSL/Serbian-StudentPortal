@@ -51,12 +51,20 @@ const allowedOrigins = [
 ]; // frontend origins
 
 /** Allow any localhost / 127.0.0.1 port (ng serve, Karma :9876, etc.). Safe: browsers only send these origins from pages on the same machine. */
+function isAllowedNgrokOrigin(origin) {
+  return /^https?:\/\/[\w.-]+\.ngrok-free\.(dev|app)$/i.test(origin)
+    || /^https?:\/\/[\w.-]+\.ngrok\.(io|app)$/i.test(origin);
+}
+
 function isAllowedCorsOrigin(origin) {
   if (!origin) return true;
   if (allowedOrigins.includes(origin)) return true;
   if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(origin)) {
     return true;
   }
+  if (isAllowedNgrokOrigin(origin)) return true;
+  const publicUrl = (process.env.PUBLIC_URL || process.env.NGROK_URL || '').replace(/\/$/, '');
+  if (publicUrl && origin === publicUrl) return true;
   return false;
 }
 

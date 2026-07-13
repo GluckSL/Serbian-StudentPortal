@@ -122,7 +122,7 @@ export class FreeModeExerciseBuilderComponent implements OnInit {
   categories = ['Grammar', 'Vocabulary', 'Conversation', 'Reading', 'Writing', 'Listening', 'Pronunciation'];
   difficulties = ['Beginner', 'Intermediate', 'Advanced'];
   languages = ['English', 'German'];
-  nativeLanguages = ['English', 'Tamil', 'Sinhala'];
+  nativeLanguages = ['English', 'Tamil', 'Sinhala', 'Serbian'];
 
   questionTypes: QuestionTypeDef[] = [
     { value: 'mcq',                label: 'Multiple Choice',         icon: 'quiz',                 description: 'Options with one correct answer. Supports images.' },

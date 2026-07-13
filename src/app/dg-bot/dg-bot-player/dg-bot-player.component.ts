@@ -257,21 +257,21 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
   }
 
   get statusLabel(): string {
-    if (this.isAiThinking) return 'Thinking…';
-    if (this.status === 'listening') return 'Listening…';
-    if (this.status === 'processing') return 'Processing…';
+    if (this.isAiThinking) return 'Razmišljam…';
+    if (this.status === 'listening') return 'Slušam…';
+    if (this.status === 'processing') return 'Obrađujem…';
     return '';
   }
 
   get statusPillText(): string {
-    if (this.conversationComplete) return 'COMPLETE';
-    if (this.isAiThinking) return `${this.botDisplayName} IS THINKING…`;
-    if (this.status === 'speaking') return `${this.botDisplayName}'S TURN`;
-    if (this.status === 'processing') return 'PROCESSING…';
-    if (this.status === 'listening') return 'LISTENING…';
-    if (this.waitingForUser && this.awaitingGermanRepeat) return 'SAY IT IN GERMAN';
-    if (this.waitingForUser) return 'YOUR TURN';
-    if (!this.conversationStarted) return 'WAITING…';
+    if (this.conversationComplete) return 'ZAVRŠENO';
+    if (this.isAiThinking) return `${this.botDisplayName} RAZMIŠLJA…`;
+    if (this.status === 'speaking') return `RED: ${this.botDisplayName}`;
+    if (this.status === 'processing') return 'OBRAĐUJEM…';
+    if (this.status === 'listening') return 'SLUŠAM…';
+    if (this.waitingForUser && this.awaitingGermanRepeat) return 'RECITE NA NEMAČKOM';
+    if (this.waitingForUser) return 'VI STE NA REDU';
+    if (!this.conversationStarted) return 'ČEKAM…';
     return '—';
   }
 
@@ -309,18 +309,18 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
   }
 
   private readonly motivationTexts = [
-    "You're doing amazing — every word counts!",
-    "Great effort! You're building real language skills.",
-    "Keep it up — practice makes progress!",
-    "Fantastic work! Learning a language takes courage.",
-    "You're on the right track — stay curious and keep going!",
-    "Awesome job! Each session brings you closer to fluency.",
-    "You're making great strides — the effort really shows!",
-    "Brilliant effort! Your confidence is growing every session.",
-    "Well done! Consistency is the key to language mastery.",
-    "You're a language learner — and that's something to be proud of!",
-    "Every conversation you have is a step toward fluency!",
-    "You showed up and practiced — that's what champions do!",
+    'Odlično vam ide — svaka reč se broji!',
+    'Sjajan trud! Gradite prave jezičke veštine.',
+    'Nastavite tako — vežba donosi napredak!',
+    'Fantastičan rad! Učenje jezika zahteva hrabrost.',
+    'Na pravom ste putu — ostanite radoznali i nastavite!',
+    'Super posao! Svaka sesija vas približava tečnosti.',
+    'Pravite velike korake — trud se zaista vidi!',
+    'Briljantan trud! Samopouzdanje raste sa svakom sesijom.',
+    'Bravo! Doslednost je ključ ovladavanja jezikom.',
+    'Vi ste učenik jezika — i time treba da budete ponosni!',
+    'Svaki razgovor je korak ka tečnosti!',
+    'Pojavili ste se i vežbali — to rade šampioni!',
   ];
 
   private pickMotivationText(): string {
@@ -355,7 +355,7 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
 
   get studentDisplayName(): string {
     const name = (this.auth.getSnapshotUser()?.name || '').trim();
-    return name || 'Student';
+    return name || 'Učenik';
   }
 
   /** DG guide display name from the loaded character (legacy UI used “Ooly”). */
@@ -447,15 +447,15 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
     const qs = this.beginnerQuestions;
     if (this.isBeginnerModeActive && this.conversationStarted && qs.length > 0) {
       return qs.length > 1
-        ? `Question ${Math.min(this.beginnerQuestionIndex + 1, qs.length)} of ${qs.length}`
-        : 'Question 1';
+        ? `Pitanje ${Math.min(this.beginnerQuestionIndex + 1, qs.length)} od ${qs.length}`
+        : 'Pitanje 1';
     }
     if (this.conversationMode && qs.length > 1) {
-      return `Question ${Math.min(this.beginnerQuestionIndex + 1, qs.length)} of ${qs.length}`;
+      return `Pitanje ${Math.min(this.beginnerQuestionIndex + 1, qs.length)} od ${qs.length}`;
     }
     if (!this.conversationMode && this.scene?.type && !this.isBeginnerModeActive) {
       const label = this.scene.type.charAt(0).toUpperCase() + this.scene.type.slice(1);
-      return `Step: ${label}`;
+      return `Korak: ${label}`;
     }
     return '';
   }
@@ -747,7 +747,7 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     this.isMobile = window.innerWidth < 900;
     const id = this.route.snapshot.paramMap.get('moduleId');
-    if (!id) { this.error = 'Missing module'; this.loading = false; return; }
+    if (!id) { this.error = 'Nedostaje modul'; this.loading = false; return; }
     this.boot(id);
   }
 
@@ -807,7 +807,7 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
         this.exit();
         return;
       }
-      this.error = e?.error?.message || e?.message || 'Could not load module';
+      this.error = e?.error?.message || e?.message || 'Nije moguće učitati modul';
       this.loading = false;
     }
   }
@@ -829,7 +829,7 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
     if (introScenes.length === 0) {
       introScenes = [{
         type: 'intro',
-        text: "Hi! I'm your digital guide. Let's learn together.",
+        text: 'Zdravo! Ja sam vaš digitalni vodič. Hajde da učimo zajedno.',
         audioUrl: '', expectedAnswer: '', translation: '', hint: '', order: 0,
       }];
     }
@@ -841,7 +841,7 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
         type: 'teach',
         text: guidance,
         audioUrl: '', expectedAnswer: '', translation: '',
-        hint: 'Listen to your role, then speak when ready.',
+        hint: 'Poslušajte svoju ulogu, zatim govorite kada ste spremni.',
         order: introScenes.length,
       });
     }
@@ -967,7 +967,7 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
       this.confettiOff = setTimeout(() => { this.showConfetti = false; }, 2400);
       this.audioFx.playSuccessChime();
       const lines = this.engine.feedbackLines(true, false);
-      this.displayLine = `Great job! ${lines.en}`;
+      this.displayLine = `Odlično! ${lines.en}`;
       this.displaySub = lines.de;
       this.mascotSpeechText = lines.de;
       await this.playFeedbackTts(lines.de, 'happy');
@@ -981,7 +981,7 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
       const lines = this.engine.feedbackLines(false, false);
 
       if (this.consecutivePracticeFailures >= 3) {
-        const skipMsg = "That's okay! It will come with time. Let's move on to the next.";
+        const skipMsg = 'Nema veze! Doći će sa vremenom. Hajde da pređemo na sledeće.';
         this.displayLine = skipMsg;
         this.displaySub = '';
         this.mascotSpeechText = skipMsg;
@@ -991,7 +991,7 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
         this.practicePassed = true;
         void this.advance();
       } else {
-        this.displayLine = `${lines.en} Try again when you're ready.`;
+        this.displayLine = `${lines.en} Pokušajte ponovo kada budete spremni.`;
         this.displaySub = lines.de;
         this.mascotSpeechText = lines.de;
         await this.playFeedbackTts(lines.de, 'sad');
@@ -1069,7 +1069,7 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
     this.isAiThinking = false;
     this.waitingForUser = false;
 
-    const startCue = 'Say "Bereit!" or "Ready!" to start.';
+    const startCue = 'Recite „Bereit!“ ili „Ready!“ da počnete.';
     const withStartCue = (text: string): string => {
       const t = (text || '').trim();
       if (!t) return startCue;
@@ -1084,13 +1084,13 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
       // Beginner mode: greet with bot name ("I am Ooly") and the session intro if set
       const sessionIntro = (this.waitingForStartText || '').trim();
       readyMsgBase = sessionIntro
-        || `Hi! I am ${this.botDisplayName}. I will ask you some questions.`;
+        || `Zdravo! Ja sam ${this.botDisplayName}. Postavljaću vam neka pitanja.`;
     } else {
       readyMsgBase = this.waitingForStartText ||
         (this.payload?.module.rolePlayScenario?.studentGuidance?.trim()) ||
         '';
     }
-    const readyMsg = withStartCue(readyMsgBase || 'Say "Bereit!" or "Ready!" to start the conversation.');
+    const readyMsg = withStartCue(readyMsgBase || 'Recite „Bereit!“ ili „Ready!“ da započnete razgovor.');
     const readyMsgEnglish = readyMsg;
 
     // Show the role/start instruction as a visible chat bubble in English.
@@ -1118,7 +1118,7 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
 
     // Show + speak the start prompt
     this.displayLine = readyMsg;
-    this.displaySub = 'Say "Bereit!" or "Ready!" when you are ready to begin.';
+    this.displaySub = 'Recite „Bereit!“ ili „Ready!“ kada ste spremni da počnete.';
     this.mascotSpeechText = readyMsg;
     this.charState.setState('idle');
     this.logTts();
@@ -1142,7 +1142,7 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
       this.dgLog('empty_transcript', {});
       this.chatHistory = [
         ...this.chatHistory,
-        { speaker: 'hint' as const, text: "Couldn't hear you — please try again.", instructionEn: 'Speak clearly and try again.' },
+        { speaker: 'hint' as const, text: 'Nisam vas čuo — pokušajte ponovo.', instructionEn: 'Govorite jasno i pokušajte ponovo.' },
       ];
       this.scrollChatToLatest();
       this.openMicForUserTurn();
@@ -1271,7 +1271,7 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
               sceneIndex: this.index,
               meta: {
                 text: response.hintDe,
-                instructionEn: (response.hintEn || 'Say this in German to continue.').trim(),
+                instructionEn: (response.hintEn || 'Recite ovo na nemačkom da nastavite.').trim(),
               },
             }),
           ).catch(() => {});
@@ -1283,7 +1283,7 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
             text: response.hintDe,
             translation: (response.translatedTamil || '').trim() || undefined,
             translationEn: (response.translatedEnglish || '').trim() || undefined,
-            instructionEn: (response.hintEn || 'Say this in German to continue.').trim(),
+            instructionEn: (response.hintEn || 'Recite ovo na nemačkom da nastavite.').trim(),
           },
         ];
         this.scrollChatToLatest();
@@ -1406,7 +1406,7 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
       this.dgLog('api_error', { err: String(err) });
       this.chatHistory = [
         ...this.chatHistory,
-        { speaker: 'hint' as const, text: 'Something went wrong — please try again.', instructionEn: 'Try speaking again.' },
+        { speaker: 'hint' as const, text: 'Nešto nije u redu — pokušajte ponovo.', instructionEn: 'Pokušajte da govorite ponovo.' },
       ];
       this.scrollChatToLatest();
       this.openMicForUserTurn();

@@ -54,7 +54,7 @@ export class VideoExerciseWizardComponent {
   categories = ['Grammar', 'Vocabulary', 'Conversation', 'Reading', 'Writing', 'Listening', 'Pronunciation'];
   difficulties: Array<'Beginner' | 'Intermediate' | 'Advanced'> = ['Beginner', 'Intermediate', 'Advanced'];
   languages = ['English', 'German'];
-  nativeLanguages = ['English', 'Tamil', 'Sinhala'];
+  nativeLanguages = ['English', 'Tamil', 'Sinhala', 'Serbian'];
 
   // ── Step 2: Video Clips ────────────────────────────────────────────────────
   clips: VideoClip[] = [this.newClip()];

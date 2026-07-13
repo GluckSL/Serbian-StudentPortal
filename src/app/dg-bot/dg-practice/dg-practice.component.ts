@@ -179,13 +179,13 @@ export class DgPracticeComponent implements AfterViewInit, OnDestroy, OnChanges 
   private async runCountdown(): Promise<void> {
     this.emitPhase('countdown');
     this.charState.setState('thinking');
-    this.countdownLabel = 'Get ready…';
+    this.countdownLabel = 'Pripremite se…';
     await dgDelay(550);
     for (const n of [3, 2, 1]) {
       this.countdownLabel = String(n);
       await dgDelay(650);
     }
-    this.countdownLabel = 'Speak now!';
+    this.countdownLabel = 'Govorite sada!';
     await dgDelay(350);
     this.countdownLabel = null;
     this.charState.setState('listening');

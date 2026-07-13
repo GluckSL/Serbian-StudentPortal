@@ -181,8 +181,16 @@ export function journeyDaysThrough(currentDay: number, trialDayEnabled = false):
 }
 
 export function formatJourneyDayLabel(day: number, trialDayEnabled = false): string {
-  if (trialDayEnabled && day === TRIAL_JOURNEY_DAY) return 'Trial';
-  return `Day ${day}`;
+  if (trialDayEnabled && day === TRIAL_JOURNEY_DAY) return 'Probni';
+  return `Dan ${day}`;
+}
+
+/** Replace English Day/Trial labels in display text (titles, hints, etc.). */
+export function localizeDayInText(text: string | null | undefined): string {
+  if (!text) return '';
+  return String(text)
+    .replace(/\bDay\s+(\d+)\b/gi, 'Dan $1')
+    .replace(/\bTrial\b/gi, 'Probni');
 }
 
 export function isTrialJourneyDay(day: number): boolean {

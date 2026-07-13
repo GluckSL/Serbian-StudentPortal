@@ -3,6 +3,8 @@
 export interface NavItem {
   id: string;
   label: string;
+  /** When set, student sidebar uses ngx-translate instead of `label`. */
+  labelKey?: string;
   icon: string;
   route: string;
   subGroup: string | null;
@@ -301,57 +303,58 @@ export class NavService {
 
   // ── STUDENT ────────────────────────────────────────────────────────────
   // Profile merged into Dashboard. No separate AI Bot Report or Attendance nav items.
+  // Student nav labels are Serbian (Latin); admin/teacher nav stays English.
   private readonly STUDENT_NAV: NavGroup[] = [
     {
-      group: 'Dashboard',
+      group: 'Kontrolna tabla',
       items: [
-        { id: 'dashboard', label: 'Dashboard', icon: 'home', route: '/student-progress', subGroup: null }
+        { id: 'dashboard', label: 'Kontrolna tabla', icon: 'home', route: '/student-progress', subGroup: null }
       ]
     },
     {
-      group: 'Learning',
+      group: 'Učenje',
       items: [
-        { id: 'my-course', label: 'My Course', icon: 'menu_book', route: '/student/my-course', subGroup: null },
+        { id: 'my-course', label: 'Moj kurs', icon: 'menu_book', route: '/student/my-course', subGroup: null },
         { id: 'glueck-arena', label: 'GlückArena', icon: 'sports_esports', route: '/glueck-arena', subGroup: null },
-        { id: 'student-announcements', label: 'Announcements', icon: 'campaign', route: '/student/announcements', subGroup: null },
-        { id: 'job-openings', label: 'Job Openings', icon: 'work', route: '/student/job-openings', subGroup: null },
-        { id: 'performance', label: 'Performance History', icon: 'assessment', route: '/performance-history', subGroup: null }
+        { id: 'student-announcements', label: 'Obaveštenja', icon: 'campaign', route: '/student/announcements', subGroup: null },
+        { id: 'job-openings', label: 'Oglasi za posao', icon: 'work', route: '/student/job-openings', subGroup: null },
+        { id: 'performance', label: 'Istorija napretka', icon: 'assessment', route: '/performance-history', subGroup: null }
       ]
     },
     {
-      group: 'Gluck Room',
+      group: 'Gluck soba',
       items: [
-        { id: 'gluck-room', label: 'Gluck Room', icon: 'meeting_room', route: '/student/gluck-room', subGroup: null }
+        { id: 'gluck-room', label: 'Gluck soba', icon: 'meeting_room', route: '/student/gluck-room', subGroup: null }
       ]
     },
     {
-      group: 'Documents',
+      group: 'Dokumenti',
       items: [
-        { id: 'documents', label: 'Documents', icon: 'folder', route: '/student-documents', subGroup: null }
+        { id: 'documents', label: 'Dokumenti', icon: 'folder', route: '/student-documents', subGroup: null }
       ]
     },
     {
-      group: 'Payments',
+      group: 'Plaćanja',
       items: [
-        { id: 'my-payments', label: 'My Payments', icon: 'payments', route: '/my-payments', subGroup: null }
+        { id: 'my-payments', label: 'Moja plaćanja', icon: 'payments', route: '/my-payments', subGroup: null }
       ]
     },
     {
-      group: 'Visa Status',
+      group: 'Status vize',
       items: [
-        { id: 'visa-status', label: 'Visa Status', icon: 'flight', route: '/visa-status', subGroup: null }
+        { id: 'visa-status', label: 'Status vize', icon: 'flight', route: '/visa-status', subGroup: null }
       ]
     },
     {
-      group: 'Timetable',
+      group: 'Raspored',
       items: [
-        { id: 'timetable', label: 'Timetable', icon: 'calendar_today', route: '/time-table-view-student', subGroup: null }
+        { id: 'timetable', label: 'Raspored', icon: 'calendar_today', route: '/time-table-view-student', subGroup: null }
       ]
     },
     {
-      group: 'Help',
+      group: 'Pomoć',
       items: [
-        { id: 'help', label: 'Help & Support', icon: 'help', route: '/help', subGroup: null }
+        { id: 'help', label: 'Pomoć i podrška', icon: 'help', route: '/help', subGroup: null }
       ]
     }
   ];

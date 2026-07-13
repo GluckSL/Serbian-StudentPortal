@@ -68,11 +68,28 @@ export class DigitalExercisesComponent implements OnInit, OnChanges {
   readonly allLevels: string[] = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
   /** Level filter dropdown options (students = only up to profile level). */
   levelFilterOptions: string[] = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
+  /** English DB/API keys — use categoryDisplayLabel / difficultyDisplayLabel for UI. */
   categories = ['Grammar', 'Vocabulary', 'Conversation', 'Reading', 'Writing', 'Listening', 'Pronunciation'];
   difficulties = ['Beginner', 'Intermediate', 'Advanced'];
 
+  private static readonly CATEGORY_LABELS: Record<string, string> = {
+    Grammar: 'Gramatika',
+    Vocabulary: 'Vokabular',
+    Conversation: 'Konverzacija',
+    Reading: 'Čitanje',
+    Writing: 'Pisanje',
+    Listening: 'Slušanje',
+    Pronunciation: 'Izgovor'
+  };
+
+  private static readonly DIFFICULTY_LABELS: Record<string, string> = {
+    Beginner: 'Početnik',
+    Intermediate: 'Srednji nivo',
+    Advanced: 'Napredni nivo'
+  };
+
   /** Shorter on ≤640px so placeholder fits; full copy on larger viewports. */
-  searchInputPlaceholder = 'Search exercises by title or topic...';
+  searchInputPlaceholder = 'Pretražite vežbe po naslovu ili temi...';
 
   private searchTimer: any;
 
@@ -90,9 +107,43 @@ export class DigitalExercisesComponent implements OnInit, OnChanges {
       )
       .subscribe((compact) => {
         this.searchInputPlaceholder = compact
-          ? 'Search by title or topic'
-          : 'Search exercises by title or topic...';
+          ? 'Pretražite po naslovu ili temi'
+          : 'Pretražite vežbe po naslovu ili temi...';
       });
+  }
+
+  /** Display label for category filter/list; filter value stays English. */
+  categoryDisplayLabel(category: string | null | undefined): string {
+    if (!category) return '';
+    return DigitalExercisesComponent.CATEGORY_LABELS[category] || category;
+  }
+
+  /** Display label for difficulty; filter value stays English. */
+  difficultyDisplayLabel(difficulty: string | null | undefined): string {
+    if (!difficulty) return '';
+    return DigitalExercisesComponent.DIFFICULTY_LABELS[difficulty] || difficulty;
+  }
+
+  tabDisplayLabel(tab: TabType): string {
+    switch (tab) {
+      case 'completed': return 'Završeno';
+      case 'pending': return 'Na čekanju';
+      case 'new': return 'Novo';
+      default: return '';
+    }
+  }
+
+  get emptyTabHeading(): string {
+    const label = this.tabDisplayLabel(this.activeTab);
+    return label
+      ? `Nema vežbi u kartici „${label}”`
+      : 'Nema pronađenih vežbi';
+  }
+
+  get emptyTabHint(): string {
+    return this.activeTab !== 'all'
+      ? 'Pokušajte drugu karticu ili prilagodite filtere'
+      : 'Pokušajte da prilagodite filtere';
   }
 
   ngOnInit(): void {
@@ -355,7 +406,12 @@ export class DigitalExercisesComponent implements OnInit, OnChanges {
   }
 
   getTypeSummary(exercise: DigitalExercise): string {
-    const labels: Record<string, string> = { mcq: 'MCQ', matching: 'Match', 'fill-blank': 'Fill', pronunciation: 'Speak' };
+    const labels: Record<string, string> = {
+      mcq: 'MCQ',
+      matching: 'Sparivanje',
+      'fill-blank': 'Dopuna',
+      pronunciation: 'Govor'
+    };
     const counts = exercise.questionTypeSummary || {};
     return Object.entries(counts).map(([t, c]) => `${labels[t] || t}×${c}`).join(' · ');
   }
@@ -372,9 +428,9 @@ export class DigitalExercisesComponent implements OnInit, OnChanges {
 
   attemptStatusLabel(att: ExerciseAttempt): string {
     const s = Number(att.scorePercentage);
-    if (s >= this.passScorePercent) return 'Passed';
-    if (s > 0) return 'Below pass';
-    return 'No score yet';
+    if (s >= this.passScorePercent) return 'Položeno';
+    if (s > 0) return 'Ispod prolaza';
+    return 'Još nema ocene';
   }
 
   attemptStatusClass(att: ExerciseAttempt): string {
@@ -451,7 +507,7 @@ export class DigitalExercisesComponent implements OnInit, OnChanges {
     const day = this.exerciseCourseDayNum(ex);
     const seq = String(ex.sequenceLetter || '').trim().toUpperCase();
     if (day == null) {
-      return seq ? `Any-${seq}` : 'Any';
+      return seq ? `Bilo koji-${seq}` : 'Bilo koji';
     }
     return seq ? `${day}-${seq}` : String(day);
   }
@@ -461,15 +517,15 @@ export class DigitalExercisesComponent implements OnInit, OnChanges {
       const previous = String(ex.previousSequenceLetter || '').trim().toUpperCase();
       const day = this.exerciseCourseDayNum(ex);
       const previousLabel = day != null ? `${day}-${previous}` : previous;
-      return `First complete ${previousLabel}`;
+      return `Prvo završite ${previousLabel}`;
     }
     const cd = ex.courseDay;
-    return cd != null ? `Unlock on day ${cd}` : 'Locked';
+    return cd != null ? `Otključava se na Danu ${cd}` : 'Zaključano';
   }
 
   get journeyWeekHint(): string {
     const cur = this.studentCourseDay;
-    return `Unlocked through Day ${cur} — future days unlock as you progress`;
+    return `Otključano do Dana ${cur} — budući dani se otključavaju kako napredujete`;
   }
 
   hasType(exercise: DigitalExercise, type: string): boolean {
@@ -482,11 +538,11 @@ export class DigitalExercisesComponent implements OnInit, OnChanges {
   typeSummaryShort(ex: DigitalExercise): string {
     const pairs: Array<[string, string]> = [
       ['mcq', 'MCQ'],
-      ['matching', 'Match'],
-      ['fill-blank', 'Fill'],
-      ['pronunciation', 'Speak'],
-      ['question-answer', 'Written'],
-      ['listening', 'Listen']
+      ['matching', 'Sparivanje'],
+      ['fill-blank', 'Dopuna'],
+      ['pronunciation', 'Govor'],
+      ['question-answer', 'Pismeno'],
+      ['listening', 'Slušanje']
     ];
     const parts = pairs.filter(([t]) => this.hasType(ex, t)).map(([, l]) => l);
     return parts.length ? parts.join(' · ') : '—';
@@ -495,8 +551,8 @@ export class DigitalExercisesComponent implements OnInit, OnChanges {
   exerciseMetaLine(ex: DigitalExercise): string {
     const n = this.getQuestionCount(ex);
     const m = ex.estimatedDuration || 15;
-    const d = ex.difficulty || '—';
-    return `${n} qs · ~${m} min · ${d}`;
+    const d = this.difficultyDisplayLabel(ex.difficulty) || '—';
+    return `${n} pitanja · ~${m} min · ${d}`;
   }
 
   clipDescription(text: string | undefined, max = 96): string {
@@ -507,8 +563,8 @@ export class DigitalExercisesComponent implements OnInit, OnChanges {
 
   tableActionLabel(ex: DigitalExercise): string {
     const att = ex.studentAttempt;
-    if (!att) return 'Start';
-    return this.isAttemptPassing(att) ? 'Again' : 'Retry';
+    if (!att) return 'Započni';
+    return this.isAttemptPassing(att) ? 'Ponovo' : 'Pokušaj ponovo';
   }
 
   getPageNumbers(): number[] {
@@ -556,9 +612,9 @@ export class DigitalExercisesComponent implements OnInit, OnChanges {
   }
 
   getPriorityLabel(ex: DigitalExercise): string {
-    if (ex.studentAttempt) return 'NORMAL Review';
-    if (this.activeTab === 'new') return 'PRIORITY New Addition';
-    return 'NORMAL Pending';
+    if (ex.studentAttempt) return 'NORMAL Pregled';
+    if (this.activeTab === 'new') return 'PRIORITY Novi dodatak';
+    return 'NORMAL Na čekanju';
   }
 
   getPriorityClass(ex: DigitalExercise): string {

@@ -10,6 +10,7 @@ const fs = require('fs');
 const DigitalExercise = require('../models/DigitalExercise');
 const ExerciseAttempt = require('../models/ExerciseAttempt');
 const { sanitizeReportedTimeSpentSeconds } = require('../utils/exerciseAttemptMetrics');
+const { defaultNativeLanguage } = require('../utils/portalRegion');
 const User = require('../models/User');
 const { verifyToken, checkRole } = require('../middleware/auth');
 const { blockVisaDocsOnly } = require('../middleware/subscriptionCheck');
@@ -3040,7 +3041,7 @@ router.post('/freemode', verifyToken, checkRole(['ADMIN', 'TEACHER', 'TEACHER_AD
       level,
       category,
       targetLanguage: targetLanguage || 'German',
-      nativeLanguage: nativeLanguage || 'English',
+      nativeLanguage: nativeLanguage || defaultNativeLanguage(),
       difficulty: difficulty || 'Beginner',
       estimatedDuration: estimatedDuration || 15,
       courseDay: courseDay != null ? courseDay : null,

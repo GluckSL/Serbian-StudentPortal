@@ -66,7 +66,7 @@ export class SprechenExamHubComponent implements OnInit, OnChanges {
         this.loading = false;
       },
       error: (e) => {
-        this.error = e?.error?.message || 'Fehler beim Laden der Prüfungen.';
+        this.error = e?.error?.message || 'Nije moguće učitati ispite.';
         this.loading = false;
       },
     });
@@ -95,7 +95,7 @@ export class SprechenExamHubComponent implements OnInit, OnChanges {
 
   journeyDayLabel(m: SprechenExamModuleSummary): string {
     const d = this.moduleCourseDayNum(m);
-    return d == null ? 'Any day' : `Day ${d}`;
+    return d == null ? 'Bilo koji dan' : `Dan ${d}`;
   }
 
   trackModule = (_: number, m: SprechenExamModuleSummary): string => m._id;

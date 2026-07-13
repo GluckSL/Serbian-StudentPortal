@@ -4,8 +4,8 @@
   <div class="help-hero">
     <div class="hero-inner">
       <div class="hero-icon"><i class="fas fa-headset"></i></div>
-      <h1>Help &amp; Support</h1>
-      <p>Having trouble? Raise a ticket and our team will respond within 24 hours.</p>
+      <h1>{{ 'HELP.HERO_TITLE' | translate }}</h1>
+      <p>{{ 'HELP.HERO_DESC' | translate }}</p>
       <div class="hero-contact">
         <a href="mailto:support@gluckglobal.com"><i class="fas fa-envelope"></i> support&#64;gluckglobal.com</a>
       </div>
@@ -17,10 +17,10 @@
     <div class="help-tabs-wrap">
       <div class="help-tabs">
         <button class="help-tab" [class.active]="activeTab === 'submit'" (click)="setTab('submit')">
-          <i class="fas fa-ticket-alt"></i> Raise a Ticket
+          <i class="fas fa-ticket-alt"></i> {{ 'HELP.TAB_SUBMIT' | translate }}
         </button>
         <button *ngIf="isLoggedIn" class="help-tab" [class.active]="activeTab === 'tickets'" (click)="setTab('tickets')">
-          <i class="fas fa-list-alt"></i> My Tickets
+          <i class="fas fa-list-alt"></i> {{ 'HELP.TAB_MY_TICKETS' | translate }}
           <span *ngIf="tickets.length > 0" class="tab-badge">{{ tickets.length }}</span>
         </button>
       </div>
@@ -34,17 +34,17 @@
       <!-- Success State -->
       <div *ngIf="submitSuccess && submittedTicket" class="success-card">
         <div class="success-icon"><i class="fas fa-check-circle"></i></div>
-        <h3>Ticket Submitted Successfully!</h3>
-        <p>Your support request has been received. We'll get back to you at <strong>{{ submittedTicket.email }}</strong>.</p>
+        <h3>{{ 'HELP.SUCCESS_TITLE' | translate }}</h3>
+        <p>{{ 'HELP.SUCCESS_MSG' | translate }} <strong>{{ submittedTicket.email }}</strong>.</p>
         <div class="ticket-ref" *ngIf="submittedTicket.ticketNumber">
-          Ticket #: <strong>{{ submittedTicket.ticketNumber }}</strong>
+          {{ 'HELP.TICKET_REF' | translate }} <strong>{{ submittedTicket.ticketNumber }}</strong>
         </div>
         <div class="success-actions">
           <button class="btn-primary" (click)="submitSuccess = false; submittedTicket = null">
-            <i class="fas fa-plus"></i> Submit Another
+            <i class="fas fa-plus"></i> {{ 'HELP.BTN_SUBMIT_ANOTHER' | translate }}
           </button>
           <button *ngIf="isLoggedIn" class="btn-outline" (click)="setTab('tickets')">
-            <i class="fas fa-list-alt"></i> View My Tickets
+            <i class="fas fa-list-alt"></i> {{ 'HELP.BTN_VIEW_TICKETS' | translate }}
           </button>
         </div>
       </div>
@@ -54,8 +54,8 @@
         <div class="form-header">
           <div class="form-header-icon"><i class="fas fa-headset"></i></div>
           <div class="form-header-text">
-            <h2>New Support Ticket</h2>
-            <p>Tell us what went wrong and we will reply within <strong>24 hours</strong>. The more detail you add, the faster we can help.</p>
+            <h2>{{ 'HELP.FORM_TITLE' | translate }}</h2>
+            <p>{{ 'HELP.FORM_DESC' | translate }}</p>
           </div>
         </div>
 
@@ -69,14 +69,14 @@
           <section class="form-section" aria-labelledby="sec-contact">
             <h3 id="sec-contact" class="form-section-title">
               <span class="form-section-icon"><i class="fas fa-id-card"></i></span>
-              Your contact details
+              {{ 'HELP.SECTION_CONTACT' | translate }}
             </h3>
             <div class="form-row two-col">
               <div class="form-group">
-                <label for="ticket-name">Your Name <span class="req">*</span></label>
+                <label for="ticket-name">{{ 'HELP.FIELD_NAME' | translate }} <span class="req">*</span></label>
                 <div class="input-wrap">
                   <span class="input-affix" aria-hidden="true"><i class="fas fa-user"></i></span>
-                  <input id="ticket-name" type="text" formControlName="name" placeholder="Full name" autocomplete="name">
+                  <input id="ticket-name" type="text" formControlName="name" [placeholder]="'HELP.PLACEHOLDER_FULL_NAME' | translate" autocomplete="name">
                 </div>
                 <span class="field-error" *ngIf="ticketForm.get('name')?.invalid && ticketForm.get('name')?.touched">
                   Name is required (min 2 characters).

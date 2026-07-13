@@ -675,7 +675,7 @@ function validateGeneratedModule(module) {
   const errors = [];
   const allowedExerciseTypes = ['multiple-choice', 'fill-blank', 'translation', 'conversation', 'essay', 'role-play'];
   const allowedTargetLanguages = ['English', 'German'];
-  const allowedNativeLanguages = ['English', 'Tamil', 'Sinhala'];
+  const allowedNativeLanguages = ['English', 'Tamil', 'Sinhala', 'Serbian'];
   const allowedLevels = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
   const allowedCategories = ['Grammar', 'Vocabulary', 'Conversation', 'Reading', 'Writing', 'Listening'];
   const allowedDifficulties = ['Beginner', 'Intermediate', 'Advanced'];

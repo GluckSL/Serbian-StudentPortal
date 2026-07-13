@@ -72,7 +72,7 @@ export class DgBotHubComponent implements OnInit, OnChanges {
   readonly pageSize = 12;
   totalPages = 1;
 
-  searchInputPlaceholder = 'Search modules by title…';
+  searchInputPlaceholder = 'Pretraži module po naslovu…';
 
   private searchTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -94,7 +94,7 @@ export class DgBotHubComponent implements OnInit, OnChanges {
         takeUntilDestroyed(),
       )
       .subscribe((compact) => {
-        this.searchInputPlaceholder = compact ? 'Search…' : 'Search modules by title…';
+        this.searchInputPlaceholder = compact ? 'Pretraži…' : 'Pretraži module po naslovu…';
       });
   }
 
@@ -151,7 +151,7 @@ export class DgBotHubComponent implements OnInit, OnChanges {
         this.loading = false;
       },
       error: (e) => {
-        this.error = e?.error?.message || 'Could not load modules';
+        this.error = e?.error?.message || 'Nije moguće učitati module';
         this.loading = false;
       },
     });
@@ -264,11 +264,11 @@ export class DgBotHubComponent implements OnInit, OnChanges {
     if (this.unlockMode === 'weekly') {
       const start = (this.dgUnlockedWeek - 1) * 7 + 1;
       const end = this.dgUnlockedWeek * 7;
-      return `Week ${this.dgUnlockedWeek}: journey days ${start}–${end}. Complete all modules in this week to unlock the next.`;
+      return `Nedelja ${this.dgUnlockedWeek}: dani putovanja ${start}–${end}. Završite sve module u ovoj nedelji da otključate sledeću.`;
     }
     const a = this.studentCourseDay;
     const b = Math.min(200, a + 6);
-    return `Journey days ${a}–${b}: “New” is tied to your current journey day.`;
+    return `Dani putovanja ${a}–${b}: „Novo“ je povezano sa vašim trenutnim danom putovanja.`;
   }
 
   get showWeeklyHint(): boolean {
@@ -320,10 +320,17 @@ export class DgBotHubComponent implements OnInit, OnChanges {
   }
 
   hubStatusLabel(m: DgModuleSummary): string {
-    if (this.isModuleCompleted(m)) return 'Completed';
+    if (this.isModuleCompleted(m)) return 'Završeno';
     const p = this.moduleBestCompletionPercent(m);
-    if (p > 0) return `${p}% completed`;
-    return m.visibleToStudents ? 'Available' : 'Draft';
+    if (p > 0) return `${p}% završeno`;
+    return m.visibleToStudents ? 'Dostupno' : 'Nacrt';
+  }
+
+  tabLabel(tab: HubTab): string {
+    if (tab === 'completed') return 'Završeno';
+    if (tab === 'pending') return 'Na čekanju';
+    if (tab === 'new') return 'Novo';
+    return 'Sve';
   }
 
   /**
@@ -371,8 +378,8 @@ export class DgBotHubComponent implements OnInit, OnChanges {
 
   journeyDayLabel(m: DgModuleSummary): string {
     const d = this.moduleCourseDayNum(m);
-    if (d == null) return 'Any day';
-    return d === 0 ? 'Trial' : `Day ${d}`;
+    if (d == null) return 'Bilo koji dan';
+    return d === 0 ? 'Probni' : `Dan ${d}`;
   }
 
   trackModule = (_: number, m: DgModuleSummary): string => m._id;

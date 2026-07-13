@@ -10,10 +10,10 @@
     <div class="sp-hub__header-main">
       <h2 class="sp-hub__title sp-hub__title--embedded">
         <mat-icon>record_voice_over</mat-icon>
-        Exam — {{ tutorName }}
+        Ispit — {{ tutorName }}
       </h2>
       <p class="sp-hub__lead">
-        Goethe A1 Sprechen simulation. Three exam parts, scored out of 15.
+        Goethe A1 Sprechen simulacija. Tri dela ispita, ocenjivanje do 15 poena.
       </p>
     </div>
   </header>
@@ -29,7 +29,7 @@
       <div class="sp-hub__card" *ngFor="let mod of modules; trackBy: trackModule">
         <div class="sp-hub__card-main">
           <div class="sp-hub__module-title">{{ mod.title }}</div>
-          <div class="sp-hub__module-desc">{{ mod.description || 'Goethe A1 Sprechen exam' }}</div>
+          <div class="sp-hub__module-desc">{{ mod.description || 'Goethe A1 Sprechen ispit' }}</div>
           <div class="sp-hub__meta">
             <div class="sp-hub__meta-items">
               <span class="sp-hub__day-pill" *ngIf="journeyFixedDay == null">{{ journeyDayLabel(mod) }}</span>
@@ -38,10 +38,10 @@
                 class="sp-hub__status-badge"
                 [class.sp-hub__status-badge--done]="mod.studentProgress?.lastCompleted"
               >
-                {{ mod.studentProgress?.lastCompleted ? 'Completed' : 'Available' }}
+                {{ mod.studentProgress?.lastCompleted ? 'Završeno' : 'Dostupno' }}
               </span>
               <span class="sp-hub__attempts" *ngIf="mod.studentProgress?.attempts">
-                {{ mod.studentProgress!.attempts }} attempt{{ mod.studentProgress!.attempts === 1 ? '' : 's' }}
+                {{ mod.studentProgress!.attempts }} {{ mod.studentProgress!.attempts === 1 ? 'pokušaj' : 'pokušaja' }}
               </span>
             </div>
             <a
@@ -50,11 +50,11 @@
               [routerLink]="['/sprechen-exam', mod._id, 'play']"
             >
               <mat-icon>play_arrow</mat-icon>
-              {{ (mod.studentProgress?.attempts || 0) > 0 ? 'Retry' : 'Start exam' }}
+              {{ (mod.studentProgress?.attempts || 0) > 0 ? 'Pokušaj ponovo' : 'Pokreni ispit' }}
             </a>
           </div>
           <p class="sp-hub__best" *ngIf="(mod.studentProgress?.bestTotal || 0) > 0">
-            Best score: {{ mod.studentProgress!.bestTotal | number:'1.0-1' }} / 15
+            Najbolji rezultat: {{ mod.studentProgress!.bestTotal | number:'1.0-1' }} / 15
           </p>
         </div>
       </div>
@@ -64,15 +64,15 @@
       *ngIf="modules.length === 0 && rawModuleCount > 0 && journeyFixedDay != null"
       class="sp-hub__empty sp-hub__empty--soft"
     >
-      <h3>No exam for this day</h3>
-      <p>No speaking exam is assigned to <strong>Day {{ journeyFixedDay }}</strong> yet.</p>
+      <h3>Nema ispita za ovaj dan</h3>
+      <p>Još nije dodeljen govorni ispit za <strong>Dan {{ journeyFixedDay }}</strong>.</p>
     </section>
 
     <section *ngIf="modules.length === 0 && rawModuleCount === 0" class="sp-hub__empty">
-      <h3>No exam available yet</h3>
+      <h3>Još nema dostupnog ispita</h3>
       <p>
-        Ask your teacher to publish a Goethe A1 Sprechen exam for Day {{ studentCourseDay }}.
-        Your tutor is <strong>{{ tutorName }}</strong>.
+        Zamolite nastavnika da objavi Goethe A1 Sprechen ispit za Dan {{ studentCourseDay }}.
+        Vaš tutor je <strong>{{ tutorName }}</strong>.
       </p>
     </section>
 
@@ -80,8 +80,8 @@
       *ngIf="modules.length === 0 && rawModuleCount > 0 && journeyFixedDay == null"
       class="sp-hub__empty sp-hub__empty--soft"
     >
-      <h3>No exam for your current day</h3>
-      <p>Exams matching journey day {{ studentCourseDay }} will appear here when published.</p>
+      <h3>Nema ispita za vaš trenutni dan</h3>
+      <p>Ispiti koji odgovaraju danu putovanja {{ studentCourseDay }} pojaviće se ovde kada budu objavljeni.</p>
     </section>
   </ng-container>
 </div>

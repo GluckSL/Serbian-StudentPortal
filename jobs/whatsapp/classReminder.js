@@ -9,6 +9,7 @@ const cron = require('node-cron');
 const MeetingLink = require('../../models/MeetingLink');
 const User = require('../../models/User');
 const { sendWhatsappNotification, NOTIFICATION_TYPES, getBatchSettingsMap, isBatchAllowedBySettings } = require('../../services/whatsappCrmService');
+const { classReminderStudent, classReminderTeacher } = require('../../utils/whatsappNotificationMessages');
 
 const REMINDER_WINDOW_MINUTES = 30;
 const PORTAL_URL = (process.env.FRONTEND_URL || 'https://gluckstudentsportal.com').replace(/\/$/, '');
@@ -65,7 +66,13 @@ async function processClassReminders() {
         phone: userPhone,
         name: attendee.name,
         type: NOTIFICATION_TYPES.CLASS_REMINDER,
-        message: `Hi ${attendee.name}, "${topic}" starts in ${minutesUntilStart} min. Join via the Glück Global student portal: ${PORTAL_URL}/login — sign in, open My Class, and tap Join now when it is time.`,
+        message: classReminderStudent({
+          name: attendee.name,
+          topic,
+          minutesUntilStart,
+          portalUrl: PORTAL_URL,
+          batch: meeting.batch,
+        }),
         data: {
           meetingId: meeting._id,
           topic,
@@ -87,7 +94,12 @@ async function processClassReminders() {
           phone: teacherPhone,
           name: teacher.name,
           type: NOTIFICATION_TYPES.CLASS_REMINDER,
-          message: `Hi ${teacher.name}, "${topic}" (Batch ${meeting.batch}) starts in ${minutesUntilStart} min. Start: ${meeting.startUrl || joinUrl}`,
+          message: classReminderTeacher({
+            name: teacher.name,
+            topic,
+            minutesUntilStart,
+            batch: meeting.batch,
+          }) + ` (Batch ${meeting.batch}). Start: ${meeting.startUrl || joinUrl}`,
           data: {
             meetingId: meeting._id,
             topic,

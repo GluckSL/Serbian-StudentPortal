@@ -3,15 +3,15 @@
     <div class="dg-hub__header-main">
       <h1 class="dg-hub__title">
         <mat-icon>smart_toy</mat-icon>
-        DG Bot Lessons
+        DG Bot lekcije
       </h1>
       <p class="dg-hub__lead">
-        Practice speaking with guided role-play modules and instant feedback.
+        Vežbajte govor uz vođene igre uloga i trenutne povratne informacije.
       </p>
     </div>
     <div class="dg-hub__header-stat">
       <span class="dg-hub__header-number">{{ totalModules }}</span>
-      <span class="dg-hub__header-label">Total modules</span>
+      <span class="dg-hub__header-label">Ukupno modula</span>
     </div>
   </header>
 
@@ -21,7 +21,7 @@
         <mat-icon>forum</mat-icon>
         Gluck Buddy
       </h1>
-      <p class="dg-hub__lead">Guided speaking practice — same lessons as DG Bot, organized by your journey day.</p>
+      <p class="dg-hub__lead">Vođena govorna vežba — iste lekcije kao DG Bot, organizovane po danu putovanja.</p>
     </div>
   </header>
 
@@ -37,7 +37,7 @@
     <section class="dg-hub__stats" *ngIf="!embedded && modules.length > 0">
       <article class="dg-hub__stat-card dg-hub__stat-card--primary">
         <span class="dg-hub__stat-value">{{ totalModules }}</span>
-        <span class="dg-hub__stat-label">Modules</span>
+        <span class="dg-hub__stat-label">Moduli</span>
       </article>
       <article class="dg-hub__stat-card dg-hub__stat-card--success">
         <span class="dg-hub__stat-value">{{ a1Count }}</span>
@@ -53,13 +53,13 @@
       </article>
       <article class="dg-hub__stat-card dg-hub__stat-card--slate">
         <span class="dg-hub__stat-value">{{ totalScenes }}</span>
-        <span class="dg-hub__stat-label">Scenes</span>
+        <span class="dg-hub__stat-label">Scene</span>
       </article>
     </section>
 
     <section class="dg-hub__summary" *ngIf="!embedded && modules.length > 0">
       <span class="dg-hub__summary-count">{{ totalModules }}</span>
-      <span class="dg-hub__summary-text">modules available for practice</span>
+      <span class="dg-hub__summary-text">dostupnih modula za vežbu</span>
     </section>
 
     <!-- Standalone hub: full filters -->
@@ -83,9 +83,9 @@
             [(ngModel)]="selectedLevel"
             (selectionChange)="onFilterChange()"
             panelClass="dg-hub-select-panel"
-            aria-label="Filter by level"
+            aria-label="Filtriraj po nivou"
           >
-            <mat-option value="">All levels</mat-option>
+            <mat-option value="">Svi nivoi</mat-option>
             <mat-option *ngFor="let l of levelOptions" [value]="l">{{ l }}</mat-option>
           </mat-select>
         </mat-form-field>
@@ -94,16 +94,16 @@
             [(ngModel)]="selectedLanguage"
             (selectionChange)="onFilterChange()"
             panelClass="dg-hub-select-panel"
-            aria-label="Filter by language"
+            aria-label="Filtriraj po jeziku"
           >
-            <mat-option value="">All languages</mat-option>
+            <mat-option value="">Svi jezici</mat-option>
             <mat-option *ngFor="let lang of languageOptions" [value]="lang">{{ lang }}</mat-option>
           </mat-select>
         </mat-form-field>
         <span class="dg-hub__journey-hint">{{ journeyWeekHint }}</span>
         <button type="button" class="dg-hub__clear-filters" *ngIf="hasActiveFilters()" (click)="clearFilters()">
           <span class="material-icons">filter_alt_off</span>
-          Clear
+          Obriši
         </button>
       </div>
     </div>
@@ -117,37 +117,37 @@
           <span class="material-icons">close</span>
         </button>
       </div>
-      <div class="dg-hub__status-row" role="tablist" aria-label="Module status">
+      <div class="dg-hub__status-row" role="tablist" aria-label="Status modula">
         <button type="button" role="tab" class="dg-hub__status-pill" [class.dg-hub__status-pill--on]="activeTab === 'new'" (click)="setTab('new')">
-          New <span class="dg-hub__status-count">{{ countForTab('new') }}</span>
+          Novo <span class="dg-hub__status-count">{{ countForTab('new') }}</span>
         </button>
         <button type="button" role="tab" class="dg-hub__status-pill" [class.dg-hub__status-pill--on]="activeTab === 'pending'" (click)="setTab('pending')">
-          Pending <span class="dg-hub__status-count">{{ countForTab('pending') }}</span>
+          Na čekanju <span class="dg-hub__status-count">{{ countForTab('pending') }}</span>
         </button>
         <button type="button" role="tab" class="dg-hub__status-pill" [class.dg-hub__status-pill--on]="activeTab === 'completed'" (click)="setTab('completed')">
-          Completed <span class="dg-hub__status-count">{{ countForTab('completed') }}</span>
+          Završeno <span class="dg-hub__status-count">{{ countForTab('completed') }}</span>
         </button>
       </div>
       <p class="dg-hub__day-hint" *ngIf="journeyFixedDay == null">
         <span class="material-icons" aria-hidden="true">calendar_today</span>
-        Journey day {{ studentCourseDay }} — “New” matches today’s assigned lessons.
+        Dan putovanja {{ studentCourseDay }} — „Novo“ odgovara današnjim dodeljenim lekcijama.
       </p>
       <p class="dg-hub__day-hint" *ngIf="journeyFixedDay != null">
         <span class="material-icons" aria-hidden="true">calendar_today</span>
-        Showing Glück Buddy for <strong>{{ journeyFixedDay === 0 ? 'Trial' : 'Day ' + journeyFixedDay }}</strong>.
+        Prikazuje se Glück Buddy za <strong>{{ journeyFixedDay === 0 ? 'Probni' : 'Dan ' + journeyFixedDay }}</strong>.
       </p>
     </div>
 
     <div class="mc-tabs-wrap" *ngIf="!embedded">
       <div class="mc-tabs">
         <button type="button" class="mc-tab" [class.mc-tab--on]="activeTab === 'completed'" (click)="setTab('completed')">
-          Completed
+          Završeno
         </button>
         <button type="button" class="mc-tab" [class.mc-tab--on]="activeTab === 'pending'" (click)="setTab('pending')">
-          Pending
+          Na čekanju
         </button>
         <button type="button" class="mc-tab" [class.mc-tab--on]="activeTab === 'new'" (click)="setTab('new')">
-          New
+          Novo
         </button>
       </div>
     </div>
@@ -160,12 +160,12 @@
       <div class="dg-hub__card" *ngFor="let m of paginatedModules; trackBy: trackModule">
         <div class="dg-hub__card-main">
           <div class="dg-hub__module-title">{{ m.title }}</div>
-          <div class="dg-hub__module-desc">{{ m.description || 'Guided speaking practice' }}</div>
+          <div class="dg-hub__module-desc">{{ m.description || 'Vođena govorna vežba' }}</div>
           <div class="dg-hub__meta">
             <div class="dg-hub__meta-items">
               <span class="dg-hub__day-pill" *ngIf="journeyFixedDay == null">{{ journeyDayLabel(m) }}</span>
               <span class="dg-hub__level-badge">{{ m.level || '—' }}</span>
-              <span class="dg-hub__lang">{{ m.language || 'German' }}</span>
+              <span class="dg-hub__lang">{{ m.language || 'Nemački' }}</span>
               <span
                 class="dg-hub__status-badge"
                 [class.dg-hub__status-badge--done]="isModuleCompleted(m)"
@@ -177,11 +177,11 @@
             </div>
             <a mat-stroked-button class="dg-hub__action-btn" *ngIf="!isModuleCompleted(m)" [routerLink]="['/dg-bot', m._id, 'play']">
               <mat-icon>play_arrow</mat-icon>
-              Start
+              Pokreni
             </a>
             <span class="dg-hub__action-done" *ngIf="isModuleCompleted(m)">
               <mat-icon>check_circle</mat-icon>
-              Completed
+              Završeno
             </span>
           </div>
         </div>
@@ -213,33 +213,33 @@
 
     <section *ngIf="!loading && modules.length > 0 && filteredModules.length === 0" class="dg-hub__empty dg-hub__empty--soft">
       <img class="dg-hub__empty-fox" src="assets/images/practice-partner-fox.svg" alt="" width="88" height="88" />
-      <h3>No modules in {{ activeTab }}</h3>
-      <p *ngIf="activeTab === 'all'">No modules match your search.</p>
-      <p *ngIf="activeTab !== 'all'">Nothing here for <strong>{{ activeTab }}</strong> yet. Try another status or clear your search.</p>
+      <h3>Nema modula u: {{ tabLabel(activeTab) }}</h3>
+      <p *ngIf="activeTab === 'all'">Nijedan modul ne odgovara vašoj pretrazi.</p>
+      <p *ngIf="activeTab !== 'all'">Ovde još nema ničega za <strong>{{ tabLabel(activeTab) }}</strong>. Probajte drugi status ili obrišite pretragu.</p>
       <div class="dg-hub__empty-actions" *ngIf="embedded">
-        <button type="button" class="dg-hub__empty-btn" *ngIf="activeTab !== 'new'" (click)="setTab('new')">View New</button>
-        <button type="button" class="dg-hub__empty-btn" *ngIf="activeTab !== 'pending'" (click)="setTab('pending')">View Pending</button>
-        <button type="button" class="dg-hub__empty-btn" *ngIf="searchQuery" (click)="searchQuery = ''; onFilterChange()">Clear search</button>
+        <button type="button" class="dg-hub__empty-btn" *ngIf="activeTab !== 'new'" (click)="setTab('new')">Pogledaj Novo</button>
+        <button type="button" class="dg-hub__empty-btn" *ngIf="activeTab !== 'pending'" (click)="setTab('pending')">Pogledaj Na čekanju</button>
+        <button type="button" class="dg-hub__empty-btn" *ngIf="searchQuery" (click)="searchQuery = ''; onFilterChange()">Obriši pretragu</button>
       </div>
     </section>
 
     <section *ngIf="!loading && modules.length === 0 && rawModuleCount > 0 && journeyFixedDay != null" class="dg-hub__empty dg-hub__empty--soft">
       <div class="dg-hub__empty-icon">🦊</div>
-      <h3>No Gluck Buddy for this day</h3>
-      <p>There are no speaking lessons assigned to <strong>Day {{ journeyFixedDay }}</strong> yet.</p>
+      <h3>Nema Gluck Buddy za ovaj dan</h3>
+      <p>Još nema govornih lekcija dodeljenih za <strong>Dan {{ journeyFixedDay }}</strong>.</p>
     </section>
 
     <section *ngIf="!loading && modules.length === 0 && rawModuleCount === 0" class="dg-hub__empty">
       <div class="dg-hub__empty-icon">🦊</div>
-      <h3>No Glück Buddy modules yet</h3>
+      <h3>Još nema Glück Buddy modula</h3>
       <p *ngIf="journeyFixedDay != null">
-        Nothing is assigned for <strong>Day {{ journeyFixedDay }}</strong> yet. Check back later or try another journey day.
+        Još ništa nije dodeljeno za <strong>Dan {{ journeyFixedDay }}</strong>. Proverite kasnije ili probate drugi dan putovanja.
       </p>
       <p *ngIf="journeyFixedDay == null && unlockMode === 'weekly'">
-        Your teacher has not published modules for your current unlocked week yet. Complete each week to unlock the next.
+        Vaš nastavnik još nije objavio module za vašu trenutno otključanu nedelju. Završite svaku nedelju da otključate sledeću.
       </p>
       <p *ngIf="journeyFixedDay == null && unlockMode !== 'weekly'">
-        Your teacher has not published speaking practice modules for <strong>Day {{ studentCourseDay }}</strong> yet.
+        Vaš nastavnik još nije objavio module za govornu vežbu za <strong>Dan {{ studentCourseDay }}</strong>.
       </p>
     </section>
   </ng-container>

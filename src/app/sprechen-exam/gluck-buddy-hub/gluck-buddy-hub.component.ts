@@ -95,7 +95,7 @@ export class GluckBuddyHubComponent implements OnInit, OnChanges {
         this.loadingAvailability = false;
       },
       error: () => {
-        this.availabilityError = 'Could not load Glück Buddy modules.';
+        this.availabilityError = 'Nije moguće učitati Glück Buddy module.';
         this.practiceModuleCount = 0;
         this.examModuleCount = 0;
         this.loadingAvailability = false;

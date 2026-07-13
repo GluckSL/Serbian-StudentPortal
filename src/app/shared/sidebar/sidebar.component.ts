@@ -137,6 +137,15 @@ export class SidebarComponent implements OnInit {
     this.paymentNotificationNav.refresh();
   }
 
+  resolveNavLabel(item: { label: string }): string {
+    return item.label;
+  }
+
+  get displayRole(): string {
+    if (this.userRole === 'STUDENT') return 'Učenik';
+    return this.userRole;
+  }
+
   getRoute(item: any): string {
     if (item.route === '__dashboard__') {
       if (this.userRole === 'SUB_ADMIN') {

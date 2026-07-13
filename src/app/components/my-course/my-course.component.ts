@@ -198,7 +198,7 @@ export class MyCourseComponent implements OnInit {
   journeyProfileLoaded = false;
 
   private readonly motivateLines = [
-    'You’re going strong — keep showing up!',
+    'Odlično vam ide — nastavite da se pojavljujete!',
     'Mali koraci svaki dan se sabiraju. Ponosni smo na vas!',
     'Doslednost pobeđuje. Vi to možete!',
     'Odličan ritam — ostanite radoznali i nastavite da vežbate.',
@@ -215,7 +215,7 @@ export class MyCourseComponent implements OnInit {
   leaderboardRequestedPeriod: LeaderboardPeriod | null = 'weekly';
 
   private readonly tabHeaderQuotes = [
-    "You're doing great — keep showing up!",
+    'Odlično vam ide — nastavite da se pojavljujete!',
     'Svaki deo vežbe vas pokreće napred. Ostanite uz to!',
     'Učenje jezika je maraton, a ne sprint. Vi to možete.',
     'Mali koraci danas postaju tečan govor sutra.',
@@ -1314,7 +1314,7 @@ export class MyCourseComponent implements OnInit {
   }
 
   get exercisesTabLabel(): string {
-    return this.isNew2BatchStudent ? 'Online Exercises 2.0' : 'Exercises';
+    return this.isNew2BatchStudent ? 'Online vežbe 2.0' : 'Vežbe';
   }
 
   get gluckBuddyTabLabel(): string {
@@ -1322,7 +1322,7 @@ export class MyCourseComponent implements OnInit {
   }
 
   get exercisesSectionLabel(): string {
-    return this.isNew2BatchStudent ? 'Online Exercises 2.0' : 'Exercises';
+    return this.isNew2BatchStudent ? 'Online vežbe 2.0' : 'Vežbe';
   }
 
   get gluckBuddySectionLabel(): string {
@@ -1625,9 +1625,9 @@ export class MyCourseComponent implements OnInit {
     if (!this.isExerciseSequenceLocked(ex) || !ex.previousSequenceLetter) return '';
     const prev = String(ex.previousSequenceLetter || '').trim().toUpperCase();
     const day = this.exerciseCourseDayNum(ex);
-    if (day === TRIAL_JOURNEY_DAY && this.trialDayEnabled) return `Complete Trial-${prev} first`;
-    if (day != null) return `Complete ${day}-${prev} first`;
-    return `Complete ${prev} first`;
+    if (day === TRIAL_JOURNEY_DAY && this.trialDayEnabled) return `Prvo završite Probni-${prev}`;
+    if (day != null) return `Prvo završite ${day}-${prev}`;
+    return `Prvo završite ${prev}`;
   }
 
   get selectedDayHasItems(): boolean {
@@ -1793,8 +1793,8 @@ export class MyCourseComponent implements OnInit {
       if (prerequisite?._id) {
         this.notify.info(
           prevLetter
-            ? `Complete exercise ${prevLetter} first. Opening the previous item.`
-            : 'Complete the previous exercise in sequence first.'
+            ? `Prvo završite vežbu ${prevLetter}. Otvaramo prethodnu stavku.`
+            : 'Prvo završite prethodnu vežbu u nizu.'
         );
         const preRoute = prerequisite.isFreeMode ? '/play/freemode' : '/play';
         this.router.navigate([
@@ -1804,7 +1804,7 @@ export class MyCourseComponent implements OnInit {
         ]);
         return;
       }
-      this.notify.info(this.exerciseSequenceUnlockLabel(ex) || 'Complete the previous exercise in sequence first.');
+      this.notify.info(this.exerciseSequenceUnlockLabel(ex) || 'Prvo završite prethodnu vežbu u nizu.');
       return;
     }
     const route = ex.isFreeMode ? '/play/freemode' : '/play';
@@ -1856,19 +1856,8 @@ export class MyCourseComponent implements OnInit {
     return `${day}${seq}${lock} | ${ex?.level || 'Nivo N/A'} | ${ex?.category || 'Opšte'} | ${status}`;
   }
 
-  ordinalSuffix(n: number): string {
-    const v = n % 100;
-    if (v >= 11 && v <= 13) return 'th';
-    switch (n % 10) {
-      case 1:
-        return 'st';
-      case 2:
-        return 'nd';
-      case 3:
-        return 'rd';
-      default:
-        return 'th';
-    }
+  ordinalSuffix(_n: number): string {
+    return '.';
   }
 
   private startOfLocalDay(d: Date): Date {
@@ -2042,7 +2031,7 @@ export class MyCourseComponent implements OnInit {
 
   meetingJourneyDayLabel(meeting: any): string {
     const d = this.getMeetingJourneyDay(meeting);
-    return d != null ? `Day ${d}` : '—';
+    return d != null ? `Dan ${d}` : '—';
   }
 
   meetingProgressStatusLabel(meeting: any): string {
