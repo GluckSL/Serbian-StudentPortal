@@ -15,7 +15,7 @@ import { PublicSignupWizardComponent } from './public-signup-wizard.component';
         <div class="sa-hero__inner">
           <img src="assets/gluck-logo.png" alt="Glück Global" class="sa-hero__logo" width="40" height="40" />
           <h1 class="sa-hero__brand">Glück Global</h1>
-          <p class="sa-hero__tagline">German Study Buddy</p>
+          <p class="sa-hero__tagline">Nemački drug za učenje</p>
         </div>
       </aside>
       <section class="sa-panel">

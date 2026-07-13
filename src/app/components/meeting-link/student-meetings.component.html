@@ -98,8 +98,8 @@
             </td>
           </tr>
           </ng-container>
-          <tr *ngIf="!tabLoading && upcomingTotal === 0"><td colspan="7" class="empty-row">Nema predstojecih casova</td></tr>
-          <tr *ngIf="!tabLoading && upcomingTotal > 0 && paginatedUpcomingMeetings.length === 0"><td colspan="7" class="empty-row">Nema predstojecih casova na ovoj stranici</td></tr>
+          <tr *ngIf="!tabLoading && upcomingTotal === 0"><td colspan="7" class="empty-row">Nema predstojećih časova</td></tr>
+          <tr *ngIf="!tabLoading && upcomingTotal > 0 && paginatedUpcomingMeetings.length === 0"><td colspan="7" class="empty-row">Nema predstojećih časova na ovoj stranici</td></tr>
         </tbody>
       </table>
       <div class="sm-pagination" *ngIf="activeTab === 'upcoming' && upcomingTotal > classesPageSize">
@@ -185,7 +185,7 @@
             </td>
           </tr>
           </ng-container>
-          <tr *ngIf="!tabLoading && liveTotal === 0"><td colspan="7" class="empty-row">Nema casova uzivo trenutno</td></tr>
+          <tr *ngIf="!tabLoading && liveTotal === 0"><td colspan="7" class="empty-row">Nema časova uživo trenutno</td></tr>
         </tbody>
       </table>
       <div class="sm-pagination" *ngIf="activeTab === 'live' && liveTotal > classesPageSize">

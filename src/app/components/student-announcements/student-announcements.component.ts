@@ -93,7 +93,7 @@ const STAFF_ROLES = ['ADMIN', 'TEACHER_ADMIN', 'TEACHER'];
       <div class="sa-dialog__body sa-richtext" [innerHTML]="data.body"></div>
 
       <div class="sa-dialog__files" *ngIf="data.attachments?.length">
-        <div class="sa-dialog__filesTitle">Attachments</div>
+        <div class="sa-dialog__filesTitle">Prilozi</div>
         <div class="sa-dialog__fileRow">
           <a
             *ngFor="let file of data.attachments"
@@ -112,7 +112,7 @@ const STAFF_ROLES = ['ADMIN', 'TEACHER_ADMIN', 'TEACHER'];
 
       <div class="sa-comments">
         <div class="sa-comments__header">
-          Comments
+          Komentari
           <span class="sa-comments__count" *ngIf="commentTotal > 0">({{ commentTotal }})</span>
         </div>
 
@@ -129,7 +129,7 @@ const STAFF_ROLES = ['ADMIN', 'TEACHER_ADMIN', 'TEACHER'];
                     class="sa-comment__delete"
                     *ngIf="parent.userId._id === currentUserId"
                     (click)="deleteComment(parent)"
-                    title="Delete"
+                    title="Obriši"
                   >
                     <span class="material-icons">delete_outline</span>
                   </button>
@@ -147,7 +147,7 @@ const STAFF_ROLES = ['ADMIN', 'TEACHER_ADMIN', 'TEACHER'];
                           class="sa-comment__delete"
                           *ngIf="reply.userId._id === currentUserId"
                           (click)="deleteComment(reply)"
-                          title="Delete"
+                          title="Obriši"
                         >
                           <span class="material-icons">delete_outline</span>
                         </button>
@@ -165,14 +165,14 @@ const STAFF_ROLES = ['ADMIN', 'TEACHER_ADMIN', 'TEACHER'];
               [disabled]="commentsLoadingMore"
               (click)="loadMoreComments()"
             >
-              {{ commentsLoadingMore ? 'Loading...' : 'Load more' }}
+              {{ commentsLoadingMore ? 'Učitavanje...' : 'Učitaj više' }}
             </button>
           </div>
         </div>
 
         <div class="sa-comments__empty" *ngIf="comments.length === 0 && !commentsLoading">
           <span class="material-icons sa-comments__emptyIcon">chat_bubble_outline</span>
-          <p>No comments yet</p>
+          <p>Još nema komentara</p>
         </div>
 
         <div class="sa-comments__skeleton" *ngIf="commentsLoading">
@@ -189,7 +189,7 @@ const STAFF_ROLES = ['ADMIN', 'TEACHER_ADMIN', 'TEACHER'];
           <textarea
             class="sa-comment-form__input"
             [(ngModel)]="newCommentText"
-            placeholder="Write a comment..."
+            placeholder="Napišite komentar..."
             rows="2"
             maxlength="2000"
           ></textarea>
@@ -200,8 +200,8 @@ const STAFF_ROLES = ['ADMIN', 'TEACHER_ADMIN', 'TEACHER'];
               [disabled]="!newCommentText.trim() || posting"
               (click)="postComment()"
             >
-              <span *ngIf="!posting">Post</span>
-              <span *ngIf="posting">Posting...</span>
+              <span *ngIf="!posting">Objavi</span>
+              <span *ngIf="posting">Objavljivanje...</span>
             </button>
           </div>
         </div>

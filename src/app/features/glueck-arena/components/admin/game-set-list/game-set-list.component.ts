@@ -16,8 +16,8 @@ import { GameSet, GameType } from '../../../glueck-arena.types';
       <header class="ga-hero">
         <div class="ga-hero__copy">
           <div class="ga-hero__badge"><mat-icon>sports_esports</mat-icon> GlückArena</div>
-          <h1>Game modules</h1>
-          <p>Create games, assign them to batches, and publish when ready. Students only see GlückArena if their batch has at least one published game.</p>
+          <h1>Game Modules</h1>
+          <p>Create games, assign them to groups, and publish when ready. Students see GlückArena only if their group has at least one published game.</p>
         </div>
         <div class="ga-hero__actions">
           <button mat-stroked-button class="ga-btn-ghost" routerLink="/admin/glueck-arena/command-center">
@@ -27,10 +27,10 @@ import { GameSet, GameType } from '../../../glueck-arena.types';
             <mat-icon>insights</mat-icon> Analytics
           </button>
           <button mat-stroked-button class="ga-btn-ghost" routerLink="/admin/glueck-arena/battlefield/team-battles">
-            <mat-icon>sports_kabaddi</mat-icon> Host Battlefield
+            <mat-icon>sports_kabaddi</mat-icon> Organize Battlefield
           </button>
           <button mat-raised-button color="primary" routerLink="/admin/glueck-arena/create">
-            <mat-icon>add</mat-icon> New game set
+            <mat-icon>add</mat-icon> New Game Set
           </button>
         </div>
       </header>
@@ -38,7 +38,7 @@ import { GameSet, GameType } from '../../../glueck-arena.types';
       <div class="ga-stats" *ngIf="!loadError && !loading">
         <div class="ga-stat">
           <span class="ga-stat__value">{{ pagination.total }}</span>
-          <span class="ga-stat__label">Total sets</span>
+          <span class="ga-stat__label">Total Sets</span>
         </div>
         <div class="ga-stat">
           <span class="ga-stat__value">{{ publishedCount }}</span>
@@ -62,7 +62,7 @@ import { GameSet, GameType } from '../../../glueck-arena.types';
             <mat-icon>expand_more</mat-icon>
           </div>
           <div class="ga-toolbar__dropdown-menu" *ngIf="typeOpen" (click)="$event.stopPropagation()">
-            <div class="ga-toolbar__dropdown-item" (click)="setType('')">All types</div>
+            <div class="ga-toolbar__dropdown-item" (click)="setType('')">All Types</div>
             <div class="ga-toolbar__dropdown-item" (click)="setType('scramble_rush')">Scramble Rush</div>
             <div class="ga-toolbar__dropdown-item" (click)="setType('sentence_builder')">Sentence Builder</div>
             <div class="ga-toolbar__dropdown-item" (click)="setType('matching')">Matching</div>
@@ -96,10 +96,10 @@ import { GameSet, GameType } from '../../../glueck-arena.types';
 
       <div *ngIf="loadError && !loading" class="ga-error">
         <mat-icon>cloud_off</mat-icon>
-        <h3>Could not load game sets</h3>
+        <h3>Unable to load game sets</h3>
         <p>{{ loadError }}</p>
         <button mat-raised-button color="primary" (click)="load()">
-          <mat-icon>refresh</mat-icon> Try again
+          <mat-icon>refresh</mat-icon> Try Again
         </button>
       </div>
 
@@ -119,9 +119,9 @@ import { GameSet, GameType } from '../../../glueck-arena.types';
           </ng-container>
 
           <ng-container matColumnDef="batches">
-            <th mat-header-cell *matHeaderCellDef>Batches</th>
+            <th mat-header-cell *matHeaderCellDef>Groups</th>
             <td mat-cell *matCellDef="let s">
-              <span *ngIf="!(s.targetBatches?.length)" class="ga-batch-pill ga-batch-pill--all">All batches</span>
+              <span *ngIf="!(s.targetBatches?.length)" class="ga-batch-pill ga-batch-pill--all">All Groups</span>
               <div *ngIf="s.targetBatches?.length" class="ga-batch-chips">
                 <span *ngFor="let b of s.targetBatches | slice:0:2" class="ga-batch-pill">{{ b }}</span>
                 <span *ngIf="s.targetBatches.length > 2" class="ga-batch-pill ga-batch-pill--more">+{{ s.targetBatches.length - 2 }}</span>
@@ -165,7 +165,7 @@ import { GameSet, GameType } from '../../../glueck-arena.types';
           <ng-container matColumnDef="actions">
             <th mat-header-cell *matHeaderCellDef></th>
             <td mat-cell *matCellDef="let s">
-              <button mat-icon-button matTooltip="Play preview" [routerLink]="['/admin/glueck-arena', s._id, 'play']" color="primary">
+              <button mat-icon-button matTooltip="Preview Game" [routerLink]="['/admin/glueck-arena', s._id, 'play']" color="primary">
                 <mat-icon>play_circle</mat-icon>
               </button>
               <button mat-icon-button matTooltip="Edit" [routerLink]="['/admin/glueck-arena', s._id, 'edit']">
@@ -186,10 +186,10 @@ import { GameSet, GameType } from '../../../glueck-arena.types';
 
         <div *ngIf="sets.length === 0" class="ga-empty">
           <mat-icon>sports_esports</mat-icon>
-          <h3>No game sets yet</h3>
-          <p>Create your first module and assign it to a batch so students can see GlückArena.</p>
+          <h3>No game sets</h3>
+          <p>Create your first module and assign it to a group so students can see GlückArena.</p>
           <button mat-raised-button color="primary" routerLink="/admin/glueck-arena/create">
-            <mat-icon>add</mat-icon> Create game set
+            <mat-icon>add</mat-icon> Create Game Set
           </button>
         </div>
 
@@ -313,7 +313,7 @@ export class GameSetListComponent implements OnInit {
   typeOpen = false;
   statusOpen = false;
 
-  getTypeLabel(v: string): string { return v ? this.formatType(v as GameType) : 'Game type'; }
+  getTypeLabel(v: string): string { return v ? this.formatType(v as GameType) : 'Game Type'; }
   getStatusLabel(v: boolean | ''): string {
     if (v === true) return 'Published';
     if (v === false) return 'Draft';

@@ -26,15 +26,15 @@ export interface JourneyPendingCelebrationData {
         </p>
         <p class="jp-hint jp-instant">
           Trenutno ste unapređeni na <strong>Dan {{ data.nextDay }}</strong>!
-          Sadržaj novog dana je sada otključan. Nastavite tako! 🚀
+          Sadržaj novog dana je otključan odmah. Nastavite tako! 🚀
         </p>
       </ng-container>
       <ng-template #pendingMode>
         <p>
-          Prisustvovali ste uživo času za <strong>Dan {{ data.currentDay }}</strong>. Ispunjavate uslove da nastavite putovanje.
+          Prisustvovali ste uživo času za <strong>Dan {{ data.currentDay }}</strong>. Ispunili ste uslove za nastavak putovanja.
         </p>
         <p class="jp-hint">
-          Vaš dan putovanja će se pomeriti na <strong>Dan {{ data.nextDay }}</strong> u <strong>ponoć</strong> (vremenska zona kursa). Do tada nastavite da vežbate na Danu {{ data.currentDay }}.
+          Vaš dan putovanja će napredovati na <strong>Dan {{ data.nextDay }}</strong> u <strong>ponoć</strong> (vremenska zona kursa). Do tada, nastavite da vežbate na Dan {{ data.currentDay }}.
         </p>
       </ng-template>
     </mat-dialog-content>
