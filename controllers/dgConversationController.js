@@ -14,7 +14,7 @@ const {
   generateOpeningMessage,
   processStudentTurn,
 } = require('../services/conversationEngine');
-const { translateToTamil, translateText } = require('../services/dgConversationService');
+const { translateToStudentNative, translateText } = require('../services/dgConversationService');
 const {
   shouldRequestGermanHint,
   suggestGermanLine,
@@ -212,7 +212,7 @@ exports.respond = async (req, res) => {
             ? 'Sehr gut, wir machen weiter!'
             : 'Great, let\'s keep going!';
         const [translatedTamil, translatedEnglish] = await Promise.all([
-          translateToTamil(msg, targetLang).catch(() => ''),
+          translateToStudentNative(msg, targetLang).catch(() => ''),
           translateText(msg, targetLang, 'English').catch(() => ''),
         ]);
         const s = snap();
@@ -244,7 +244,7 @@ exports.respond = async (req, res) => {
           ? 'Vielen Dank! Auf Wiedersehen!'
           : 'Thank you! Goodbye!';
       const [translatedTamil, translatedEnglish] = await Promise.all([
-        translateToTamil(farewell, targetLang).catch(() => ''),
+        translateToStudentNative(farewell, targetLang).catch(() => ''),
         translateText(farewell, targetLang, 'English').catch(() => ''),
       ]);
       const s = snap();
@@ -285,7 +285,7 @@ exports.respond = async (req, res) => {
             ? 'Sagen Sie "Bereit!" wenn Sie anfangen möchten.'
             : 'Say "Ready!" when you want to begin.';
         const [translatedTamil, translatedEnglish] = await Promise.all([
-          translateToTamil(promptMsg, targetLang).catch(() => ''),
+          translateToStudentNative(promptMsg, targetLang).catch(() => ''),
           translateText(promptMsg, targetLang, 'English').catch(() => ''),
         ]);
         return res.json({
@@ -308,7 +308,7 @@ exports.respond = async (req, res) => {
       setState(sessionId, { conversationStarted: true });
       const openingText = await generateOpeningMessage({ ...state, conversationStarted: true });
       const [translatedTamil, translatedEnglish] = await Promise.all([
-        translateToTamil(openingText, targetLang).catch(() => ''),
+        translateToStudentNative(openingText, targetLang).catch(() => ''),
         translateText(openingText, targetLang, 'English').catch(() => ''),
       ]);
 
@@ -357,7 +357,7 @@ exports.respond = async (req, res) => {
       const hintEn = 'Say this to continue.';
       const s = snap();
       const [translatedTamil, translatedEnglish] = await Promise.all([
-        translateToTamil(hintDe, targetLang).catch(() => ''),
+        translateToStudentNative(hintDe, targetLang).catch(() => ''),
         translateText(hintDe, targetLang, 'English').catch(() => ''),
       ]);
       return res.json({
@@ -394,7 +394,7 @@ exports.respond = async (req, res) => {
     );
 
     const [translatedTamil, translatedEnglish] = await Promise.all([
-      translateToTamil(result.aiText, targetLang).catch(() => ''),
+      translateToStudentNative(result.aiText, targetLang).catch(() => ''),
       translateText(result.aiText, targetLang, 'English').catch(() => ''),
     ]);
     res.json({

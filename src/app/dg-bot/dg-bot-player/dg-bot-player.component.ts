@@ -46,6 +46,7 @@ import { dgDevLog } from '../dg-dev-log';
 import { DgCharacterEmotionService } from '../dg-character-emotion.service';
 import type { DgCharacterAnimState } from '../dg-character-state.service';
 import { resolveMediaUrl } from '../../utils/media-url';
+import { environment } from '../../../environments/environment';
 
 export interface DgSceneFlowItem {
   type: string;
@@ -140,7 +141,7 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
   isAiThinking = false;
   aiResponseText = '';
   aiResponseTamil = '';
-  ccMode: 'none' | 'en' | 'ta' = 'none';
+  ccMode: 'none' | 'en' | 'sr' = environment.portalStudentLocale === 'sr-Latn' ? 'sr' : 'none';
   isMobile = false;
 
   @HostListener('window:resize')
@@ -606,7 +607,7 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
         if (en.toLowerCase() === src.toLowerCase()) return '';
         return en;
       }
-      if (this.ccMode === 'ta') return (msg.translation || '').trim();
+      if (this.ccMode === 'sr') return (msg.translation || '').trim();
       return '';
     }
     if (msg.speaker !== 'ai') return '';
@@ -617,7 +618,7 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
       if (en.toLowerCase() === src.toLowerCase()) return '';
       return en;
     }
-    if (this.ccMode === 'ta') return (msg.translation || msg.text || '').trim();
+    if (this.ccMode === 'sr') return (msg.translation || msg.text || '').trim();
     return '';
   }
 
@@ -1091,15 +1092,15 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
         '';
     }
     const readyMsg = withStartCue(readyMsgBase || 'Recite „Bereit!“ ili „Ready!“ da započnete razgovor.');
-    const readyMsgEnglish = readyMsg;
+    const readyMsgSerbian = readyMsg;
+    const readyMsgEnglish =
+      'Say „Bereit!“ or „Ready!“ when you are ready to start the conversation.';
 
-    // Show the role/start instruction as a visible chat bubble in English.
     this.chatHistory = [
       {
         speaker: 'ai',
-        text: readyMsgEnglish,
-        // Keep original prompt in Tamil-caption slot as a soft fallback for CC mode.
-        translation: readyMsg || undefined,
+        text: readyMsgSerbian,
+        translation: readyMsgSerbian,
         translationEn: readyMsgEnglish,
       },
     ];
@@ -1111,18 +1112,18 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
           sessionId: this.sessionId,
           event: 'conv_ai',
           sceneIndex: this.index,
-          meta: { text: readyMsgEnglish, kind: 'briefing' },
+          meta: { text: readyMsgSerbian, kind: 'briefing' },
         }),
       ).catch(() => {});
     }
 
     // Show + speak the start prompt
-    this.displayLine = readyMsg;
+    this.displayLine = readyMsgSerbian;
     this.displaySub = 'Recite „Bereit!“ ili „Ready!“ kada ste spremni da počnete.';
-    this.mascotSpeechText = readyMsg;
+    this.mascotSpeechText = readyMsgSerbian;
     this.charState.setState('idle');
     this.logTts();
-    await this.playTtsBlob(readyMsg);
+    await this.playTtsBlob(readyMsgSerbian);
     this.openMicForUserTurn();
   }
 
@@ -1288,7 +1289,7 @@ export class DgBotPlayerComponent implements OnInit, OnDestroy {
         ];
         this.scrollChatToLatest();
         this.displayLine = response.hintDe;
-        this.displaySub = (response.translatedEnglish || response.hintEn || '').trim();
+        this.displaySub = (response.translatedTamil || response.translatedEnglish || response.hintEn || '').trim();
         this.mascotSpeechText = response.hintDe;
         this.charState.setState('idle');
         // Pin the phrase so the mic banner can show it

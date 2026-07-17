@@ -225,6 +225,8 @@ export interface DigitalExercise {
   _id?: string;
   title: string;
   description: string;
+  /** Serbian display copy when PORTAL_REGION=serbia (server-side). */
+  descriptionDisplay?: string;
   targetLanguage: 'English' | 'German';
   nativeLanguage?: 'English' | 'Tamil' | 'Sinhala';
   level: 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2';

@@ -165,7 +165,7 @@
       <div class="row-details">
         <span class="ex-category">{{ categoryDisplayLabel(ex.category) }}</span>
         <span class="ex-title">{{ ex.title }}</span>
-        <span class="ex-desc">{{ ex.description }}</span>
+        <span class="ex-desc">{{ ex.descriptionDisplay || ex.description }}</span>
       </div>
       <div class="row-level">
         <span class="level-badge" [style.background]="getLevelColor(ex.level)">{{ ex.level }}</span>

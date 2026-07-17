@@ -1,6 +1,7 @@
 'use strict';
 
 const OpenAI = require('openai');
+const { isSerbiaPortal } = require('../utils/portalRegion');
 
 /**
  * Basic grammatical connectors always permitted regardless of module vocabulary.
@@ -323,6 +324,14 @@ async function getAIResponse(systemPrompt, userText, history) {
  * Translate `text` from `fromLang` to Tamil.
  * Returns empty string on failure (non-blocking).
  */
+/** Student-facing caption language: Serbian on Serbia portal, Tamil elsewhere. */
+async function translateToStudentNative(text, fromLang) {
+  if (isSerbiaPortal()) {
+    return translateText(text, fromLang, 'Serbian');
+  }
+  return translateToTamil(text, fromLang);
+}
+
 async function translateToTamil(text, fromLang) {
   if (!text || !process.env.DG_OPENAI_API_KEY) return '';
   try {
@@ -518,6 +527,7 @@ module.exports = {
   getAIResponse,
   getBeginnerQuestions,
   translateToTamil,
+  translateToStudentNative,
   translateText,
   scoreBeginnerAnswerLocally,
   gradeBeginnerAnswerWithAI,

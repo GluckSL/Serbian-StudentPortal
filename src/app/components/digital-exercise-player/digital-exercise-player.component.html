@@ -639,7 +639,7 @@
         <span class="diff-badge">{{ exerciseService.getDifficultyLabel(exercise.difficulty) }}</span>
       </div>
       <h1 class="intro-title">{{ displayTitle(exercise.title) }}</h1>
-      <p class="intro-desc">{{ exercise.description }}</p>
+      <p class="intro-desc">{{ exercise.descriptionDisplay || exercise.description }}</p>
       <div class="intro-stats">
         <div class="intro-stat">
           <span class="material-icons">quiz</span>
@@ -873,8 +873,8 @@
               <div class="vp-detail-content-left">
                 <div>
                   <h3 class="vp-detail-title">{{ displayTitle(exercise?.title) }}</h3>
-                  <p class="vp-detail-desc" *ngIf="exercise?.description?.trim()">
-                    {{ exercise?.description }}
+                  <p class="vp-detail-desc" *ngIf="(exercise?.descriptionDisplay || exercise?.description)?.trim()">
+                    {{ exercise?.descriptionDisplay || exercise?.description }}
                   </p>
                   <div class="vp-detail-specs-row">
                     <div class="vp-detail-spec-item">Putovanje u Nemačku</div>
@@ -1807,7 +1807,7 @@
             <span class="diff-badge">{{ exerciseService.getDifficultyLabel(exercise?.difficulty) }}</span>
           </div>
           <h2 class="info-title">{{ displayTitle(exercise?.title) }}</h2>
-          <p class="info-desc">{{ exercise?.description }}</p>
+          <p class="info-desc">{{ exercise?.descriptionDisplay || exercise?.description }}</p>
           <div class="info-summary">
             <div class="info-stat">
               <span class="material-icons info-stat-icon">quiz</span>

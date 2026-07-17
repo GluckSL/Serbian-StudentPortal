@@ -11,6 +11,10 @@ const DigitalExercise = require('../models/DigitalExercise');
 const ExerciseAttempt = require('../models/ExerciseAttempt');
 const { sanitizeReportedTimeSpentSeconds } = require('../utils/exerciseAttemptMetrics');
 const { defaultNativeLanguage } = require('../utils/portalRegion');
+const {
+  attachSerbianExerciseDescriptions,
+  attachSerbianExerciseDescription,
+} = require('../utils/studentNativeCopy');
 const User = require('../models/User');
 const { verifyToken, checkRole } = require('../middleware/auth');
 const { blockVisaDocsOnly } = require('../middleware/subscriptionCheck');
@@ -2106,6 +2110,10 @@ router.get('/', verifyToken, blockVisaDocsOnly, async (req, res) => {
       await attachSequenceLockStatusForList(req.user.id, exercises, studentExerciseAccess);
     }
 
+    if (req.user.role === 'STUDENT') {
+      await attachSerbianExerciseDescriptions(exercises);
+    }
+
     const payload = {
       exercises,
       total,
@@ -2488,6 +2496,9 @@ router.get('/:id', verifyToken, blockVisaDocsOnly, async (req, res) => {
     // canonical URLs so a save does not persist short-lived signed URLs to MongoDB.
     if (studentView) {
       await resignExercise(exercise);
+    }
+    if (req.user.role === 'STUDENT') {
+      await attachSerbianExerciseDescription(exercise);
     }
     res.json(exercise);
   } catch (err) {
