@@ -109,7 +109,7 @@ export class StudentDocumentsComponent implements OnInit, OnDestroy {
           return this.documentService.getDashboardBundle({ force }).pipe(
             catchError((error) => {
               console.error('Error loading student documents dashboard:', error);
-              this.showError('Error loading data. Please refresh the page.');
+              this.showError('Greška pri učitavanju. Osvežite stranicu.');
               return of(null);
             }),
             switchMap((bundle) => of({ bundle, force }))
@@ -192,7 +192,7 @@ export class StudentDocumentsComponent implements OnInit, OnDestroy {
         : a.generatedFile?.fileName || `${a.displayName || 'agreement'}.pdf`;
     this.agreementService.downloadInstance(a._id, type).subscribe({
       next: (blob) => this.documentService.triggerFileDownload(blob, name),
-      error: (e) => this.showError(e.error?.message || 'Download failed')
+      error: (e) => this.showError(e.error?.message || 'Preuzimanje nije uspelo')
     });
   }
 
@@ -203,10 +203,10 @@ export class StudentDocumentsComponent implements OnInit, OnDestroy {
         try {
           this.documentService.openBlobInNewTab(blob);
         } catch (e: any) {
-          this.showError(e?.message || 'Allow popups to view the document');
+          this.showError(e?.message || 'Dozvolite iskačuće prozore da biste videli dokument');
         }
       },
-      error: (e) => this.showError(e.error?.message || 'Could not open agreement')
+      error: (e) => this.showError(e.error?.message || 'Nije moguće otvoriti ugovor')
     });
   }
 
@@ -217,10 +217,10 @@ export class StudentDocumentsComponent implements OnInit, OnDestroy {
         try {
           this.documentService.openBlobInNewTab(blob, doc.mimeType || 'application/pdf');
         } catch (e: any) {
-          this.showError(e?.message || 'Allow popups to view the document');
+          this.showError(e?.message || 'Dozvolite iskačuće prozore da biste videli dokument');
         }
       },
-      error: () => this.showError('Could not open document preview')
+      error: () => this.showError('Nije moguće otvoriti pregled dokumenta')
     });
   }
 
@@ -236,7 +236,7 @@ export class StudentDocumentsComponent implements OnInit, OnDestroy {
     const id = this.uploadingAgreementId;
     this.agreementService.uploadSigned(id, file).subscribe({
       next: () => {
-        this.showSuccess('Signed agreement uploaded! Admin will review it shortly.');
+        this.showSuccess('Potpisani ugovor je otpremljen! Admin će ga uskoro pregledati.');
         this.documentService.invalidateDashboardCache();
         this.agreementService.invalidateInstancesCache();
         this.refreshDashboard(true);
@@ -244,7 +244,7 @@ export class StudentDocumentsComponent implements OnInit, OnDestroy {
         input.value = '';
       },
       error: e => {
-        this.showError(e.error?.message || 'Upload failed');
+        this.showError(e.error?.message || 'Otpremanje nije uspelo');
         this.uploadingAgreementId = null;
         input.value = '';
       }
@@ -253,10 +253,10 @@ export class StudentDocumentsComponent implements OnInit, OnDestroy {
 
   agreementStatusLabel(s: string): string {
     const map: Record<string, string> = {
-      SENT: 'Awaiting Your Signature',
-      SIGNED_PENDING: 'Under Review',
-      VERIFIED: 'Verified',
-      REJECTED: 'Rejected'
+      SENT: 'Čeka vaš potpis',
+      SIGNED_PENDING: 'Na pregledu',
+      VERIFIED: 'Verifikovano',
+      REJECTED: 'Odbijeno'
     };
     return map[s] || s;
   }
@@ -336,7 +336,7 @@ export class StudentDocumentsComponent implements OnInit, OnDestroy {
   // Upload document
   async uploadDocument(): Promise<void> {
     if (!this.selectedFile || !this.selectedDocumentType || !this.documentName) {
-      this.showError('Please fill in all required fields and select a file');
+      this.showError('Popunite sva obavezna polja i izaberite fajl');
       return;
     }
     
@@ -354,14 +354,14 @@ export class StudentDocumentsComponent implements OnInit, OnDestroy {
       const response = await this.documentService.uploadDocument(formData).toPromise();
       
       if (response && response.success) {
-        this.showSuccess('Document uploaded successfully!');
+        this.showSuccess('Dokument je uspešno otpremljen!');
         this.resetUploadForm();
         this.documentService.invalidateDashboardCache();
         this.refreshDashboard(true);
       }
     } catch (error: any) {
       console.error('Error uploading document:', error);
-      this.showError(error.error?.message || 'Error uploading document. Please try again.');
+      this.showError(error.error?.message || 'Greška pri otpremanju dokumenta. Pokušajte ponovo.');
     } finally {
       this.isUploading = false;
     }
@@ -374,13 +374,13 @@ export class StudentDocumentsComponent implements OnInit, OnDestroy {
       try {
         const response = await this.documentService.deleteDocument(documentId).toPromise();
         if (response && response.success) {
-          this.showSuccess('Document deleted successfully');
+          this.showSuccess('Dokument je uspešno obrisan');
           this.documentService.invalidateDashboardCache();
           this.refreshDashboard(true);
         }
       } catch (error: any) {
         console.error('Error deleting document:', error);
-        this.showError(error.error?.message || 'Error deleting document');
+        this.showError(error.error?.message || 'Greška pri brisanju dokumenta');
       }
     });
   }
@@ -523,12 +523,12 @@ export class StudentDocumentsComponent implements OnInit, OnDestroy {
 
       const response = await this.documentService.uploadDocument(formData).toPromise();
       if (response?.success) {
-        this.showSuccess(isReplace ? 'Document replaced successfully' : 'Document uploaded successfully');
+        this.showSuccess(isReplace ? 'Dokument je uspešno zamenjen' : 'Dokument je uspešno otpremljen');
         this.documentService.invalidateDashboardCache();
         this.refreshDashboard(true);
       }
     } catch (error: any) {
-      this.showError(error?.error?.message || 'Failed to upload document');
+      this.showError(error?.error?.message || 'Otpremanje dokumenta nije uspelo');
     } finally {
       this.uploadingRequirementType = null;
     }
@@ -536,10 +536,10 @@ export class StudentDocumentsComponent implements OnInit, OnDestroy {
 
   getRequirementStatusText(type: string): string {
     const status = this.getRequirementStatus(type);
-    if (status === 'NOT_UPLOADED') return 'Not Uploaded';
-    if (status === 'PENDING') return 'Pending';
-    if (status === 'VERIFIED') return 'Verified';
-    return 'Rejected';
+    if (status === 'NOT_UPLOADED') return 'Nije otpremljeno';
+    if (status === 'PENDING') return 'Na čekanju';
+    if (status === 'VERIFIED') return 'Verifikovano';
+    return 'Odbijeno';
   }
 
   getRequirementStatusBadgeClass(type: string): string {
@@ -568,7 +568,38 @@ export class StudentDocumentsComponent implements OnInit, OnDestroy {
   // Get requirement label by type
   getRequirementLabel(type: string): string {
     const requirement = this.requirements.find(r => r.type === type);
-    return requirement ? (requirement.name || requirement.label) : type;
+    const raw = requirement ? (requirement.name || requirement.label) : type;
+    return this.translateDocLabel(raw);
+  }
+
+  /** Display Serbian Latin label for known English document names from API/seed. */
+  translateDocLabel(label: string | undefined | null): string {
+    if (!label) return '';
+    const map: Record<string, string> = {
+      'Direct Upload Agreement': 'Direktno otpremljeni ugovor',
+      'All Pages of Passport Scanned Copy': 'Skenirane sve stranice pasoša',
+      'Passport': 'Pasoš',
+      'Passport Copy': 'Kopija pasoša',
+      'Birth Certificate': 'Izvod iz matične knjige rođenih',
+      'National Identity Card': 'Lična karta',
+      'Name Change Document – Marriage Certificate or Affidavit': 'Dokument o promeni imena – venčani list ili izjava',
+      'Name Change Document - Marriage Certificate or Affidavit': 'Dokument o promeni imena – venčani list ili izjava',
+      'Curriculum Vitae': 'Biografija (CV)',
+      'Degree and Transcript': 'Diploma i uverenje o položenim ispitima',
+      'Agreement uploaded directly by admin (no template)': 'Ugovor koji je admin otpremio direktno (bez šablona)'
+    };
+    return map[label] || label;
+  }
+
+  translateStatus(status: string): string {
+    const map: Record<string, string> = {
+      PENDING: 'Na čekanju',
+      VERIFIED: 'Verifikovano',
+      REJECTED: 'Odbijeno',
+      SENT: 'Poslato',
+      SIGNED_PENDING: 'Na pregledu'
+    };
+    return map[status] || status;
   }
 
   // Helper methods
@@ -585,7 +616,7 @@ export class StudentDocumentsComponent implements OnInit, OnDestroy {
   }
 
   formatDate(date: Date | string): string {
-    return new Date(date).toLocaleDateString('en-US', {
+    return new Date(date).toLocaleDateString('sr-Latn-RS', {
       year: 'numeric',
       month: 'short',
       day: 'numeric'
@@ -619,11 +650,11 @@ export class StudentDocumentsComponent implements OnInit, OnDestroy {
       },
       error: () => {
         this.universityStageDefinitions = [
-          { stage: 1, label: 'Applied', desc: 'Application submitted to university' },
-          { stage: 2, label: 'In Review', desc: 'University reviewing documents' },
-          { stage: 3, label: 'Approved', desc: 'Admission approved or conditional offer' },
-          { stage: 4, label: 'Offer Letter Sent', desc: 'Formal offer letter issued' },
-          { stage: 5, label: 'Enrolled', desc: 'Student confirmed enrollment' }
+          { stage: 1, label: 'Prijavljeno', desc: 'Prijava poslata univerzitetu' },
+          { stage: 2, label: 'Na pregledu', desc: 'Univerzitet pregleda dokumente' },
+          { stage: 3, label: 'Odobreno', desc: 'Upis odobren ili uslovna ponuda' },
+          { stage: 4, label: 'Ponuda poslata', desc: 'Zvanično pismo ponude izdato' },
+          { stage: 5, label: 'Upisan/a', desc: 'Student potvrdio upis' }
         ];
       }
     });
@@ -663,7 +694,7 @@ export class StudentDocumentsComponent implements OnInit, OnDestroy {
   getUniversityStageLabel(app: UniversityApplication): string {
     const idx = (app.currentStage || 1) - 1;
     const defs = app.stageDefinitions || this.universityStageDefinitions;
-    return defs[idx]?.label || `Stage ${app.currentStage}`;
+    return defs[idx]?.label || `Faza ${app.currentStage}`;
   }
 
   getUniversityProgressPct(app: UniversityApplication): number {
@@ -675,9 +706,9 @@ export class StudentDocumentsComponent implements OnInit, OnDestroy {
   }
 
   universityStatusLabel(status: string): string {
-    if (status === 'in_progress') return 'In Progress';
-    if (status === 'completed') return 'Completed';
-    return 'Pending';
+    if (status === 'in_progress') return 'U toku';
+    if (status === 'completed') return 'Završeno';
+    return 'Na čekanju';
   }
 
   universityStatusClass(status: string): string {

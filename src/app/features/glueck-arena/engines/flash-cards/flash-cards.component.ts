@@ -65,7 +65,7 @@ export interface FCResult {
         <div class="fc__stats">
           <div class="fc__stat">
             <span class="fc__stat-val">{{ score }}</span>
-            <span class="fc__stat-lbl">Score</span>
+            <span class="fc__stat-lbl">Rezultat</span>
           </div>
           <div class="fc__stat">
             <span class="fc__stat-val">{{ accuracy }}%</span>

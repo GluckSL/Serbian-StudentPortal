@@ -32,7 +32,7 @@ export interface SBResult {
             <mat-icon>timer</mat-icon>
             <span>{{ formatElapsed(sessionElapsedSeconds) }}</span>
           </div>
-          <button mat-icon-button type="button" (click)="onPause()" aria-label="Pause"><mat-icon>pause</mat-icon></button>
+          <button mat-icon-button type="button" (click)="onPause()" aria-label="Pauza"><mat-icon>pause</mat-icon></button>
         </header>
 
         <div class="sb-board" *ngIf="currentQ && phase === 'playing'">
@@ -46,7 +46,7 @@ export interface SBResult {
               </button>
             </div>
             <p class="sb-hint">
-              Drag a word to begin — right spot turns <span class="sb-hint__green">green</span> instantly, wrong spot <span class="sb-hint__red">red</span>.
+              Prevucite reč da počnete — tačno mesto odmah postaje <span class="sb-hint__green">zeleno</span>, a pogrešno <span class="sb-hint__red">crveno</span>.
             </p>
             <div class="sb-progress-chips">
               <span class="sb-progress-chips__label">{{ lockedCount }} / {{ slotCount }} locked</span>
@@ -70,7 +70,7 @@ export interface SBResult {
           <div class="sb-row-wrap" [class.sb-row-wrap--complete]="allLocked">
             <div class="sb-row-wrap__title">
               <mat-icon>south</mat-icon>
-              <span>Drop words here to build the sentence</span>
+              <span>Spustite reči ovde da sastavite rečenicu</span>
             </div>
             <div class="sb-row">
               <div

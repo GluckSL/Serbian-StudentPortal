@@ -200,7 +200,7 @@ export class PerformanceHistoryComponent implements OnInit {
       labels,
       datasets: [
         {
-          label: 'Exercises',
+          label: 'Vežbe',
           data: exercisesData,
           backgroundColor: 'rgba(79, 70, 229, 0.75)',
           borderColor: '#4f46e5',
@@ -208,7 +208,7 @@ export class PerformanceHistoryComponent implements OnInit {
           borderRadius: 4,
         },
         {
-          label: 'Classes',
+          label: 'Časovi',
           data: classesData,
           backgroundColor: 'rgba(16, 185, 129, 0.75)',
           borderColor: '#10b981',
@@ -216,7 +216,7 @@ export class PerformanceHistoryComponent implements OnInit {
           borderRadius: 4,
         },
         {
-          label: 'DG Modules',
+          label: 'DG moduli',
           data: dgData,
           backgroundColor: 'rgba(245, 158, 11, 0.75)',
           borderColor: '#f59e0b',
@@ -285,7 +285,7 @@ export class PerformanceHistoryComponent implements OnInit {
     this.timeSpentData = {
       labels,
       datasets: [{
-        label: 'Time Spent (min)',
+        label: 'Utrošeno vreme (min)',
         data,
         backgroundColor: 'rgba(37, 99, 235, 0.7)',
         borderColor: '#2563eb',

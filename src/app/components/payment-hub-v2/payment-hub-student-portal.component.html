@@ -4,18 +4,18 @@
   <div class="sp-reupload-banner" *ngFor="let req of reuploadRequests">
     <mat-icon>warning_amber</mat-icon>
     <div class="sp-banner-text">
-      <strong>Please re-upload your payment proof</strong>
+      <strong>Ponovo otpremite dokaz o uplati</strong>
       for <em>{{ formatPaymentType(req.paymentType, req.customType) }}</em>.
       <span class="sp-banner-note">{{ getReuploadNote(req) }}</span>
     </div>
-    <button mat-flat-button color="warn" type="button" (click)="openUpload(req)">Re-upload</button>
+    <button mat-flat-button color="warn" type="button" (click)="openUpload(req)">Ponovo otpremi</button>
   </div>
 
   <!-- Page Header -->
   <div class="sp-page-header">
     <div class="sp-header-left">
-      <h1 class="sp-page-title">Payment Dashboard</h1>
-      <p class="sp-page-subtitle">Track your payments, installments, and payment history</p>
+      <h1 class="sp-page-title">Pregled plaćanja</h1>
+      <p class="sp-page-subtitle">Pratite uplate, rate i istoriju plaćanja</p>
     </div>
   </div>
 
@@ -77,7 +77,7 @@
           <mat-icon>account_balance_wallet</mat-icon>
         </div>
         <div class="sp-analytics-content">
-          <span class="sp-analytics-label">Total Amount</span>
+          <span class="sp-analytics-label">Ukupan iznos</span>
           <span class="sp-analytics-value" *ngIf="catalogFeeDisplay">{{ currencyLabel(catalogFeeDisplay!.currency) }} {{ fmt(catalogFeeDisplay!.amount) }}</span>
           <span class="sp-analytics-value sp-analytics-muted" *ngIf="!catalogFeeDisplay">—</span>
           <span class="sp-analytics-sub">Level {{ catalog?.studentLevel || '—' }} Program Fee</span>
@@ -89,7 +89,7 @@
           <mat-icon>check_circle</mat-icon>
         </div>
         <div class="sp-analytics-content">
-          <span class="sp-analytics-label">Total received</span>
+          <span class="sp-analytics-label">Ukupno primljeno</span>
           <div class="sp-paid-by-ccy" *ngIf="hasAnyPaid; else noPaid">
             <app-payment-currency-totals
               [lkr]="paidFiltered[0].amount"
@@ -102,7 +102,7 @@
           <ng-template #noPaid>
             <span class="sp-analytics-value sp-analytics-muted">—</span>
           </ng-template>
-          <span class="sp-analytics-sub">Approved payments</span>
+          <span class="sp-analytics-sub">Odobrene uplate</span>
         </div>
       </div>
 
@@ -111,7 +111,7 @@
           <mat-icon>pending_actions</mat-icon>
         </div>
         <div class="sp-analytics-content">
-          <span class="sp-analytics-label">Pending</span>
+          <span class="sp-analytics-label">Na čekanju</span>
           <span class="sp-analytics-value sp-analytics-amber" *ngIf="nextPaymentBlock">{{ currencyLabel(nextPaymentBlock.currency) }} {{ fmt(nextPaymentBlock.amount) }}</span>
           <span class="sp-analytics-value sp-analytics-muted" *ngIf="!nextPaymentBlock">—</span>
           <span class="sp-analytics-sub" *ngIf="nextPaymentBlock">Next: {{ fmtDate(nextPaymentBlock.dueDate) }}</span>
@@ -124,11 +124,11 @@
           <mat-icon>calculate</mat-icon>
         </div>
         <div class="sp-analytics-content">
-          <span class="sp-analytics-label">Balance Due</span>
+          <span class="sp-analytics-label">Preostali iznos</span>
           <span class="sp-analytics-value sp-analytics-red" *ngIf="catalogBalanceDisplay">{{ currencyLabel(catalogBalanceDisplay!.currency) }} {{ fmt(catalogBalanceDisplay!.amount) }}</span>
           <span class="sp-analytics-value sp-analytics-green" *ngIf="!catalogBalanceDisplay">—</span>
-          <span class="sp-analytics-sub" *ngIf="catalogBalanceDisplay">Remaining to pay</span>
-          <span class="sp-analytics-sub" *ngIf="!catalogBalanceDisplay">All cleared!</span>
+          <span class="sp-analytics-sub" *ngIf="catalogBalanceDisplay">Preostalo za uplatu</span>
+          <span class="sp-analytics-sub" *ngIf="!catalogBalanceDisplay">Sve je izmireno!</span>
         </div>
       </div>
     </div>
@@ -137,53 +137,53 @@
     <div class="sp-analytics-row sp-analytics-row--secondary">
       <div class="sp-mini-stat-card" *ngIf="loadingCatalog">
         <mat-spinner diameter="24"></mat-spinner>
-        <span>Loading...</span>
+        <span>Učitavanje...</span>
       </div>
 
       <div class="sp-mini-stat-card" *ngIf="!loadingCatalog && catalog?.studentLevel">
         <div class="sp-mini-stat-header">
           <mat-icon>school</mat-icon>
-          <span>Current Level</span>
+          <span>Trenutni nivo</span>
         </div>
         <div class="sp-mini-stat-value">{{ catalog?.studentLevel || '—' }}</div>
-        <div class="sp-mini-stat-sub">CEFR Level</div>
+        <div class="sp-mini-stat-sub">CEFR nivo</div>
       </div>
 
       <div class="sp-mini-stat-card" [class.sp-mini-stat--paid]="documentationIsPaid" [class.sp-mini-stat--pending]="!documentationIsPaid">
         <div class="sp-mini-stat-header">
           <mat-icon>description</mat-icon>
-          <span>Documentation</span>
+          <span>Dokumentacija</span>
         </div>
         <div class="sp-mini-stat-value" *ngIf="documentationIsPaid && documentationPaidLine">
           {{ currencyLabel(documentationPaidLine!.currency) }} {{ fmt(documentationPaidLine!.amount) }}
         </div>
-        <div class="sp-mini-stat-value" *ngIf="!documentationIsPaid">Pending</div>
-        <div class="sp-mini-stat-sub">{{ documentationIsPaid ? 'Fees settled' : 'Awaiting payment' }}</div>
+        <div class="sp-mini-stat-value" *ngIf="!documentationIsPaid">Na čekanju</div>
+        <div class="sp-mini-stat-sub">{{ documentationIsPaid ? 'Naknade izmirene' : 'Čeka uplatu' }}</div>
       </div>
 
       <div class="sp-mini-stat-card" *ngIf="hasActiveInstallmentPlan">
         <div class="sp-mini-stat-header">
           <mat-icon>date_range</mat-icon>
-          <span>Installments</span>
+          <span>Rate</span>
         </div>
         <div class="sp-mini-stat-value">{{ getActiveInstallmentCount() }}</div>
-        <div class="sp-mini-stat-sub">Active plan</div>
+        <div class="sp-mini-stat-sub">Aktivan plan</div>
       </div>
 
       <div class="sp-mini-stat-card">
         <div class="sp-mini-stat-header">
           <mat-icon>receipt_long</mat-icon>
-          <span>Total Requests</span>
+          <span>Ukupno zahteva</span>
         </div>
         <div class="sp-mini-stat-value">{{ total }}</div>
-        <div class="sp-mini-stat-sub">Payment requests</div>
+        <div class="sp-mini-stat-sub">Zahtevi za plaćanje</div>
       </div>
     </div>
 
     <section class="sp-slot-section">
       <div class="sp-slot-head">
-        <h2>Payment Mapping</h2>
-        <span>A1, A2, B1, B2, Docs, Visa</span>
+        <h2>Raspodela plaćanja</h2>
+        <span>A1, A2, B1, B2, dokumenti, viza</span>
       </div>
       <div class="sp-slot-grid">
         <article class="sp-slot-card" *ngFor="let slot of paymentSlots">
@@ -195,7 +195,7 @@
             Settled {{ slotSummary(slot.key).settledCount }}/{{ slotSummary(slot.key).requestCount }}
           </div>
           <div class="sp-slot-line">
-            <span class="sp-slot-line__label">Paid</span>
+            <span class="sp-slot-line__label">Plaćeno</span>
             <app-payment-currency-totals
               [lkr]="slotSummary(slot.key).paid.LKR"
               [inr]="slotSummary(slot.key).paid.INR"
@@ -205,7 +205,7 @@
             ></app-payment-currency-totals>
           </div>
           <div class="sp-slot-line">
-            <span class="sp-slot-line__label">Balance</span>
+            <span class="sp-slot-line__label">Preostalo</span>
             <app-payment-currency-totals
               [lkr]="slotSummary(slot.key).balance.LKR"
               [inr]="slotSummary(slot.key).balance.INR"
@@ -214,7 +214,7 @@
               [hideZero]="true"
             ></app-payment-currency-totals>
           </div>
-          <p class="sp-slot-empty" *ngIf="slotSummary(slot.key).requestCount === 0">No mapped payments yet.</p>
+          <p class="sp-slot-empty" *ngIf="slotSummary(slot.key).requestCount === 0">Još nema raspoređenih uplata.</p>
         </article>
       </div>
     </section>
@@ -224,9 +224,9 @@
       <div class="sp-catalog-head sp-level-fee-head">
         <mat-icon class="sp-catalog-icon">account_balance_wallet</mat-icon>
         <div>
-          <h2 class="sp-catalog-title">Level {{ catalog?.studentLevel }} — full payment</h2>
+          <h2 class="sp-catalog-title">Nivo {{ catalog?.studentLevel }} — puna uplata</h2>
           <p class="sp-catalog-sub">
-            Total program amount for your current level. Upload proof against the payment request your coordinator sends for this level.
+            Ukupan iznos programa za trenutni nivo. Otpremite dokaz uz zahtev za plaćanje koji koordinator pošalje za ovaj nivo.
           </p>
         </div>
       </div>
@@ -240,12 +240,12 @@
         </div>
         <button mat-flat-button color="primary" type="button" class="sp-level-fee-upload" (click)="openLevelFeeUpload()">
           <mat-icon>cloud_upload</mat-icon>
-          Upload payment proof
+          Otpremi dokaz o uplati
         </button>
       </div>
 
       <p class="sp-catalog-sub sp-level-fee-missing" *ngIf="catalogCefrRows.length === 0">
-        No catalog pricing is set for level {{ catalog?.studentLevel }}. Please contact support.
+        Cena nije podešena za nivo {{ catalog?.studentLevel }}. Obratite se podršci.
       </p>
     </section>
 
@@ -253,11 +253,11 @@
     <section class="sp-table-section">
       <div class="sp-table-header">
         <div class="sp-table-title">
-          <h2>Payment Requests</h2>
-          <span class="sp-table-count" *ngIf="total > 0">{{ total }} records</span>
+          <h2>Zahtevi za plaćanje</h2>
+          <span class="sp-table-count" *ngIf="total > 0">{{ total }} zapisa</span>
         </div>
         <div class="sp-table-actions">
-          <input type="text" placeholder="Search requests..." class="sp-search-input" />
+          <input type="text" placeholder="Pretražite zahteve..." class="sp-search-input" />
         </div>
       </div>
 
@@ -265,8 +265,8 @@
         <div class="sp-empty-icon">
           <mat-icon>sentiment_satisfied_alt</mat-icon>
         </div>
-        <h3 class="sp-empty-title">You're all set</h3>
-        <p class="sp-empty-text">There are no payment requests for your account right now.</p>
+        <h3 class="sp-empty-title">Sve je spremno</h3>
+        <p class="sp-empty-text">Trenutno nema zahteva za plaćanje za vaš nalog.</p>
       </div>
 
       <!-- CRM-Style Table -->
@@ -274,13 +274,13 @@
         <table class="sp-data-table">
           <thead>
             <tr>
-              <th>Payment Details</th>
-              <th>Amount</th>
-              <th>Paid</th>
-              <th>Balance</th>
-              <th>Due Date</th>
+              <th>Detalji plaćanja</th>
+              <th>Iznos</th>
+              <th>Plaćeno</th>
+              <th>Preostalo</th>
+              <th>Rok plaćanja</th>
               <th>Status</th>
-              <th>Actions</th>
+              <th>Akcije</th>
             </tr>
           </thead>
           <tbody>
@@ -292,14 +292,14 @@
                     <span class="sp-type-label">{{ formatPaymentType(req.paymentType, req.customType) }}</span>
                     <span class="sp-type-meta" *ngIf="req.installmentAllowed">
                       <mat-icon>date_range</mat-icon>
-                      {{ installmentTotalParts(req) }} installments
+                      {{ installmentTotalParts(req) }} rata
                     </span>
                   </div>
                   <div class="sp-payment-remarks" *ngIf="req.remarks">{{ req.remarks }}</div>
                   <div class="sp-installment-row-toggle" *ngIf="req.installmentAllowed && req.installments?.length">
                     <button mat-stroked-button type="button" (click)="toggleInstallments(req._id)" class="sp-toggle-btn">
                       <mat-icon>{{ isInstallmentExpanded(req._id) ? 'expand_less' : 'expand_more' }}</mat-icon>
-                      {{ isInstallmentExpanded(req._id) ? 'Hide' : 'View' }} Installments
+                      {{ isInstallmentExpanded(req._id) ? 'Sakrij' : 'Prikaži' }} rate
                     </button>
                   </div>
                 </td>
@@ -325,7 +325,7 @@
                   <button
                     mat-icon-button
                     color="primary"
-                    matTooltip="Download Proforma Invoice"
+                    matTooltip="Preuzmi predračun"
                     [disabled]="downloadingInvoiceId === req._id"
                     (click)="downloadInvoice(req)">
                     <mat-icon>{{ downloadingInvoiceId === req._id ? 'hourglass_top' : 'receipt_long' }}</mat-icon>
@@ -352,19 +352,19 @@
                         </div>
                         <div class="sp-inst-card-body">
                           <div class="sp-inst-amount">
-                            <span class="sp-inst-label">Amount</span>
+                            <span class="sp-inst-label">Iznos</span>
                             <span class="sp-inst-value">{{ currencyLabel(inst.currency || req.currency) }} {{ fmt(inst.requestedAmount) }}</span>
                           </div>
                           <div class="sp-inst-due">
-                            <span class="sp-inst-label">Due</span>
+                            <span class="sp-inst-label">Rok</span>
                             <span class="sp-inst-value">{{ fmtDate(inst.dueDate) }}</span>
                           </div>
                           <div class="sp-inst-paid-amt" *ngIf="inst.paidAmount > 0">
-                            <span class="sp-inst-label">Paid</span>
+                            <span class="sp-inst-label">Plaćeno</span>
                             <span class="sp-inst-value sp-inst-value-green">{{ currencyLabel(inst.currency || req.currency) }} {{ fmt(inst.paidAmount) }}</span>
                           </div>
                           <div class="sp-inst-remaining" *ngIf="inst.remainingAmount > 0">
-                            <span class="sp-inst-label">Remaining</span>
+                            <span class="sp-inst-label">Preostalo</span>
                             <span class="sp-inst-value">{{ currencyLabel(inst.currency || req.currency) }} {{ fmt(inst.remainingAmount) }}</span>
                           </div>
                         </div>
@@ -379,11 +379,11 @@
 
         <div class="sp-pager" *ngIf="total > pageSize">
           <button mat-stroked-button type="button" (click)="prevPage()" [disabled]="page <= 1">
-            <mat-icon>chevron_left</mat-icon> Previous
+            <mat-icon>chevron_left</mat-icon> Prethodna
           </button>
           <span class="sp-pager-info">Page {{ page }} of {{ totalPages }}</span>
           <button mat-stroked-button type="button" (click)="nextPage()" [disabled]="page * pageSize >= total">
-            Next <mat-icon>chevron_right</mat-icon>
+            Sledeća <mat-icon>chevron_right</mat-icon>
           </button>
         </div>
       </div>

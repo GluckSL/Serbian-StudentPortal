@@ -18,7 +18,7 @@ import { Subscription } from 'rxjs';
         </button>
         <div class="bf-lb__brand">
           <mat-icon>military_tech</mat-icon>
-          <h1>Battlefield Leaderboard</h1>
+          <h1>Rang-lista bojnog polja</h1>
         </div>
       </div>
 
@@ -53,7 +53,7 @@ import { Subscription } from 'rxjs';
           <thead>
             <tr>
               <th>#</th>
-              <th>Player</th>
+              <th>Igrač</th>
               <th>Tier</th>
               <th>ELO</th>
               <th>W</th>
@@ -78,8 +78,8 @@ import { Subscription } from 'rxjs';
 
         <div class="bf-lb__empty" *ngIf="entries.length === 0">
           <mat-icon>leaderboard</mat-icon>
-          <h3>No rankings yet</h3>
-          <p>Play Battlefield games to earn ELO</p>
+          <h3>Još nema rangiranih igrača</h3>
+          <p>Igrajte igre na bojnom polju da osvojite ELO</p>
           <button mat-raised-button color="primary" routerLink="/glueck-arena/battlefield">
             <mat-icon>sports_kabaddi</mat-icon> Go to Battlefield
           </button>

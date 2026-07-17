@@ -9,7 +9,7 @@
           <button class="cal-nav-btn" (click)="goToPrev()" title="Previous"><i class="fas fa-chevron-left"></i></button>
           <span class="cal-period-label">{{ currentPeriodLabel }}</span>
           <button class="cal-nav-btn" (click)="goToNext()" title="Next"><i class="fas fa-chevron-right"></i></button>
-          <button class="cal-today-btn" (click)="goToToday()">Today</button>
+          <button class="cal-today-btn" (click)="goToToday()">{{ isStudentJourneyView ? 'Danas' : 'Today' }}</button>
         </div>
         <div class="cal-nav-right">
           <div class="header-stats">
@@ -54,12 +54,12 @@
 
       <!-- ── Legend ── -->
       <div class="legend-bar">
-        <span class="mc-chip mc-chip--live"><i class="fas fa-video"></i> Live</span>
-        <span class="mc-chip mc-chip--ex"><i class="fas fa-pen"></i> Exercises</span>
+        <span class="mc-chip mc-chip--live"><i class="fas fa-video"></i> {{ isStudentJourneyView ? 'Uživo' : 'Live' }}</span>
+        <span class="mc-chip mc-chip--ex"><i class="fas fa-pen"></i> {{ isStudentJourneyView ? 'Vežbe' : 'Exercises' }}</span>
         <span class="mc-chip mc-chip--dg"><i class="fas fa-robot"></i> DG Bot</span>
         <span class="mc-chip mc-chip--arena"><i class="fas fa-gamepad"></i> Arena</span>
-        <span class="wdr-live-badge live">LIVE</span>
-        <span class="wdr-live-badge upcoming">Upcoming</span>
+        <span class="wdr-live-badge live">{{ isStudentJourneyView ? 'UŽIVO' : 'LIVE' }}</span>
+        <span class="wdr-live-badge upcoming">{{ isStudentJourneyView ? 'PREDSTOJEĆE' : 'Upcoming' }}</span>
       </div>
 
       <!-- ── Loading Skeletons ── -->
@@ -87,7 +87,7 @@
       <!-- Month skeleton -->
       <div *ngIf="viewMode === 'month' && (isStudentJourneyView ? !journeyScheduleLoaded : !timeTablesLoaded)" class="month-view-skel">
         <div class="month-weekday-header">
-          <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
+          <span>Pon</span><span>Uto</span><span>Sre</span><span>Čet</span><span>Pet</span><span>Sub</span><span>Ned</span>
         </div>
         <div class="month-skel-week" *ngFor="let sk of [1,2,3,4,5]">
           <div class="month-skel-cell" *ngFor="let c of [1,2,3,4,5,6,7]">
@@ -103,9 +103,9 @@
       <!-- ── Empty State (no data at all) ── -->
       <div *ngIf="isStudentJourneyView && journeyScheduleLoaded && !journeyWeekRows.length" class="empty-state">
         <div class="empty-icon"><i class="fas fa-calendar-alt"></i></div>
-        <h3 class="empty-title">No Upcoming Schedule Yet</h3>
+        <h3 class="empty-title">Još nema predstojećeg rasporeda</h3>
         <p class="empty-text">{{ journeyScheduleError || 'Your batch journey classes and activities will appear here automatically once they are scheduled in Journey Management.' }}</p>
-        <button class="btn-primary-action" routerLink="/my-course"><i class="fas fa-graduation-cap"></i> Go to My Course</button>
+        <button class="btn-primary-action" routerLink="/my-course"><i class="fas fa-graduation-cap"></i> Idi na Moj kurs</button>
       </div>
       <div *ngIf="!isStudentJourneyView && timeTablesLoaded && !timeTables.length" class="empty-state">
         <div class="empty-icon"><i class="fas fa-calendar-alt"></i></div>
@@ -140,22 +140,22 @@
                         <span class="wdr-live-time">{{ live.timeLabel }}</span>
                         <span class="wdr-live-topic">{{ live.topic }}</span>
                         <div class="wdr-live-actions">
-                          <span *ngIf="getLiveClassStatus(live) === 'live'" class="wdr-live-badge live">LIVE</span>
+                          <span *ngIf="getLiveClassStatus(live) === 'live'" class="wdr-live-badge live">UŽIVO</span>
                           <span *ngIf="getLiveClassStatus(live) === 'upcoming'" class="wdr-live-badge upcoming">{{ getCountdownForLive(live) }}</span>
-                          <span *ngIf="canJoinLiveClass(live)" class="wdr-join-btn" (click)="joinLiveClass(live)"><i class="fas fa-video"></i> Join</span>
+                          <span *ngIf="canJoinLiveClass(live)" class="wdr-join-btn" (click)="joinLiveClass(live)"><i class="fas fa-video"></i> Pridruži se</span>
                         </div>
                       </div>
                     </div>
                   </ng-container>
                   <ng-template #noJourneyContent>
-                    <span class="wdr-empty">No classes</span>
+                    <span class="wdr-empty">Nema časova</span>
                   </ng-template>
                 </div>
               </div>
             </div>
           </ng-container>
           <ng-template #noStudentWeek>
-            <div class="current-week-empty">No schedule for this week.</div>
+            <div class="current-week-empty">Nema rasporeda za ovu nedelju.</div>
           </ng-template>
         </div>
 
@@ -189,19 +189,19 @@
                         <div class="wdr-slot-row1">
                           <span class="wdr-slot-time">{{ slot.start }} - {{ slot.end }}</span>
                           <span class="wdr-slot-status" [ngClass]="slot.classStatus?.toLowerCase()">{{ slot.classStatus || 'Scheduled' }}</span>
-                          <span *ngIf="slot.meetingLinked && slot.zoomJoinUrl" class="wdr-join-btn" (click)="joinZoomMeeting(slot.zoomJoinUrl); $event.stopPropagation()"><i class="fas fa-video"></i> Join</span>
+                          <span *ngIf="slot.meetingLinked && slot.zoomJoinUrl" class="wdr-join-btn" (click)="joinZoomMeeting(slot.zoomJoinUrl); $event.stopPropagation()"><i class="fas fa-video"></i> {{ isStudentJourneyView ? 'Pridruži se' : 'Join' }}</span>
                         </div>
                         <ng-container *ngIf="slot.meetingLinked && slot.zoomJoinUrl">
                           <div class="wdr-slot-row2">
-                            <span class="wdr-slot-topic">Zoom Class</span>
+                            <span class="wdr-slot-topic">Zoom čas</span>
                           </div>
                         </ng-container>
                         <ng-container *ngIf="getMeetingForSlot(getDateForDay(tt.weekStartDate, dayIndex), slot.start, tt.batch) as meeting">
                           <div class="wdr-slot-row2">
                             <span class="wdr-slot-topic">{{ meeting.topic }}</span>
-                            <span *ngIf="getMeetingStatus(meeting) === 'live'" class="wdr-status-badge live">LIVE NOW</span>
+                            <span *ngIf="getMeetingStatus(meeting) === 'live'" class="wdr-status-badge live">UŽIVO SADA</span>
                             <span *ngIf="getMeetingStatus(meeting) === 'upcoming'" class="wdr-status-badge upcoming">{{ getCountdown(meeting) }}</span>
-                            <span *ngIf="canJoinMeeting(meeting)" class="wdr-join-btn" (click)="joinMeeting(meeting); $event.stopPropagation()"><i class="fas fa-video"></i> Join</span>
+                            <span *ngIf="canJoinMeeting(meeting)" class="wdr-join-btn" (click)="joinMeeting(meeting); $event.stopPropagation()"><i class="fas fa-video"></i> Pridruži se</span>
                           </div>
                         </ng-container>
                       </div>
@@ -213,24 +213,24 @@
                         <div class="wdr-slot" *ngFor="let em of extraMeetings">
                           <div class="wdr-slot-row1">
                             <span class="wdr-slot-time">{{ formatMeetingTimeIST(em) }}</span>
-                            <span *ngIf="canJoinMeeting(em)" class="wdr-join-btn" (click)="joinMeeting(em); $event.stopPropagation()"><i class="fas fa-video"></i> Join</span>
+                            <span *ngIf="canJoinMeeting(em)" class="wdr-join-btn" (click)="joinMeeting(em); $event.stopPropagation()"><i class="fas fa-video"></i> Pridruži se</span>
                           </div>
                           <div class="wdr-slot-row2">
                             <span class="wdr-slot-topic">{{ em.topic || 'Zoom Class' }}</span>
-                            <span *ngIf="getMeetingStatus(em) === 'live'" class="wdr-status-badge live">LIVE NOW</span>
+                            <span *ngIf="getMeetingStatus(em) === 'live'" class="wdr-status-badge live">UŽIVO SADA</span>
                             <span *ngIf="getMeetingStatus(em) === 'upcoming'" class="wdr-status-badge upcoming">{{ getCountdown(em) }}</span>
                           </div>
                         </div>
                       </div>
                     </ng-container>
                   </ng-template>
-                  <span class="wdr-empty" *ngIf="!tt[day]?.length && !getMeetingsForDayBatch(getDateForDay(tt.weekStartDate, dayIndex), tt.batch).length">No classes</span>
+                  <span class="wdr-empty" *ngIf="!tt[day]?.length && !getMeetingsForDayBatch(getDateForDay(tt.weekStartDate, dayIndex), tt.batch).length">Nema časova</span>
                 </div>
               </div>
             </div>
           </ng-container>
           <ng-template #noWeekData>
-            <div class="current-week-empty">No classes scheduled for this week.</div>
+            <div class="current-week-empty">Nema zakazanih časova za ovu nedelju.</div>
           </ng-template>
         </div>
       </ng-container>
@@ -239,9 +239,9 @@
       <ng-container *ngIf="viewMode === 'month'">
         <!-- Month grid (only when loaded and has data) -->
         <!-- BEFORE: the month calendar could compress below readable tap/text sizes on 412px screens. -->
-        <div class="month-grid" tabindex="0" aria-label="Monthly timetable calendar" *ngIf="isStudentJourneyView ? (journeyScheduleLoaded && journeyWeekRows.length) : (timeTablesLoaded && timeTables.length)">
+        <div class="month-grid" tabindex="0" aria-label="Mesečni kalendar rasporeda" *ngIf="isStudentJourneyView ? (journeyScheduleLoaded && journeyWeekRows.length) : (timeTablesLoaded && timeTables.length)">
           <div class="month-weekday-header">
-            <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
+            <span>Pon</span><span>Uto</span><span>Sre</span><span>Čet</span><span>Pet</span><span>Sub</span><span>Ned</span>
           </div>
           <div class="month-week" *ngFor="let week of monthDays">
             <div class="month-cell"
@@ -353,7 +353,7 @@
                   </div>
                 </ng-container>
                 <ng-template #noPastDayClassModal>
-                  <div class="no-class-message"><i class="fas fa-calendar-times"></i><span>No classes</span></div>
+                  <div class="no-class-message"><i class="fas fa-calendar-times"></i><span>{{ isStudentJourneyView ? 'Nema časova' : 'No classes' }}</span></div>
                 </ng-template>
               </div>
             </div>

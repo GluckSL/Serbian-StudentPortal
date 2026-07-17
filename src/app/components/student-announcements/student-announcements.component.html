@@ -3,8 +3,8 @@
     <div class="sa-header__main">
       <span class="sa-header__icon material-icons" aria-hidden="true">campaign</span>
       <div>
-        <h1 class="sa-header__title">Announcements</h1>
-        <p class="sa-header__sub">Official notices from your school. New posts appear here when your batch is included.</p>
+        <h1 class="sa-header__title">Obaveštenja</h1>
+        <p class="sa-header__sub">Zvanična obaveštenja škole. Nove objave će se pojaviti kada vaša grupa bude uključena.</p>
       </div>
     </div>
   </header>
@@ -15,29 +15,29 @@
 
   <div *ngIf="!loading && announcements.length === 0" class="sa-empty">
     <span class="material-icons sa-empty__icon" aria-hidden="true">notifications_none</span>
-    <p class="sa-empty__title">No announcements yet</p>
-    <p class="sa-empty__text">When your batch receives an update, it will show up here.</p>
+    <p class="sa-empty__title">Još nema obaveštenja</p>
+    <p class="sa-empty__text">Kada vaša grupa dobije novo obaveštenje, pojaviće se ovde.</p>
   </div>
 
   <div *ngIf="!loading && announcements.length > 0 && filteredAnnouncements.length === 0" class="sa-empty">
-    <p class="sa-empty__title">Nothing in this view</p>
-    <p class="sa-empty__text">Try another filter above.</p>
+    <p class="sa-empty__title">Nema stavki u ovom prikazu</p>
+    <p class="sa-empty__text">Pokušajte drugi filter.</p>
   </div>
 
   <div class="sa-table-wrap" *ngIf="!loading && filteredAnnouncements.length > 0">
     <table class="sa-table">
       <thead>
         <tr>
-          <th class="sa-table__col-date">Date &amp; Time</th>
-          <th class="sa-table__col-badge">Type</th>
-          <th class="sa-table__col-title">Title</th>
+          <th class="sa-table__col-date">Datum i vreme</th>
+          <th class="sa-table__col-badge">Vrsta</th>
+          <th class="sa-table__col-title">Naslov</th>
           <th class="sa-table__col-action"></th>
         </tr>
       </thead>
       <tbody>
         <tr class="sa-row" *ngFor="let item of filteredAnnouncements">
           <td class="sa-row__date">
-            <time [attr.datetime]="item.createdAt">{{ item.createdAt | date:'medium' }}</time>
+            <time [attr.datetime]="item.createdAt">{{ item.createdAt | date:'medium':'':'sr-Latn' }}</time>
           </td>
           <td class="sa-row__badge">
             <span class="sa-badge" [class.sa-badge--email]="item.deliveryType === 'website_email'">
@@ -46,7 +46,7 @@
           </td>
           <td class="sa-row__title">{{ item.title }}</td>
           <td class="sa-row__action">
-            <button class="sa-view-btn" (click)="openAnnouncement(item)" title="View announcement">
+            <button class="sa-view-btn" (click)="openAnnouncement(item)" title="Prikaži obaveštenje">
               <span class="material-icons">visibility</span>
             </button>
           </td>

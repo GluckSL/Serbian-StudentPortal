@@ -3,13 +3,13 @@
   <!-- ── Header ── -->
   <div class="header">
     <div>
-      <h1>Gluck Room</h1>
-      <p *ngIf="isStudent" class="header-subtitle">Join your scheduled learning sessions</p>
+      <h1>{{ isStudent ? 'Gluck soba' : 'Gluck Room' }}</h1>
+      <p *ngIf="isStudent" class="header-subtitle">Pridružite se zakazanim sesijama učenja</p>
     </div>
     <div *ngIf="isStudent" class="student-summary">
-      <span><strong>{{ tabCount('scheduled') }}</strong> Upcoming</span>
-      <span><strong>{{ tabCount('active') }}</strong> Live</span>
-      <span><strong>{{ tabCount('ended') }}</strong> Completed</span>
+      <span><strong>{{ tabCount('scheduled') }}</strong> Predstojeće</span>
+      <span><strong>{{ tabCount('active') }}</strong> Uživo</span>
+      <span><strong>{{ tabCount('ended') }}</strong> Završeno</span>
     </div>
     <div class="header-actions">
       <button *ngIf="canManage()" mat-stroked-button class="btn-bulk" (click)="createBulkSession()">
@@ -25,14 +25,14 @@
   <mat-card class="filters-card">
     <div class="filters">
       <mat-form-field appearance="outline">
-        <input matInput [(ngModel)]="searchQuery" (ngModelChange)="onSearchChange()" placeholder="Search sessions...">
+        <input matInput [(ngModel)]="searchQuery" (ngModelChange)="onSearchChange()" [placeholder]="isStudent ? 'Pretraži sesije...' : 'Search sessions...'">
         <mat-icon matPrefix>search</mat-icon>
       </mat-form-field>
       <div *ngIf="isStudent" class="student-filter-chips">
-        <button type="button" [class.active]="studentQuickFilter === 'all'" (click)="setStudentQuickFilter('all')">All</button>
-        <button type="button" [class.active]="studentQuickFilter === 'today'" (click)="setStudentQuickFilter('today')">Today</button>
-        <button type="button" [class.active]="studentQuickFilter === 'week'" (click)="setStudentQuickFilter('week')">This Week</button>
-        <button type="button" [class.active]="studentQuickFilter === 'available'" (click)="setStudentQuickFilter('available')">Available Now</button>
+        <button type="button" [class.active]="studentQuickFilter === 'all'" (click)="setStudentQuickFilter('all')">Sve</button>
+        <button type="button" [class.active]="studentQuickFilter === 'today'" (click)="setStudentQuickFilter('today')">Danas</button>
+        <button type="button" [class.active]="studentQuickFilter === 'week'" (click)="setStudentQuickFilter('week')">Ova nedelja</button>
+        <button type="button" [class.active]="studentQuickFilter === 'available'" (click)="setStudentQuickFilter('available')">Dostupno sada</button>
       </div>
       <mat-form-field *ngIf="!isStudent" appearance="outline">
         <mat-label>Batch</mat-label>
@@ -57,7 +57,7 @@
   <mat-card *ngIf="error && !loading" class="error-card">
     <mat-icon color="warn">error_outline</mat-icon>
     <p>{{ error }}</p>
-    <button mat-stroked-button (click)="loadSessions()"><mat-icon>refresh</mat-icon> Retry</button>
+    <button mat-stroked-button (click)="loadSessions()"><mat-icon>refresh</mat-icon> {{ isStudent ? 'Pokušaj ponovo' : 'Retry' }}</button>
   </mat-card>
 
   <!-- ── Tabs ── -->
@@ -68,21 +68,21 @@
 
     <mat-tab>
       <ng-template mat-tab-label>
-        <span class="tab-label">Upcoming</span>
+        <span class="tab-label">{{ isStudent ? 'Predstojeće' : 'Upcoming' }}</span>
         <span class="tab-count" *ngIf="tabCount('scheduled') > 0">{{ tabCount('scheduled') }}</span>
       </ng-template>
     </mat-tab>
 
     <mat-tab>
       <ng-template mat-tab-label>
-        <span class="tab-label tab-label--live">Live</span>
+        <span class="tab-label tab-label--live">{{ isStudent ? 'Uživo' : 'Live' }}</span>
         <span class="tab-count tab-count--live" *ngIf="tabCount('active') > 0">{{ tabCount('active') }}</span>
       </ng-template>
     </mat-tab>
 
     <mat-tab>
       <ng-template mat-tab-label>
-        <span class="tab-label">Completed</span>
+        <span class="tab-label">{{ isStudent ? 'Završeno' : 'Completed' }}</span>
         <span class="tab-count" *ngIf="tabCount('ended') > 0">{{ tabCount('ended') }}</span>
       </ng-template>
     </mat-tab>
@@ -92,7 +92,7 @@
   <ng-container *ngIf="isStudent && !loading && !error">
     <section class="student-hero" *ngIf="heroSession as hero">
       <div class="student-hero__content">
-        <span class="student-hero__eyebrow">{{ hero.status === 'active' ? 'Live class is open' : 'Up next' }}</span>
+        <span class="student-hero__eyebrow">{{ hero.status === 'active' ? 'Čas uživo je otvoren' : 'Sledeće' }}</span>
         <h2>{{ hero.sessionName }}</h2>
         <div class="student-hero__meta">
           <span><mat-icon>schedule</mat-icon>{{ formatDate(hero.scheduledStartTime) }}</span>
@@ -141,7 +141,7 @@
             {{ timeUntilJoinOpens(s) }}
           </span>
           <button *ngIf="s.status === 'ended'" mat-stroked-button class="recording-btn" (click)="openRecording(s._id, $event)">
-            <mat-icon>play_circle</mat-icon> Recording
+            <mat-icon>play_circle</mat-icon> Snimak
           </button>
         </div>
       </article>

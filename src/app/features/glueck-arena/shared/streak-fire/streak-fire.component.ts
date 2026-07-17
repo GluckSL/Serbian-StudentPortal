@@ -9,7 +9,7 @@ import { CommonModule } from '@angular/common';
     <span class="sf" *ngIf="streak > 0" [class.sf--hot]="streak >= 7">
       <span class="sf__flame">🔥</span>
       <span class="sf__count">{{ streak }}</span>
-      <span class="sf__lbl">day streak</span>
+      <span class="sf__lbl">dana u nizu</span>
     </span>
   `,
   styles: [`

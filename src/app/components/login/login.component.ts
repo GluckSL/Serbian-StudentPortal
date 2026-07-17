@@ -260,11 +260,11 @@ export class LoginComponent implements OnInit {
 
         const serverMsg: string = err.error?.msg || err.error?.message || '';
         if (err.status === 403) {
-          this.errorMessage = serverMsg || 'Access denied. Please contact Glück Global support.';
+          this.errorMessage = serverMsg || 'Pristup je odbijen. Obratite se Glück Global podršci.';
         } else if (err.status === 401 || err.status === 400) {
-          this.errorMessage = serverMsg || 'Invalid username or password!';
+          this.errorMessage = serverMsg || 'Neispravno korisničko ime ili lozinka!';
         } else {
-          this.errorMessage = serverMsg || 'Server error. Please try again later.';
+          this.errorMessage = serverMsg || 'Greška servera. Pokušajte ponovo kasnije.';
         }
       }
     });
@@ -285,7 +285,7 @@ export class LoginComponent implements OnInit {
       if (path) {
         void this.router.navigateByUrl(path);
       } else {
-        this.errorMessage = 'Unknown user role.';
+        this.errorMessage = 'Nepoznata korisnička uloga.';
       }
     };
 
@@ -301,7 +301,7 @@ export class LoginComponent implements OnInit {
       error: () => {
         this.loading = false;
         this.setupLoading = false;
-        this.errorMessage = 'Failed to load user profile.';
+        this.errorMessage = 'Učitavanje korisničkog profila nije uspelo.';
       },
     });
   }
@@ -326,15 +326,15 @@ export class LoginComponent implements OnInit {
     this.setupError = '';
     const newEmail = this.setupChangeNewEmail.trim().toLowerCase();
     if (!newEmail || !newEmail.includes('@')) {
-      this.setupError = 'Enter a valid new email address.';
+      this.setupError = 'Unesite ispravnu novu e-adresu.';
       return;
     }
     if (this.setupChangeNewPassword.length < 8) {
-      this.setupError = 'Password must be at least 8 characters.';
+      this.setupError = 'Lozinka mora imati najmanje 8 znakova.';
       return;
     }
     if (this.setupChangeNewPassword !== this.setupChangeConfirmPassword) {
-      this.setupError = 'Passwords do not match.';
+      this.setupError = 'Lozinke se ne podudaraju.';
       return;
     }
     this.setupLoading = true;
@@ -350,7 +350,7 @@ export class LoginComponent implements OnInit {
       },
       error: (err: any) => {
         this.setupLoading = false;
-        this.setupError = err?.error?.msg || 'Could not submit request. Please try again.';
+        this.setupError = err?.error?.msg || 'Zahtev nije moguće poslati. Pokušajte ponovo.';
       },
     });
   }
@@ -367,7 +367,7 @@ export class LoginComponent implements OnInit {
       },
       error: (err: any) => {
         this.setupLoading = false;
-        this.setupError = err?.error?.msg || 'Could not send verification code. Please try again.';
+        this.setupError = err?.error?.msg || 'Kod za verifikaciju nije moguće poslati. Pokušajte ponovo.';
       },
     });
   }
@@ -376,7 +376,7 @@ export class LoginComponent implements OnInit {
   verifyOtp(): void {
     this.setupError = '';
     if (!this.setupOtp.trim()) {
-      this.setupError = 'Enter the verification code sent to your email.';
+      this.setupError = 'Unesite kod za verifikaciju poslat na vašu e-adresu.';
       return;
     }
     this.setupLoading = true;
@@ -395,7 +395,7 @@ export class LoginComponent implements OnInit {
       },
       error: (err: any) => {
         this.setupLoading = false;
-        this.setupError = err?.error?.msg || 'Could not verify code. Please try again.';
+        this.setupError = err?.error?.msg || 'Kod nije moguće verifikovati. Pokušajte ponovo.';
       },
     });
   }
@@ -405,11 +405,11 @@ export class LoginComponent implements OnInit {
     this.setupError = '';
     this.setupSuccess = '';
     if (this.setupNewPassword.length < 8) {
-      this.setupError = 'Password must be at least 8 characters.';
+      this.setupError = 'Lozinka mora imati najmanje 8 znakova.';
       return;
     }
     if (this.setupNewPassword !== this.setupConfirmPassword) {
-      this.setupError = 'Passwords do not match.';
+      this.setupError = 'Lozinke se ne podudaraju.';
       return;
     }
     this.setupLoading = true;
@@ -428,7 +428,7 @@ export class LoginComponent implements OnInit {
       },
       error: (err: any) => {
         this.setupLoading = false;
-        this.setupError = err?.error?.msg || 'Could not set password. Please try again.';
+        this.setupError = err?.error?.msg || 'Lozinku nije moguće postaviti. Pokušajte ponovo.';
       },
     });
   }
@@ -456,12 +456,12 @@ export class LoginComponent implements OnInit {
         this.withdrawalAckMessage =
           response?.message ||
           (decision === 'YES'
-            ? 'Our team will reach you within 24-72 hours. You cannot log in until your account status is updated by the Gluck Global team.'
-            : 'Thank you. Your response has been recorded and our team has been notified.');
+            ? 'Naš tim će vas kontaktirati u roku od 24 do 72 sata. Ne možete se prijaviti dok Gluck Global tim ne ažurira status naloga.'
+            : 'Hvala. Vaš odgovor je zabeležen i naš tim je obavešten.');
       },
       error: () => {
         this.confirmingDecision = null;
-        this.withdrawalDecisionError = 'Something went wrong. Please try again.';
+        this.withdrawalDecisionError = 'Došlo je do greške. Pokušajte ponovo.';
       }
     });
   }

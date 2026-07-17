@@ -73,7 +73,7 @@ interface MatchPair {
         <div class="mc__stats">
           <div class="mc__stat">
             <span class="mc__stat-val">{{ score }}</span>
-            <span class="mc__stat-lbl">Score</span>
+            <span class="mc__stat-lbl">Rezultat</span>
           </div>
           <div class="mc__stat">
             <span class="mc__stat-val">{{ accuracy }}%</span>

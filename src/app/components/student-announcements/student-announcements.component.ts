@@ -57,7 +57,7 @@ export class StudentAnnouncementsComponent implements OnInit {
   }
 
   deliveryLabel(dt: AnnouncementDeliveryType): string {
-    if (dt === 'website_email') return 'Email + portal';
+    if (dt === 'website_email') return 'E-pošta + portal';
     if (dt === 'website') return 'Portal';
     return dt;
   }
@@ -85,7 +85,7 @@ const STAFF_ROLES = ['ADMIN', 'TEACHER_ADMIN', 'TEACHER'];
 
       <div class="sa-dialog__header">
         <span class="sa-dialog__badge" *ngIf="data.deliveryType">{{ getDeliveryLabel(data.deliveryType) }}</span>
-        <time class="sa-dialog__date">{{ data.createdAt | date:'medium' }}</time>
+        <time class="sa-dialog__date">{{ data.createdAt | date:'medium':'':'sr-Latn' }}</time>
       </div>
 
       <h2 class="sa-dialog__title">{{ data.title }}</h2>
@@ -123,8 +123,8 @@ const STAFF_ROLES = ['ADMIN', 'TEACHER_ADMIN', 'TEACHER'];
               <div class="sa-comment__body">
                 <div class="sa-comment__meta">
                   <span class="sa-comment__name">{{ parent.userId.name }}</span>
-                  <span class="sa-comment__role" *ngIf="isStaffRole(parent.userId.role)">{{ parent.userId.role }}</span>
-                  <span class="sa-comment__time">{{ parent.createdAt | date:'short' }}</span>
+                  <span class="sa-comment__role" *ngIf="isStaffRole(parent.userId.role)">{{ roleLabel(parent.userId.role) }}</span>
+                  <span class="sa-comment__time">{{ parent.createdAt | date:'short':'':'sr-Latn' }}</span>
                   <button
                     class="sa-comment__delete"
                     *ngIf="parent.userId._id === currentUserId"
@@ -141,8 +141,8 @@ const STAFF_ROLES = ['ADMIN', 'TEACHER_ADMIN', 'TEACHER'];
                     <div class="sa-reply__body">
                       <div class="sa-comment__meta">
                         <span class="sa-comment__name">{{ reply.userId.name }}</span>
-                        <span class="sa-comment__role" *ngIf="isStaffRole(reply.userId.role)">{{ reply.userId.role }}</span>
-                        <span class="sa-comment__time">{{ reply.createdAt | date:'short' }}</span>
+                        <span class="sa-comment__role" *ngIf="isStaffRole(reply.userId.role)">{{ roleLabel(reply.userId.role) }}</span>
+                        <span class="sa-comment__time">{{ reply.createdAt | date:'short':'':'sr-Latn' }}</span>
                         <button
                           class="sa-comment__delete"
                           *ngIf="reply.userId._id === currentUserId"
@@ -591,13 +591,22 @@ export class AnnouncementDetailDialogComponent implements OnInit, OnDestroy {
   }
 
   getDeliveryLabel(dt: AnnouncementDeliveryType): string {
-    if (dt === 'website_email') return 'Email + portal';
+    if (dt === 'website_email') return 'E-pošta + portal';
     if (dt === 'website') return 'Portal';
     return dt;
   }
 
   isStaffRole(role: string | undefined): boolean {
     return STAFF_ROLES.includes(String(role || '').toUpperCase());
+  }
+
+  roleLabel(role: string | undefined): string {
+    const labels: Record<string, string> = {
+      ADMIN: 'Administrator',
+      TEACHER_ADMIN: 'Administrator nastave',
+      TEACHER: 'Nastavnik',
+    };
+    return labels[String(role || '').toUpperCase()] || role || '';
   }
 
   getInitial(name: string | undefined): string {
@@ -655,7 +664,7 @@ export class AnnouncementDetailDialogComponent implements OnInit, OnDestroy {
   }
 
   deleteComment(comment: AnnouncementComment): void {
-    if (!confirm('Delete this comment?')) return;
+    if (!confirm('Da li želite da obrišete ovaj komentar?')) return;
     this.announcementService.deleteComment(this.data._id, comment._id).subscribe({
       next: () => this.loadComments(1, true),
       error: () => {}

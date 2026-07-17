@@ -60,8 +60,8 @@ export class PaymentHubStudentPortalComponent implements OnInit {
     { key: 'A2', label: 'A2' },
     { key: 'B1', label: 'B1' },
     { key: 'B2', label: 'B2' },
-    { key: 'DOCS', label: 'Docs' },
-    { key: 'VISA', label: 'Visa' },
+    { key: 'DOCS', label: 'Dokumenti' },
+    { key: 'VISA', label: 'Viza' },
   ];
 
   constructor(
@@ -408,7 +408,7 @@ export class PaymentHubStudentPortalComponent implements OnInit {
   /** Main line on the Next payment card when there is no scheduled slice. */
   get nextPaymentClearValue(): string {
     if (this.isCatalogLevelFeeCleared) return '—';
-    return (this.catalog?.studentLevel || '').trim() ? 'Coming soon' : '—';
+    return (this.catalog?.studentLevel || '').trim() ? 'Uskoro' : '—';
   }
 
   /**
@@ -419,14 +419,14 @@ export class PaymentHubStudentPortalComponent implements OnInit {
     if (this.isCatalogLevelFeeCleared) {
       const level = (this.catalog?.studentLevel || '').trim();
       return level
-        ? `Level ${level} fee is cleared — nothing due right now.`
-        : 'No open amount due';
+        ? `Naknada za nivo ${level} je izmirena — trenutno nema dugovanja.`
+        : 'Nema otvorenih dugovanja';
     }
     const level = (this.catalog?.studentLevel || '').trim();
     if (level) {
-      return `Next payment for Level ${level} — coming soon`;
+      return `Sledeća uplata za nivo ${level} — uskoro`;
     }
-    return 'No open amount due';
+    return 'Nema otvorenih dugovanja';
   }
 
   get totalPages(): number {
@@ -441,10 +441,10 @@ export class PaymentHubStudentPortalComponent implements OnInit {
     const due = new Date(req.dueDate);
     due.setHours(0, 0, 0, 0);
     const diffDays = Math.round((due.getTime() - start.getTime()) / 86400000);
-    if (diffDays < 0) return `${Math.abs(diffDays)} day(s) overdue`;
-    if (diffDays === 0) return 'Due today';
-    if (diffDays === 1) return 'Due tomorrow';
-    return `Due in ${diffDays} days`;
+    if (diffDays < 0) return `Kasni ${Math.abs(diffDays)} dana`;
+    if (diffDays === 0) return 'Dospelo danas';
+    if (diffDays === 1) return 'Dospelo sutra';
+    return `Dospelo za ${diffDays} dana`;
   }
 
   openUpload(
@@ -475,11 +475,11 @@ export class PaymentHubStudentPortalComponent implements OnInit {
       if (!formData) return;
       this.api.submitPaymentFormData(formData).subscribe({
         next: () => {
-          this.snack.open('Uploaded successfully! Admin will review shortly.', 'OK', { duration: 5000 });
+          this.snack.open('Uspešno otpremljeno! Administrator će uskoro pregledati dokaz.', 'U redu', { duration: 5000 });
           this.load();
         },
         error: (e) => {
-          this.snack.open(e?.error?.message || 'Upload failed. Please try again.', 'Dismiss', { duration: 5000 });
+          this.snack.open(e?.error?.message || 'Otpremanje nije uspelo. Pokušajte ponovo.', 'Zatvori', { duration: 5000 });
         },
       });
     });
@@ -489,12 +489,12 @@ export class PaymentHubStudentPortalComponent implements OnInit {
   installmentHint(req: PaymentRequest): string {
     if (!req.installmentAllowed || !req.studentInstallmentView) return '';
     const view = req.studentInstallmentView;
-    if (view.allPaid) return `${view.totalInstallments}/${view.totalInstallments} paid`;
+    if (view.allPaid) return `${view.totalInstallments}/${view.totalInstallments} plaćeno`;
     if (view.activeInstallmentNumber == null) return '';
     if (view.scheduleLocked) {
-      return `Part ${view.activeInstallmentNumber} of ${view.totalInstallments} — upload opens ${this.fmtDate(view.displayDueDate)}`;
+      return `Rata ${view.activeInstallmentNumber} od ${view.totalInstallments} — otpremanje se otvara ${this.fmtDate(view.displayDueDate)}`;
     }
-    return `Part ${view.activeInstallmentNumber} of ${view.totalInstallments}`;
+    return `Rata ${view.activeInstallmentNumber} od ${view.totalInstallments}`;
   }
 
   /** When we show per-installment rows, never collapse the card into the old "hidden" placeholder */
@@ -586,10 +586,10 @@ export class PaymentHubStudentPortalComponent implements OnInit {
     const due = new Date(dueDate);
     due.setHours(0, 0, 0, 0);
     const diffDays = Math.round((due.getTime() - start.getTime()) / 86400000);
-    if (diffDays < 0) return `${Math.abs(diffDays)} day(s) overdue`;
-    if (diffDays === 0) return 'today';
-    if (diffDays === 1) return 'tomorrow';
-    return `in ${diffDays} days`;
+    if (diffDays < 0) return `kasni ${Math.abs(diffDays)} dana`;
+    if (diffDays === 0) return 'danas';
+    if (diffDays === 1) return 'sutra';
+    return `za ${diffDays} dana`;
   }
 
   getReuploadNote(req: PaymentRequest): string {
@@ -608,12 +608,12 @@ export class PaymentHubStudentPortalComponent implements OnInit {
 
   actionLabel(req: PaymentRequest): string {
     const map: Record<string, string> = {
-      REQUESTED: 'Upload Screenshot',
-      REJECTED: 'Re-upload',
-      OVERDUE: 'Upload Now',
+      REQUESTED: 'Otpremi snimak',
+      REJECTED: 'Ponovo otpremi',
+      OVERDUE: 'Otpremi sada',
     };
     const subs = (req.submissions as Array<{ status: string }>) || [];
-    if (subs.some(s => s.status === 'REUPLOAD_REQUIRED')) return 'Re-upload';
+    if (subs.some(s => s.status === 'REUPLOAD_REQUIRED')) return 'Ponovo otpremi';
     return map[req.status] || '';
   }
 
@@ -654,8 +654,18 @@ export class PaymentHubStudentPortalComponent implements OnInit {
 
   displayStatus(req: PaymentRequest): string {
     const subs = (req.submissions as Array<{ status: string }>) || [];
-    if (subs.some(s => s.status === 'REUPLOAD_REQUIRED')) return 'REUPLOAD REQUIRED';
-    return req.status;
+    if (subs.some(s => s.status === 'REUPLOAD_REQUIRED')) return 'POTREBNO PONOVNO OTPREMANJE';
+    const labels: Record<string, string> = {
+      REQUESTED: 'ZAHTEVANO',
+      SUBMITTED: 'POSLATO',
+      UNDER_REVIEW: 'NA PREGLEDU',
+      APPROVED: 'ODOBRENO',
+      FULLY_PAID: 'U POTPUNOSTI PLAĆENO',
+      REJECTED: 'ODBIJENO',
+      OVERDUE: 'DOSPELO',
+      PENDING: 'NA ČEKANJU',
+    };
+    return labels[req.status] || req.status;
   }
 
   fmt(val: number | undefined | null): string {
@@ -665,7 +675,7 @@ export class PaymentHubStudentPortalComponent implements OnInit {
 
   fmtDate(d: string | undefined | null): string {
     if (!d) return '—';
-    return new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+    return new Date(d).toLocaleDateString('sr-Latn-RS', { day: '2-digit', month: 'short', year: 'numeric' });
   }
 
   isPastDue(req: PaymentRequest): boolean {
@@ -674,10 +684,10 @@ export class PaymentHubStudentPortalComponent implements OnInit {
   }
 
   private static readonly PAYMENT_TYPE_LABELS: Record<string, string> = {
-    LANGUAGE_FEE:   'Language Course Fee',
-    DOCS_PAYMENT:   'Documentation Payment',
-    VISA_PAYMENT:   'Visa Payment',
-    CUSTOM_PAYMENT: 'Custom Payment',
+    LANGUAGE_FEE:   'Naknada za kurs jezika',
+    DOCS_PAYMENT:   'Plaćanje dokumentacije',
+    VISA_PAYMENT:   'Plaćanje vize',
+    CUSTOM_PAYMENT: 'Drugo plaćanje',
   };
 
   formatPaymentType(type: string, customType?: string): string {
@@ -757,9 +767,9 @@ export class PaymentHubStudentPortalComponent implements OnInit {
       const logoDataUrl = await loadInvoiceLogoDataUrl().catch(() => undefined);
       const html = renderInvoiceHTML(invoiceData, logoDataUrl);
       await generatePdfFromHtml(html, `${invoiceNumber}.pdf`);
-      this.snack.open('Proforma invoice downloaded', 'OK', { duration: 3000 });
+      this.snack.open('Predračun je preuzet', 'U redu', { duration: 3000 });
     } catch {
-      this.snack.open('Could not generate invoice. Please try again.', 'Dismiss', { duration: 5000 });
+      this.snack.open('Predračun nije moguće napraviti. Pokušajte ponovo.', 'Zatvori', { duration: 5000 });
     } finally {
       this.downloadingInvoiceId = null;
     }
@@ -769,11 +779,11 @@ export class PaymentHubStudentPortalComponent implements OnInit {
   private resolveInvoiceServiceName(req: PaymentRequest): string {
     switch (req.paymentType) {
       case 'LANGUAGE_FEE':
-        return 'German Language';
+        return 'Nemački jezik';
       case 'DOCS_PAYMENT':
-        return 'Documentation Fee';
+        return 'Naknada za dokumentaciju';
       case 'VISA_PAYMENT':
-        return 'Visa Fee';
+        return 'Naknada za vizu';
       case 'CUSTOM_PAYMENT':
         return req.customType?.trim() || 'Custom Payment';
       default:

@@ -35,7 +35,7 @@ import {
           <input #inputRef class="fcmp__input" type="text" [(ngModel)]="typedAnswer"
             (keyup.enter)="submit()" [disabled]="!!feedback"
             autocomplete="off" autocorrect="off" spellcheck="false"
-            placeholder="Type your answer…">
+            placeholder="Unesite odgovor…">
           <button mat-raised-button color="primary" (click)="submit()" [disabled]="!typedAnswer.trim() || !!feedback">
             <mat-icon>send</mat-icon>
           </button>
@@ -44,7 +44,7 @@ import {
           <mat-icon>check_circle</mat-icon> +{{ lastPoints }} pts
         </div>
         <div class="fcmp__feedback fcmp__feedback--wrong" *ngIf="feedback === 'wrong'">
-          <mat-icon>cancel</mat-icon> {{ revealAnswer || 'Wrong' }}
+          <mat-icon>cancel</mat-icon> {{ revealAnswer || 'Pogrešno' }}
         </div>
       </div>
 

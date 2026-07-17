@@ -68,7 +68,7 @@ export class JobApplyFormComponent implements OnChanges {
       },
       error: () => {
         this.loadingPrefill = false;
-        this.notify.error('Could not load your profile.');
+        this.notify.error('Profil nije moguće učitati.');
       }
     });
   }
@@ -89,15 +89,15 @@ export class JobApplyFormComponent implements OnChanges {
       return;
     }
     if (!this.prefill.phone.trim()) {
-      this.notify.error('Phone number is required.');
+      this.notify.error('Broj telefona je obavezan.');
       return;
     }
     if (this.prefill.coverLetter.trim().length < 20) {
-      this.notify.error('Cover letter must be at least 20 characters.');
+      this.notify.error('Propratno pismo mora imati najmanje 20 znakova.');
       return;
     }
     if (!this.resumeFile) {
-      this.notify.error('Please attach your resume (PDF or Word).');
+      this.notify.error('Priložite biografiju (PDF ili Word).');
       return;
     }
 
@@ -111,13 +111,13 @@ export class JobApplyFormComponent implements OnChanges {
     this.jobService.submitApplication(this.job._id, fd).subscribe({
       next: () => {
         this.submitting = false;
-        this.notify.success('Application submitted successfully.');
+        this.notify.success('Prijava je uspešno poslata.');
         this.submitted.emit();
         this.close();
       },
       error: (err) => {
         this.submitting = false;
-        this.notify.error(err?.error?.message || 'Failed to submit application.');
+        this.notify.error(err?.error?.message || 'Slanje prijave nije uspelo.');
       }
     });
   }

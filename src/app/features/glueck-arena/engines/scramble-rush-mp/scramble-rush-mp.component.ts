@@ -45,7 +45,7 @@ import { germanUppercase } from '../../utils/german-text';
           <span *ngIf="lastFastest" class="srmp__bonus">⚡ Fastest!</span>
         </div>
         <div class="srmp__feedback srmp__feedback--wrong" *ngIf="feedback === 'wrong'">
-          <mat-icon>cancel</mat-icon> {{ revealWord || 'Wrong' }}
+          <mat-icon>cancel</mat-icon> {{ revealWord || 'Pogrešno' }}
         </div>
         <div class="srmp__locked" *ngIf="answered">Waiting for next round…</div>
       </div>
@@ -54,7 +54,7 @@ import { germanUppercase } from '../../utils/german-text';
         <input #wordInput class="srmp__input" type="text" [(ngModel)]="typedWord"
           (keyup.enter)="submit()" [disabled]="!!feedback"
           autocomplete="off" autocorrect="off" spellcheck="false"
-          placeholder="Type the word…" inputmode="text">
+          placeholder="Unesite reč…" inputmode="text">
         <button mat-raised-button color="primary" (click)="submit()" [disabled]="!typedWord.trim() || !!feedback">
           <mat-icon>send</mat-icon>
         </button>

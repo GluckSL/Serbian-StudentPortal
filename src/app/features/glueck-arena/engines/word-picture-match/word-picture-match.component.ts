@@ -76,7 +76,7 @@ interface ImageCard {
       </div>
 
       <div class="wpm__empty" *ngIf="phase === 'playing' && cards.length === 0">
-        <p>Loading images...</p>
+        <p>Učitavanje slika...</p>
       </div>
 
       <app-xp-float [xp]="xpBurst" [trigger]="xpTrigger"></app-xp-float>

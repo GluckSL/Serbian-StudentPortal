@@ -60,20 +60,20 @@ export class HelpComponent implements OnInit {
   expandedTicketId: string | null = null;
 
   readonly categories = [
-    { value: 'login', label: 'Login / Access Issue' },
-    { value: 'payment', label: 'Payment Problem' },
-    { value: 'class', label: 'Class / Meeting Issue' },
-    { value: 'video', label: 'Video / Audio Issue' },
-    { value: 'course', label: 'Course Material' },
-    { value: 'technical', label: 'Technical Error' },
-    { value: 'account', label: 'Account Settings' },
-    { value: 'other', label: 'Other' }
+    { value: 'login', label: 'Problem sa prijavom / pristupom' },
+    { value: 'payment', label: 'Problem sa plaćanjem' },
+    { value: 'class', label: 'Problem sa časom / sastankom' },
+    { value: 'video', label: 'Problem sa videom / zvukom' },
+    { value: 'course', label: 'Materijal kursa' },
+    { value: 'technical', label: 'Tehnička greška' },
+    { value: 'account', label: 'Podešavanja naloga' },
+    { value: 'other', label: 'Ostalo' }
   ];
 
   readonly priorities = [
-    { value: 'low', label: 'Low – General query' },
-    { value: 'medium', label: 'Medium – Impacting work' },
-    { value: 'high', label: 'High – Urgent issue' }
+    { value: 'low', label: 'Nizak – opšti upit' },
+    { value: 'medium', label: 'Srednji – utiče na rad' },
+    { value: 'high', label: 'Visok – hitan problem' }
   ];
 
   constructor(
@@ -174,12 +174,12 @@ export class HelpComponent implements OnInit {
               this.loadMyTickets();
             }
           } else {
-            this.submitError = res?.message || 'Failed to submit ticket. Please try again.';
+            this.submitError = res?.message || 'Slanje tiketa nije uspelo. Pokušajte ponovo.';
           }
           this.submitting = false;
         },
         error: (err) => {
-          this.submitError = err?.error?.message || 'Unable to submit ticket. Please try again or email support@gluckglobal.com.';
+          this.submitError = err?.error?.message || 'Tiket nije moguće poslati. Pokušajte ponovo ili pišite na support@gluckglobal.com.';
           this.submitting = false;
         }
       });
@@ -233,6 +233,34 @@ export class HelpComponent implements OnInit {
 
   getCategoryLabel(value: string): string {
     return this.categories.find(c => c.value === value)?.label || value;
+  }
+
+  getPriorityLabel(priority?: string): string {
+    const map: Record<string, string> = {
+      low: 'Nizak',
+      medium: 'Srednji',
+      high: 'Visok',
+    };
+    return map[priority || 'medium'] || priority || '';
+  }
+
+  getStatusLabel(status?: string): string {
+    const map: Record<string, string> = {
+      open: 'Otvoren',
+      'in-progress': 'U toku',
+      resolved: 'Rešen',
+      closed: 'Zatvoren',
+    };
+    return map[status || 'open'] || status || '';
+  }
+
+  getAuthorRoleLabel(role?: string): string {
+    const map: Record<string, string> = {
+      ADMIN: 'Administrator',
+      TEACHER: 'Nastavnik',
+      STUDENT: 'Učenik',
+    };
+    return map[(role || 'ADMIN').toUpperCase()] || role || 'Administrator';
   }
 
   get descriptionLen(): number {

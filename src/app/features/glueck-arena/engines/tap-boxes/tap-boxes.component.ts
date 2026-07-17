@@ -166,8 +166,8 @@ function layoutRowSizes(count: number): number[] {
 
           <div class="tb__done" *ngIf="phase === 'done'">
           <mat-icon>emoji_events</mat-icon>
-          <h2>All boxes opened!</h2>
-          <p>Score <strong>{{ score }}</strong></p>
+          <h2>Sva polja su otvorena!</h2>
+          <p>Rezultat <strong>{{ score }}</strong></p>
         </div>
 
           <footer class="tb__bar" *ngIf="phase === 'reveal'">

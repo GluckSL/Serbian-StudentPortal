@@ -1,10 +1,10 @@
 <div class="perf-container">
   <!-- Header -->
   <div class="perf-header">
-    <h1>Performance History</h1>
+    <h1>Istorija napretka</h1>
     <div class="range-toggles">
-      <button [class.active]="rangeMode==='weekly'" (click)="setRange('weekly')">Weekly</button>
-      <button [class.active]="rangeMode==='overall'" (click)="setRange('overall')">Overall</button>
+      <button [class.active]="rangeMode==='weekly'" (click)="setRange('weekly')">Nedeljno</button>
+      <button [class.active]="rangeMode==='overall'" (click)="setRange('overall')">Ukupno</button>
     </div>
   </div>
 
@@ -42,8 +42,8 @@
           </div>
         </div>
         <div class="circular-text">
-          <span class="circular-label">Overall Completion</span>
-          <span class="circular-desc">resources completed</span>
+          <span class="circular-label">Ukupan završetak</span>
+          <span class="circular-desc">završenih resursa</span>
         </div>
       </div>
 
@@ -62,8 +62,8 @@
           </div>
         </div>
         <div class="circular-text">
-          <span class="circular-label">Journey Progress</span>
-          <span class="circular-desc">days completed</span>
+          <span class="circular-label">Napredak puta</span>
+          <span class="circular-desc">završenih dana</span>
         </div>
       </div>
 
@@ -82,8 +82,8 @@
           </div>
         </div>
         <div class="circular-text">
-          <span class="circular-label">Learning Progress</span>
-          <span class="circular-desc">avg score across exercises</span>
+          <span class="circular-label">Napredak u učenju</span>
+          <span class="circular-desc">prosečan skor po vežbama</span>
         </div>
       </div>
     </div>
@@ -91,44 +91,44 @@
     <!-- ═══ Summary Cards ═══ -->
     <section class="cards-grid">
       <div class="summary-card card-day">
-        <span class="card-label">Current Day</span>
+        <span class="card-label">Trenutni dan</span>
         <span class="card-value">{{ currentDay }}</span>
-        <span class="card-sub">{{ currentDay }} / {{ data.student.journeyLength }} days</span>
+        <span class="card-sub">{{ currentDay }} / {{ data.student.journeyLength }} dana</span>
       </div>
       <div class="summary-card card-exercises">
-        <span class="card-label">Exercises</span>
+        <span class="card-label">Vežbe</span>
         <span class="card-value">{{ data.kpis.exercisePct }}%</span>
-        <span class="card-sub">{{ data.kpis.exerciseCompleted }} / {{ data.kpis.exerciseTotal }} done</span>
+        <span class="card-sub">{{ data.kpis.exerciseCompleted }} / {{ data.kpis.exerciseTotal }} urađeno</span>
       </div>
       <div class="summary-card card-classes">
-        <span class="card-label">Classes</span>
+        <span class="card-label">Časovi</span>
         <span class="card-value">{{ data.kpis.classPct }}%</span>
-        <span class="card-sub">{{ data.kpis.classAttended }} / {{ data.kpis.classTotal }} attended</span>
+        <span class="card-sub">{{ data.kpis.classAttended }} / {{ data.kpis.classTotal }} prisustvovano</span>
       </div>
       <div class="summary-card card-dgbot">
         <span class="card-label">DG Bot</span>
         <span class="card-value">{{ data.kpis.dgBotPct }}%</span>
-        <span class="card-sub">{{ data.kpis.dgBotCompleted }} / {{ data.kpis.dgBotTotal }} modules</span>
+        <span class="card-sub">{{ data.kpis.dgBotCompleted }} / {{ data.kpis.dgBotTotal }} moduli</span>
       </div>
       <div class="summary-card card-score">
-        <span class="card-label">Avg Score</span>
+        <span class="card-label">Prosečan skor</span>
         <span class="card-value">{{ data.kpis.avgScore }}%</span>
-        <span class="card-sub">across all activities</span>
+        <span class="card-sub">po svim aktivnostima</span>
       </div>
       <div class="summary-card card-time">
-        <span class="card-label">Study Time</span>
+        <span class="card-label">Vreme učenja</span>
         <span class="card-value">{{ formatMinutes(data.kpis.totalStudyMinutes) }}</span>
-        <span class="card-sub">total time</span>
+        <span class="card-sub">ukupno vreme</span>
       </div>
       <div class="summary-card card-streak" *ngIf="loginStreakData">
-        <span class="card-label">Streak</span>
+        <span class="card-label">Niz</span>
         <span class="card-value">{{ loginStreakData.currentStreak }}</span>
-        <span class="card-sub">day streak</span>
+        <span class="card-sub">dana u nizu</span>
       </div>
       <div class="summary-card card-trophies" *ngIf="loginStreakData">
-        <span class="card-label">Trophies</span>
+        <span class="card-label">Trofeji</span>
         <span class="card-value">{{ loginStreakData.totalTrophies }}</span>
-        <span class="card-sub">total earned</span>
+        <span class="card-sub">ukupno osvojeno</span>
       </div>
     </section>
 
@@ -142,7 +142,7 @@
     <!-- ═══ Charts Row ═══ -->
     <section class="charts-row">
       <div class="chart-card">
-        <h3>Activity (Last 7 Days)</h3>
+        <h3>Aktivnost (poslednjih 7 dana)</h3>
         <div class="chart-wrapper">
           <canvas baseChart
             [data]="barChartData"
@@ -152,7 +152,7 @@
         </div>
       </div>
       <div class="chart-card">
-        <h3>Time Spent (Last 7 Days)</h3>
+        <h3>Utrošeno vreme (poslednjih 7 dana)</h3>
         <div class="chart-wrapper">
           <canvas baseChart
             [data]="timeSpentData"
@@ -167,31 +167,31 @@
     <section class="tables-section">
       <div class="table-card">
         <div class="table-header">
-          <h3>Details</h3>
+          <h3>Detalji</h3>
           <div class="table-toggles">
-            <button [class.active]="activeTable==='classes'" (click)="activeTable='classes'">Classes</button>
-            <button [class.active]="activeTable==='exercises'" (click)="activeTable='exercises'">Exercises</button>
-            <button [class.active]="activeTable==='dg'" (click)="activeTable='dg'">DG Modules</button>
-            <button [class.active]="activeTable==='tests'" (click)="activeTable='tests'">Tests</button>
+            <button [class.active]="activeTable==='classes'" (click)="activeTable='classes'">Časovi</button>
+            <button [class.active]="activeTable==='exercises'" (click)="activeTable='exercises'">Vežbe</button>
+            <button [class.active]="activeTable==='dg'" (click)="activeTable='dg'">DG moduli</button>
+            <button [class.active]="activeTable==='tests'" (click)="activeTable='tests'">Testovi</button>
           </div>
         </div>
 
         <!-- Desktop table -->
-        <div class="table-scroll desktop-table" tabindex="0" aria-label="Performance details table">
+        <div class="table-scroll desktop-table" tabindex="0" aria-label="Tabela detalja napretka">
           <table *ngIf="activeTable==='classes' && endedClasses.length">
-            <thead><tr><th>Day</th><th>Topic</th><th>Date</th><th>Duration</th><th>Attended</th></tr></thead>
+            <thead><tr><th>Dan</th><th>Tema</th><th>Datum</th><th>Trajanje</th><th>Prisustvo</th></tr></thead>
             <tbody>
               <tr *ngFor="let c of endedClasses">
                 <td>{{ c.courseDay || '—' }}</td>
                 <td>{{ c.topic }}</td>
-                <td>{{ c.startTime | date:'shortDate' }}</td>
+                <td>{{ c.startTime | date:'shortDate':'':'sr-Latn' }}</td>
                 <td>{{ c.duration || '—' }}m</td>
-                <td><span class="status-dot" [class.green]="c.attended" [class.red]="!c.attended && c.hasEnded" [class.gray]="!c.hasEnded"></span>{{ c.attended ? 'Yes' : c.hasEnded ? 'No' : 'Upcoming' }}</td>
+                <td><span class="status-dot" [class.green]="c.attended" [class.red]="!c.attended && c.hasEnded" [class.gray]="!c.hasEnded"></span>{{ c.attended ? 'Da' : c.hasEnded ? 'Ne' : 'Predstojeće' }}</td>
               </tr>
             </tbody>
           </table>
           <table *ngIf="activeTable==='exercises' && data.exercises.length">
-            <thead><tr><th>Day</th><th>Title</th><th>Category</th><th>Score</th><th>Time</th></tr></thead>
+            <thead><tr><th>Dan</th><th>Naslov</th><th>Kategorija</th><th>Skor</th><th>Vreme</th></tr></thead>
             <tbody>
               <tr *ngFor="let e of data.exercises">
                 <td>{{ e.courseDay || '—' }}</td><td>{{ e.title }}</td><td>{{ e.category || '—' }}</td><td>{{ e.scorePercent }}%</td><td>{{ formatMinutes(e.timeSpentSeconds / 60) }}</td>
@@ -199,16 +199,16 @@
             </tbody>
           </table>
           <table *ngIf="activeTable==='dg' && data.dgBotModules?.length">
-            <thead><tr><th>Day</th><th>Title</th><th>Level</th><th>Completed</th></tr></thead>
+            <thead><tr><th>Dan</th><th>Naslov</th><th>Nivo</th><th>Završeno</th></tr></thead>
             <tbody>
               <tr *ngFor="let m of data.dgBotModules">
                 <td>{{ m.courseDay || '—' }}</td><td>{{ m.title }}</td><td>{{ m.level || '—' }}</td>
-                <td><span class="status-dot" [class.green]="m.completed" [class.gray]="!m.completed"></span>{{ m.completed ? 'Yes' : 'No' }}</td>
+                <td><span class="status-dot" [class.green]="m.completed" [class.gray]="!m.completed"></span>{{ m.completed ? 'Da' : 'Ne' }}</td>
               </tr>
             </tbody>
           </table>
           <table *ngIf="activeTable==='tests' && data.day6Tests.length">
-            <thead><tr><th>Day</th><th>Type</th><th>Title</th><th>Category</th><th>Score</th><th>Time</th><th>Status</th></tr></thead>
+            <thead><tr><th>Dan</th><th>Tip</th><th>Naslov</th><th>Kategorija</th><th>Skor</th><th>Vreme</th><th>Status</th></tr></thead>
             <tbody>
               <tr *ngFor="let t of data.day6Tests">
                 <td>{{ t.day }}</td>
@@ -217,7 +217,7 @@
               </tr>
             </tbody>
           </table>
-          <p *ngIf="currentTableEmpty" class="empty">No data available for this section.</p>
+          <p *ngIf="currentTableEmpty" class="empty">Nema podataka za ovaj odeljak.</p>
         </div>
 
         <!-- Mobile card list -->
@@ -228,15 +228,15 @@
               <div class="detail-card__row">
                 <span class="detail-card__title">{{ c.topic }}</span>
                 <span class="status-dot" [class.green]="c.attended" [class.red]="!c.attended && c.hasEnded" [class.gray]="!c.hasEnded"></span>
-                <span class="detail-card__status">{{ c.attended ? 'Attended' : c.hasEnded ? 'Missed' : 'Upcoming' }}</span>
+                <span class="detail-card__status">{{ c.attended ? 'Prisustvovao/la' : c.hasEnded ? 'Propušteno' : 'Predstojeće' }}</span>
               </div>
               <div class="detail-card__meta">
-                <span><strong>Day</strong> {{ c.courseDay || '—' }}</span>
-                <span><strong>Date</strong> {{ c.startTime | date:'mediumDate' }}</span>
-                <span><strong>Duration</strong> {{ c.duration || '—' }}m</span>
+                <span><strong>Dan</strong> {{ c.courseDay || '—' }}</span>
+                <span><strong>Datum</strong> {{ c.startTime | date:'mediumDate':'':'sr-Latn' }}</span>
+                <span><strong>Trajanje</strong> {{ c.duration || '—' }}m</span>
               </div>
             </div>
-            <p *ngIf="!endedClasses.length" class="empty">No data available.</p>
+            <p *ngIf="!endedClasses.length" class="empty">Nema dostupnih podataka.</p>
           </ng-container>
           <!-- Exercises -->
           <ng-container *ngIf="activeTable==='exercises'">
@@ -246,12 +246,12 @@
                 <span class="detail-card__score">{{ e.scorePercent }}%</span>
               </div>
               <div class="detail-card__meta">
-                <span><strong>Day</strong> {{ e.courseDay || '—' }}</span>
-                <span><strong>Category</strong> {{ e.category || '—' }}</span>
-                <span><strong>Time</strong> {{ formatMinutes(e.timeSpentSeconds / 60) }}</span>
+                <span><strong>Dan</strong> {{ e.courseDay || '—' }}</span>
+                <span><strong>Kategorija</strong> {{ e.category || '—' }}</span>
+                <span><strong>Vreme</strong> {{ formatMinutes(e.timeSpentSeconds / 60) }}</span>
               </div>
             </div>
-            <p *ngIf="!data.exercises.length" class="empty">No data available.</p>
+            <p *ngIf="!data.exercises.length" class="empty">Nema dostupnih podataka.</p>
           </ng-container>
           <!-- DG Modules -->
           <ng-container *ngIf="activeTable==='dg'">
@@ -259,14 +259,14 @@
               <div class="detail-card__row">
                 <span class="detail-card__title">{{ m.title }}</span>
                 <span class="status-dot" [class.green]="m.completed" [class.gray]="!m.completed"></span>
-                <span class="detail-card__status">{{ m.completed ? 'Done' : 'Pending' }}</span>
+                <span class="detail-card__status">{{ m.completed ? 'Urađeno' : 'Na čekanju' }}</span>
               </div>
               <div class="detail-card__meta">
-                <span><strong>Day</strong> {{ m.courseDay || '—' }}</span>
-                <span><strong>Level</strong> {{ m.level || '—' }}</span>
+                <span><strong>Dan</strong> {{ m.courseDay || '—' }}</span>
+                <span><strong>Nivo</strong> {{ m.level || '—' }}</span>
               </div>
             </div>
-            <p *ngIf="!data.dgBotModules?.length" class="empty">No data available.</p>
+            <p *ngIf="!data.dgBotModules?.length" class="empty">Nema dostupnih podataka.</p>
           </ng-container>
           <!-- Tests -->
           <ng-container *ngIf="activeTable==='tests'">
@@ -276,14 +276,14 @@
                 <span class="detail-card__score">{{ t.score }}%</span>
               </div>
               <div class="detail-card__meta">
-                <span><strong>Day</strong> {{ t.day }}</span>
+                <span><strong>Dan</strong> {{ t.day }}</span>
                 <span><span class="badge" [class.badge-exercise]="t.type==='exercise'" [class.badge-session]="t.type==='session'">{{ t.type }}</span></span>
-                <span><strong>Cat.</strong> {{ t.category || '—' }}</span>
-                <span><strong>Time</strong> {{ t.timeSpentMinutes }}m</span>
+                <span><strong>Kat.</strong> {{ t.category || '—' }}</span>
+                <span><strong>Vreme</strong> {{ t.timeSpentMinutes }}m</span>
                 <span><strong>Status</strong> {{ t.status }}</span>
               </div>
             </div>
-            <p *ngIf="!data.day6Tests.length" class="empty">No data available.</p>
+            <p *ngIf="!data.day6Tests.length" class="empty">Nema dostupnih podataka.</p>
           </ng-container>
 
           <!-- Pagination -->

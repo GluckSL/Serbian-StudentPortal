@@ -18,7 +18,7 @@ import { ChatMessage } from '../../glueck-arena.types';
       <div class="bfchat__messages" #messageContainer>
         <div *ngIf="!messages?.length" class="bfchat__empty">
           <mat-icon>forum</mat-icon>
-          <span>No messages yet. Say something nice!</span>
+          <span>Još nema poruka. Napišite nešto lepo!</span>
         </div>
 
         <div *ngFor="let msg of messages" class="bfchat__msg"

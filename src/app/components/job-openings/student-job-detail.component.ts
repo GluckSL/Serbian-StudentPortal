@@ -5,7 +5,8 @@ import {
   canApplyToJob,
   JobOpening,
   JobOpeningService,
-  journeyDayRequiredMessage
+  JobType,
+  LocationType,
 } from '../../services/job-opening.service';
 import { NotificationService } from '../../services/notification.service';
 import { JobApplyFormComponent } from './job-apply-form.component';
@@ -68,13 +69,34 @@ export class StudentJobDetailComponent implements OnInit {
   formatApplyBefore(dateStr: string): string {
     const d = new Date(dateStr);
     if (Number.isNaN(d.getTime())) return '';
-    return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+    return d.toLocaleDateString('sr-Latn-RS', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+  }
+
+  jobTypeLabel(type: JobType): string {
+    return {
+      'Full Time': 'Puno radno vreme',
+      'Part Time': 'Nepuno radno vreme',
+      Internship: 'Praksa',
+      Contract: 'Ugovor',
+    }[type] || type;
+  }
+
+  locationTypeLabel(type: LocationType): string {
+    return {
+      Onsite: 'Na lokaciji',
+      Remote: 'Rad na daljinu',
+      Hybrid: 'Hibridno',
+    }[type] || type;
   }
 
   apply(): void {
     if (!this.job || this.applied) return;
     if (!canApplyToJob(this.job, this.studentJourneyDay)) {
-      this.notify.error(journeyDayRequiredMessage(this.job));
+      this.notify.error(
+        this.job.minJourneyDay != null
+          ? `Za prijavu je potrebno da dostignete ${this.job.minJourneyDay}. dan programa.`
+          : 'Još ne ispunjavate uslove za prijavu.',
+      );
       return;
     }
     this.showApplyForm = true;

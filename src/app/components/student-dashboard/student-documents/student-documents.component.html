@@ -1,4 +1,4 @@
-<!-- src/app/components/student-dashboard/student-documents/student-documents.component.html -->
+﻿<!-- src/app/components/student-dashboard/student-documents/student-documents.component.html -->
 <div class="student-documents-container">
   <!-- Header with Stats inside -->
   <div class="page-header">
@@ -6,18 +6,18 @@
       <div class="header-content">
         <h1>
           <i class="fas fa-file-upload"></i>
-          My Documents
+          Moji dokumenti
         </h1>
-        <p class="subtitle">Upload and manage your certificates and documents</p>
+        <p class="subtitle">Otpremite i upravljajte sertifikatima i dokumentima</p>
       </div>
       <div class="header-actions">
         <button class="btn btn-header-university" (click)="openUniversityApplied()" type="button">
           <span class="btn-uni-icon"><i class="fas fa-university"></i></span>
-          University Applied
+          Prijavljen univerzitet
         </button>
         <button class="btn btn-header-upload" (click)="toggleUploadForm(); scrollToUploadForm()">
           <span class="btn-uni-icon"><i class="fas" [ngClass]="showUploadForm ? 'fa-times' : 'fa-plus'"></i></span>
-          {{ showUploadForm ? 'Close Form' : 'Upload Document' }}
+          {{ showUploadForm ? 'Zatvori formular' : 'Otpremi dokument' }}
         </button>
       </div>
     </div>
@@ -26,29 +26,29 @@
         <div class="stat-icon bg-primary"><i class="fas fa-file-alt"></i></div>
         <div class="stat-content">
           <h3>{{ stats.totalDocuments }}</h3>
-          <p>Total Documents</p>
+          <p>Ukupno dokumenata</p>
         </div>
       </div>
       <div class="stat-card">
         <div class="stat-icon bg-success"><i class="fas fa-check-circle"></i></div>
         <div class="stat-content">
           <h3>{{ stats.verifiedDocuments }}</h3>
-          <p>Verified</p>
+          <p>Verifikovano</p>
         </div>
       </div>
       <div class="stat-card">
         <div class="stat-icon bg-warning"><i class="fas fa-clock"></i></div>
         <div class="stat-content">
           <h3>{{ stats.pendingDocuments }}</h3>
-          <p>Pending Review</p>
+          <p>Na pregledu</p>
         </div>
       </div>
       <div class="stat-card">
         <div class="stat-icon bg-info"><i class="fas fa-tasks"></i></div>
         <div class="stat-content">
           <h3>{{ stats.completionPercentage }}%</h3>
-          <p>Completion</p>
-          <p>{{ stats.requiredDocumentsUploaded }}/{{ stats.totalRequiredDocuments }} required</p>
+          <p>Završenost</p>
+          <p>{{ stats.requiredDocumentsUploaded }}/{{ stats.totalRequiredDocuments }} obaveznih</p>
         </div>
       </div>
     </div>
@@ -68,7 +68,7 @@
       <div class="form-header">
         <div class="form-header-title">
           <i class="fas fa-upload"></i>
-          <span>Upload New Document</span>
+          <span>Otpremi novi dokument</span>
         </div>
         <span class="btn-close" (click)="toggleUploadForm()">
           <i class="fas fa-times"></i>
@@ -77,11 +77,11 @@
       <div class="form-body">
         <div class="form-grid">
           <div class="form-group">
-            <label class="required">Document Type</label>
+            <label class="required">Tip dokumenta</label>
             <select class="form-control" [(ngModel)]="selectedDocumentType" (ngModelChange)="onDocumentTypeChange()" [disabled]="isUploading">
-              <option value="">Select document type...</option>
+              <option value="">Izaberite tip dokumenta...</option>
               <option *ngFor="let req of requirements" [value]="req.type">
-                {{ req.label }} {{ req.required ? '(Required)' : '(Optional)' }}
+                {{ translateDocLabel(req.label) }} {{ req.required ? '(Obavezno)' : '(Opcionalno)' }}
               </option>
             </select>
             <small class="form-text" *ngIf="selectedDocumentType">
@@ -90,7 +90,7 @@
           </div>
 
           <div class="form-group">
-            <label class="required">Document Name</label>
+            <label class="required">Naziv dokumenta</label>
             <input
               type="text"
               class="form-control"
@@ -98,22 +98,22 @@
               placeholder="npr. Sertifikat nivoa O 2020"
               [disabled]="isUploading">
             <small class="form-text form-text--warn">
-              <i class="fas fa-info-circle"></i> Auto-filled. You can edit this.
+              <i class="fas fa-info-circle"></i> Automatski popunjeno. Možete urediti.
             </small>
           </div>
 
           <div class="form-group form-group--full">
-            <label>Description (Optional)</label>
+            <label>Opis (opcionalno)</label>
             <textarea
               class="form-control"
               [(ngModel)]="documentDescription"
-              placeholder="Add any additional notes about this document..."
+              placeholder="Dodajte napomene o ovom dokumentu..."
               rows="2"
               [disabled]="isUploading"></textarea>
           </div>
 
           <div class="form-group form-group--full">
-            <label class="required">Select File</label>
+            <label class="required">Izaberite fajl</label>
             <div class="file-input-wrapper">
               <input
                 type="file"
@@ -124,12 +124,12 @@
                 [disabled]="isUploading">
               <label for="fileInput" class="file-input-label" (dragover)="allowDrop($event)" (drop)="onFileDropped($event)">
                 <i class="fas fa-cloud-upload-alt"></i>
-                <span *ngIf="!selectedFile">Choose file or drag here</span>
+                <span *ngIf="!selectedFile">Izaberite fajl ili prevucite ovde</span>
                 <span *ngIf="selectedFile">{{ selectedFile.name }}</span>
               </label>
             </div>
             <small class="form-text">
-              Accepted formats: PDF, JPG, PNG, DOC, DOCX (Max 10MB)
+              Prihvaćeni formati: PDF, JPG, PNG, DOC, DOCX (maks. 10MB)
             </small>
           </div>
         </div>
@@ -139,17 +139,17 @@
             class="btn btn-secondary"
             (click)="toggleUploadForm()"
             [disabled]="isUploading">
-            Cancel
+            Otkaži
           </button>
           <button
             class="btn btn-primary"
             (click)="uploadDocument()"
             [disabled]="isUploading || !selectedFile || !selectedDocumentType || !documentName">
             <span *ngIf="!isUploading">
-              <i class="fas fa-upload"></i> Upload Document
+              <i class="fas fa-upload"></i> Otpremi dokument
             </span>
             <span *ngIf="isUploading">
-              <i class="fas fa-spinner fa-spin"></i> Uploading...
+              <i class="fas fa-spinner fa-spin"></i> Otpremanje...
             </span>
           </button>
         </div>
@@ -157,11 +157,11 @@
     </div>
   </div>
 
-  <!-- Agreements (also listed under requirements when shared) -->
+  <!-- Ugovori (also listed under requirements when shared) -->
   <div class="agreements-section" *ngIf="agreements.length > 0">
     <div class="section-header">
-      <h2><i class="fas fa-file-signature"></i> Agreements</h2>
-      <p class="section-subtitle">Download, sign, and upload your signed agreement for admin approval.</p>
+      <h2><i class="fas fa-file-signature"></i> Ugovori</h2>
+      <p class="section-subtitle">Preuzmite, potpišite i otpremite potpisani ugovor na odobrenje.</p>
     </div>
     <div class="agreements-list">
       <div class="agreement-card" *ngFor="let a of agreements">
@@ -173,14 +173,14 @@
             {{ agreementStatusLabel(a.status) }}
           </span>
           <p *ngIf="a.verificationNotes && a.status === 'REJECTED'" class="rejection-note">
-            <i class="fas fa-exclamation-circle"></i> {{ a.verificationNotes }} — please upload again.
+            <i class="fas fa-exclamation-circle"></i> {{ a.verificationNotes }} — molimo otpremite ponovo.
           </p>
         </div>
         <div class="agreement-actions">
-          <button class="btn btn-outline-primary btn-sm" (click)="viewAgreement(a)"><i class="fas fa-eye"></i> View</button>
-          <button class="btn btn-outline-success btn-sm" (click)="downloadAgreement(a, 'generated')"><i class="fas fa-download"></i> Download</button>
+          <button class="btn btn-outline-primary btn-sm" (click)="viewAgreement(a)"><i class="fas fa-eye"></i> Prikaži</button>
+          <button class="btn btn-outline-success btn-sm" (click)="downloadAgreement(a, 'generated')"><i class="fas fa-download"></i> Preuzmi</button>
           <button class="btn btn-primary btn-sm" *ngIf="canUploadSignedAgreement(a)" (click)="triggerSignedUpload(a._id)" [disabled]="uploadingAgreementId === a._id">
-            <i class="fas fa-upload"></i> {{ uploadingAgreementId === a._id ? 'Uploading…' : 'Upload Signed' }}
+            <i class="fas fa-upload"></i> {{ uploadingAgreementId === a._id ? 'Otpremanje…' : 'Otpremi potpisano' }}
           </button>
         </div>
       </div>
@@ -194,46 +194,46 @@
 
   <div class="docs-layout">
 
-  <!-- Document Requirements Checklist -->
+  <!-- Zahtevi za dokumente Checklist -->
   <div class="requirements-section">
     <div *ngIf="requirements.length === 0 && !isLoading" class="no-requirements-message">
       <i class="fas fa-check-circle"></i>
-      <p>No document requirements for your program.</p>
+      <p>Nema zahteva za dokumente za vaš program.</p>
     </div>
     <!-- Desktop Table View -->
     <div class="requirements-table-wrap req-view--desktop" *ngIf="requirements.length > 0">
       <div class="req-table-header">
-        <i class="fas fa-clipboard-list"></i> Document Requirements
+        <i class="fas fa-clipboard-list"></i> Zahtevi za dokumente
       </div>
       <table class="requirements-table">
         <thead>
           <tr>
-            <th>Document</th>
-            <th>Type</th>
+            <th>Dokument</th>
+            <th>Tip</th>
             <th>Status</th>
-            <th>Actions</th>
+            <th>Akcije</th>
           </tr>
         </thead>
         <tbody>
           <tr *ngFor="let req of pagedRequirements" [class.required-row]="req.required">
             <td>
-              <div class="doc-title"><i class="fas fa-file-alt" style="color:#005b96;margin-right:6px;"></i>{{ req.label }}</div>
-              <div class="doc-desc" *ngIf="req.description && req.description !== req.label">{{ req.description }}</div>
+              <div class="doc-title"><i class="fas fa-file-alt" style="color:#005b96;margin-right:6px;"></i>{{ translateDocLabel(req.label) }}</div>
+              <div class="doc-desc" *ngIf="req.description && req.description !== req.label">{{ translateDocLabel(req.description) }}</div>
               <small class="agreement-hint" *ngIf="isAgreementRequirement(req)">
-                <i class="fas fa-info-circle"></i> Download the agreement, sign it, then use <strong>Upload Signed</strong> so admin can approve.
+                <i class="fas fa-info-circle"></i> Preuzmite ugovor, potpišite ga, zatim koristite <strong>Otpremi potpisano</strong> da admin može da odobri.
               </small>
-              <small class="multi-hint" *ngIf="req.allowMultiple">Multiple uploads allowed</small>
+              <small class="multi-hint" *ngIf="req.allowMultiple">Dozvoljeno više otpremanja</small>
               <small class="reupload-reason" *ngIf="getRequirementReuploadReason(req.type)">
-                Re-upload requested: {{ getRequirementReuploadReason(req.type) }}
+                Zatraženo ponovno otpremanje: {{ getRequirementReuploadReason(req.type) }}
               </small>
             </td>
             <td>
               <span class="badge" [class.badge--required]="req.required" [class.badge--optional]="!req.required">
-                {{ req.required ? 'Required' : 'Optional' }}
+                {{ req.required ? 'Obavezno' : 'Opcionalno' }}
               </span>
             </td>
             <td>
-              <span class="badge badge--not-uploaded" *ngIf="!getLatestDocumentForType(req.type)">Not Uploaded</span>
+              <span class="badge badge--not-uploaded" *ngIf="!getLatestDocumentForType(req.type)">Nije otpremljeno</span>
               <span class="badge" *ngIf="getLatestDocumentForType(req.type)" [ngClass]="getRequirementStatusBadgeClass(req.type)">
                 {{ getRequirementStatusText(req.type) }}
               </span>
@@ -241,23 +241,23 @@
             <td>
               <div class="action-btn-group">
                 <ng-container *ngIf="isAgreementRequirement(req) && getAgreementForRequirement(req) as ag; else standardTableActions">
-                  <button class="btn btn-sm btn-outline-primary tbl-icon-btn" (click)="viewAgreement(ag)" title="View"><i class="fas fa-eye"></i></button>
-                  <button class="btn btn-sm btn-outline-success tbl-icon-btn" (click)="downloadAgreement(ag, 'generated')" title="Download"><i class="fas fa-download"></i></button>
-                  <button class="btn btn-sm btn-primary tbl-icon-btn" *ngIf="canUploadSignedAgreement(ag)" (click)="triggerSignedUpload(ag._id)" [disabled]="uploadingAgreementId === ag._id" title="Upload Signed">
+                  <button class="btn btn-sm btn-outline-primary tbl-icon-btn" (click)="viewAgreement(ag)" title="Prikaži"><i class="fas fa-eye"></i></button>
+                  <button class="btn btn-sm btn-outline-success tbl-icon-btn" (click)="downloadAgreement(ag, 'generated')" title="Preuzmi"><i class="fas fa-download"></i></button>
+                  <button class="btn btn-sm btn-primary tbl-icon-btn" *ngIf="canUploadSignedAgreement(ag)" (click)="triggerSignedUpload(ag._id)" [disabled]="uploadingAgreementId === ag._id" title="Otpremi potpisano">
                     <i class="fas" [ngClass]="uploadingAgreementId === ag._id ? 'fa-spinner fa-spin' : 'fa-upload'"></i>
                   </button>
-                  <button class="btn btn-sm btn-outline-secondary tbl-icon-btn" *ngIf="ag.signedFile && ag.status !== 'SENT'" (click)="downloadAgreement(ag, 'signed')" title="My Signed Copy"><i class="fas fa-file-download"></i></button>
+                  <button class="btn btn-sm btn-outline-secondary tbl-icon-btn" *ngIf="ag.signedFile && ag.status !== 'SENT'" (click)="downloadAgreement(ag, 'signed')" title="Moj potpisani primerak"><i class="fas fa-file-download"></i></button>
                 </ng-container>
                 <ng-template #standardTableActions>
                   <ng-container *ngIf="getLatestDocumentForType(req.type) as latestDoc; else uploadOnlyTable">
-                    <button class="btn btn-sm btn-outline-primary tbl-icon-btn" (click)="viewDocumentFile(latestDoc)" title="View"><i class="fas fa-eye"></i></button>
-                    <button class="btn btn-sm btn-outline-success tbl-icon-btn" (click)="downloadDocument(latestDoc)" title="Download"><i class="fas fa-download"></i></button>
-                    <button class="btn btn-sm btn-outline-danger tbl-icon-btn" (click)="uploadFromRequirementRow(req, true)" [disabled]="uploadingRequirementType === req.type" title="Replace"><i class="fas fa-sync-alt"></i></button>
+                    <button class="btn btn-sm btn-outline-primary tbl-icon-btn" (click)="viewDocumentFile(latestDoc)" title="Prikaži"><i class="fas fa-eye"></i></button>
+                    <button class="btn btn-sm btn-outline-success tbl-icon-btn" (click)="downloadDocument(latestDoc)" title="Preuzmi"><i class="fas fa-download"></i></button>
+                    <button class="btn btn-sm btn-outline-danger tbl-icon-btn" (click)="uploadFromRequirementRow(req, true)" [disabled]="uploadingRequirementType === req.type" title="Zameni"><i class="fas fa-sync-alt"></i></button>
                   </ng-container>
                   <ng-template #uploadOnlyTable>
                     <button class="btn btn-sm btn-primary" (click)="uploadFromRequirementRow(req)" [disabled]="uploadingRequirementType === req.type" style="min-height:30px!important;height:30px!important;padding:0 10px!important;font-size:12px!important;">
                       <i class="fas" [ngClass]="uploadingRequirementType === req.type ? 'fa-spinner fa-spin' : 'fa-upload'"></i>
-                      {{ uploadingRequirementType === req.type ? 'Uploading...' : 'Upload' }}
+                      {{ uploadingRequirementType === req.type ? 'Otpremanje...' : 'Otpremi' }}
                     </button>
                   </ng-template>
                 </ng-template>
@@ -269,88 +269,88 @@
       <!-- Pagination inside table wrap -->
       <div class="req-pagination table-pagination" *ngIf="reqTotalPages > 1">
         <button class="req-page-btn" (click)="prevReqPage()" [disabled]="reqPage === 0">
-          <i class="fas fa-chevron-left"></i> Prev
+          <i class="fas fa-chevron-left"></i> Prethodna
         </button>
         <span class="req-page-info">{{ reqPage + 1 }} / {{ reqTotalPages }}</span>
         <button class="req-page-btn" (click)="nextReqPage()" [disabled]="reqPage === reqTotalPages - 1">
-          Next <i class="fas fa-chevron-right"></i>
+          Sledeća <i class="fas fa-chevron-right"></i>
         </button>
       </div>
     </div>
 
     <!-- Mobile Card View -->
     <div class="req-view--mobile mobile-req-wrap" *ngIf="requirements.length > 0">
-      <div class="req-table-header"><i class="fas fa-clipboard-list"></i> Document Requirements</div>
+      <div class="req-table-header"><i class="fas fa-clipboard-list"></i> Zahtevi za dokumente</div>
       <div class="requirements-cards req-view--mobile-inner">
       <div class="req-card" *ngFor="let req of pagedRequirements" [class.req-card--required]="req.required">
         <div class="req-card-header">
           <div class="req-card-title">
             <i class="fas fa-file-alt req-card-icon"></i>
-            <span>{{ req.label }}</span>
+            <span>{{ translateDocLabel(req.label) }}</span>
           </div>
         </div>
         <div class="req-card-badges-row">
           <span class="badge" [class.badge--required]="req.required" [class.badge--optional]="!req.required">
-            {{ req.required ? 'Required' : 'Optional' }}
+            {{ req.required ? 'Obavezno' : 'Opcionalno' }}
           </span>
-          <span class="badge badge--not-uploaded" *ngIf="!getLatestDocumentForType(req.type)">Not Uploaded</span>
+          <span class="badge badge--not-uploaded" *ngIf="!getLatestDocumentForType(req.type)">Nije otpremljeno</span>
           <span class="badge" *ngIf="getLatestDocumentForType(req.type)" [ngClass]="getRequirementStatusBadgeClass(req.type)">
             {{ getRequirementStatusText(req.type) }}
           </span>
         </div>
-        <p class="req-card-desc" *ngIf="req.description && req.description !== req.label">{{ req.description }}</p>
+        <p class="req-card-desc" *ngIf="req.description && req.description !== req.label">{{ translateDocLabel(req.description) }}</p>
         <small class="agreement-hint" *ngIf="isAgreementRequirement(req)">
-          <i class="fas fa-info-circle"></i> Download the agreement, sign it, then use <strong>Upload Signed</strong> so admin can approve.
+          <i class="fas fa-info-circle"></i> Preuzmite ugovor, potpišite ga, zatim koristite <strong>Otpremi potpisano</strong> da admin može da odobri.
         </small>
-        <small class="multi-hint" *ngIf="req.allowMultiple">Multiple uploads allowed</small>
+        <small class="multi-hint" *ngIf="req.allowMultiple">Dozvoljeno više otpremanja</small>
         <div class="req-card-body" *ngIf="getRequirementReuploadReason(req.type)">
           <small class="reupload-reason">
-            Re-upload requested: {{ getRequirementReuploadReason(req.type) }}
+            Zatraženo ponovno otpremanje: {{ getRequirementReuploadReason(req.type) }}
           </small>
         </div>
         <div class="req-card-actions">
           <!-- Agreement: download PDF + upload signed copy for admin approval -->
           <ng-container *ngIf="isAgreementRequirement(req) && getAgreementForRequirement(req) as ag; else standardReqActions">
-            <button class="btn btn-sm btn-outline-primary" (click)="viewAgreement(ag)" title="Open agreement PDF">
-              <i class="fas fa-eye"></i> View
+            <button class="btn btn-sm btn-outline-primary" (click)="viewAgreement(ag)" title="Otvorite PDF ugovora">
+              <i class="fas fa-eye"></i> Prikaži
             </button>
-            <button class="btn btn-sm btn-outline-success" (click)="downloadAgreement(ag, 'generated')" title="Download agreement to sign">
-              <i class="fas fa-download"></i> Download
+            <button class="btn btn-sm btn-outline-success" (click)="downloadAgreement(ag, 'generated')" title="Preuzmite ugovor za potpis">
+              <i class="fas fa-download"></i> Preuzmi
             </button>
             <button class="btn btn-sm btn-primary"
                     *ngIf="canUploadSignedAgreement(ag)"
                     (click)="triggerSignedUpload(ag._id)"
                     [disabled]="uploadingAgreementId === ag._id"
-                    title="Upload your signed PDF or photo">
+                    title="Otpremite potpisani PDF ili fotografiju">
               <i class="fas fa-upload"></i>
-              {{ uploadingAgreementId === ag._id ? 'Uploading…' : 'Upload Signed' }}
+              {{ uploadingAgreementId === ag._id ? 'Otpremanje…' : 'Otpremi potpisano' }}
             </button>
             <button class="btn btn-sm btn-outline-secondary"
                     *ngIf="ag.signedFile && ag.status !== 'SENT'"
                     (click)="downloadAgreement(ag, 'signed')"
-                    title="Download your uploaded signed copy">
-              <i class="fas fa-file-download"></i> My Signed Copy
+                    title="Preuzmite otpremljeni potpisani primerak">
+              <i class="fas fa-file-download"></i> Moj potpisani primerak
             </button>
           </ng-container>
           <ng-template #standardReqActions>
             <ng-container *ngIf="getLatestDocumentForType(req.type) as latestDoc; else uploadOnlyActionMobile">
               <button class="btn btn-sm btn-outline-primary" (click)="viewDocumentFile(latestDoc)">
-                <i class="fas fa-eye"></i> View
+                <i class="fas fa-eye"></i> Prikaži
               </button>
               <button class="btn btn-sm btn-outline-success" (click)="downloadDocument(latestDoc)">
-                <i class="fas fa-download"></i> Download
+                <i class="fas fa-download"></i> Preuzmi
               </button>
               <button class="btn btn-sm btn-outline-danger"
                       (click)="uploadFromRequirementRow(req, true)"
                       [disabled]="uploadingRequirementType === req.type">
-                <i class="fas fa-sync-alt"></i> Replace
+                <i class="fas fa-sync-alt"></i> Zameni
               </button>
             </ng-container>
             <ng-template #uploadOnlyActionMobile>
               <button class="btn btn-sm btn-primary"
                       (click)="uploadFromRequirementRow(req)"
                       [disabled]="uploadingRequirementType === req.type">
-                <i class="fas fa-upload"></i> {{ uploadingRequirementType === req.type ? 'Uploading...' : 'Upload' }}
+                <i class="fas fa-upload"></i> {{ uploadingRequirementType === req.type ? 'Otpremanje...' : 'Otpremi' }}
               </button>
             </ng-template>
           </ng-template>
@@ -361,67 +361,67 @@
     <!-- Mobile Pagination -->
     <div class="req-pagination req-view--mobile" *ngIf="reqTotalPages > 1">
       <button class="req-page-btn" (click)="prevReqPage()" [disabled]="reqPage === 0">
-        <i class="fas fa-chevron-left"></i> Prev
+        <i class="fas fa-chevron-left"></i> Prethodna
       </button>
       <span class="req-page-info">{{ reqPage + 1 }} / {{ reqTotalPages }}</span>
       <button class="req-page-btn" (click)="nextReqPage()" [disabled]="reqPage === reqTotalPages - 1">
-        Next <i class="fas fa-chevron-right"></i>
+        Sledeća <i class="fas fa-chevron-right"></i>
       </button>
     </div>
   </div>
 
 
-  <!-- Uploaded Documents Table -->
+  <!-- Otpremljeni dokumenti Table -->
   <div class="documents-section">
 
     <!-- Loading State -->
     <div class="loading-state" *ngIf="isLoading">
       <i class="fas fa-spinner fa-spin fa-3x"></i>
-      <p>Loading documents...</p>
+      <p>Učitavanje dokumenata...</p>
     </div>
 
     <!-- Empty State -->
     <div class="empty-state" *ngIf="!isLoading && documents.length === 0">
       <i class="fas fa-folder-open fa-3x"></i>
-      <h4>No Documents Found</h4>
-      <p>You haven't uploaded any documents yet.</p>
+      <h4>Nema dokumenata</h4>
+      <p>Još niste otpremili nijedan dokument.</p>
       <button class="btn btn-primary" (click)="toggleUploadForm(); scrollToUploadForm()">
-        <i class="fas fa-plus"></i> Upload Your First Document
+        <i class="fas fa-plus"></i> Otpremite prvi dokument
       </button>
     </div>
 
     <!-- Desktop Table -->
     <div class="uploaded-table-wrap req-view--desktop" *ngIf="!isLoading && documents.length > 0">
       <div class="req-table-header uploaded-table-header">
-        <span><i class="fas fa-folder-open"></i> Uploaded Documents ({{ filteredDocuments.length }})</span>
+        <span><i class="fas fa-folder-open"></i> Otpremljeni dokumenti ({{ filteredDocuments.length }})</span>
         <div class="uploaded-filters">
           <select class="form-control upload-filter-ctrl" [(ngModel)]="filterStatus">
-            <option value="ALL">All Status</option>
-            <option value="PENDING">Pending</option>
-            <option value="VERIFIED">Verified</option>
-            <option value="REJECTED">Rejected</option>
+            <option value="ALL">Svi statusi</option>
+            <option value="PENDING">Na čekanju</option>
+            <option value="VERIFIED">Verifikovano</option>
+            <option value="REJECTED">Odbijeno</option>
           </select>
           <select class="form-control upload-filter-ctrl" [(ngModel)]="filterType">
-            <option value="ALL">All Types</option>
+            <option value="ALL">Svi tipovi</option>
             <option *ngFor="let type of uploadedDocumentTypes" [value]="type">
               {{ getRequirementLabel(type) }}
             </option>
           </select>
           <div class="upload-filter-search">
             <i class="fas fa-search"></i>
-            <input type="text" class="form-control upload-filter-ctrl" [(ngModel)]="searchQuery" placeholder="Search...">
+            <input type="text" class="form-control upload-filter-ctrl" [(ngModel)]="searchQuery" placeholder="Pretraži...">
           </div>
         </div>
       </div>
       <table class="requirements-table">
         <thead>
           <tr>
-            <th>Document</th>
-            <th>Type</th>
-            <th>Date</th>
-            <th>Size</th>
+            <th>Dokument</th>
+            <th>Tip</th>
+            <th>Datum</th>
+            <th>Veličina</th>
             <th>Status</th>
-            <th>Actions</th>
+            <th>Akcije</th>
           </tr>
         </thead>
         <tbody>
@@ -436,23 +436,23 @@
                 <i class="fas fa-exclamation-circle"></i> {{ doc.verificationNotes }}
               </div>
             </td>
-            <td style="font-size:13px;color:#64748b;">{{ doc.documentTypeDisplay }}</td>
+            <td style="font-size:13px;color:#64748b;">{{ translateDocLabel(doc.documentTypeDisplay) }}</td>
             <td style="font-size:13px;color:#64748b;white-space:nowrap;">{{ formatDate(doc.uploadedAt) }}</td>
             <td style="font-size:13px;color:#64748b;white-space:nowrap;">{{ doc.formattedFileSize }}</td>
             <td>
               <span class="badge" [ngClass]="getStatusBadgeClass(doc.status)">
                 <i class="fas" [ngClass]="getStatusIcon(doc.status)"></i>
-                {{ doc.status }}
+                {{ translateStatus(doc.status) }}
               </span>
             </td>
             <td>
               <div class="action-btn-group">
-                <button class="btn btn-sm btn-outline-primary tbl-icon-btn" (click)="viewDocumentFile(doc)" title="View"><i class="fas fa-eye"></i></button>
-                <button class="btn btn-sm btn-outline-success tbl-icon-btn" (click)="downloadDocument(doc)" title="Download"><i class="fas fa-download"></i></button>
+                <button class="btn btn-sm btn-outline-primary tbl-icon-btn" (click)="viewDocumentFile(doc)" title="Prikaži"><i class="fas fa-eye"></i></button>
+                <button class="btn btn-sm btn-outline-success tbl-icon-btn" (click)="downloadDocument(doc)" title="Preuzmi"><i class="fas fa-download"></i></button>
                 <button class="btn btn-sm btn-outline-danger tbl-icon-btn"
                   (click)="deleteDocument(doc._id)"
                   [disabled]="doc.status === 'VERIFIED'"
-                  [title]="doc.status === 'VERIFIED' ? 'Cannot delete verified documents' : 'Delete'">
+                  [title]="doc.status === 'VERIFIED' ? 'Verifikovani dokumenti se ne mogu obrisati' : 'Obriši'">
                   <i class="fas fa-trash"></i>
                 </button>
               </div>
@@ -465,23 +465,23 @@
     <!-- Mobile Cards -->
     <!-- Mobile Uploaded Docs Container -->
     <div class="doc-cards-mobile mobile-req-wrap" *ngIf="!isLoading && documents.length > 0">
-      <div class="req-table-header"><i class="fas fa-folder-open"></i> Uploaded Documents ({{ filteredDocuments.length }})</div>
+      <div class="req-table-header"><i class="fas fa-folder-open"></i> Otpremljeni dokumenti ({{ filteredDocuments.length }})</div>
 
       <!-- Filters inside container -->
       <div class="mobile-filter-bar">
         <div class="mf-status-chips">
-          <button class="mf-chip" [class.mf-chip--active]="filterStatus==='ALL'" (click)="filterStatus='ALL'">All</button>
-          <button class="mf-chip mf-chip--pending" [class.mf-chip--active]="filterStatus==='PENDING'" (click)="filterStatus='PENDING'"><i class="fas fa-clock"></i> Pending</button>
-          <button class="mf-chip mf-chip--verified" [class.mf-chip--active]="filterStatus==='VERIFIED'" (click)="filterStatus='VERIFIED'"><i class="fas fa-check"></i> Verified</button>
-          <button class="mf-chip mf-chip--rejected" [class.mf-chip--active]="filterStatus==='REJECTED'" (click)="filterStatus='REJECTED'"><i class="fas fa-times"></i> Rejected</button>
+          <button class="mf-chip" [class.mf-chip--active]="filterStatus==='ALL'" (click)="filterStatus='ALL'">Sve</button>
+          <button class="mf-chip mf-chip--pending" [class.mf-chip--active]="filterStatus==='PENDING'" (click)="filterStatus='PENDING'"><i class="fas fa-clock"></i> Na čekanju</button>
+          <button class="mf-chip mf-chip--verified" [class.mf-chip--active]="filterStatus==='VERIFIED'" (click)="filterStatus='VERIFIED'"><i class="fas fa-check"></i> Verifikovano</button>
+          <button class="mf-chip mf-chip--rejected" [class.mf-chip--active]="filterStatus==='REJECTED'" (click)="filterStatus='REJECTED'"><i class="fas fa-times"></i> Odbijeno</button>
         </div>
         <div class="mf-bottom-row">
           <div class="mf-search">
             <i class="fas fa-search"></i>
-            <input type="text" [(ngModel)]="searchQuery" placeholder="Search documents...">
+            <input type="text" [(ngModel)]="searchQuery" placeholder="Pretraži dokumente...">
           </div>
           <select class="mf-select" [(ngModel)]="filterType">
-            <option value="ALL">All Types</option>
+            <option value="ALL">Svi tipovi</option>
             <option *ngFor="let type of uploadedDocumentTypes" [value]="type">{{ getRequirementLabel(type) }}</option>
           </select>
         </div>
@@ -500,33 +500,33 @@
               <div class="doc-card-top">
                 <div class="doc-card-name">{{ doc.documentName }}</div>
                 <span class="badge" [ngClass]="getStatusBadgeClass(doc.status)">
-                  <i class="fas" [ngClass]="getStatusIcon(doc.status)"></i> {{ doc.status }}
+                  <i class="fas" [ngClass]="getStatusIcon(doc.status)"></i> {{ translateStatus(doc.status) }}
                 </span>
               </div>
-              <p class="document-type" *ngIf="doc.documentTypeDisplay && doc.documentTypeDisplay.toLowerCase() !== doc.documentName.toLowerCase()">{{ doc.documentTypeDisplay }}</p>
+              <p class="document-type" *ngIf="doc.documentTypeDisplay && doc.documentTypeDisplay.toLowerCase() !== doc.documentName.toLowerCase()">{{ translateDocLabel(doc.documentTypeDisplay) }}</p>
               <div class="doc-card-meta">
                 <span><i class="fas fa-calendar-alt"></i> {{ formatDate(doc.uploadedAt) }}</span>
                 <span><i class="fas fa-weight-hanging"></i> {{ doc.formattedFileSize }}</span>
               </div>
               <div class="verification-info" *ngIf="doc.status === 'REJECTED' && doc.verificationNotes">
-                <div class="alert alert-danger"><strong>Reason:</strong> {{ doc.verificationNotes }}</div>
+                <div class="alert alert-danger"><strong>Razlog:</strong> {{ doc.verificationNotes }}</div>
               </div>
             </div>
           </div>
           <div class="document-actions">
-            <button class="btn btn-sm btn-outline-primary" (click)="viewDocumentFile(doc)"><i class="fas fa-eye"></i> View</button>
-            <button class="btn btn-sm btn-outline-success" (click)="downloadDocument(doc)"><i class="fas fa-download"></i> Download</button>
+            <button class="btn btn-sm btn-outline-primary" (click)="viewDocumentFile(doc)"><i class="fas fa-eye"></i> Prikaži</button>
+            <button class="btn btn-sm btn-outline-success" (click)="downloadDocument(doc)"><i class="fas fa-download"></i> Preuzmi</button>
             <button class="btn btn-sm btn-outline-danger" (click)="deleteDocument(doc._id)"
               [disabled]="doc.status === 'VERIFIED'"
-              [title]="doc.status === 'VERIFIED' ? 'Cannot delete verified documents.' : 'Delete document'">
-              <i class="fas fa-trash"></i> Delete
+              [title]="doc.status === 'VERIFIED' ? 'Verifikovani dokumenti se ne mogu obrisati.' : 'Obrišite dokument'">
+              <i class="fas fa-trash"></i> Obriši
             </button>
           </div>
         </div>
       </div>
 
       <div *ngIf="filteredDocuments.length === 0" style="text-align:center;padding:20px 16px;color:#94a3b8;font-size:14px;">
-        No documents match your filters.
+        Nijedan dokument ne odgovara filterima.
       </div>
     </div>
 
@@ -538,53 +538,53 @@
   <div class="modal-overlay" *ngIf="showDocumentDetails" (click)="closeDocumentDetails()">
     <div class="modal-content" (click)="$event.stopPropagation()">
       <div class="modal-header">
-        <h3><i class="fas fa-file-alt"></i> Document Details</h3>
+        <h3><i class="fas fa-file-alt"></i> Detalji dokumenta</h3>
         <button class="btn-close" (click)="closeDocumentDetails()">
           <i class="fas fa-times"></i>
         </button>
       </div>
       <div class="modal-body" *ngIf="selectedDocument">
         <div class="detail-row">
-          <label>Document Name:</label>
+          <label>Naziv dokumenta:</label>
           <span>{{ selectedDocument.documentName }}</span>
         </div>
         <div class="detail-row">
-          <label>Document Type:</label>
-          <span>{{ selectedDocument.documentTypeDisplay }}</span>
+          <label>Tip dokumenta:</label>
+          <span>{{ translateDocLabel(selectedDocument.documentTypeDisplay) }}</span>
         </div>
         <div class="detail-row">
           <label>Status:</label>
           <span class="badge" [ngClass]="getStatusBadgeClass(selectedDocument.status)">
             <i class="fas" [ngClass]="getStatusIcon(selectedDocument.status)"></i>
-            {{ selectedDocument.status }}
+            {{ translateStatus(selectedDocument.status) }}
           </span>
         </div>
         <div class="detail-row">
-          <label>File Name:</label>
+          <label>Naziv fajla:</label>
           <span>{{ selectedDocument.fileName }}</span>
         </div>
         <div class="detail-row">
-          <label>File Size:</label>
+          <label>Veličina fajla:</label>
           <span>{{ selectedDocument.formattedFileSize }}</span>
         </div>
         <div class="detail-row">
-          <label>Uploaded Date:</label>
+          <label>Datum otpremanja:</label>
           <span>{{ formatDate(selectedDocument.uploadedAt) }}</span>
         </div>
         <div class="detail-row" *ngIf="selectedDocument.description">
-          <label>Description:</label>
+          <label>Opis:</label>
           <span>{{ selectedDocument.description }}</span>
         </div>
         <div class="detail-row" *ngIf="selectedDocument.verificationNotes">
-          <label>Verification Notes:</label>
+          <label>Napomene o verifikaciji:</label>
           <span>{{ selectedDocument.verificationNotes }}</span>
         </div>
         <div class="modal-actions">
           <button class="btn btn-success" (click)="downloadDocument(selectedDocument)">
-            <i class="fas fa-download"></i> Download
+            <i class="fas fa-download"></i> Preuzmi
           </button>
           <button class="btn btn-secondary" (click)="closeDocumentDetails()">
-            Close
+            Zatvori
           </button>
         </div>
       </div>
@@ -598,11 +598,11 @@
         <div class="ua-modal-header__title">
           <span class="ua-modal-header__icon"><i class="fas fa-university"></i></span>
           <div>
-            <h3>University Applied</h3>
-            <p>Track universities your counselor has applied to on your behalf</p>
+            <h3>Prijavljen univerzitet</h3>
+            <p>Pratite univerzitete na koje je vaš savetnik podneo prijave u vaše ime</p>
           </div>
         </div>
-        <button type="button" class="ua-modal-close" (click)="closeUniversityAll()" aria-label="Close">
+        <button type="button" class="ua-modal-close" (click)="closeUniversityAll()" aria-label="Zatvori">
           <i class="fas fa-times"></i>
         </button>
       </div>
@@ -610,13 +610,13 @@
       <div class="ua-modal-body">
         <div *ngIf="loadingUniversities" class="ua-loading">
           <div class="ua-spinner"></div>
-          <span>Loading your applications...</span>
+          <span>Učitavanje prijava...</span>
         </div>
 
         <div *ngIf="!loadingUniversities && !universityApplications.length" class="ua-empty">
           <div class="ua-empty__icon"><i class="fas fa-graduation-cap"></i></div>
-          <h4>No applications yet</h4>
-          <p>Your counselor will add university applications here as they progress.</p>
+          <h4>Još nema prijava</h4>
+          <p>Vaš savetnik će ovde dodavati prijave na univerzitete kako napreduju.</p>
         </div>
 
         <div class="ua-list" *ngIf="!loadingUniversities && universityApplications.length">
@@ -642,18 +642,18 @@
               </div>
               <span class="ua-phase-pill">
                 <i class="fas fa-flag"></i>
-                Phase {{ app.currentStage }}/5 — {{ getUniversityStageLabel(app) }}
+                Faza {{ app.currentStage }}/5 — {{ getUniversityStageLabel(app) }}
               </span>
             </div>
             <button class="btn btn-uni-view" (click)="viewUniversityDetail(app)" type="button">
-              <i class="fas fa-eye"></i> View Details
+              <i class="fas fa-eye"></i> Prikaži detalje
             </button>
           </article>
         </div>
       </div>
 
       <div class="ua-modal-footer">
-        <button class="btn btn-uni-close" (click)="closeUniversityAll()" type="button">Close</button>
+        <button class="btn btn-uni-close" (click)="closeUniversityAll()" type="button">Zatvori</button>
       </div>
     </div>
   </div>
@@ -672,7 +672,7 @@
             <p *ngIf="selectedUniversityApp.course">{{ selectedUniversityApp.course }}</p>
           </div>
         </div>
-        <button type="button" class="ua-modal-close" (click)="closeUniversityAll()" aria-label="Close">
+        <button type="button" class="ua-modal-close" (click)="closeUniversityAll()" aria-label="Zatvori">
           <i class="fas fa-times"></i>
         </button>
       </div>
@@ -690,7 +690,7 @@
 
         <div class="ua-journey">
           <div class="ua-journey__top">
-            <span>Application Progress</span>
+            <span>Napredak prijave</span>
             <strong>{{ getUniversityProgressPct(selectedUniversityApp) }}%</strong>
           </div>
           <div class="ua-journey__bar">
@@ -719,7 +719,7 @@
                [class.ua-stage-card--done]="stg.status === 'completed'">
             <div class="ua-stage-head">
               <span class="ua-stage-num"><i class="fas" [ngClass]="universityStageIcons[i]"></i></span>
-              <span class="ua-stage-name">{{ (selectedUniversityApp.stageDefinitions || universityStageDefinitions)[i].label || 'Stage ' + stg.stage }}</span>
+              <span class="ua-stage-name">{{ (selectedUniversityApp.stageDefinitions || universityStageDefinitions)[i].label || 'Faza ' + stg.stage }}</span>
               <span class="ua-status" [ngClass]="universityStatusClass(stg.status)">{{ universityStatusLabel(stg.status) }}</span>
             </div>
             <div class="ua-stage-body" *ngIf="stg.message || stg.stageDate">
@@ -735,15 +735,15 @@
              [class.ua-final--accepted]="selectedUniversityApp.finalOutcome === 'accepted'"
              [class.ua-final--rejected]="selectedUniversityApp.finalOutcome === 'rejected'">
           <i class="fas" [ngClass]="selectedUniversityApp.finalOutcome === 'accepted' ? 'fa-check-circle' : 'fa-times-circle'"></i>
-          <strong>Final Outcome:</strong> {{ selectedUniversityApp.finalOutcome | titlecase }}
+          <strong>Konačan ishod:</strong> {{ selectedUniversityApp.finalOutcome | titlecase }}
         </div>
       </div>
 
       <div class="ua-modal-footer">
         <button class="btn btn-uni-close" (click)="closeUniversityDetail()" type="button">
-          <i class="fas fa-arrow-left"></i> Back to List
+          <i class="fas fa-arrow-left"></i> Nazad na listu
         </button>
-        <button class="btn btn-uni-view" (click)="closeUniversityAll()" type="button">Close</button>
+        <button class="btn btn-uni-view" (click)="closeUniversityAll()" type="button">Zatvori</button>
       </div>
     </div>
   </div>

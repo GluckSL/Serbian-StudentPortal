@@ -82,7 +82,7 @@ export class ProfileComponent implements OnInit {
     event.preventDefault();
 
     if (!this.selectedFile) {
-      this.uploadError = 'Please select a photo first.';
+      this.uploadError = 'Prvo izaberite fotografiju.';
       return;
     }
 
@@ -92,7 +92,7 @@ export class ProfileComponent implements OnInit {
     this.authService.uploadProfilePhoto(this.selectedFile).subscribe({
       next: (res: any) => {
         this.uploading = false;
-        this.notify.success('Profile photo uploaded successfully!');
+        this.notify.success('Profilna fotografija je uspešno otpremljena!');
 
         if (res.profilePhoto) {
           this.userProfile.profilePhoto = this.getFullPhotoUrl(res.profilePhoto);
@@ -105,7 +105,7 @@ export class ProfileComponent implements OnInit {
       error: (err) => {
         this.uploading = false;
         console.error('Error uploading photo:', err);
-        this.uploadError = 'Failed to upload photo. Please try again.';
+        this.uploadError = 'Otpremanje fotografije nije uspelo. Pokušajte ponovo.';
       }
     });
   }
@@ -130,17 +130,28 @@ export class ProfileComponent implements OnInit {
     return ((idx + 1) / levels.length) * 100;
   }
 
+  roleLabel(role: string): string {
+    const labels: Record<string, string> = {
+      STUDENT: 'Učenik',
+      TEACHER: 'Nastavnik',
+      TEACHER_ADMIN: 'Administrator nastave',
+      ADMIN: 'Administrator',
+      SUB_ADMIN: 'Pomoćni administrator',
+    };
+    return labels[role] || role;
+  }
+
   deleteAccount(userId: string) {
-    this.notify.confirm('Delete Account', 'Are you sure you want to delete this account? This action cannot be undone.', 'Yes, Delete', 'Cancel').subscribe(ok => {
+    this.notify.confirm('Obriši nalog', 'Da li ste sigurni da želite da obrišete nalog? Ova radnja se ne može poništiti.', 'Da, obriši', 'Otkaži').subscribe(ok => {
       if (!ok) return;
       this.authService.deleteUser(userId).subscribe({
         next: () => {
-          this.notify.success('Account deleted successfully.');
+          this.notify.success('Nalog je uspešno obrisan.');
           this.router.navigate(['/login']);
         },
         error: (err) => {
           console.error('Error deleting account:', err);
-          this.notify.error('Failed to delete account. Please try again.');
+          this.notify.error('Brisanje naloga nije uspelo. Pokušajte ponovo.');
         }
       });
     });
@@ -159,15 +170,15 @@ export class ProfileComponent implements OnInit {
     this.pwError = '';
     this.pwSuccess = '';
     if (!this.pwCurrent || !this.pwNew || !this.pwConfirm) {
-      this.pwError = 'All fields are required.';
+      this.pwError = 'Sva polja su obavezna.';
       return;
     }
     if (this.pwNew.length < 8) {
-      this.pwError = 'New password must be at least 8 characters.';
+      this.pwError = 'Nova lozinka mora imati najmanje 8 znakova.';
       return;
     }
     if (this.pwNew !== this.pwConfirm) {
-      this.pwError = 'New passwords do not match.';
+      this.pwError = 'Nove lozinke se ne podudaraju.';
       return;
     }
     this.pwLoading = true;
@@ -178,7 +189,7 @@ export class ProfileComponent implements OnInit {
     }).subscribe({
       next: () => {
         this.pwLoading = false;
-        this.pwSuccess = 'Password updated successfully!';
+        this.pwSuccess = 'Lozinka je uspešno ažurirana!';
         this.pwCurrent = '';
         this.pwNew = '';
         this.pwConfirm = '';
@@ -186,7 +197,7 @@ export class ProfileComponent implements OnInit {
       },
       error: (err: any) => {
         this.pwLoading = false;
-        this.pwError = err?.error?.msg || 'Failed to update password. Please try again.';
+        this.pwError = err?.error?.msg || 'Ažuriranje lozinke nije uspelo. Pokušajte ponovo.';
       },
     });
   }

@@ -310,7 +310,7 @@ import {
 
         <mat-spinner diameter="32"></mat-spinner>
 
-        <p>Loading next round…</p>
+        <p>Učitavanje sledeće runde…</p>
 
       </div>
 
@@ -344,7 +344,7 @@ import {
 
           <button mat-raised-button color="primary" (click)="rematch()">Rematch</button>
 
-          <button mat-stroked-button routerLink="/glueck-arena">Back to games</button>
+          <button mat-stroked-button routerLink="/glueck-arena">Nazad na igre</button>
 
         </div>
 

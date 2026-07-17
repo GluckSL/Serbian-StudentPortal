@@ -79,7 +79,7 @@ export interface FJResult {
               <ng-container *ngSwitchCase="'gameover'">
                 <h2>Game Over</h2>
                 <p>Score: {{ score }}</p>
-                <button mat-raised-button color="primary" (click)="startGame()">Play Again</button>
+                <button mat-raised-button color="primary" (click)="startGame()">Igraj ponovo</button>
               </ng-container>
               <ng-container *ngSwitchCase="'complete'">
                 <h2>Complete!</h2>

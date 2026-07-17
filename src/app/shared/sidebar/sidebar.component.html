@@ -23,7 +23,7 @@
     <button
       type="button"
       class="sidebar-close-btn"
-      aria-label="Close menu"
+      [attr.aria-label]="isStudent ? 'Zatvori meni' : 'Close menu'"
       (click)="closeSidebar.emit()">
       <span class="material-icons" aria-hidden="true">close</span>
     </button>
@@ -99,7 +99,7 @@
     </button>
     <button class="logout-btn" (click)="logout()">
       <span class="material-icons">logout</span>
-      Logout
+      {{ isStudent ? 'Odjava' : 'Logout' }}
     </button>
   </div>
 </nav>

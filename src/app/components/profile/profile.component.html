@@ -1,6 +1,6 @@
 <div class="pf" *ngIf="userProfile; else loadingTpl">
 
-  <h2 class="pf-page-title">My Profile</h2>
+  <h2 class="pf-page-title">Moj profil</h2>
 
   <div class="pf-layout">
     <!-- Left: Photo Card -->
@@ -15,9 +15,9 @@
 
       <!-- Quick stats (students only) -->
       <div class="pf-stats" *ngIf="userProfile.role === 'STUDENT'">
-        <div class="pf-stat"><div class="pf-stat__val">{{ userProfile.level || '—' }}</div><div class="pf-stat__lbl">Level</div></div>
+        <div class="pf-stat"><div class="pf-stat__val">{{ userProfile.level || '—' }}</div><div class="pf-stat__lbl">Nivo</div></div>
         <div class="pf-stat-divider"></div>
-        <div class="pf-stat"><div class="pf-stat__val">{{ userProfile.batch || '—' }}</div><div class="pf-stat__lbl">Batch</div></div>
+        <div class="pf-stat"><div class="pf-stat__val">{{ userProfile.batch || '—' }}</div><div class="pf-stat__lbl">Grupa</div></div>
         <div class="pf-stat-divider"></div>
         <div class="pf-stat"><div class="pf-stat__val">{{ userProfile.studentStatus || '—' }}</div><div class="pf-stat__lbl">Status</div></div>
       </div>
@@ -29,7 +29,7 @@
       </label>
       <div class="pf-upload-bar" *ngIf="selectedFile">
         <span>{{ selectedFile.name }}</span>
-        <button class="pf-upload-go" (click)="uploadPhoto($event)" [disabled]="uploading">{{ uploading ? 'Uploading...' : 'Upload' }}</button>
+        <button class="pf-upload-go" (click)="uploadPhoto($event)" [disabled]="uploading">{{ uploading ? 'Otpremanje...' : 'Otpremi' }}</button>
       </div>
       <div class="pf-error" *ngIf="uploadError">{{ uploadError }}</div>
     </div>
@@ -39,25 +39,25 @@
 
       <!-- Personal Information -->
       <div class="pf-card">
-        <h4 class="pf-card__title">Personal Information</h4>
-        <div class="pf-field"><span class="pf-field__label">Full Name</span><span class="pf-field__value">{{ userProfile.name }}</span></div>
-        <div class="pf-field"><span class="pf-field__label">Email</span><span class="pf-field__value">{{ userProfile.email }}</span></div>
-        <div class="pf-field"><span class="pf-field__label">Registration No</span><span class="pf-field__value pf-mono">{{ userProfile.regNo }}</span></div>
+        <h4 class="pf-card__title">Lični podaci</h4>
+        <div class="pf-field"><span class="pf-field__label">Ime i prezime</span><span class="pf-field__value">{{ userProfile.name }}</span></div>
+        <div class="pf-field"><span class="pf-field__label">E-adresa</span><span class="pf-field__value">{{ userProfile.email }}</span></div>
+        <div class="pf-field"><span class="pf-field__label">Broj registracije</span><span class="pf-field__value pf-mono">{{ userProfile.regNo }}</span></div>
         <div class="pf-field" *ngIf="userProfile.role === 'STUDENT'">
-          <span class="pf-field__label">Subscription Plan</span>
+          <span class="pf-field__label">Plan pretplate</span>
           <span class="pf-field__value"><span class="pf-chip" [class.pf-chip--gold]="userProfile.subscription === 'PLATINUM'" [class.pf-chip--silver]="userProfile.subscription === 'SILVER'">{{ userProfile.subscription }}</span></span>
         </div>
-        <div class="pf-field" *ngIf="userProfile.assignedTeacher"><span class="pf-field__label">Assigned Teacher</span><span class="pf-field__value">{{ userProfile.assignedTeacher?.name || '—' }}</span></div>
-        <div class="pf-field" *ngIf="userProfile.phoneNumber"><span class="pf-field__label">Phone</span><span class="pf-field__value">{{ userProfile.phoneNumber }}</span></div>
-        <div class="pf-field" *ngIf="userProfile.address"><span class="pf-field__label">Address</span><span class="pf-field__value">{{ userProfile.address }}</span></div>
-        <div class="pf-field" *ngIf="userProfile.servicesOpted"><span class="pf-field__label">Service</span><span class="pf-field__value">{{ userProfile.servicesOpted }}</span></div>
-        <div class="pf-field" *ngIf="userProfile.medium"><span class="pf-field__label">Medium</span><span class="pf-field__value">{{ userProfile.medium?.join ? userProfile.medium.join(', ') : userProfile.medium }}</span></div>
+        <div class="pf-field" *ngIf="userProfile.assignedTeacher"><span class="pf-field__label">Dodeljeni nastavnik</span><span class="pf-field__value">{{ userProfile.assignedTeacher?.name || '—' }}</span></div>
+        <div class="pf-field" *ngIf="userProfile.phoneNumber"><span class="pf-field__label">Telefon</span><span class="pf-field__value">{{ userProfile.phoneNumber }}</span></div>
+        <div class="pf-field" *ngIf="userProfile.address"><span class="pf-field__label">Adresa</span><span class="pf-field__value">{{ userProfile.address }}</span></div>
+        <div class="pf-field" *ngIf="userProfile.servicesOpted"><span class="pf-field__label">Usluga</span><span class="pf-field__value">{{ userProfile.servicesOpted }}</span></div>
+        <div class="pf-field" *ngIf="userProfile.medium"><span class="pf-field__label">Jezik nastave</span><span class="pf-field__value">{{ userProfile.medium?.join ? userProfile.medium.join(', ') : userProfile.medium }}</span></div>
       </div>
 
       <!-- Course Progress (students) -->
       <div class="pf-card" *ngIf="userProfile.role === 'STUDENT'">
-        <h4 class="pf-card__title">Course Progress</h4>
-        <p class="pf-field__label" style="margin-bottom:8px;">German Levels</p>
+        <h4 class="pf-card__title">Napredak kursa</h4>
+        <p class="pf-field__label" style="margin-bottom:8px;">Nivoi nemačkog</p>
         <div class="pf-levels-bar">
           <div class="pf-levels-bar__track">
             <div class="pf-levels-bar__fill" [style.width.%]="getLevelPercent()"></div>
@@ -66,8 +66,8 @@
             <span *ngFor="let lv of ['A1','A2','B1','B2','C1','C2']" class="pf-levels-label" [class.pf-levels-label--active]="userProfile.level === lv">{{ lv }}</span>
           </div>
         </div>
-        <div class="pf-field" *ngIf="userProfile.languageLevelOpted"><span class="pf-field__label">Level Opted</span><span class="pf-field__value">{{ userProfile.languageLevelOpted }}</span></div>
-        <div class="pf-field" *ngIf="userProfile.languageExamStatus"><span class="pf-field__label">Exam Status</span><span class="pf-field__value">{{ userProfile.languageExamStatus }}</span></div>
+        <div class="pf-field" *ngIf="userProfile.languageLevelOpted"><span class="pf-field__label">Izabrani nivo</span><span class="pf-field__value">{{ userProfile.languageLevelOpted }}</span></div>
+        <div class="pf-field" *ngIf="userProfile.languageExamStatus"><span class="pf-field__label">Status ispita</span><span class="pf-field__value">{{ userProfile.languageExamStatus }}</span></div>
       </div>
 
       <!-- Teacher Info -->
@@ -79,10 +79,10 @@
 
       <!-- Account -->
       <div class="pf-card">
-        <h4 class="pf-card__title">Account</h4>
-        <div class="pf-field"><span class="pf-field__label">Role</span><span class="pf-field__value"><span class="pf-chip pf-chip--blue">{{ userProfile.role }}</span></span></div>
-        <div class="pf-field"><span class="pf-field__label">Member Since</span><span class="pf-field__value">{{ userProfile.createdAt | date:'dd MMM yyyy' }}</span></div>
-        <div class="pf-field" *ngIf="userProfile.lastLogin"><span class="pf-field__label">Last Login</span><span class="pf-field__value">{{ userProfile.lastLogin | date:'dd MMM yyyy, HH:mm' }}</span></div>
+        <h4 class="pf-card__title">Nalog</h4>
+        <div class="pf-field"><span class="pf-field__label">Uloga</span><span class="pf-field__value"><span class="pf-chip pf-chip--blue">{{ roleLabel(userProfile.role) }}</span></span></div>
+        <div class="pf-field"><span class="pf-field__label">Član od</span><span class="pf-field__value">{{ userProfile.createdAt | date:'dd MMM yyyy':'':'sr-Latn' }}</span></div>
+        <div class="pf-field" *ngIf="userProfile.lastLogin"><span class="pf-field__label">Poslednja prijava</span><span class="pf-field__value">{{ userProfile.lastLogin | date:'dd MMM yyyy, HH:mm':'':'sr-Latn' }}</span></div>
         <div class="pf-field" *ngIf="userProfile.role === 'ADMIN'" style="margin-top:12px;">
           <button class="pf-btn-danger" (click)="deleteAccount(userProfile._id)">🗑 Delete Account</button>
         </div>
@@ -90,10 +90,10 @@
 
       <!-- Security: Change Password -->
       <div class="pf-card">
-        <h4 class="pf-card__title">Security</h4>
+        <h4 class="pf-card__title">Bezbednost</h4>
 
         <div *ngIf="!showChangePassword">
-          <p class="pf-field__label" style="margin-bottom:12px;">Update your password to keep your account secure.</p>
+          <p class="pf-field__label" style="margin-bottom:12px;">Ažurirajte lozinku da bi nalog ostao bezbedan.</p>
           <button class="pf-btn-secondary" (click)="showChangePassword = true">
             <i class="fas fa-lock"></i> Change Password
           </button>
@@ -101,34 +101,34 @@
 
         <form *ngIf="showChangePassword" (ngSubmit)="submitChangePassword()" class="pf-pw-form">
           <div class="pf-pw-field">
-            <label class="pf-field__label" for="pw-current">Current password</label>
+            <label class="pf-field__label" for="pw-current">Trenutna lozinka</label>
             <div class="pf-pw-input-row">
               <input [type]="showCurrentPw ? 'text' : 'password'" id="pw-current" class="pf-pw-input"
-                     placeholder="Enter current password" [(ngModel)]="pwCurrent" name="pwCurrent" required />
+                     placeholder="Unesite trenutnu lozinku" [(ngModel)]="pwCurrent" name="pwCurrent" required />
               <button type="button" class="pf-pw-toggle" (click)="showCurrentPw = !showCurrentPw"
-                      [attr.aria-label]="showCurrentPw ? 'Hide' : 'Show'">
+                      [attr.aria-label]="showCurrentPw ? 'Sakrij' : 'Prikaži'">
                 <i [class]="showCurrentPw ? 'fas fa-eye-slash' : 'fas fa-eye'"></i>
               </button>
             </div>
           </div>
           <div class="pf-pw-field">
-            <label class="pf-field__label" for="pw-new">New password</label>
+            <label class="pf-field__label" for="pw-new">Nova lozinka</label>
             <div class="pf-pw-input-row">
               <input [type]="showNewPw ? 'text' : 'password'" id="pw-new" class="pf-pw-input"
-                     placeholder="Min. 8 characters" [(ngModel)]="pwNew" name="pwNew" required />
+                     placeholder="Najmanje 8 znakova" [(ngModel)]="pwNew" name="pwNew" required />
               <button type="button" class="pf-pw-toggle" (click)="showNewPw = !showNewPw"
-                      [attr.aria-label]="showNewPw ? 'Hide' : 'Show'">
+                      [attr.aria-label]="showNewPw ? 'Sakrij' : 'Prikaži'">
                 <i [class]="showNewPw ? 'fas fa-eye-slash' : 'fas fa-eye'"></i>
               </button>
             </div>
           </div>
           <div class="pf-pw-field">
-            <label class="pf-field__label" for="pw-confirm">Confirm new password</label>
+            <label class="pf-field__label" for="pw-confirm">Potvrdite novu lozinku</label>
             <div class="pf-pw-input-row">
               <input [type]="showConfirmPw ? 'text' : 'password'" id="pw-confirm" class="pf-pw-input"
-                     placeholder="Re-enter new password" [(ngModel)]="pwConfirm" name="pwConfirm" required />
+                     placeholder="Ponovo unesite novu lozinku" [(ngModel)]="pwConfirm" name="pwConfirm" required />
               <button type="button" class="pf-pw-toggle" (click)="showConfirmPw = !showConfirmPw"
-                      [attr.aria-label]="showConfirmPw ? 'Hide' : 'Show'">
+                      [attr.aria-label]="showConfirmPw ? 'Sakrij' : 'Prikaži'">
                 <i [class]="showConfirmPw ? 'fas fa-eye-slash' : 'fas fa-eye'"></i>
               </button>
             </div>
@@ -139,9 +139,9 @@
 
           <div class="pf-pw-actions">
             <button type="submit" class="pf-btn-primary" [disabled]="pwLoading">
-              {{ pwLoading ? 'Saving…' : 'Update Password' }}
+              {{ pwLoading ? 'Čuvanje…' : 'Ažuriraj lozinku' }}
             </button>
-            <button type="button" class="pf-btn-ghost" (click)="cancelChangePassword()">Cancel</button>
+            <button type="button" class="pf-btn-ghost" (click)="cancelChangePassword()">Otkaži</button>
           </div>
         </form>
       </div>

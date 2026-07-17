@@ -38,7 +38,7 @@ const TOTAL_LIVES = 5;
           <mat-icon>timer</mat-icon>
           <span>{{ formatElapsed(sessionElapsedSeconds) }}</span>
         </div>
-        <button mat-icon-button type="button" (click)="onPause()" aria-label="Pause">
+        <button mat-icon-button type="button" (click)="onPause()" aria-label="Pauza">
           <mat-icon>pause</mat-icon>
         </button>
       </header>
@@ -104,7 +104,7 @@ const TOTAL_LIVES = 5;
 
       <div class="hm-complete" *ngIf="phase === 'complete'">
         <mat-icon class="hm-complete__spinner">hourglass_top</mat-icon>
-        <span class="hm-complete__calc">Calculating results...</span>
+        <span class="hm-complete__calc">Izračunavanje rezultata...</span>
       </div>
 
       <app-xp-float [xp]="lastXp" [trigger]="xpTrigger"></app-xp-float>

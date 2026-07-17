@@ -31,7 +31,7 @@ export class VisaStatusComponent implements OnInit {
   get visaStageDates(): any[] {
     return (this.visa.stages || [])
       .filter((s: any) => s.stageDate && s.stageDateLabel)
-      .map((s: any) => ({ label: s.stageDateLabel, date: s.stageDate }));
+      .map((s: any) => ({ label: this.translateVisaLabel(s.stageDateLabel), date: s.stageDate }));
   }
 
   get progressPct(): number {
@@ -40,6 +40,40 @@ export class VisaStatusComponent implements OnInit {
 
   formatDate(d: string | Date): string {
     if (!d) return '';
-    return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    return new Date(d).toLocaleDateString('sr-Latn-RS', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  }
+
+  translateVisaLabel(value: string): string {
+    const labels: Record<string, string> = {
+      'Not set': 'Nije podešeno',
+      'Portal Visa': 'Portal viza',
+      'Application Filed': 'Prijava podneta',
+      'Preliminary Review': 'Preliminarni pregled',
+      'Embassy Review': 'Pregled ambasade',
+      'Embassy Feedback': 'Povratna informacija ambasade',
+      'Changes / Appointment': 'Izmene / termin',
+      'Final Submission & Decision': 'Konačno podnošenje i odluka',
+      'Appointment Booking': 'Zakazivanje termina',
+      'Document Preparation': 'Priprema dokumenata',
+      'Interview Preparation': 'Priprema za razgovor',
+      'Embassy Visit': 'Poseta ambasadi',
+      'Result & Next Steps': 'Rezultat i sledeći koraci',
+      'Application Date': 'Datum prijave',
+      'Embassy Submission Date': 'Datum podnošenja ambasadi',
+      'Appointment Date': 'Datum termina',
+      'Embassy Visit Date': 'Datum posete ambasadi',
+    };
+    return labels[value] || value;
+  }
+
+  outcomeLabel(value: string): string {
+    const labels: Record<string, string> = {
+      completed: 'Završeno',
+      rejected: 'Odbijeno',
+      in_progress: 'U toku',
+      approved: 'Odobreno',
+      pending: 'Na čekanju',
+    };
+    return labels[value] || value;
   }
 }

@@ -10,7 +10,6 @@ import {
   JobPlacementHighlight,
   JobPortalStats,
   JobType,
-  journeyDayRequiredMessage,
   LocationType
 } from '../../services/job-opening.service';
 import { NotificationService } from '../../services/notification.service';
@@ -187,7 +186,11 @@ export class StudentJobOpeningsComponent implements OnInit {
     event.stopPropagation();
     if (this.isApplied(job)) return;
     if (!canApplyToJob(job, this.studentJourneyDay)) {
-      this.notify.error(journeyDayRequiredMessage(job));
+      this.notify.error(
+        job.minJourneyDay != null
+          ? `Za prijavu je potrebno da dostignete ${job.minJourneyDay}. dan programa.`
+          : 'Još ne ispunjavate uslove za prijavu.',
+      );
       return;
     }
     this.applyJob = job;
@@ -208,7 +211,26 @@ export class StudentJobOpeningsComponent implements OnInit {
   formatApplyBefore(dateStr: string): string {
     const d = new Date(dateStr);
     if (Number.isNaN(d.getTime())) return '';
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    return d.toLocaleDateString('sr-Latn-RS', { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+
+  jobTypeLabel(type: JobType): string {
+    const labels: Record<JobType, string> = {
+      'Full Time': 'Puno radno vreme',
+      'Part Time': 'Nepuno radno vreme',
+      Internship: 'Praksa',
+      Contract: 'Ugovor',
+    };
+    return labels[type] || type;
+  }
+
+  locationTypeLabel(type: LocationType): string {
+    const labels: Record<LocationType, string> = {
+      Onsite: 'Na lokaciji',
+      Remote: 'Rad na daljinu',
+      Hybrid: 'Hibridno',
+    };
+    return labels[type] || type;
   }
 
   formatClosedAt(dateStr: string): string {

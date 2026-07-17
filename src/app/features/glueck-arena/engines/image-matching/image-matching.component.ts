@@ -51,7 +51,7 @@ interface DisplayPair {
             <mat-icon>timer</mat-icon>
             <span>{{ formatElapsed(sessionElapsedSeconds) }}</span>
           </div>
-          <button mat-icon-button type="button" (click)="onPause()" aria-label="Pause"><mat-icon>pause</mat-icon></button>
+          <button mat-icon-button type="button" (click)="onPause()" aria-label="Pauza"><mat-icon>pause</mat-icon></button>
         </header>
 
         <div
@@ -60,7 +60,7 @@ interface DisplayPair {
           [class.im-board--word-selected]="selectedWordIndex !== null"
           *ngIf="phase === 'playing' && currentPairs.length">
           <div class="im-board__prompt">
-            <p>Drag or tap a word, then tap its matching image. Correct matches turn <span class="im-hint__green">green</span>!</p>
+            <p>Prevucite ili dodirnite reč, zatim dodirnite odgovarajuću sliku. Tačni parovi postaju <span class="im-hint__green">zeleni</span>!</p>
             <div class="im-progress-chips">
               <span class="im-progress-chips__label">{{ matchedCount }} / {{ currentPairs.length }} matched</span>
             </div>

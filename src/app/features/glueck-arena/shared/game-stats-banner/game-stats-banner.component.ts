@@ -74,11 +74,11 @@ export class GameStatsBannerComponent {
     const s = this.stats!;
     const accuracy = this.displayAccuracy(s);
     return [
-      { icon: 'bolt', label: 'Total XP', value: s.totalXp ?? 0, color: '#f59e0b' },
-      { icon: 'sports_esports', label: 'Completed', value: s.gamesCompleted ?? 0, color: '#3b82f6' },
-      { icon: 'local_fire_department', label: 'Streak', value: s.currentStreak ?? 0, color: '#ef4444' },
-      { icon: 'emoji_events', label: 'Best score', value: s.bestScore ?? 0, color: '#8b5cf6' },
-      { icon: 'track_changes', label: 'Accuracy', value: `${accuracy}%`, color: '#10b981' },
+      { icon: 'bolt', label: 'Ukupno XP', value: s.totalXp ?? 0, color: '#f59e0b' },
+      { icon: 'sports_esports', label: 'Završeno', value: s.gamesCompleted ?? 0, color: '#3b82f6' },
+      { icon: 'local_fire_department', label: 'Niz', value: s.currentStreak ?? 0, color: '#ef4444' },
+      { icon: 'emoji_events', label: 'Najbolji rezultat', value: s.bestScore ?? 0, color: '#8b5cf6' },
+      { icon: 'track_changes', label: 'Tačnost', value: `${accuracy}%`, color: '#10b981' },
     ];
   }
 

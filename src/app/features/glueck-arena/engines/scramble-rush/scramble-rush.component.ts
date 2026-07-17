@@ -168,7 +168,7 @@ const DEADLINE_Y = 88;
 
           <div class="sr__line" aria-hidden="true">
 
-            <span class="sr__line-label">Answer before the line</span>
+            <span class="sr__line-label">Odgovorite pre linije</span>
 
           </div>
 
@@ -231,7 +231,7 @@ const DEADLINE_Y = 88;
 
           <div class="sr__feedback sr__feedback--wrong" *ngIf="feedbackState === 'wrong'">
 
-            <mat-icon>cancel</mat-icon> Wrong!
+            <mat-icon>cancel</mat-icon> Pogrešno!
 
           </div>
 
@@ -306,7 +306,7 @@ const DEADLINE_Y = 88;
 
             [disabled]="!typedWord.trim() || phase !== 'playing'"
 
-            aria-label="Submit word">
+            aria-label="Pošalji reč">
 
             <mat-icon>send</mat-icon>
 

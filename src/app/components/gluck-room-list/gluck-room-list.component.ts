@@ -85,17 +85,17 @@ export class GluckRoomListComponent implements OnInit, OnDestroy {
   }
 
   get studentEmptyTitle(): string {
-    if (this.studentQuickFilter === 'available') return 'No rooms available now';
-    if (this.statusTab === 'active') return 'No live sessions right now';
-    if (this.statusTab === 'ended') return 'No completed sessions yet';
-    return 'No upcoming sessions found';
+    if (this.studentQuickFilter === 'available') return 'Trenutno nema dostupnih soba';
+    if (this.statusTab === 'active') return 'Trenutno nema sesija uživo';
+    if (this.statusTab === 'ended') return 'Još nema završenih sesija';
+    return 'Nema predstojećih sesija';
   }
 
   get studentEmptyText(): string {
-    if (this.studentQuickFilter !== 'all') return 'Try another filter or check the full schedule.';
-    if (this.statusTab === 'active') return 'Check Upcoming for your next scheduled class.';
-    if (this.statusTab === 'ended') return 'Recordings will appear here after completed sessions.';
-    return 'Your next Gluck Room class will appear here once it is scheduled.';
+    if (this.studentQuickFilter !== 'all') return 'Pokušajte drugi filter ili pogledajte ceo raspored.';
+    if (this.statusTab === 'active') return 'Pogledajte Predstojeće za sledeći zakazani čas.';
+    if (this.statusTab === 'ended') return 'Snimci će se pojaviti ovde nakon završenih sesija.';
+    return 'Vaš sledeći čas u Gluck sobi će se pojaviti ovde kada bude zakazan.';
   }
 
   constructor(
@@ -354,6 +354,11 @@ export class GluckRoomListComponent implements OnInit, OnDestroy {
 
   /** Label shown on the Join button for upcoming sessions */
   joinButtonLabel(session: any): string {
+    if (this.isStudent) {
+      if (session.status === 'active') return 'Uđi u sobu sada';
+      if (this.canJoinSession(session)) return 'Pridruži se sada';
+      return this.timeUntilJoinOpens(session);
+    }
     if (session.status === 'active') return 'Join Room Now';
     if (this.canJoinSession(session)) return 'Join Now';
     return this.timeUntilJoinOpens(session);
@@ -369,17 +374,22 @@ export class GluckRoomListComponent implements OnInit, OnDestroy {
     const start = new Date(session.scheduledStartTime).getTime();
     const windowOpen = start - JOIN_WINDOW_MINUTES * 60_000;
     const ms = windowOpen - Date.now();
-    if (ms <= 0) return 'Starting now';
+    if (ms <= 0) return this.isStudent ? 'Počinje sada' : 'Starting now';
     const totalMins = Math.floor(ms / 60_000);
     const hours = Math.floor(totalMins / 60);
     const mins = totalMins % 60;
+    if (this.isStudent) {
+      if (hours > 0) return mins > 0 ? `Pridruži se za ${hours}h ${mins}m` : `Pridruži se za ${hours}h`;
+      if (totalMins >= 1) return `Pridruži se za ${totalMins}m`;
+      return 'Počinje sada';
+    }
     if (hours > 0) return `Join in ${hours}h ${mins > 0 ? `${mins}m` : ''}`.trim();
     if (totalMins >= 1) return `Join in ${totalMins}m`;
     return 'Starting now';
   }
 
   formatDate(d: string | Date): string {
-    return new Date(d).toLocaleString('en-US', {
+    return new Date(d).toLocaleString(this.isStudent ? 'sr-Latn-RS' : 'en-US', {
       month: 'short', day: 'numeric', year: 'numeric',
       hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata'
     });
@@ -403,6 +413,12 @@ export class GluckRoomListComponent implements OnInit, OnDestroy {
   }
 
   sessionStatusText(session: any): string {
+    if (this.isStudent) {
+      if (session.status === 'active') return 'Uživo sada';
+      if (this.canJoinSession(session)) return 'Dostupno';
+      if (session.status === 'ended') return 'Završeno';
+      return 'Zakazano';
+    }
     if (session.status === 'active') return 'Live now';
     if (this.canJoinSession(session)) return 'Available';
     if (session.status === 'ended') return 'Completed';
@@ -410,9 +426,9 @@ export class GluckRoomListComponent implements OnInit, OnDestroy {
   }
 
   statusLabel(status: string): string {
-    const map: Record<string, string> = {
-      scheduled: 'Upcoming', active: 'Live', ended: 'Completed', cancelled: 'Cancelled'
-    };
+    const map: Record<string, string> = this.isStudent
+      ? { scheduled: 'Predstojeće', active: 'Uživo', ended: 'Završeno', cancelled: 'Otkazano' }
+      : { scheduled: 'Upcoming', active: 'Live', ended: 'Completed', cancelled: 'Cancelled' };
     return map[status] || status;
   }
 

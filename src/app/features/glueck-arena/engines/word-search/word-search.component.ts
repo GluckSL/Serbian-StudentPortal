@@ -65,13 +65,13 @@ const DEFAULT_SESSION_SECONDS = 300;
         <div class="ws__status" *ngIf="phase === 'playing'">
           <div class="ws__timer">{{ formatTime(displaySeconds) }}</div>
           <div class="ws__status-right">
-            <div class="ws__lives" aria-label="Lives remaining">
+            <div class="ws__lives" aria-label="Preostali životi">
               <mat-icon
                 *ngFor="let _ of hearts; let i = index"
                 [class.ws__heart--lost]="i >= remainingLives"
               >favorite</mat-icon>
             </div>
-            <div class="ws__score" aria-label="Words found">
+            <div class="ws__score" aria-label="Pronađene reči">
               <mat-icon>check</mat-icon>
               <span>{{ foundCount }}</span>
             </div>
@@ -150,8 +150,8 @@ const DEFAULT_SESSION_SECONDS = 300;
             <path d="M22 42 L36 56 L60 28" fill="none" stroke="#fff" stroke-width="6"
               stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
-          <h2>All words found!</h2>
-          <p>Score <strong>{{ score }}</strong></p>
+          <h2>Sve reči su pronađene!</h2>
+          <p>Rezultat <strong>{{ score }}</strong></p>
         </div>
 
       </div>

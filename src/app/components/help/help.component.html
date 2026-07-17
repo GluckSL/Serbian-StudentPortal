@@ -79,17 +79,17 @@
                   <input id="ticket-name" type="text" formControlName="name" [placeholder]="'HELP.PLACEHOLDER_FULL_NAME' | translate" autocomplete="name">
                 </div>
                 <span class="field-error" *ngIf="ticketForm.get('name')?.invalid && ticketForm.get('name')?.touched">
-                  Name is required (min 2 characters).
+                  Ime je obavezno (najmanje 2 znaka).
                 </span>
               </div>
               <div class="form-group">
-                <label for="ticket-email">Email Address <span class="req">*</span></label>
+                <label for="ticket-email">E-adresa <span class="req">*</span></label>
                 <div class="input-wrap">
                   <span class="input-affix" aria-hidden="true"><i class="fas fa-envelope"></i></span>
                   <input id="ticket-email" type="email" formControlName="email" placeholder="you@example.com" autocomplete="email">
                 </div>
                 <span class="field-error" *ngIf="ticketForm.get('email')?.invalid && ticketForm.get('email')?.touched">
-                  Please enter a valid email address.
+                  Unesite ispravnu e-adresu.
                 </span>
               </div>
             </div>
@@ -98,24 +98,24 @@
           <section class="form-section" aria-labelledby="sec-issue">
             <h3 id="sec-issue" class="form-section-title">
               <span class="form-section-icon"><i class="fas fa-bullseye"></i></span>
-              About the issue
+              O problemu
             </h3>
             <div class="form-row two-col">
               <div class="form-group">
-                <label for="ticket-cat">Issue Category <span class="req">*</span></label>
+                <label for="ticket-cat">Kategorija problema <span class="req">*</span></label>
                 <div class="input-wrap input-wrap--select">
                   <span class="input-affix" aria-hidden="true"><i class="fas fa-folder-open"></i></span>
                   <select id="ticket-cat" formControlName="category">
-                    <option value="" disabled>Select a category…</option>
+                    <option value="" disabled>Izaberite kategoriju…</option>
                     <option *ngFor="let cat of categories" [value]="cat.value">{{ cat.label }}</option>
                   </select>
                 </div>
                 <span class="field-error" *ngIf="ticketForm.get('category')?.invalid && ticketForm.get('category')?.touched">
-                  Please select a category.
+                  Izaberite kategoriju.
                 </span>
               </div>
               <div class="form-group">
-                <label for="ticket-pri">Priority <span class="req">*</span></label>
+                <label for="ticket-pri">Prioritet <span class="req">*</span></label>
                 <div class="input-wrap input-wrap--select">
                   <span class="input-affix" aria-hidden="true"><i class="fas fa-flag"></i></span>
                   <select id="ticket-pri" formControlName="priority">
@@ -126,18 +126,18 @@
             </div>
 
             <div class="form-group">
-              <label for="ticket-subject">Subject <span class="req">*</span></label>
+              <label for="ticket-subject">Naslov <span class="req">*</span></label>
               <div class="input-wrap">
                 <span class="input-affix" aria-hidden="true"><i class="fas fa-heading"></i></span>
-                <input id="ticket-subject" type="text" formControlName="subject" placeholder="Brief summary (5–100 characters)">
+                <input id="ticket-subject" type="text" formControlName="subject" placeholder="Kratak opis (5–100 znakova)">
               </div>
               <span class="field-error" *ngIf="ticketForm.get('subject')?.invalid && ticketForm.get('subject')?.touched">
-                Subject is required (5–100 characters).
+                Naslov je obavezan (5–100 znakova).
               </span>
             </div>
 
             <div class="form-group">
-              <label for="ticket-url">Page URL <span class="opt">(optional)</span></label>
+              <label for="ticket-url">Adresa stranice <span class="opt">(opcionalno)</span></label>
               <div class="input-wrap">
                 <span class="input-affix" aria-hidden="true"><i class="fas fa-link"></i></span>
                 <input id="ticket-url" type="url" formControlName="url" placeholder="https://example.com/page-where-issue-occurred">
@@ -146,13 +146,13 @@
 
             <div class="form-group form-group--description">
               <label for="ticket-desc">
-                Description <span class="req">*</span>
+                Opis <span class="req">*</span>
                 <span class="char-count" [class.char-count--warn]="descriptionLen > 900">{{ descriptionLen }}/1000</span>
               </label>
               <textarea id="ticket-desc" formControlName="description" rows="6"
-                placeholder="What were you trying to do? What happened instead? Include any error messages or steps to reproduce."></textarea>
+                placeholder="Šta ste pokušavali da uradite? Šta se dogodilo? Dodajte poruke o grešci i korake za ponavljanje problema."></textarea>
               <span class="field-error" *ngIf="ticketForm.get('description')?.invalid && ticketForm.get('description')?.touched">
-                Description is required (min 20 characters).
+                Opis je obavezan (najmanje 20 znakova).
               </span>
             </div>
           </section>
@@ -160,31 +160,31 @@
           <section class="form-section" aria-labelledby="sec-file">
             <h3 id="sec-file" class="form-section-title">
               <span class="form-section-icon"><i class="fas fa-image"></i></span>
-              Screenshot
+              Snimak ekrana
             </h3>
-            <p class="form-section-hint">A screenshot helps us see what you see. PNG, JPG, or WEBP, up to 6&nbsp;MB.</p>
+            <p class="form-section-hint">Snimak ekrana nam pomaže da vidimo problem. PNG, JPG ili WEBP, do 6&nbsp;MB.</p>
             <label class="file-drop" [class.file-drop--has-file]="!!screenshotLabel">
               <input type="file" class="file-drop-input" accept="image/png,image/jpeg,image/jpg,image/webp" (change)="onScreenshotSelected($event)">
               <span class="file-drop-inner">
                 <i class="fas fa-cloud-upload-alt file-drop-ico"></i>
-                <span class="file-drop-title" *ngIf="!screenshotLabel">Choose a file or drag it here</span>
+                <span class="file-drop-title" *ngIf="!screenshotLabel">Izaberite fajl ili ga prevucite ovde</span>
                 <span class="file-drop-name" *ngIf="screenshotLabel"><i class="fas fa-check-circle"></i> {{ screenshotLabel }}</span>
-                <span class="file-drop-sub" *ngIf="!screenshotLabel">Required for your ticket</span>
+                <span class="file-drop-sub" *ngIf="!screenshotLabel">Obavezno za tiket</span>
               </span>
             </label>
             <span class="field-error" *ngIf="ticketForm.get('screenshot')?.invalid && ticketForm.get('screenshot')?.touched">
-              Screenshot is required (PNG/JPG/WEBP, max 6MB).
+              Snimak ekrana je obavezan (PNG/JPG/WEBP, najviše 6 MB).
             </span>
           </section>
 
           <div class="form-footer">
             <div class="privacy-note">
               <i class="fas fa-shield-alt"></i>
-              <span>Your details are encrypted in transit and used only to resolve this ticket.</span>
+              <span>Vaši podaci su šifrovani tokom prenosa i koriste se samo za rešavanje tiketa.</span>
             </div>
             <button type="submit" class="btn-primary btn-submit" [disabled]="submitting">
-              <span *ngIf="!submitting"><i class="fas fa-paper-plane"></i> Submit ticket</span>
-              <span *ngIf="submitting"><i class="fas fa-spinner fa-spin"></i> Submitting…</span>
+              <span *ngIf="!submitting"><i class="fas fa-paper-plane"></i> Pošalji tiket</span>
+              <span *ngIf="submitting"><i class="fas fa-spinner fa-spin"></i> Slanje…</span>
             </button>
           </div>
 
@@ -195,23 +195,23 @@
     <!-- ══ MY TICKETS TAB ══ -->
     <div *ngIf="activeTab === 'tickets' && isLoggedIn" class="tickets-panel">
       <div class="section-header">
-        <h2><i class="fas fa-list-alt"></i> My Support Tickets</h2>
-        <p>Track the status of your previously submitted tickets.</p>
+        <h2><i class="fas fa-list-alt"></i> Moji tiketi za podršku</h2>
+        <p>Pratite status prethodno poslatih tiketa.</p>
         <button class="btn-outline btn-sm" (click)="loadMyTickets()">
-          <i class="fas fa-sync-alt"></i> Refresh
+          <i class="fas fa-sync-alt"></i> Osveži
         </button>
       </div>
 
       <div *ngIf="loadingTickets" class="state-msg">
-        <i class="fas fa-spinner fa-spin"></i> Loading your tickets…
+        <i class="fas fa-spinner fa-spin"></i> Učitavanje tiketa…
       </div>
 
       <div *ngIf="!loadingTickets && tickets.length === 0" class="empty-state">
         <div class="empty-icon"><i class="fas fa-inbox"></i></div>
-        <h3>No tickets yet</h3>
-        <p>You haven't raised any support tickets. If you're facing an issue, submit one now.</p>
+        <h3>Još nema tiketa</h3>
+        <p>Još niste poslali tiket za podršku. Ako imate problem, pošaljite ga sada.</p>
         <button class="btn-primary" (click)="setTab('submit')">
-          <i class="fas fa-ticket-alt"></i> Submit Your First Ticket
+          <i class="fas fa-ticket-alt"></i> Pošaljite prvi tiket
         </button>
       </div>
 
@@ -223,9 +223,9 @@
               <span class="ticket-category">{{ getCategoryLabel(ticket.category) }}</span>
             </div>
             <div class="ticket-badges">
-              <span class="priority-badge" [class]="getPriorityClass(ticket.priority)">{{ ticket.priority | titlecase }}</span>
+              <span class="priority-badge" [class]="getPriorityClass(ticket.priority)">{{ getPriorityLabel(ticket.priority) }}</span>
               <span class="status-badge" [class]="getStatusClass(ticket.status)">
-                {{ (ticket.status || 'open') | titlecase }}
+                {{ getStatusLabel(ticket.status) }}
               </span>
             </div>
           </div>
@@ -235,16 +235,16 @@
           <div class="ticket-replies-toggle" *ngIf="repliesCount(ticket) > 0">
             <button class="btn-outline btn-sm" type="button" (click)="toggleTicket(ticket._id)">
               <i class="fas" [class.fa-chevron-down]="expandedTicketId !== ticket._id" [class.fa-chevron-up]="expandedTicketId === ticket._id"></i>
-              View Replies ({{ repliesCount(ticket) }})
+              Prikaži odgovore ({{ repliesCount(ticket) }})
             </button>
           </div>
 
           <div class="ticket-replies" *ngIf="expandedTicketId === ticket._id">
             <div class="reply-item" *ngFor="let r of (ticket.replies || [])">
               <div class="reply-head">
-                <span class="reply-role">{{ (r.authorRole || 'ADMIN') | titlecase }}</span>
+                <span class="reply-role">{{ getAuthorRoleLabel(r.authorRole) }}</span>
                 <span class="reply-date" *ngIf="r.createdAt">
-                  {{ r.createdAt | date:'medium' }}
+                  {{ r.createdAt | date:'medium':'':'sr-Latn' }}
                 </span>
               </div>
               <div class="reply-body">{{ r.message }}</div>
@@ -253,7 +253,7 @@
 
           <div class="ticket-card-footer">
             <span class="ticket-date" *ngIf="ticket.createdAt">
-              <i class="fas fa-clock"></i> {{ ticket.createdAt | date:'mediumDate' }}
+              <i class="fas fa-clock"></i> {{ ticket.createdAt | date:'mediumDate':'':'sr-Latn' }}
             </span>
           </div>
         </div>
@@ -267,7 +267,7 @@
   <div class="help-footer-strip">
     <span><i class="fas fa-envelope"></i> support&#64;gluckglobal.com</span>
     <span class="strip-sep">|</span>
-    <span><i class="fas fa-clock"></i> Response within 24 hours</span>
+    <span><i class="fas fa-clock"></i> Odgovor u roku od 24 sata</span>
   </div>
 
 </div>

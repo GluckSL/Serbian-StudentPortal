@@ -64,7 +64,7 @@ export interface IMResult {
       <div *ngIf="phase === 'error'" class="shell__error">
         <mat-icon>error</mat-icon>
         <p>{{ error }}</p>
-        <button mat-raised-button (click)="back()">Go Back</button>
+        <button mat-raised-button (click)="back()">Nazad</button>
       </div>
 
       <!-- Unified shell layout for intro and playing phases -->
@@ -88,27 +88,27 @@ export interface IMResult {
               <div class="sb-panel__meta-row" *ngIf="set.level"><mat-icon>school</mat-icon><span>{{ set.level }}</span></div>
               <div class="sb-panel__meta-row"><mat-icon>bolt</mat-icon><span>+{{ set.xpReward }} XP</span></div>
               <div class="sb-panel__meta-row"><mat-icon>schedule</mat-icon><span>~{{ set.estimatedDurationMinutes }} min</span></div>
-              <div class="sb-panel__meta-row"><mat-icon>quiz</mat-icon><span>{{ questions.length }} questions</span></div>
-              <div class="sb-panel__meta-row" *ngIf="set.courseDay != null"><mat-icon>flag</mat-icon><span>Journey {{ set.courseDay === 0 ? 'Trial' : ('day ' + set.courseDay) }}</span></div>
+              <div class="sb-panel__meta-row"><mat-icon>quiz</mat-icon><span>{{ questions.length }} pitanja</span></div>
+              <div class="sb-panel__meta-row" *ngIf="set.courseDay != null"><mat-icon>flag</mat-icon><span>Program {{ set.courseDay === 0 ? 'Probni' : ('dan ' + set.courseDay) }}</span></div>
             </section>
             <section class="sb-panel__block">
-              <h3><mat-icon>info</mat-icon> How it works</h3>
-              <p *ngIf="set.gameType === 'sentence_builder'">Drag words into the correct positions. The clock counts up from zero — finish all sentences as fast as you can.</p>
-              <p *ngIf="set.gameType === 'scramble_rush'">Type words before letters fall. Limited lives — complete all levels to win.</p>
-              <p *ngIf="set.gameType === 'image_matching'">Drag each word to the matching image. Match all pairs to complete the game.</p>
-              <p *ngIf="set.gameType === 'gender_stack'">Words fall from the sky and stack on the shelf — drag each noun into DER, DIE, or DAS before the pile overflows. You have 5 lives.</p>
-              <p *ngIf="set.gameType === 'matching'">Match each item on the left with the correct item on the right, then check your answers.</p>
-              <p *ngIf="set.gameType === 'flashcards'">Complete all items in this module to earn XP.</p>
-              <p *ngIf="set.gameType === 'flapjugation'">Fly your bird into the correct verb conjugation — dodge all the wrong ones. Each correct hit advances to the next pronoun.</p>
-              <p *ngIf="set.gameType === 'whackawort'">Whack the German words that match the target category — hit the wrong ones and lose a life!</p>
-              <p *ngIf="set.gameType === 'memory'">Flip cards to reveal pictures and words. Find and match each picture with the correct word. Match all pairs to win!</p>
-              <p *ngIf="set.gameType === 'jumbled_words'">Look at the picture and arrange the jumbled letters into the correct order to form the word. Drag each letter tile into the right slot and submit your answer.</p>
-              <p *ngIf="set.gameType === 'hangman'">Read the clue and guess the word one letter at a time. Each wrong guess brings the hangman closer — guess all letters before the figure is complete to win!</p>
-              <p *ngIf="set.gameType === 'word_picture_match'">Match each word to the correct picture. Click the picture that matches the word shown — match all pairs before time runs out!</p>
-              <p *ngIf="set.gameType === 'multiple_choice'">Read the question and choose the correct answer from the options. Each correct answer earns points — answer as many as you can before time runs out!</p>
-              <p *ngIf="set.gameType === 'spin_wheel'">Spin the wheel to land on a German phrase. After each spin, choose <strong>Eliminate</strong> to remove that phrase from the wheel or <strong>Resume</strong> to keep it and spin again. Narrow the wheel until one phrase remains!</p>
-              <p *ngIf="set.gameType === 'tap_boxes'">Tap a numbered box on the classroom grid. The view zooms in cinematically and peels back to reveal the hidden German phrase. Open every box to finish!</p>
-              <p *ngIf="set.gameType === 'word_search'">Find hidden words across, down, or diagonally. Drag from the first letter to the last, or tap each letter in order. Wrong selections cost a life!</p>
+              <h3><mat-icon>info</mat-icon> Kako funkcioniše</h3>
+              <p *ngIf="set.gameType === 'sentence_builder'">Prevucite reči na odgovarajuća mesta. Završite sve rečenice što brže.</p>
+              <p *ngIf="set.gameType === 'scramble_rush'">Unesite reči pre nego što slova padnu. Završite sve nivoe sa ograničenim brojem života.</p>
+              <p *ngIf="set.gameType === 'image_matching'">Prevucite svaku reč do odgovarajuće slike. Uparite sve parove da završite igru.</p>
+              <p *ngIf="set.gameType === 'gender_stack'">Prevucite svaku imenicu u DER, DIE ili DAS pre nego što se gomila prepuni. Imate 5 života.</p>
+              <p *ngIf="set.gameType === 'matching'">Uparite stavke sa leve i desne strane, zatim proverite odgovore.</p>
+              <p *ngIf="set.gameType === 'flashcards'">Završite sve stavke u modulu da osvojite XP.</p>
+              <p *ngIf="set.gameType === 'flapjugation'">Uletite u tačan oblik glagola i izbegnite pogrešne odgovore.</p>
+              <p *ngIf="set.gameType === 'whackawort'">Pogodite nemačke reči iz zadate kategorije; pogrešan izbor oduzima život.</p>
+              <p *ngIf="set.gameType === 'memory'">Okrećite kartice i uparite svaku sliku sa odgovarajućom rečju.</p>
+              <p *ngIf="set.gameType === 'jumbled_words'">Poređajte izmešana slova pravilnim redosledom i pošaljite odgovor.</p>
+              <p *ngIf="set.gameType === 'hangman'">Pročitajte trag i pogađajte reč slovo po slovo pre nego što se figura završi.</p>
+              <p *ngIf="set.gameType === 'word_picture_match'">Uparite svaku reč sa odgovarajućom slikom pre isteka vremena.</p>
+              <p *ngIf="set.gameType === 'multiple_choice'">Pročitajte pitanje i izaberite tačan odgovor. Odgovorite na što više pitanja pre isteka vremena.</p>
+              <p *ngIf="set.gameType === 'spin_wheel'">Zavrtite točak. Izaberite <strong>Ukloni</strong> da uklonite izraz ili <strong>Nastavi</strong> da ga zadržite.</p>
+              <p *ngIf="set.gameType === 'tap_boxes'">Dodirnite numerisano polje da otkrijete skriveni nemački izraz. Otvorite sva polja.</p>
+              <p *ngIf="set.gameType === 'word_search'">Pronađite skrivene reči vodoravno, uspravno ili dijagonalno. Pogrešan izbor oduzima život.</p>
             </section>
           </aside>
 
@@ -133,20 +133,20 @@ export interface IMResult {
                 <span class="shell-tag">{{ set.difficulty }}</span>
                 <span class="shell-tag" *ngIf="set.level">{{ set.level }}</span>
                 <span class="shell-tag shell-tag--muted" *ngIf="set.category">{{ set.category }}</span>
-                <span class="shell-tag shell-tag--muted" *ngIf="set.courseDay != null">{{ set.courseDay === 0 ? 'Trial' : ('Day ' + set.courseDay) }}</span>
+                <span class="shell-tag shell-tag--muted" *ngIf="set.courseDay != null">{{ set.courseDay === 0 ? 'Probno' : ('Dan ' + set.courseDay) }}</span>
               </div>
               <h1>{{ set.title }}</h1>
-              <p class="shell-intro__desc">{{ set.description || 'Get ready to practice your German skills.' }}</p>
+              <p class="shell-intro__desc">{{ set.description || 'Pripremite se da vežbate nemački.' }}</p>
               <div class="shell-intro__stats">
-                <div class="shell-intro__stat"><mat-icon>quiz</mat-icon><strong>{{ questions.length }}</strong><span>Questions</span></div>
-                <div class="shell-intro__stat"><mat-icon>schedule</mat-icon><strong>~{{ set.estimatedDurationMinutes }}</strong><span>Minutes</span></div>
-                <div class="shell-intro__stat"><mat-icon>timer</mat-icon><strong>Count-up</strong><span>Total time</span></div>
-                <div class="shell-intro__stat"><mat-icon>bolt</mat-icon><strong>{{ set.xpReward }}</strong><span>Max XP</span></div>
+                <div class="shell-intro__stat"><mat-icon>quiz</mat-icon><strong>{{ questions.length }}</strong><span>Pitanja</span></div>
+                <div class="shell-intro__stat"><mat-icon>schedule</mat-icon><strong>~{{ set.estimatedDurationMinutes }}</strong><span>Minuta</span></div>
+                <div class="shell-intro__stat"><mat-icon>timer</mat-icon><strong>Štoperica</strong><span>Ukupno vreme</span></div>
+                <div class="shell-intro__stat"><mat-icon>bolt</mat-icon><strong>{{ set.xpReward }}</strong><span>Najviše XP</span></div>
               </div>
               <div class="shell-intro__actions">
                 <button class="shell-intro__start" (click)="startPlay()">
                   <mat-icon>play_arrow</mat-icon>
-                  <span>Start game</span>
+                  <span>Pokreni igru</span>
                 </button>
               </div>
               </div>
@@ -276,9 +276,9 @@ export interface IMResult {
           <!-- Placeholder -->
           <div *ngIf="phase === 'playing' && isPlaceholderType()" class="shell__placeholder">
             <mat-icon>construction</mat-icon>
-            <h3>Coming Soon</h3>
+            <h3>Uskoro dostupno</h3>
             <p>{{ set?.gameType }} game type is coming soon!</p>
-            <button mat-raised-button (click)="back()">Back to GlückArena</button>
+            <button mat-raised-button (click)="back()">Nazad na GlückArena</button>
           </div>
 
           <!-- Results -->
@@ -298,7 +298,7 @@ export interface IMResult {
             <div class="shell__results__glow"></div>
             <div class="shell__results__score-wrap">
               <div class="shell__results__xp-sub">+{{ finalXp }} XP</div>
-              <div class="shell__results__score-main">{{ finalScore }} <span>Score</span></div>
+              <div class="shell__results__score-main">{{ finalScore }} <span>Rezultat</span></div>
             </div>
             <div class="shell__results__meta">
               <mat-icon>timer</mat-icon>
@@ -310,13 +310,13 @@ export interface IMResult {
             <div class="shell__results__actions">
               <button class="shell__results__btn shell__results__btn--replay" (click)="replay()" [disabled]="replayLoading">
                 <mat-icon>{{ replayLoading ? 'hourglass_top' : 'replay' }}</mat-icon>
-                {{ replayLoading ? 'Starting…' : 'Play Again' }}
+                {{ replayLoading ? 'Pokretanje…' : 'Igraj ponovo' }}
               </button>
               <button class="shell__results__btn" routerLink="/glueck-arena/leaderboard">
-                <mat-icon>leaderboard</mat-icon> Leaderboard
+                <mat-icon>leaderboard</mat-icon> Rang-lista
               </button>
               <button class="shell__results__btn shell__results__btn--outline" (click)="back()">
-                <mat-icon>home</mat-icon> Back
+                <mat-icon>home</mat-icon> Nazad
               </button>
             </div>
           </div>
@@ -329,8 +329,8 @@ export interface IMResult {
           <div class="shell-side shell-side--lb">
             <div class="shell-side__lb">
               <header class="shell-side__lb-head">
-                <h3><mat-icon>leaderboard</mat-icon> Leaderboard</h3>
-                <a routerLink="/glueck-arena/leaderboard" class="shell-side__lb-link">See all</a>
+                <h3><mat-icon>leaderboard</mat-icon> Rang-lista</h3>
+                <a routerLink="/glueck-arena/leaderboard" class="shell-side__lb-link">Prikaži sve</a>
               </header>
               <div class="lb__list" *ngIf="!lbLoading && lbEntries.length">
                 <div class="lb__row" *ngFor="let e of lbEntries"
@@ -348,7 +348,7 @@ export interface IMResult {
                     <div class="lb__player">
                       <span class="lb__avatar" [class.lb__avatar--top]="e.rank <= 3">{{ playerInitials(e.name) }}</span>
                       <div class="lb__info">
-                        <span class="lb__name">{{ e.name }} <span *ngIf="isMe(e)" class="lb__you">You</span></span>
+                        <span class="lb__name">{{ e.name }} <span *ngIf="isMe(e)" class="lb__you">Vi</span></span>
                         <span class="lb__sub">{{ e.gamesCompleted }} games · Best {{ e.bestScore }} pts</span>
                       </div>
                     </div>
@@ -362,7 +362,7 @@ export interface IMResult {
               <div class="lb__list lb__list--skel" *ngIf="lbLoading">
                 <div class="lb__row lb__row--skel" *ngFor="let _ of [1,2,3]"></div>
               </div>
-              <div class="lb__empty" *ngIf="!lbLoading && !lbEntries.length">No rankings yet — play to appear here.</div>
+              <div class="lb__empty" *ngIf="!lbLoading && !lbEntries.length">Još nema rangiranih igrača — igrajte da biste se pojavili ovde.</div>
             </div>
           </div>
         </aside>
@@ -372,7 +372,7 @@ export interface IMResult {
       <div class="shell__badge-popup" *ngIf="newBadges.length">
         <mat-icon>emoji_events</mat-icon>
         <div>
-          <strong>Badge unlocked!</strong>
+          <strong>Značka je otključana!</strong>
           <p *ngFor="let b of newBadges">{{ b.title }}</p>
         </div>
         <button mat-icon-button (click)="newBadges = []"><mat-icon>close</mat-icon></button>
@@ -931,7 +931,7 @@ export class GamePlayShellComponent implements OnInit {
 
   get studentBatchLabel(): string {
     const b = this.auth.getSnapshotUser()?.batch;
-    return b ? String(b) : 'Not set on profile';
+    return b ? String(b) : 'Nije navedeno na profilu';
   }
 
   get myBoardEntry(): LeaderboardEntry | null {
@@ -948,7 +948,7 @@ export class GamePlayShellComponent implements OnInit {
   private loadGameSession(fromReplay = false) {
     const id = this.route.snapshot.paramMap.get('id');
     if (!id) {
-      this.error = 'Game not found';
+      this.error = 'Igra nije pronađena';
       this.phase = 'error';
       return;
     }
@@ -981,7 +981,7 @@ export class GamePlayShellComponent implements OnInit {
   }
 
   private onSessionStartFailed(err: { error?: { message?: string } }, fromReplay: boolean) {
-    const message = err?.error?.message || 'Could not start game';
+    const message = err?.error?.message || 'Igru nije moguće pokrenuti';
     if (fromReplay) {
       this.replayLoading = false;
       this.notify.error(message);
@@ -1128,7 +1128,7 @@ export class GamePlayShellComponent implements OnInit {
         if (!r.preview && (r.xpBonus ?? 0) > 0) {
           this.notify.success(`🎉 +${r.xpBonus} XP earned!`);
         } else if (r.preview) {
-          this.notify.success('Preview complete');
+          this.notify.success('Pregled je završen');
         }
       },
       error: () => { this.phase = 'results'; }
@@ -1465,16 +1465,16 @@ export class GamePlayShellComponent implements OnInit {
 
   formatType(t: string): string {
     const map: Record<string, string> = {
-      scramble_rush: 'Scramble Rush', sentence_builder: 'Sentence Builder',
-      matching: 'Matching', flashcards: 'Flashcards', image_matching: 'Image Matching',
-      gender_stack: 'Gender Stack', flapjugation: 'Flapjugation',
-      whackawort: 'Whack-a-Wort', memory: 'Memory Game',
-      jumbled_words: 'Jumbled Words', hangman: 'Hangman',
-      word_picture_match: 'Word-Picture Match',
-      multiple_choice: 'Multiple Choice',
-      spin_wheel: 'Spin the Wheel',
-      tap_boxes: 'Tap the Boxes',
-      word_search: 'Word Search',
+      scramble_rush: 'Slaganje reči', sentence_builder: 'Sastavljanje rečenica',
+      matching: 'Uparivanje', flashcards: 'Kartice za učenje', image_matching: 'Uparivanje slika',
+      gender_stack: 'Slaganje rodova', flapjugation: 'Flapjugation',
+      whackawort: 'Whack-a-Wort', memory: 'Igra pamćenja',
+      jumbled_words: 'Izmešane reči', hangman: 'Vešala',
+      word_picture_match: 'Uparivanje reči i slike',
+      multiple_choice: 'Višestruki izbor',
+      spin_wheel: 'Zavrti točak',
+      tap_boxes: 'Dodirni polja',
+      word_search: 'Pretraga reči',
     };
     return map[t] ?? t;
   }

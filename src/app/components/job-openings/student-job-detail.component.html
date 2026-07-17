@@ -1,5 +1,5 @@
 <div class="jo-detail-page">
-  <div *ngIf="loading" class="jo-detail-loading">Loading...</div>
+  <div *ngIf="loading" class="jo-detail-loading">Učitavanje...</div>
 
   <!-- BEFORE: the detail hero action area could crowd long job titles and deadlines on narrow mobile screens. -->
   <article class="jo-detail-card" *ngIf="!loading && job">
@@ -13,7 +13,7 @@
 
         <div class="jo-detail-apply-wrap jo-detail-apply-wrap--hero">
           <p class="jo-detail-deadline jo-detail-deadline--hero" *ngIf="job.applyBefore">
-            Apply before {{ formatApplyBefore(job.applyBefore) }}
+            Prijavite se do {{ formatApplyBefore(job.applyBefore) }}
           </p>
           <button
             type="button"
@@ -22,7 +22,7 @@
             [disabled]="applied"
             (click)="apply()"
           >
-            {{ applied ? 'Applied' : 'Apply now' }}
+            {{ applied ? 'Prijavljeno' : 'Prijavi se sada' }}
             <span class="material-icons">{{ applied ? 'check_circle' : 'edit_note' }}</span>
           </button>
         </div>
@@ -35,7 +35,7 @@
           <span class="material-icons">schedule</span>{{ job.experience }}
         </span>
         <span *ngIf="job.locationType" class="jo-detail-meta-item">
-          <span class="material-icons">business</span>{{ job.locationType }}
+          <span class="material-icons">business</span>{{ locationTypeLabel(job.locationType) }}
         </span>
         <span *ngIf="job.location" class="jo-detail-meta-item">
           <span class="material-icons">location_on</span>{{ job.location }}
@@ -44,22 +44,22 @@
           <span class="material-icons">account_balance_wallet</span>{{ job.salary }}
         </span>
         <span *ngIf="job.jobType" class="jo-detail-meta-item">
-          <span class="material-icons">work</span>{{ job.jobType }}
+          <span class="material-icons">work</span>{{ jobTypeLabel(job.jobType) }}
         </span>
         <span *ngIf="job.minJourneyDay" class="jo-detail-meta-item">
-          <span class="material-icons">flag</span>Journey day {{ job.minJourneyDay }}+ required
+          <span class="material-icons">flag</span>Potreban {{ job.minJourneyDay }}. dan programa
         </span>
       </div>
 
       <section class="jo-detail-section" *ngIf="job.skills?.length">
-        <h2>Skills</h2>
+        <h2>Veštine</h2>
         <div class="jo-detail-skills">
           <span class="jo-skill jo-skill--outline" *ngFor="let skill of job.skills">{{ skill }}</span>
         </div>
       </section>
 
       <section class="jo-detail-section" *ngIf="job.description">
-        <h2>Job Description</h2>
+        <h2>Opis posla</h2>
         <div class="jo-detail-desc" [innerHTML]="job.description"></div>
       </section>
     </div>

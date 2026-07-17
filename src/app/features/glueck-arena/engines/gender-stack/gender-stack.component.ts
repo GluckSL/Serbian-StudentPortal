@@ -44,14 +44,14 @@ const DEFAULT_SETTINGS: GenderStackSettings = {
   template: `
     <div class="gs">
       <header class="gs__hud">
-        <div class="gs__lives" aria-label="Lives">
+        <div class="gs__lives" aria-label="Životi">
           <mat-icon
             *ngFor="let h of lifeSlots"
             class="gs__heart"
             [class.gs__heart--off]="h > lives">favorite</mat-icon>
         </div>
         <div class="gs__score">{{ score }}</div>
-        <button mat-icon-button type="button" (click)="onPause()" aria-label="Pause">
+        <button mat-icon-button type="button" (click)="onPause()" aria-label="Pauza">
           <mat-icon>pause</mat-icon>
         </button>
       </header>
@@ -63,7 +63,7 @@ const DEFAULT_SETTINGS: GenderStackSettings = {
         <div class="gs__cloud gs__cloud--3"></div>
 
         <div class="gs__ceiling" [class.gs__ceiling--danger]="totalBlocks >= MAX_STACK - 1">
-          <span *ngIf="totalBlocks >= MAX_STACK - 1">Stack almost full!</span>
+          <span *ngIf="totalBlocks >= MAX_STACK - 1">Gomila je skoro puna!</span>
         </div>
 
         <div class="gs__playfield" [style.height.px]="playfieldHeight">
@@ -89,7 +89,7 @@ const DEFAULT_SETTINGS: GenderStackSettings = {
         </div>
 
         <div class="gs__shelf"></div>
-        <p class="gs__hint">Drag a word onto DER, DIE, or DAS</p>
+        <p class="gs__hint">Prevucite reč na DER, DIE ili DAS</p>
         <div class="gs__controls">
           <button
             type="button"
@@ -136,7 +136,7 @@ const DEFAULT_SETTINGS: GenderStackSettings = {
       </div>
 
       <div class="gs__overlay gs__overlay--dim" *ngIf="phase === 'paused'">
-        <button class="gs__play-btn" type="button" (click)="resume()" aria-label="Resume">
+        <button class="gs__play-btn" type="button" (click)="resume()" aria-label="Nastavi">
           <mat-icon>play_arrow</mat-icon>
         </button>
       </div>
