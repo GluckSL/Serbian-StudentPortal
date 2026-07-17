@@ -1,5 +1,6 @@
 // config/documentEmailConfig.js — SMTP for Document Management "Send Email" only
 const nodemailer = require('nodemailer');
+const { emailsEnabled, wrapTransporter } = require('./emailKillSwitch');
 
 const DOCS_FROM_NAME = process.env.DOCS_EMAIL_FROM_NAME || 'Glück Global';
 const DOCS_FROM_ADDRESS =
@@ -20,7 +21,7 @@ function getDocumentCc() {
 }
 
 function isDocumentEmailConfigured() {
-  return !!(process.env.DOCS_EMAIL_USER && process.env.DOCS_EMAIL_PASS);
+  return emailsEnabled() && !!(process.env.DOCS_EMAIL_USER && process.env.DOCS_EMAIL_PASS);
 }
 
 let documentTransporter = null;
@@ -30,15 +31,17 @@ function getDocumentTransporter() {
     return null;
   }
   if (!documentTransporter) {
-    documentTransporter = nodemailer.createTransport({
-      host: process.env.DOCS_EMAIL_HOST || process.env.EMAIL_HOST || 'smtp.gmail.com',
-      port: Number(process.env.DOCS_EMAIL_PORT || process.env.EMAIL_PORT) || 587,
-      secure: process.env.DOCS_EMAIL_SECURE === 'true',
-      auth: {
-        user: process.env.DOCS_EMAIL_USER,
-        pass: process.env.DOCS_EMAIL_PASS,
-      },
-    });
+    documentTransporter = wrapTransporter(
+      nodemailer.createTransport({
+        host: process.env.DOCS_EMAIL_HOST || process.env.EMAIL_HOST || 'smtp.gmail.com',
+        port: Number(process.env.DOCS_EMAIL_PORT || process.env.EMAIL_PORT) || 587,
+        secure: process.env.DOCS_EMAIL_SECURE === 'true',
+        auth: {
+          user: process.env.DOCS_EMAIL_USER,
+          pass: process.env.DOCS_EMAIL_PASS,
+        },
+      })
+    );
   }
   return documentTransporter;
 }

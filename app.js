@@ -2,6 +2,9 @@
 
 require("dotenv").config();
 
+// Block all outbound email unless EMAILS_ENABLED=true (must run before any nodemailer usage).
+require('./config/emailKillSwitch').installEmailKillSwitch();
+
 // Windows / some ISP DNS returns querySrv ECONNREFUSED for mongodb+srv; public resolvers fix Atlas SRV lookups in Node.
 (function configureMongoDnsResolvers() {
   const uri = process.env.MONGO_URI || '';
