@@ -1,6 +1,6 @@
 /**
  * Renders Sales Dashboard data as a PNG (SVG → resvg) for Google Chat sharing.
- * Layout mirrors the CRM portal table UI (Name / Last / Enrolled columns).
+ * Layout: Name + Last/Risk only — no calendar dates (GChat requirement).
  */
 
 const { Resvg } = require('@resvg/resvg-js');
@@ -14,9 +14,8 @@ const HEADER_H = 78 * SCALE;
 const THEAD_H = 30 * SCALE;
 const ROW_H = 38 * SCALE;
 const BODY_PAD_BOTTOM = 8 * SCALE;
-const COL1_W = CARD_W * 0.4;
-const COL2_W = CARD_W * 0.34;
-const COL3_W = CARD_W - COL1_W - COL2_W;
+const COL1_W = CARD_W * 0.55;
+const COL2_W = CARD_W - COL1_W;
 
 function esc(s) {
   return String(s ?? '')
@@ -37,14 +36,7 @@ function isYesterdayHighlight(days, period) {
   return period === 'morning' && days === 0;
 }
 
-function isoToDisplay(iso) {
-  if (!iso) return '—';
-  const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (!m) return iso;
-  return `${m[3]}-${m[2]}-${m[1]}`;
-}
-
-function truncateName(name, max = 22) {
+function truncateName(name, max = 28) {
   const s = String(name || '');
   return s.length > max ? `${s.slice(0, max - 1)}…` : s;
 }
@@ -73,7 +65,6 @@ function tableHead(midLabel) {
     <line x1="0" y1="${HEADER_H + THEAD_H}" x2="${CARD_W}" y2="${HEADER_H + THEAD_H}" stroke="#e2e8f0"/>
     <text x="${12 * SCALE}" y="${y}" font-size="${16}" font-weight="700" fill="#64748b" font-family="${FONT}">NAME</text>
     <text x="${COL1_W + 8}" y="${y}" font-size="${16}" font-weight="700" fill="#64748b" font-family="${FONT}">${esc(midLabel)}</text>
-    <text x="${COL1_W + COL2_W + 8}" y="${y}" font-size="${16}" font-weight="700" fill="#64748b" font-family="${FONT}">ENROLLED</text>
   `;
 }
 
@@ -103,7 +94,6 @@ function tableRows(counsellors, cardType, period, emptyLabel) {
         <text x="${12 * SCALE}" y="${textY}" font-size="${20}" font-weight="600" fill="#0f172a" font-family="${FONT}">${esc(truncateName(c.name))}</text>
         ${highlightBg}
         <text x="${COL1_W + 8}" y="${textY}" font-size="${highlight ? 19 : 18}" font-weight="${highlight ? 700 : 600}" fill="${highlight ? '#a16207' : lastColor}" font-family="${FONT}">${esc(lastText)}</text>
-        <text x="${COL1_W + COL2_W + 8}" y="${textY}" font-size="${18}" font-weight="600" fill="#475569" font-family="${FONT}">${esc(isoToDisplay(c.lastEnrollment))}</text>
       `;
     })
     .join('');
@@ -132,16 +122,7 @@ function cardBlock(x, y, title, count, total, headerColor, counsellors, cardType
 }
 
 function buildDashboardSvg(data) {
-  const date = new Date().toLocaleDateString('en-IN', {
-    timeZone: 'Asia/Colombo',
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  });
-
   const period = data.reportWindow?.period === 'morning' ? 'morning' : 'evening';
-  const reportText = data.reportWindow?.reportText || '';
   const total = data.totals?.counsellors || 10;
 
   const maxBodyH = Math.max(
@@ -154,12 +135,7 @@ function buildDashboardSvg(data) {
   const titleLine = `<text x="${16 * SCALE}" y="${topY}" font-size="${34}" font-weight="700" fill="#0f172a" font-family="${FONT}">Counsellor Performance Dashboard</text>`;
   topY += 28 * SCALE;
 
-  const reportLine = reportText
-    ? `<text x="${16 * SCALE}" y="${topY}" font-size="${24}" font-weight="700" fill="#0f172a" font-family="${FONT}">${esc(reportText)}</text>`
-    : '';
-  if (reportText) topY += 26 * SCALE;
-
-  const subtitle = `${date} · ${data.totals.enrollmentsScanned} Enrollments This Week · ${total} watched`;
+  const subtitle = `${data.totals.enrollmentsScanned} Enrollments This Week · ${total} watched`;
   const subtitleLine = `<text x="${16 * SCALE}" y="${topY}" font-size="${20}" fill="#64748b" font-family="${FONT}">${esc(subtitle)}</text>`;
   const cardTop = topY + 18 * SCALE;
 
@@ -183,7 +159,6 @@ function buildDashboardSvg(data) {
 <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
   <rect width="${width}" height="${height}" fill="#ffffff"/>
   ${titleLine}
-  ${reportLine}
   ${subtitleLine}
   ${green}
   ${yellow}

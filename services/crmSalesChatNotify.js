@@ -6,20 +6,18 @@
  */
 
 const axios = require('axios');
-const { buildSalesDashboard, buildEnrollmentReportText } = require('./crmSalesDashboard');
+const { buildSalesDashboard } = require('./crmSalesDashboard');
 const {
   renderDashboardPng,
-  pngBufferFromBase64,
   uploadDashboardPng,
 } = require('./crmSalesDashboardSnapshot');
 
 const CHAT_WEBHOOK = (process.env.SalesChat || '').trim();
+const CHAT_TITLE = 'Counsellor Performance Dashboard';
 
-function buildChatPayload(data, imageUrl) {
-  const reportText = data?.reportWindow?.reportText || buildEnrollmentReportText('evening');
-
+function buildChatPayload(imageUrl) {
   if (!imageUrl) {
-    return { text: reportText };
+    return { text: CHAT_TITLE };
   }
 
   return {
@@ -28,8 +26,8 @@ function buildChatPayload(data, imageUrl) {
         cardId: 'sales-dashboard-snapshot',
         card: {
           header: {
-            title: reportText,
-            subtitle: 'Counsellor Performance Dashboard',
+            title: CHAT_TITLE,
+            subtitle: 'Sales team snapshot',
           },
           sections: [
             {
@@ -72,6 +70,7 @@ function buildChatPayload(data, imageUrl) {
 
 /**
  * Fetch fresh dashboard data, build/upload PNG, post to Google Chat.
+ * Always uses the server-rendered snapshot (no calendar dates).
  * @param {{ simple?: object, advanced?: object, imagePngBase64?: string, crmRows?: object[], reportPeriod?: 'morning' | 'evening' }} [query]
  */
 async function sendSalesDashboardToChat(query = {}) {
@@ -82,16 +81,11 @@ async function sendSalesDashboardToChat(query = {}) {
 
   const data = await buildSalesDashboard(query);
 
-  let pngBuffer = null;
-  if (query.imagePngBase64) {
-    pngBuffer = pngBufferFromBase64(query.imagePngBase64);
-  }
-  if (!pngBuffer) {
-    pngBuffer = await renderDashboardPng(data);
-  }
+  // Always render server-side so GChat never gets calendar dates from the portal UI capture.
+  const pngBuffer = await renderDashboardPng(data);
 
   const { publicUrl } = await uploadDashboardPng(pngBuffer);
-  const payload = buildChatPayload(data, publicUrl);
+  const payload = buildChatPayload(publicUrl);
 
   await axios.post(CHAT_WEBHOOK, payload, {
     headers: { 'Content-Type': 'application/json' },

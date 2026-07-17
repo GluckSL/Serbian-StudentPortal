@@ -1507,40 +1507,27 @@ export class CrmPortalComponent implements OnInit, OnDestroy {
     this.salesChatTriggerPeriod = null;
     this.salesChatSendMsg = '';
 
-    this.captureSalesDashboardPng()
-      .then(imagePngBase64 => {
-        if (!imagePngBase64) {
-          this.salesChatSending = false;
-          this.salesChatSendMsg = 'Nothing to capture yet.';
-          return;
-        }
-
-        this.http
-          .post<any>('/api/crm-portal/enrollment-board/sales-dashboard/send-to-chat', {
-            imagePngBase64,
-            reportPeriod: this.salesReportPeriod(),
-          })
-          .pipe(takeUntil(this.destroy$))
-          .subscribe({
-            next: (res) => {
-              this.salesChatSending = false;
-              if (!res?.success) {
-                this.salesChatSendMsg = res?.message || 'Failed to send to Google Chat.';
-                return;
-              }
-              this.salesChatSendMsg = res.message || 'Sent to Google Chat.';
-              setTimeout(() => { this.salesChatSendMsg = ''; }, 4000);
-            },
-            error: (err) => {
-              this.salesChatSending = false;
-              this.salesChatSendMsg =
-                err?.error?.message || 'Failed to send to Google Chat.';
-            },
-          });
+    // Server renders a date-free snapshot for Google Chat (names + status only).
+    this.http
+      .post<any>('/api/crm-portal/enrollment-board/sales-dashboard/send-to-chat', {
+        reportPeriod: this.salesReportPeriod(),
       })
-      .catch(() => {
-        this.salesChatSending = false;
-        this.salesChatSendMsg = 'Failed to capture dashboard image.';
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          this.salesChatSending = false;
+          if (!res?.success) {
+            this.salesChatSendMsg = res?.message || 'Failed to send to Google Chat.';
+            return;
+          }
+          this.salesChatSendMsg = res.message || 'Sent to Google Chat.';
+          setTimeout(() => { this.salesChatSendMsg = ''; }, 4000);
+        },
+        error: (err) => {
+          this.salesChatSending = false;
+          this.salesChatSendMsg =
+            err?.error?.message || 'Failed to send to Google Chat.';
+        },
       });
   }
 

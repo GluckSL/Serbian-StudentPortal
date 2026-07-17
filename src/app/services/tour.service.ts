@@ -40,18 +40,32 @@ export class TourService {
     }
   }
 
+  private resetSidebarNavScroll(): void {
+    const navBody = document.querySelector('.sidebar .nav-body') as HTMLElement | null;
+    if (navBody) navBody.scrollTop = 0;
+  }
+
   private createTour(): any {
     if (this.tour) this.tour.cancel();
     this.tour = new Shepherd.Tour({
       useModalOverlay: true,
       defaultStepOptions: {
+        // Default scrollIntoView scrolls .nav-body (overflow-y: auto) and
+        // pushes upper nav items out of view — looks like a glitched sidebar.
         scrollTo: true,
+        scrollToHandler: (el: HTMLElement) => {
+          const navBody = document.querySelector('.sidebar .nav-body') as HTMLElement | null;
+          if (!navBody || el === navBody || !navBody.contains(el)) return;
+          el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
+        },
         cancelIcon: { enabled: true },
         classes: 'gluck-tour-step',
         modalOverlayOpeningPadding: 8,
         modalOverlayOpeningRadius: 12
       }
     });
+    this.tour.on('cancel', () => this.resetSidebarNavScroll());
+    this.tour.on('complete', () => this.resetSidebarNavScroll());
     return this.tour;
   }
 
@@ -149,6 +163,7 @@ export class TourService {
   private completeTour(role: string): void {
     this.markTourCompleted(role);
     if (this.tour) { this.tour.cancel(); this.tour = null; }
+    this.resetSidebarNavScroll();
     this.closeSidebarIfMobile();
   }
 }
