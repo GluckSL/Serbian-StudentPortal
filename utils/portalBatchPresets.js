@@ -1,19 +1,11 @@
 // utils/portalBatchPresets.js
 // Canonical batch names available in the portal (BatchConfig + filter dropdowns).
 
-const { GO_BATCH_TAMIL, GO_BATCH_SINHALA } = require('./goSilverTrack');
-
 /** Always listed in recording / filter batch pickers (Silver GO journey tracks). */
-const GO_JOURNEY_BATCH_PRESETS = [GO_BATCH_TAMIL, GO_BATCH_SINHALA];
+const GO_JOURNEY_BATCH_PRESETS = [];
 
-const PORTAL_BATCH_PRESETS = [
-  'withdrawl',
-  'uncertain',
-  'docs only',
-  'visa only',
-  'docs and visa',
-  'completed'
-];
+/** Serbia launch: only batch 100 is seeded / listed as a portal preset. */
+const PORTAL_BATCH_PRESETS = ['100'];
 
 function normalizeBatchKey(name) {
   return String(name || '').trim().toLowerCase();

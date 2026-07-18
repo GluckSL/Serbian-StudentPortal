@@ -268,105 +268,80 @@ export const routes: Routes = [
 
   { path: 'student-progress', loadComponent: () => import('./components/student-progress/student-progress.component').then(m => m.StudentProgressComponent), canActivate: [AuthGuard, RoleGuard], data: { role: 'STUDENT' } },
 
-  { path: 'student-payments', redirectTo: 'my-payments', pathMatch: 'full' },
+  /* Serbia: removed student-payments */
 
   { path: 'performance-history', loadComponent: () => import('./components/student-dashboard/performance-history.component').then(m => m.PerformanceHistoryComponent), canActivate: [AuthGuard, RoleGuard], data: { role: 'STUDENT' } },
 
   // Student Documents route
-  { path: 'student-documents', loadComponent: () => import('./components/student-dashboard/student-documents/student-documents.component').then(m => m.StudentDocumentsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: 'STUDENT' } },
+  /* Serbia: removed student-documents */
   { path: 'student/announcements', loadComponent: () => import('./components/student-announcements/student-announcements.component').then(m => m.StudentAnnouncementsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: 'STUDENT' } },
-  { path: 'student/job-openings', loadComponent: () => import('./components/job-openings/student-job-openings.component').then(m => m.StudentJobOpeningsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: 'STUDENT' } },
-  { path: 'student/job-openings/:id', loadComponent: () => import('./components/job-openings/student-job-detail.component').then(m => m.StudentJobDetailComponent), canActivate: [AuthGuard, RoleGuard], data: { role: 'STUDENT' } },
+  /* Serbia: removed student/job-openings */
+  /* Serbia: removed student/job-openings/:id */
 
   // Admin Document Verification route
-  { path: 'admin/document-verification', loadComponent: () => import('./components/admin-dashboard/document-verification/document-verification.component').then(m => m.DocumentVerificationComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
-  { path: 'admin/document-verification/student/:studentId', loadComponent: () => import('./components/admin-dashboard/document-verification/student-document-profile.component').then(m => m.StudentDocumentProfileComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
-  { path: 'admin/university-applications', loadComponent: () => import('./components/admin-dashboard/university-applications/university-applications.component').then(m => m.UniversityApplicationsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
+  /* Serbia: removed admin/document-verification */
+  /* Serbia: removed admin/document-verification/student/:studentId */
+  /* Serbia: removed admin/university-applications */
 
   // Google Sheet Sync route
-  { path: 'admin/google-sheet-sync', loadComponent: () => import('./components/admin-dashboard/google-sheet-sync/google-sheet-sync.component').then(m => m.GoogleSheetSyncComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
+  /* Serbia: removed admin/google-sheet-sync */
 
   // Admin Agreement Templates & Student Workspaces
   { path: 'admin/agreements/templates', loadComponent: () => import('./components/admin-dashboard/agreements/agreement-templates.component').then(m => m.AgreementTemplatesComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
   { path: 'admin/agreements/student/:studentId', loadComponent: () => import('./components/admin-dashboard/agreements/student-agreements.component').then(m => m.StudentAgreementsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
 
   // Admin Visa Tracking route
-  { path: 'admin/visa-tracking', loadComponent: () => import('./components/admin-dashboard/visa-tracking/visa-tracking.component').then(m => m.VisaTrackingComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
+  /* Serbia: removed admin/visa-tracking */
 
   // Admin Batch Leaderboard
   { path: 'admin/leaderboard', loadComponent: () => import('./components/admin-dashboard/admin-leaderboard/admin-leaderboard.component').then(m => m.AdminLeaderboardComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN', 'TEACHER'] } },
 
   // Student Visa Status page
-  { path: 'visa-status', loadComponent: () => import('./components/visa-status/visa-status.component').then(m => m.VisaStatusComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['STUDENT', 'TEACHER', 'ADMIN', 'TEACHER_ADMIN'] } },
+  /* Serbia: removed visa-status */
 
   // Legacy admin payment tabs hidden — use Payment Hub (New) instead
   // { path: 'admin/payments', loadComponent: () => import('./components/admin-dashboard/admin-payments/admin-payments.component').then(m => m.AdminPaymentsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
   // { path: 'admin/invoices', loadComponent: () => import('./components/admin-dashboard/invoice-management/invoice-management.component').then(m => m.InvoiceManagementComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
   // { path: 'admin/payment-approvals', loadComponent: () => import('./components/admin-dashboard/payment-approvals/payment-approvals.component').then(m => m.PaymentApprovalsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
 
-  // Payment Hub v2 (under components/ so lazy paths match the rest of the app)
-  { path: 'admin/payment-hub', loadComponent: () => import('./components/payment-hub-v2/payment-hub-shell.component').then(m => m.PaymentHubShellComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
-  {
-    path: 'admin/payment-notifications',
-    loadComponent: () =>
-      import('./components/payment-hub-v2/payment-hub-notifications-page.component').then(
-        (m) => m.PaymentHubNotificationsPageComponent,
-      ),
-    canActivate: [AuthGuard, RoleGuard],
-    data: { role: ['ADMIN', 'TEACHER_ADMIN', 'SUB_ADMIN'] },
-  },
-  // its red line
-  { path: 'admin/finance-dashboard', loadComponent: () => import('./components/payment-hub-v2/payment-hub-finance-overview.component').then(m => m.PaymentHubFinanceOverviewComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN', 'SUB_ADMIN'] } },
-  { path: 'admin/finance-dashboard/batches', loadComponent: () => import('./components/payment-hub-v2/payment-hub-finance-dashboard.component').then(m => m.PaymentHubFinanceDashboardComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN', 'SUB_ADMIN'] } },
-  { path: 'admin/finance-dashboard/language-payment', loadComponent: () => import('./components/payment-hub-v2/payment-hub-finance-dashboard.component').then(m => m.PaymentHubFinanceDashboardComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN', 'SUB_ADMIN'] } },
-  { path: 'admin/finance-dashboard/students', loadComponent: () => import('./components/payment-hub-v2/payment-hub-finance-students.component').then(m => m.PaymentHubFinanceStudentsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN', 'SUB_ADMIN'] } },
-  { path: 'admin/finance-dashboard/silver-payment', loadComponent: () => import('./components/payment-hub-v2/payment-hub-silver-payment.component').then(m => m.PaymentHubSilverPaymentComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN', 'SUB_ADMIN'] } },
-  { path: 'admin/finance-dashboard/health-checkup', loadComponent: () => import('./components/payment-hub-v2/payment-hub-health-checkup.component').then(m => m.PaymentHubHealthCheckupComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN', 'SUB_ADMIN'] } },
-  { path: 'admin/payment-hub/insights/batches', loadComponent: () => import('./components/payment-hub-v2/payment-hub-batch-insights.component').then(m => m.PaymentHubBatchInsightsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
-  { path: 'admin/payment-hub/insights/batches/:batch/students', loadComponent: () => import('./components/payment-hub-v2/payment-hub-batch-students.component').then(m => m.PaymentHubBatchStudentsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
-  { path: 'admin/payment-hub/insights/revenue', loadComponent: () => import('./components/payment-hub-v2/payment-hub-revenue-insights.component').then(m => m.PaymentHubRevenueInsightsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
-  { path: 'admin/payment-hub/insights/journey', loadComponent: () => import('./components/payment-hub-v2/payment-hub-journey-insights.component').then(m => m.PaymentHubJourneyInsightsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
-  { path: 'admin/payment-hub/settings', loadComponent: () => import('./components/payment-hub-v2/payment-hub-settings.component').then(m => m.PaymentHubSettingsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
-  { path: 'admin/payment-hub/student/:studentId', loadComponent: () => import('./components/payment-hub-v2/payment-hub-student-detail.component').then(m => m.PaymentHubStudentDetailComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN', 'SUB_ADMIN'] } },
-  { path: 'admin/payment-request', loadComponent: () => import('./components/payment-hub-v2/payment-hub-request-shell.component').then(m => m.PaymentHubRequestShellComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
-  { path: 'admin/payment-request/student/:studentId', loadComponent: () => import('./components/payment-hub-v2/payment-hub-request-student-page.component').then(m => m.PaymentHubRequestStudentPageComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
-  { path: 'my-payments', loadComponent: () => import('./components/payment-hub-v2/payment-hub-student-portal.component').then(m => m.PaymentHubStudentPortalComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['STUDENT'] } },
+  // Payment Hub / finance routes removed for Serbia
+  /* Serbia: removed admin/payment-hub */
+  /* Serbia: removed admin/payment-notifications */
+  /* Serbia: removed admin/finance-dashboard */
+  /* Serbia: removed admin/finance-dashboard/batches */
+  /* Serbia: removed admin/finance-dashboard/language-payment */
+  /* Serbia: removed admin/finance-dashboard/students */
+  /* Serbia: removed admin/finance-dashboard/silver-payment */
+  /* Serbia: removed admin/finance-dashboard/health-checkup */
+  /* Serbia: removed admin/payment-hub/insights/batches */
+  /* Serbia: removed admin/payment-hub/insights/batches/:batch/students */
+  /* Serbia: removed admin/payment-hub/insights/revenue */
+  /* Serbia: removed admin/payment-hub/insights/journey */
+  /* Serbia: removed admin/payment-hub/settings */
+  /* Serbia: removed admin/payment-hub/student/:studentId */
+  /* Serbia: removed admin/payment-request */
+  /* Serbia: removed admin/payment-request/student/:studentId */
+  /* Serbia: removed my-payments */
 
   // Admin Student Progress Overview
   { path: 'admin/student-progress', loadComponent: () => import('./components/admin-dashboard/admin-progress/admin-progress.component').then(m => m.AdminProgressComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
   { path: 'admin/performance', loadComponent: () => import('./components/admin-dashboard/admin-performance/admin-performance.component').then(m => m.AdminPerformanceComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
   { path: 'admin/performance/student/:studentId', loadComponent: () => import('./components/admin-dashboard/admin-performance/admin-performance.component').then(m => m.AdminPerformanceComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
-  { path: 'admin/language-tracking', loadComponent: () => import('./pages/language-tracking/language-tracking.component').then(m => m.LanguageTrackingComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
-  { path: 'admin/language-tracking/student/:studentId', loadComponent: () => import('./pages/language-tracking/language-tracking-student-detail.component').then(m => m.LanguageTrackingStudentDetailComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
-  { path: 'admin/language-tracking/crucial-students', loadComponent: () => import('./pages/language-tracking/crucial-students.component').then(m => m.CrucialStudentsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
+  /* Serbia: removed admin/language-tracking */
+  /* Serbia: removed admin/language-tracking/student/:studentId */
+  /* Serbia: removed admin/language-tracking/crucial-students */
   { path: 'admin/engagement-overview', loadComponent: () => import('./pages/engagement-overview/engagement-overview.component').then(m => m.EngagementOverviewComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
 
-  // Enrollment Overview — Sales CRM (isolated from Language Team students)
-  {
-    path: 'admin/enrollment-overview',
-    loadComponent: () =>
-      import('./features/krish-dashboard/krish-dashboard.component').then(
-        (m) => m.KrishDashboardComponent
-      ),
-    canActivate: [AuthGuard, RoleGuard],
-    data: { role: ['ADMIN', 'TEACHER_ADMIN'] },
-  },
-  { path: 'admin/krish-dashboard', redirectTo: 'admin/enrollment-overview', pathMatch: 'full' },
-  { path: 'admin/enrollment-overdue', redirectTo: 'admin/enrollment-overview', pathMatch: 'full' },
+  // Enrollment Overview — removed for Serbia
+  /* Serbia: removed admin/enrollment-overview */
+  /* Serbia: removed admin/krish-dashboard */
+  /* Serbia: removed admin/enrollment-overdue */
 
   { path: 'admin/announcements', loadComponent: () => import('./components/admin-dashboard/admin-announcements.component').then(m => m.AdminAnnouncementsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN', 'TEACHER'] } },
-  { path: 'admin/job-openings', loadComponent: () => import('./components/job-openings/admin-job-openings.component').then(m => m.AdminJobOpeningsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
+  /* Serbia: removed admin/job-openings */
 
   // Test Accounts management
   { path: 'admin/test-accounts', loadComponent: () => import('./components/admin-dashboard/test-accounts/test-accounts.component').then(m => m.TestAccountsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN'] } },
-
-  // CRM Portal — Enrollment Board, Language Team Board, WhatsApp
-  {
-    path: 'admin/crm',
-    loadComponent: () => import('./components/admin-hub/crm-portal/crm-portal.component').then(m => m.CrmPortalComponent),
-    canActivate: [AuthGuard, RoleGuard],
-    data: { role: ['ADMIN', 'TEACHER_ADMIN', 'SUB_ADMIN'] },
-  },
 
   // Correction Panel
   {
@@ -387,7 +362,7 @@ export const routes: Routes = [
   { path: 'admin/journey/all-students', loadComponent: () => import('./components/admin-dashboard/journey-all-students/journey-all-students.component').then(m => m.JourneyAllStudentsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
   { path: 'admin/journey/weekly-students', loadComponent: () => import('./components/admin-dashboard/journey-weekly-students/journey-weekly-students.component').then(m => m.JourneyWeeklyStudentsComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
   { path: 'admin/journey', loadComponent: () => import('./components/admin-dashboard/journey-management/journey-management.component').then(m => m.JourneyManagementComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
-  { path: 'admin/go-students', loadComponent: () => import('./components/admin-dashboard/go-students/go-students-journey.component').then(m => m.GoStudentsJourneyComponent), canActivate: [AuthGuard, RoleGuard], data: { role: ['ADMIN', 'TEACHER_ADMIN'] } },
+  /* Serbia: removed admin/go-students */
 
   { path: 'ai-tutor-chat', loadComponent: () => import('./components/ai-tutor-chat/ai-tutor-chat.component').then(m => m.AiTutorChatComponent), canActivate: [AuthGuard, RoleGuard, VisaDocsOnlyGuard], data: { role: ['STUDENT', 'TEACHER', 'ADMIN', 'TEACHER_ADMIN'] } },
 

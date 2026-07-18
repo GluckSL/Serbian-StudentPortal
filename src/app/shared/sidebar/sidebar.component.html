@@ -10,16 +10,6 @@
       <div class="brand-name">Glück Global</div>
       <div class="role-badge" [style.background]="badgeColor">{{ displayRole }}</div>
     </div>
-    <a
-      *ngIf="showPaymentDueNotifications"
-      routerLink="/admin/payment-notifications"
-      class="sidebar-notif-btn"
-      routerLinkActive="sidebar-notif-btn--active"
-      [attr.aria-label]="paymentDueNotificationCount > 0 ? paymentDueNotificationCount + ' payment alerts' : 'Payment notifications'"
-      (click)="closeSidebar.emit()">
-      <span class="material-icons" aria-hidden="true">notifications</span>
-      <span class="sidebar-notif-badge" *ngIf="paymentDueNotificationCount > 0">{{ paymentDueNotificationCount }}</span>
-    </a>
     <button
       type="button"
       class="sidebar-close-btn"
@@ -60,18 +50,11 @@
             </div>
             <a
               class="nav-item"
-              [class.nav-item--pending]="item.id === 'payment-request' && paymentRequestPendingCount > 0"
               [routerLink]="getRoute(item)"
               routerLinkActive="active"
               (click)="closeSidebar.emit()">
               <span class="nav-icon" [class.material-icons]="isMaterialIcon(item.icon)">{{ item.icon }}</span>
               <span class="nav-label">{{ resolveNavLabel(item) }}</span>
-              <span
-                *ngIf="item.id === 'payment-request' && paymentRequestPendingCount > 0"
-                class="nav-pending-badge"
-                [attr.aria-label]="paymentRequestPendingCount + ' pending approvals'">
-                {{ paymentRequestPendingCount }}
-              </span>
             </a>
           </ng-container>
         </div>

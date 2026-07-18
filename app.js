@@ -99,34 +99,19 @@ const zoomWebhookRoutes = require('./routes/zoomWebhook');
 const joinClassRoutes = require('./routes/joinClass');
 const upgradeRequestsRoutes = require('./routes/upgradeRequests');
 const studentLogRoutes = require('./routes/studentLog');
-const studentDocumentsRoutes = require('./routes/studentDocuments');
-const documentRequirementsRoutes = require('./routes/documentRequirements');
 const agreementsRoutes = require('./routes/agreements');
 
 const assignmentRoutes = require('./routes/assignments');
 const assignmentTemplatesRoutes = require('./routes/assignmentTemplates');
 const notificationRoutes = require('./routes/notifications');
-const metaLeadsRoutes = require('./routes/metaLeads');
 const digitalExercisesRoutes = require('./routes/digitalExercises');
 const dgRoutes = require('./routes/dg');
 const sprechenRoutes = require('./routes/sprechen');
-const visaTrackingRoutes = require('./routes/visaTracking');
-const universityApplicationsRoutes = require('./routes/universityApplications');
-const studentPaymentRoutes = require('./routes/studentPayments');
 const batchJourneyRoutes = require('./routes/batchJourney');
-const goStudentsRoutes = require('./routes/goStudents');
-const goStudentsSinhalaRoutes = require('./routes/goStudentsSinhala');
-const invoiceManagementRoutes = require('./routes/invoiceManagement');
-const paymentSubmissionsRoutes = require('./routes/paymentSubmissions');
 const supportTicketRoutes = require('./routes/supportTickets');
 const ollyRoutes = require('./routes/olly');
 const announcementRoutes = require('./routes/announcements');
 const announcementCommentRoutes = require('./routes/announcementComments');
-const jobOpeningsRoutes = require('./routes/jobOpenings');
-const crmPortalRoutes = require('./routes/crmPortal');
-const crmPortalProxyRoutes = require('./routes/crmPortalProxy');
-const engagementOverviewCrmExportRoutes = require('./routes/engagementOverviewCrmExport');
-const { engagementExportAuth } = require('./middleware/engagementExportAuth');
 const testAccountRoutes = require('./routes/testAccounts');
 const gluckRoomRoutes = require('./routes/gluckRoom');
 const gluckRoomChatRoutes = require('./routes/gluckRoomChat');
@@ -136,34 +121,20 @@ const classFeedbackRoutes = require('./routes/classFeedback');
 const gradingRoutes = require("./routes/grading");
 const { gradeAssignment } = require("./services/grading.service");
 
-// Import and schedule Meta to Monday.com sync job
-const { scheduleMetaToMondaySync } = require('./jobs/metaToMondaySync');
-
 // Import and schedule auto-fetch Zoom attendance job
 const { scheduleAutoFetchAttendance } = require('./jobs/autoFetchAttendance');
 const { scheduleJourneyDayRollover } = require('./jobs/journeyDayRollover');
 const { scheduleZoomMeetingReminderEmails } = require('./jobs/zoomMeetingReminderEmails');
 const { scheduleZoomMeetingLinkHealth } = require('./jobs/zoomMeetingLinkHealth');
 
-// WhatsApp CRM notification jobs
-const { scheduleClassReminders } = require('./jobs/whatsapp/classReminder');
-const { scheduleAbsenceAlerts } = require('./jobs/whatsapp/absenceAlert');
-const { scheduleMissedActivitiesAlerts } = require('./jobs/whatsapp/missedActivities');
-const { scheduleWeeklyReports } = require('./jobs/whatsapp/weeklyReport');
-const { scheduleConsecutiveAbsenceAlerts } = require('./jobs/whatsapp/consecutiveAbsence');
-const { schedulePaymentOverdueReminder } = require('./jobs/whatsapp/paymentOverdueReminder');
-const { isWhatsappAutomatedJobsEnabled } = require('./services/whatsappCrmService');
 const { scheduleDailyTaskReminder } = require('./jobs/dailyTaskReminder');
 const { scheduleConsecutiveAbsenceEmailReport } = require('./jobs/consecutiveAbsenceEmailReport');
-const { scheduleStudentPortalCrmFullSync } = require('./jobs/studentPortalCrmFullSync');
 const { schedulePortalSessionStaleClose } = require('./jobs/portalSessionStaleClose');
 const { schedulePublishScheduledAnnouncements } = require('./jobs/publishScheduledAnnouncements');
 const { scheduleGluckRoomAutoStart } = require('./jobs/gluckRoomAutoStart');
 const { scheduleDailyStudentStatusReport } = require('./jobs/dailyStudentStatusReport');
 const { scheduleStudentDetailChangesReport } = require('./jobs/studentDetailChangesReport');
-const { scheduleSalesDashboardChatReport } = require('./jobs/salesDashboardChatReport');
 const { scheduleNeverLoggedInReport } = require('./jobs/neverLoggedInReport');
-const { scheduleCrucialStudentsReport } = require('./services/crucialStudentsEmailService');
 const { scheduleBatchDay1Reminders } = require('./jobs/batchDay1Reminder');
 const { scheduleClassDayReminders } = require('./jobs/classDayReminder');
 const { scheduleMilestoneAbsenceAlerts, scheduleWeeklyAbsenceSummary } = require('./jobs/absenceNotifications');
@@ -392,34 +363,20 @@ app.use('/api/zoom', zoomRoutes);
 app.use('/api', joinClassRoutes);
 app.use('/api/upgrade-requests', upgradeRequestsRoutes);
 app.use('/api/studentLog', studentLogRoutes);
-app.use('/api/student-documents', studentDocumentsRoutes);
-app.use('/api/document-requirements', documentRequirementsRoutes);
 app.use('/api/agreements', agreementsRoutes);
 
 app.use('/api/assignments', assignmentRoutes);
 app.use('/api/assignment-templates', assignmentTemplatesRoutes);
 app.use('/api/notifications', notificationRoutes);
-app.use('/api/meta-leads', metaLeadsRoutes);
 app.use('/api/digital-exercises', digitalExercisesRoutes);
 app.use('/api/dg', dgRoutes);
 app.use('/api/sprechen', sprechenRoutes);
-app.use('/api/visa-tracking', visaTrackingRoutes);
-app.use('/api/university-applications', universityApplicationsRoutes);
-app.use('/api/student-payments', studentPaymentRoutes);
 app.use('/api/batch-journey', batchJourneyRoutes);
-app.use('/api/go-students', goStudentsRoutes);
-app.use('/api/go-students-sinhala', goStudentsSinhalaRoutes);
 
-app.use('/api/invoices', invoiceManagementRoutes);
-app.use('/api/payment-submissions', paymentSubmissionsRoutes);
 app.use('/api/support', supportTicketRoutes);
 app.use('/api/olly', ollyRoutes);
 app.use('/api/announcements', announcementRoutes);
 app.use('/api', announcementCommentRoutes);
-app.use('/api/job-openings', jobOpeningsRoutes);
-app.use('/api/crm/engagement-overview', engagementExportAuth, engagementOverviewCrmExportRoutes);
-app.use('/api/crm', crmPortalRoutes);
-app.use('/api/crm-portal', auth.verifyToken, crmPortalProxyRoutes);
 app.use('/api/test-accounts', testAccountRoutes);
 app.use('/api/gluckroom', gluckRoomRoutes);
 app.use('/api/gluckroom/chat', gluckRoomChatRoutes);
@@ -468,9 +425,6 @@ app.use('/api/portal-analytics', analyticsRouter);
 const classResourceRoutes = require('./routes/classResources');
 app.use('/api/class-resources', classResourceRoutes);
 
-const goRecordingResourceRoutes = require('./routes/goRecordingResources');
-app.use('/api/go-recording-resources', goRecordingResourceRoutes);
-
 const classDoubtRoutes = require('./routes/classDoubts');
 app.use('/api/class-doubts', classDoubtRoutes);
 
@@ -479,27 +433,11 @@ const studentLoginStreakRoutes = require('./routes/studentLoginStreak');
 app.use('/api/interactive-games', interactiveGamesRoutes);
 app.use('/api/student/login-streak', studentLoginStreakRoutes);
 
-const languageTrackingRoutes = require('./routes/languageTracking');
-app.use('/api/language-tracking', languageTrackingRoutes);
-
-const publicSignupRoutes = require('./routes/publicSignup');
-app.use('/api/public-signup', publicSignupRoutes);
 const classSubmissionRoutes = require('./routes/classSubmissions');
 app.use('/api/class-submissions', classSubmissionRoutes);
 
 const teacherResourceRoutes = require('./routes/teacherResources');
 app.use('/api/teacher-resources', teacherResourceRoutes);
-
-const googleSheetSyncRoutes = require('./routes/googleSheetSync');
-app.use('/api/google-sheet', googleSheetSyncRoutes);
-
-// Payment Hub v2
-const registerPaymentModule = require('./modules/payments-v2/backend/register');
-registerPaymentModule(app, { authMiddleware: auth.verifyToken, prefix: '/api/new-payments', enableCron: false });
-
-// Enrollment Overview — isolated Sales student management (no Language Team writes)
-const registerKrishDashboard = require('./modules/krish-dashboard/backend/register');
-registerKrishDashboard(app, { authMiddleware: auth.verifyToken });
 
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.get("/api/user/profile", auth.verifyToken, async (req, res) => {
@@ -567,12 +505,6 @@ function stopBackgroundWork() {
   } catch (err) {
     console.warn('[shutdown] cron stop:', err.message);
   }
-  try {
-    const overdueCron = require('./modules/payments-v2/backend/helpers/overdueCron');
-    const journeyDueCron = require('./modules/payments-v2/backend/helpers/journeyDueCron');
-    overdueCron.stop();
-    journeyDueCron.stop();
-  } catch { /* payment crons optional */ }
 }
 
 function closeArenaSockets() {
@@ -642,36 +574,20 @@ connectMongoDb()
     initGluckRoomControls(httpServer, app);
     httpServer.listen(PORT, () => {
       console.log(`🚀 Server running on port ${PORT}`);
+      console.log('[Serbia] Payments/CRM/Visa/Jobs/WhatsApp marketing modules disabled');
 
-      scheduleMetaToMondaySync();
       scheduleAutoFetchAttendance();
       scheduleJourneyDayRollover();
       scheduleZoomMeetingReminderEmails();
       scheduleZoomMeetingLinkHealth();
       schedulePublishScheduledAnnouncements();
-
-      if (isWhatsappAutomatedJobsEnabled()) {
-        scheduleClassReminders();
-        scheduleAbsenceAlerts();
-        scheduleMissedActivitiesAlerts();
-        scheduleWeeklyReports();
-        scheduleConsecutiveAbsenceAlerts();
-        schedulePaymentOverdueReminder();
-        console.log('[WhatsApp] Automated notification jobs scheduled');
-      } else {
-        console.log('[WhatsApp] Automated jobs OFF — manual CRM send still available if WHATSAPP_MANUAL_SEND_ENABLED=true');
-      }
-      // Daily task reminder runs email regardless of WhatsApp gate
       scheduleDailyTaskReminder();
       scheduleConsecutiveAbsenceEmailReport();
-      scheduleStudentPortalCrmFullSync();
       schedulePortalSessionStaleClose();
       scheduleGlueckArenaJobs();
       scheduleGluckRoomAutoStart();
       scheduleDailyStudentStatusReport();
       scheduleStudentDetailChangesReport();
-      scheduleSalesDashboardChatReport();
-      scheduleCrucialStudentsReport();
       scheduleNeverLoggedInReport();
       scheduleBatchDay1Reminders();
       scheduleClassDayReminders();
@@ -683,11 +599,6 @@ connectMongoDb()
       scheduleFeedbackNotifications();
       schedulePendingTracker();
       scheduleWeeklyScheduleNotification();
-
-      const overdueCron = require('./modules/payments-v2/backend/helpers/overdueCron');
-      const journeyDueCron = require('./modules/payments-v2/backend/helpers/journeyDueCron');
-      overdueCron.start();
-      journeyDueCron.start();
     });
   })
   .catch((err) => {

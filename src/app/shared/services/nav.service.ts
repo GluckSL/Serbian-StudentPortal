@@ -77,33 +77,7 @@ export class NavService {
     ],
     'batch-leaderboard': ['/admin/leaderboard'],
     'portal-analytics': ['/portal-analytics', '/portal-analytics/daily-logs'],
-    'language-tracking': ['/admin/language-tracking'],
     'engagement-overview': ['/admin/engagement-overview'],
-    'go-students': [
-      '/admin/go-students'
-    ],
-    'go-students-sinhala': [
-      '/admin/go-students'
-    ],
-    'finance-dashboard': [
-      '/admin/finance-dashboard',
-      '/admin/finance-dashboard/batches',
-      '/admin/finance-dashboard/language-payment',
-      '/admin/finance-dashboard/students',
-      '/admin/finance-dashboard/silver-payment',
-      '/admin/finance-dashboard/health-checkup',
-      '/admin/payment-hub/student',
-      '/admin/payment-hub/insights/batches'
-    ],
-    'enrollment-overview': [
-      '/admin/enrollment-overview'
-    ],
-    'krish-dashboard': [
-      '/admin/enrollment-overview'
-    ],
-    'enrollment-overdue': [
-      '/admin/enrollment-overview'
-    ],
     'class-recordings': [
       '/class-recordings/approval-requests',
       '/class-recordings/access-recording',
@@ -112,9 +86,7 @@ export class NavService {
     attendance: [
       '/admin/attendance-dashboard',
     ],
-    documents: [
-      '/admin/document-verification',
-      '/admin/university-applications',
+    agreements: [
       '/admin/agreements'
     ]
   };
@@ -135,8 +107,7 @@ export class NavService {
         { id: 'students',   label: 'Students',  icon: 'school',    route: '/admin/students',  subGroup: 'Student Management' },
         { id: 'teachers',   label: 'Teachers',  icon: 'group',     route: '/teachers',        subGroup: 'Teacher Management' },
         { id: 'user-roles', label: 'User Roles', icon: 'key',      route: '/user-roles',      subGroup: null },
-        { id: 'account-audit-log', label: 'Activity Log', icon: 'history', route: '/account-audit-log', subGroup: null },
-        { id: 'crm',        label: 'CRM',        icon: 'hub',       route: '/admin/crm',       subGroup: null }
+        { id: 'account-audit-log', label: 'Activity Log', icon: 'history', route: '/account-audit-log', subGroup: null }
       ]
     },
 
@@ -189,36 +160,16 @@ export class NavService {
         { id: 'portal-analytics',  label: 'Portal Analytics',  icon: 'analytics',   route: '/portal-analytics',       subGroup: 'Student Management' },
         { id: 'student-progress',  label: 'Student Progress',  icon: 'trending_up', route: '/admin/student-progress', subGroup: null },
         { id: 'admin-performance', label: 'Performance',       icon: 'speed',       route: '/admin/performance',      subGroup: null },
-        { id: 'language-tracking', label: 'Language Tracking', icon: 'translate',   route: '/admin/language-tracking', subGroup: null },
         { id: 'batch-leaderboard', label: 'Batch Leaderboard', icon: 'leaderboard', route: '/admin/leaderboard',      subGroup: null },
-        { id: 'journey',           label: 'Journey',           icon: 'map',         route: '/admin/journey',          subGroup: null },
-        { id: 'go-students',       label: 'GO Students',       icon: 'rocket_launch', route: '/admin/go-students',    subGroup: null }
+        { id: 'journey',           label: 'Journey',           icon: 'map',         route: '/admin/journey',          subGroup: null }
       ]
     },
 
-    // ── Sales & Finance ────────────────────────────────────────
+    // ── Documents (Serbia templates — replace India docs later) ──
     {
-      group: 'Sales & Finance',
+      group: 'Documents',
       items: [
-        { id: 'enrollment-overview', label: 'Enrollment Overview', icon: 'storefront',             route: '/admin/enrollment-overview', subGroup: null },
-        { id: 'finance-dashboard',   label: 'Finance Dashboard',   icon: 'account_balance_wallet', route: '/admin/finance-dashboard',   subGroup: null },
-        { id: 'payment-hub',         label: 'Payment Hub',         icon: 'credit_card',            route: '/admin/payment-hub',         subGroup: null },
-        { id: 'payment-request',     label: 'Payment Request',     icon: 'send',                   route: '/admin/payment-request',     subGroup: null }
-        // Legacy payment tabs hidden � use Payment Hub instead
-        // { id: 'payments', label: 'Placanja', icon: 'payments', route: '/admin/payments', subGroup: null },
-        // { id: 'invoices', label: 'Invoices', icon: 'receipt_long', route: '/admin/invoices', subGroup: null },
-        // { id: 'payment-approvals', label: 'Payment Approvals', icon: 'check_circle', route: '/admin/payment-approvals', subGroup: null }
-      ]
-    },
-
-    // ── Documents & Data ──────────────────────────────────────
-    {
-      group: 'Documents & Data',
-      items: [
-        { id: 'documents',         label: 'Documents',          icon: 'description', route: '/admin/document-verification', subGroup: null },
-        { id: 'google-sheet-sync', label: 'Sheet Sync',         icon: 'table_chart', route: '/admin/google-sheet-sync',     subGroup: null },
-        // { id: 'monday-sync',       label: 'Monday.com Preview', icon: 'sync',        route: '/admin/monday-sync-preview',   subGroup: null },
-        { id: 'visa-tracking',     label: 'Visa Tracking',      icon: 'flight',      route: '/admin/visa-tracking',         subGroup: null }
+        { id: 'agreements', label: 'Agreements', icon: 'description', route: '/admin/agreements/templates', subGroup: null }
       ]
     },
 
@@ -227,7 +178,6 @@ export class NavService {
       group: 'Support & Communication',
       items: [
         { id: 'announcements',   label: 'Announcements',    icon: 'campaign',            route: '/admin/announcements',   subGroup: null },
-        { id: 'job-openings',    label: 'Job Openings',     icon: 'work',                route: '/admin/job-openings',    subGroup: null },
         { id: 'support-tickets', label: 'Support Tickets',  icon: 'confirmation_number', route: '/admin/support-tickets', subGroup: null },
         { id: 'olly-chat',       label: 'Olly Live Chat', icon: 'forum',             route: '/admin/olly-chat',       subGroup: null },
         { id: 'class-feedback',  label: 'Class Feedback', icon: 'rate_review',       route: '/admin/class-feedback',  subGroup: null },
@@ -317,7 +267,6 @@ export class NavService {
         { id: 'my-course', label: 'Moj kurs', icon: 'menu_book', route: '/student/my-course', subGroup: null },
         { id: 'glueck-arena', label: 'GlückArena', icon: 'sports_esports', route: '/glueck-arena', subGroup: null },
         { id: 'student-announcements', label: 'Obaveštenja', icon: 'campaign', route: '/student/announcements', subGroup: null },
-        { id: 'job-openings', label: 'Oglasi za posao', icon: 'work', route: '/student/job-openings', subGroup: null },
         { id: 'performance', label: 'Istorija napretka', icon: 'assessment', route: '/performance-history', subGroup: null }
       ]
     },
@@ -325,24 +274,6 @@ export class NavService {
       group: 'Gluck soba',
       items: [
         { id: 'gluck-room', label: 'Gluck soba', icon: 'meeting_room', route: '/student/gluck-room', subGroup: null }
-      ]
-    },
-    {
-      group: 'Dokumenti',
-      items: [
-        { id: 'documents', label: 'Dokumenti', icon: 'folder', route: '/student-documents', subGroup: null }
-      ]
-    },
-    {
-      group: 'Plaćanja',
-      items: [
-        { id: 'my-payments', label: 'Moja plaćanja', icon: 'payments', route: '/my-payments', subGroup: null }
-      ]
-    },
-    {
-      group: 'Status vize',
-      items: [
-        { id: 'visa-status', label: 'Status vize', icon: 'flight', route: '/visa-status', subGroup: null }
       ]
     },
     {
@@ -577,11 +508,7 @@ export class NavService {
 
   // ── Sub-Admin permissions ─────────────────────────────────────────────────
 
-  private readonly LEGACY_PERMISSION_ALIASES: Record<string, string> = {
-    'krish-dashboard': 'enrollment-overview',
-    'enrollment-overdue': 'enrollment-overview',
-    'university-apps': 'documents',
-  };
+  private readonly LEGACY_PERMISSION_ALIASES: Record<string, string> = {};
 
   normalizeSidebarPermissions(
     sidebarPermissions: string[] = [],
